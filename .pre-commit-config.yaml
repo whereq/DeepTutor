@@ -1,0 +1,105 @@
+# Pre-commit hooks configuration for AI-Tutor project
+# This configuration ensures code quality and consistency across the team
+#
+# Installation:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Usage:
+#   pre-commit run --all-files  # Run on all files
+#   git commit  # Hooks run automatically on commit
+
+repos:
+  # ============================================
+  # General file checks
+  # ============================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+        exclude: ^(.*\.min\.(js|css)|.*\.lock|.*\.log|.*\.pdf|.*\.zip|.*\.tar\.gz)
+
+      # Ensure files end with a newline
+      - id: end-of-file-fixer
+        exclude: ^(.*\.min\.(js|css)|.*\.lock|.*\.log|.*\.pdf|.*\.zip|.*\.tar\.gz)
+
+      # Check YAML files for syntax errors
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom tags in YAML
+
+      # Check JSON files for syntax errors
+      - id: check-json
+        exclude: ^(.*\.lock|.*\.log)
+
+      # Prevent committing large files
+      - id: check-added-large-files
+        args: [--maxkb=6144]
+
+      # Detect merge conflict markers
+      - id: check-merge-conflict
+
+      # Detect case conflicts in file names
+      - id: check-case-conflict
+
+      # Check for files that would conflict in case-insensitive filesystems
+      - id: check-toml
+
+  # ============================================
+  # Python code formatting and linting
+  # ============================================
+  # Note: 使用 ruff format 替代 black，避免格式化工具冲突
+  # ruff format 更快且与 ruff linter 配合更好
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.7
+    hooks:
+      # Ruff linting (只自动修复，不阻止提交)
+      - id: ruff
+        args: [--fix, --exit-zero]
+        files: ^(src/|scripts/).*\.py$
+        # --exit-zero: 即使有错误也不阻止提交，只自动修复
+
+      # Ruff import sorting (replaces isort)
+      - id: ruff-format
+        files: ^(src/|scripts/).*\.py$
+
+  # Note: python-check-docstring-first hook removed as it's not available
+  # Ruff already handles most code quality checks including import ordering
+
+  # ============================================
+  # Frontend code formatting and linting
+  # ============================================
+  # Note: ESLint 暂时禁用，因为 Next.js 项目通常有自己的 ESLint 配置
+  # 如果需要启用，可以取消下面的注释并配置 ESLint
+  # - repo: https://github.com/pre-commit/mirrors-eslint
+  #   rev: v10.0.0-alpha.1
+  #   hooks:
+  #     - id: eslint
+  #       files: ^web/.*\.(js|jsx|ts|tsx)$
+  #       exclude: ^web/(node_modules|\.next|out|dist|build)/
+  #       additional_dependencies:
+  #         - eslint@^8.57.0
+  #         - '@typescript-eslint/parser@^6.0.0'
+  #         - '@typescript-eslint/eslint-plugin@^6.0.0'
+  #         - eslint-config-next@14.0.3
+  #       args: [--fix]
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        files: ^web/.*\.(css|scss|json|jsonc|yaml|yml|md|graphql|html|ts|tsx|js|jsx)$
+        exclude: ^web/(node_modules|\.next|out|dist|build)/
+
+  # ============================================
+  # Security checks
+  # ============================================
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package-lock.json
+        # Only scan staged files for performance
+        pass_filenames: false
