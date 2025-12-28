@@ -2,7 +2,7 @@
 
 <img src="assets/logo-ver2.png" alt="OpenTutor Logo" width="150" style="border-radius: 15px;">
 
-# OpenTutor: Your Personal Learning Assistant
+# OpenTutor: AI-Powered Personalized Learning Assistant
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
