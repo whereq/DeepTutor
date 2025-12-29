@@ -5,7 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import { GlobalProvider } from "@/context/GlobalContext";
 
 // Use Inter font with swap display for better loading
-const font = Inter({ 
+const font = Inter({
   subsets: ["latin"],
   display: "swap",
   fallback: ["system-ui", "sans-serif"],
