@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import { GlobalProvider } from "@/context/GlobalContext";
 
-// Use more modern, geometric fonts
-const font = Plus_Jakarta_Sans({ subsets: ["latin"] });
+// Use Inter font with swap display for better loading
+const font = Inter({ 
+  subsets: ["latin"],
+  display: "swap",
+  fallback: ["system-ui", "sans-serif"],
+});
 
 export const metadata: Metadata = {
-  title: "OpenTutor Platform",
+  title: "DeepTutor Platform",
   description: "Multi-Agent Teaching & Research Copilot",
 };
 

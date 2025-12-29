@@ -1,6 +1,6 @@
 # API Module
 
-The API module provides REST and WebSocket endpoints for the OpenTutor system, enabling frontend-backend communication and real-time streaming.
+The API module provides REST and WebSocket endpoints for the DeepTutor system, enabling frontend-backend communication and real-time streaming.
 
 ## 📋 Overview
 

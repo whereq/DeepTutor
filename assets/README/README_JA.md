@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="../../assets/logo-ver2.png" alt="OpenTutor Logo" width="150" style="border-radius: 15px;">
+<img src="../../assets/logo-ver2.png" alt="DeepTutor Logo" width="150" style="border-radius: 15px;">
 
-# OpenTutor: あなたのパーソナル学習アシスタント
+# DeepTutor: あなたのパーソナル学習アシスタント
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
@@ -28,7 +28,7 @@
 
 ---
 
-## OpenTutor の主要機能
+## DeepTutor の主要機能
 
 ### 📚 大規模ドキュメント知識Q&A
 • **スマート知識ベース**：教科書、研究論文、技術マニュアル、ドメイン固有のドキュメントをアップロード。包括的な AI 駆動の知識リポジトリを構築し、即座にアクセス可能にします。<br>
@@ -179,15 +179,15 @@
 </table>
 
 <p align="center">
-  <sub>🌙 <b>ダークモード</b> で OpenTutor を使用！</sub>
+  <sub>🌙 <b>ダークモード</b> で DeepTutor を使用！</sub>
 </p>
 
 ---
 
-## 🏛️ OpenTutor のフレームワーク
+## 🏛️ DeepTutor のフレームワーク
 
 <div align="center">
-<img src="../../assets/figs/full-pipe.png" alt="OpenTutor Full-Stack Workflow" width="100%">
+<img src="../../assets/figs/full-pipe.png" alt="DeepTutor Full-Stack Workflow" width="100%">
 </div>
 
 ### 💬 ユーザーインターフェース層
@@ -221,8 +221,8 @@
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/HKUDS/OpenTutor.git
-cd OpenTutor
+git clone https://github.com/HKUDS/DeepTutor.git
+cd DeepTutor
 
 # 仮想環境を作成（方法を選択）
 
@@ -353,11 +353,11 @@ python scripts/start.py
 ## ⭐ Star History
 
 <div align="center">
-<a href="https://star-history.com/#HKUDS/OpenTutor&Date">
+<a href="https://star-history.com/#HKUDS/DeepTutor&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date" />
  </picture>
 </a>
 </div>
@@ -385,7 +385,7 @@ conda install -c conda-forge pre-commit
 
 **ステップ 2: Git hooks をインストール**
 ```bash
-cd OpenTutor
+cd DeepTutor
 pre-commit install
 ```
 
@@ -461,11 +461,11 @@ git commit --no-verify -m "緊急修正"
 
 **[香港大学データインテリジェンスラボ](https://github.com/HKUDS)**
 
-[⭐ Star us](https://github.com/HKUDS/OpenTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/OpenTutor/issues) · [💬 Discussions](https://github.com/HKUDS/OpenTutor/discussions)
+[⭐ Star us](https://github.com/HKUDS/DeepTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/DeepTutor/issues) · [💬 Discussions](https://github.com/HKUDS/DeepTutor/discussions)
 
 ---
-*✨ **OpenTutor** のご利用ありがとうございます！*
+*✨ **DeepTutor** のご利用ありがとうございます！*
 
-<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.OpenTutor&style=for-the-badge&color=00d4ff" alt="Views">
+<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.DeepTutor&style=for-the-badge&color=00d4ff" alt="Views">
 
 </div>

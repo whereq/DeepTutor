@@ -89,7 +89,7 @@ asyncio.run(main())
 ### Using Command Line Tool
 
 ```bash
-cd OpenTutor/student_TA
+cd DeepTutor/student_TA
 python start.py  # CLI currently defaults to dual-loop Solve mode
 ```
 
@@ -551,4 +551,4 @@ MIT License
 
 ---
 
-**Made with ❤️ by OpenTutor Team**
+**Made with ❤️ by DeepTutor Team**

@@ -24,7 +24,7 @@ from src.core.logging import LightRAGLogContext
 from src.knowledge.manager import KnowledgeBaseManager
 
 # Load environment variables
-load_dotenv(project_root / "OpenTutor.env", override=False)
+load_dotenv(project_root / "DeepTutor.env", override=False)
 load_dotenv(project_root / ".env", override=False)
 
 

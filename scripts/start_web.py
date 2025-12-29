@@ -244,7 +244,7 @@ def start_frontend():
 
 if __name__ == "__main__":
     print_flush("=" * 50)
-    print_flush("OpenTutor Web Platform Launcher")
+    print_flush("DeepTutor Web Platform Launcher")
     print_flush("=" * 50)
 
     # Initialize user data directories

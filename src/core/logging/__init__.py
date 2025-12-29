@@ -1,5 +1,5 @@
 """
-Unified Logging System for OpenTutor
+Unified Logging System for DeepTutor
 =====================================
 
 A clean, consistent logging system with:

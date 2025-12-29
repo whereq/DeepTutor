@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="../../assets/logo-ver2.png" alt="OpenTutor Logo" width="150" style="border-radius: 15px;">
+<img src="../../assets/logo-ver2.png" alt="DeepTutor Logo" width="150" style="border-radius: 15px;">
 
-# OpenTutor: Tu Asistente Personal de Aprendizaje
+# DeepTutor: Tu Asistente Personal de Aprendizaje
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
@@ -28,7 +28,7 @@
 
 ---
 
-## Características Clave de OpenTutor
+## Características Clave de DeepTutor
 
 ### 📚 Q&A de Conocimiento de Documentos Masivos
 • **Base de Conocimiento Inteligente**: Sube libros de texto, artículos de investigación, manuales técnicos y documentos específicos del dominio. Construye un repositorio de conocimiento completo impulsado por IA para acceso instantáneo.<br>
@@ -179,14 +179,14 @@
 </table>
 
 <p align="center">
-  <sub>🌙 ¡Usa OpenTutor en <b>Modo Oscuro</b>!</sub>
+  <sub>🌙 ¡Usa DeepTutor en <b>Modo Oscuro</b>!</sub>
 </p>
 
 <details>
 <summary><b>Arquitectura del Sistema</b></summary>
 <br>
 
-![OpenTutor Full-Stack Workflow](../../assets/figs/full-pipe.png)
+![DeepTutor Full-Stack Workflow](../../assets/figs/full-pipe.png)
 
 </details>
 
@@ -204,8 +204,8 @@
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/HKUDS/OpenTutor.git
-cd OpenTutor
+git clone https://github.com/HKUDS/DeepTutor.git
+cd DeepTutor
 
 # Crear entorno virtual (elegir un método)
 
@@ -336,11 +336,11 @@ Este proyecto está licenciado bajo la **[AGPL-3.0](LICENSE)**.
 ## ⭐ Historial de Stars
 
 <div align="center">
-<a href="https://star-history.com/#HKUDS/OpenTutor&Date">
+<a href="https://star-history.com/#HKUDS/DeepTutor&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date" />
  </picture>
 </a>
 </div>
@@ -368,7 +368,7 @@ conda install -c conda-forge pre-commit
 
 **Paso 2: Instalar Git hooks**
 ```bash
-cd OpenTutor
+cd DeepTutor
 pre-commit install
 ```
 
@@ -444,11 +444,11 @@ git commit --no-verify -m "Corrección de emergencia"
 
 **[Laboratorio de Inteligencia de Datos @ HKU](https://github.com/HKUDS)**
 
-[⭐ Síguenos](https://github.com/HKUDS/OpenTutor/stargazers) · [🐛 Reportar un bug](https://github.com/HKUDS/OpenTutor/issues) · [💬 Discusiones](https://github.com/HKUDS/OpenTutor/discussions)
+[⭐ Síguenos](https://github.com/HKUDS/DeepTutor/stargazers) · [🐛 Reportar un bug](https://github.com/HKUDS/DeepTutor/issues) · [💬 Discusiones](https://github.com/HKUDS/DeepTutor/discussions)
 
 ---
-*✨ ¡Gracias por visitar **OpenTutor**!*
+*✨ ¡Gracias por visitar **DeepTutor**!*
 
-<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.OpenTutor&style=for-the-badge&color=00d4ff" alt="Views">
+<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.DeepTutor&style=for-the-badge&color=00d4ff" alt="Views">
 
 </div>

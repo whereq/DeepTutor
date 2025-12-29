@@ -4,7 +4,7 @@ The Core module provides essential system services including configuration manag
 
 ## 📋 Overview
 
-The Core module is the foundation of the OpenTutor system, providing:
+The Core module is the foundation of the DeepTutor system, providing:
 - Unified configuration management (environment variables + YAML)
 - Comprehensive logging system
 - System initialization and setup
@@ -167,7 +167,7 @@ Custom handlers for file and console output.
 
 ### Environment Variables
 
-Required in `.env` or `OpenTutor.env`:
+Required in `.env` or `DeepTutor.env`:
 
 ```bash
 # LLM Configuration

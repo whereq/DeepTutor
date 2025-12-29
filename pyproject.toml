@@ -1,4 +1,4 @@
-# Python project configuration for OpenTutor
+# Python project configuration for DeepTutor
 # This file configures Black, Ruff, and other Python tools
 
 [build-system]

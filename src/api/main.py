@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutdown")
 
 
-app = FastAPI(title="OpenTutor API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="DeepTutor API", version="1.0.0", lifespan=lifespan)
 
 # Configure CORS
 app.add_middleware(
@@ -50,7 +50,7 @@ app.add_middleware(
 # Mount user directory as static root for generated artifacts
 # This allows frontend to access generated artifacts (images, PDFs, etc.)
 # URL: /api/outputs/solve/solve_xxx/artifacts/image.png
-# Physical Path: OpenTutor/data/user/solve/solve_xxx/artifacts/image.png
+# Physical Path: DeepTutor/data/user/solve/solve_xxx/artifacts/image.png
 project_root = Path(__file__).parent.parent.parent
 user_dir = project_root / "data" / "user"
 
@@ -82,7 +82,7 @@ app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to OpenTutor API"}
+    return {"message": "Welcome to DeepTutor API"}
 
 
 if __name__ == "__main__":

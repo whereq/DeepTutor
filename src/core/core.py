@@ -12,8 +12,8 @@ from dotenv import load_dotenv
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-# Load OpenTutor.env first, then fallback to .env
-load_dotenv(PROJECT_ROOT / "OpenTutor.env", override=False)
+# Load DeepTutor.env first, then fallback to .env
+load_dotenv(PROJECT_ROOT / "DeepTutor.env", override=False)
 load_dotenv(PROJECT_ROOT / ".env", override=False)
 
 

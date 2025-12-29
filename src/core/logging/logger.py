@@ -103,7 +103,7 @@ class FileFormatter(logging.Formatter):
 
 class Logger:
     """
-    Unified logger for OpenTutor.
+    Unified logger for DeepTutor.
 
     Features:
     - Consistent format across all modules
@@ -148,7 +148,7 @@ class Logger:
 
         # Setup log directory
         if log_dir is None:
-            # Default: OpenTutor/data/user/logs/
+            # Default: DeepTutor/data/user/logs/
             # Use resolve() to get absolute path, ensuring correct project root regardless of working directory
             project_root = Path(__file__).resolve().parent.parent.parent.parent
             log_dir = project_root / "data" / "user" / "logs"
@@ -677,7 +677,7 @@ def reset_logger(name: str | None = None):
 if __name__ == "__main__":
     # Demo
     print("\n" + "=" * 60)
-    print("OpenTutor Unified Logging System Demo")
+    print("DeepTutor Unified Logging System Demo")
     print("=" * 60 + "\n")
 
     # Create loggers for different modules

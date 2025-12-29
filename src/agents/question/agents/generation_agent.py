@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 
 # Add project root to sys.path
-project_root = Path(__file__).parent.parent.parent.parent.parent  # OpenTutor root
+project_root = Path(__file__).parent.parent.parent.parent.parent  # DeepTutor root
 sys.path.insert(0, str(project_root))
 
 from src.core.core import load_config_with_main

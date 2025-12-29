@@ -63,7 +63,7 @@ export default function Sidebar() {
               <div className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden">
                 <Image
                   src="/logo.png"
-                  alt="OpenTutor Logo"
+                  alt="DeepTutor Logo"
                   width={38}
                   height={38}
                   className="object-contain"
@@ -71,15 +71,15 @@ export default function Sidebar() {
                 />
               </div>
               <h1 className="font-bold text-slate-900 dark:text-slate-100 tracking-tight text-lg">
-                OpenTutor
+                DeepTutor
               </h1>
             </div>
             <a
-              href="https://github.com/HKUDS/OpenTutor"
+              href="https://github.com/HKUDS/DeepTutor"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-              title="View OpenTutor on GitHub"
+              title="View DeepTutor on GitHub"
             >
               <Github className="w-5 h-5" />
             </a>

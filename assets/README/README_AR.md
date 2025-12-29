@@ -1,8 +1,8 @@
 <div align="center" dir="rtl">
 
-<img src="../../assets/logo-ver2.png" alt="OpenTutor Logo" width="150" style="border-radius: 15px;">
+<img src="../../assets/logo-ver2.png" alt="DeepTutor Logo" width="150" style="border-radius: 15px;">
 
-# OpenTutor: مساعدك الشخصي للتعلم
+# DeepTutor: مساعدك الشخصي للتعلم
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
@@ -28,7 +28,7 @@
 
 ---
 
-## الميزات الرئيسية لـ OpenTutor
+## الميزات الرئيسية لـ DeepTutor
 
 ### 📚 Q&A للمعرفة الوثائقية الضخمة
 • **قاعدة المعرفة الذكية**: ارفع الكتب المدرسية وأوراق البحث والكتيبات التقنية والوثائق الخاصة بالمجال. أنشئ مستودع معرفة شامل مدعوم بالذكاء الاصطناعي للوصول الفوري.<br>
@@ -179,14 +179,14 @@
 </table>
 
 <p align="center">
-  <sub>🌙 استخدم OpenTutor في <b>الوضع الداكن</b>!</sub>
+  <sub>🌙 استخدم DeepTutor في <b>الوضع الداكن</b>!</sub>
 </p>
 
 <details>
 <summary><b>معمارية النظام</b></summary>
 <br>
 
-![OpenTutor Full-Stack Workflow](../../assets/figs/full-pipe.png)
+![DeepTutor Full-Stack Workflow](../../assets/figs/full-pipe.png)
 
 </details>
 
@@ -204,8 +204,8 @@
 
 ```bash
 # استنساخ المستودع
-git clone https://github.com/HKUDS/OpenTutor.git
-cd OpenTutor
+git clone https://github.com/HKUDS/DeepTutor.git
+cd DeepTutor
 
 # إنشاء بيئة افتراضية (اختر طريقة)
 
@@ -569,11 +569,11 @@ python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/
 ## ⭐ سجل النجوم
 
 <div align="center">
-<a href="https://star-history.com/#HKUDS/OpenTutor&Date">
+<a href="https://star-history.com/#HKUDS/DeepTutor&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/OpenTutor&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date" />
  </picture>
 </a>
 </div>
@@ -601,7 +601,7 @@ conda install -c conda-forge pre-commit
 
 **الخطوة 2: تثبيت خطافات Git**
 ```bash
-cd OpenTutor
+cd DeepTutor
 pre-commit install
 ```
 
@@ -677,11 +677,11 @@ git commit --no-verify -m "إصلاح الطوارئ"
 
 **[مختبر ذكاء البيانات @ جامعة هونج كونج](https://github.com/HKUDS)**
 
-[⭐ Star us](https://github.com/HKUDS/OpenTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/OpenTutor/issues) · [💬 Discussions](https://github.com/HKUDS/OpenTutor/discussions)
+[⭐ Star us](https://github.com/HKUDS/DeepTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/DeepTutor/issues) · [💬 Discussions](https://github.com/HKUDS/DeepTutor/discussions)
 
 ---
-*✨ شكراً لزيارتك **OpenTutor**!*
+*✨ شكراً لزيارتك **DeepTutor**!*
 
-<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.OpenTutor&style=for-the-badge&color=00d4ff" alt="Views">
+<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.DeepTutor&style=for-the-badge&color=00d4ff" alt="Views">
 
 </div>

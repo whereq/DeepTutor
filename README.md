@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo-ver2.png" alt="OpenTutor Logo" width="150" style="border-radius: 15px;">
+<img src="assets/logo-ver2.png" alt="DeepTutor Logo" width="150" style="border-radius: 15px;">
 
 # DeepTutor: AI-Powered Personalized Learning Assistant
 
@@ -1345,11 +1345,11 @@ git commit --no-verify -m "Emergency fix"
 
 **[Data Intelligence Lab @ HKU](https://github.com/HKUDS)**
 
-[⭐ Star us](https://github.com/HKUDS/DeepTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/OpenTutor/issues) · [💬 Discussions](https://github.com/HKUDS/DeepTutor/discussions)
+[⭐ Star us](https://github.com/HKUDS/DeepTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/DeepTutor/issues) · [💬 Discussions](https://github.com/HKUDS/DeepTutor/discussions)
 
 ---
 *✨ Thanks for visiting **DeepTutor**!*
 
-<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.OpenTutor&style=for-the-badge&color=00d4ff" alt="Views">
+<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.DeepTutor&style=for-the-badge&color=00d4ff" alt="Views">
 
 </div>

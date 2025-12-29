@@ -58,8 +58,8 @@ class NotebookManager:
             base_dir: Notebook storage directory, defaults to project root/user/notebook
         """
         if base_dir is None:
-            # Current file: OpenTutor/src/api/utils/notebook_manager.py
-            # Project root should be three levels up: OpenTutor/
+            # Current file: DeepTutor/src/api/utils/notebook_manager.py
+            # Project root should be three levels up: DeepTutor/
             project_root = Path(__file__).resolve().parents[3]
             base_dir_path = project_root / "data" / "user" / "notebook"
         else:

@@ -1,5 +1,5 @@
 #!/bin/bash
-# OpenTutor One-Click Installation Script
+# DeepTutor One-Click Installation Script
 #
 # Automatically installs all frontend and backend dependencies without interaction.
 # Execution flow: Install backend -> Install frontend -> Verify all packages
@@ -44,7 +44,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo ""
 echo "============================================================"
-echo "🚀 OpenTutor One-Click Installation Script"
+echo "🚀 DeepTutor One-Click Installation Script"
 echo "============================================================"
 echo "This script will automatically install all frontend and backend dependencies"
 echo "Execution flow: Backend dependencies -> Frontend dependencies -> Verify installation"

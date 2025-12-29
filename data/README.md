@@ -1,6 +1,6 @@
 # Data Directory
 
-This directory stores all data files for the OpenTutor system, including knowledge bases, user data, logs, and more.
+This directory stores all data files for the DeepTutor system, including knowledge bases, user data, logs, and more.
 
 ## 📁 Directory Structure
 
