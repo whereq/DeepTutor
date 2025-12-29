@@ -273,7 +273,7 @@ You can modify these ports in `config/main.yaml` by editing the `server.backend_
 
 **LLM Configuration**: Agent settings for `temperature` and `max_tokens` are centralized in `config/agents.yaml`. Each module (guide, solve, research, question, ideagen, co_writer) has customizable parameters. See [Configuration Documentation](config/README.md) for details.
 
-### Step 5: Try Our Demos
+### Step 5: Try Our Demos *(Optional)*
 
 Experience the system quickly with two pre-built knowledge bases and a collection of challenging questions with usage examples.
 
@@ -302,7 +302,7 @@ A comprehensive data science textbook with challenging content. This demo showca
 2. Extract the compressed files directly into the `data/` directory
 3. Knowledge bases will be automatically available once you start the system
 
-> **Note:** Our knowledge bases use `text-embedding-3-large` with `dimensions = 3072`. Ensure your embeddings model has matching dimensions (3072) for compatibility.
+> **Note:** Our **demo knowledge bases** use `text-embedding-3-large` with `dimensions = 3072`. Ensure your embeddings model has matching dimensions (3072) for compatibility.
 
 ### Step 6: Launch the Application
 
@@ -1348,6 +1348,8 @@ git commit --no-verify -m "Emergency fix"
 [⭐ Star us](https://github.com/HKUDS/DeepTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/DeepTutor/issues) · [💬 Discussions](https://github.com/HKUDS/DeepTutor/discussions)
 
 [![Stargazers repo roster for @HKUDS/DeepTutor](https://reporoster.com/stars/dark/HKUDS/DeepTutor)](https://github.com/HKUDS/DeepTutor/stargazers)
+
+[![Forkers repo roster for @HKUDS/DeepTutor](https://reporoster.com/forks/dark/HKUDS/DeepTutor)](https://github.com/HKUDS/DeepTutor/network/members)
 
 ---
 
