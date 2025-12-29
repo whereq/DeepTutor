@@ -174,7 +174,7 @@ async def test_embeddings_connection():
 
         response_time = (time.time() - start_time) * 1000
 
-        if embeddings and len(embeddings) > 0 and len(embeddings[0]) > 0:
+        if embeddings is not None and len(embeddings) > 0 and len(embeddings[0]) > 0:
             return TestResponse(
                 success=True,
                 message="Embeddings connection successful",
