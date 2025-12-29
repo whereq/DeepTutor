@@ -1348,6 +1348,9 @@ git commit --no-verify -m "Emergency fix"
 [⭐ Star us](https://github.com/HKUDS/DeepTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/DeepTutor/issues) · [💬 Discussions](https://github.com/HKUDS/DeepTutor/discussions)
 
 ---
+
+[![Stargazers repo roster for @HKUDS/DeepTutor](https://reporoster.com/stars/HKUDS/DeepTutor)](https://github.com/HKUDS/DeepTutor/stargazers)
+
 *✨ Thanks for visiting **DeepTutor**!*
 
 <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.DeepTutor&style=for-the-badge&color=00d4ff" alt="Views">
