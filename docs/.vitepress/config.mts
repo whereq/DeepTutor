@@ -3,17 +3,17 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "DeepTutor",
   description: "AI-Powered Personalized Learning Assistant",
-  
+
   // GitHub Pages 部署配置
   base: '/DeepTutor/',
-  
+
   head: [
     ['link', { rel: 'icon', href: '/DeepTutor/logo.png' }]
   ],
 
   themeConfig: {
     logo: '/logo.png',
-    
+
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
@@ -74,4 +74,3 @@ export default defineConfig({
     }
   }
 })
-

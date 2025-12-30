@@ -169,4 +169,3 @@ python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/
 ```
 
 This will extract numbered items (Definitions, Theorems, Equations, etc.) from your knowledge base without reinitializing it.
-
