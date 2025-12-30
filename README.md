@@ -36,7 +36,7 @@
 
 ### 📚 Massive Document Knowledge Q&A
 • **Smart Knowledge Base**: Upload textbooks, research papers, technical manuals, and domain-specific documents. Build a comprehensive AI-powered knowledge repository for instant access.<br>
-• **Multi-Agent Problem Solving**: Dual-loop reasoning architecture with RAG, web search, paper search, and code execution—delivering step-by-step solutions with precise citations.
+• **Multi-Agent Problem Solving**: Dual-loop reasoning architecture with RAG, web search, and code execution -- delivering step-by-step solutions with precise citations.
 
 ### 🎨 Interactive Learning Visualization
 • **Knowledge Simplification & Explanations**: Transform complex concepts, knowledge, and algorithms into easy-to-understand visual aids, detailed step-by-step breakdowns, and engaging interactive demonstrations.<br>
