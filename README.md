@@ -27,7 +27,9 @@
 </div>
 
 ---
-> **[2025.12.30]** We release DeepTutor v0.1 ✨
+> **[2025.12.29]** We release DeepTutor v0.1 ✨
+
+> **[2025.12.30]** Check our [Official Website](https://hkuds.github.io/DeepTutor/) !
 ---
 
 ## Key Features of DeepTutor
