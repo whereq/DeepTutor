@@ -67,7 +67,7 @@
 <img src="assets/gifs/solve.gif" width="100%">
 </a>
 <br>
-<sub>Step-by-Step Problem Solving with citation</sub>
+<sub>Multi-agent Problem Solving with Exact Citations</sub>
 
 </td>
 <td width="50%" align="center" valign="top">
