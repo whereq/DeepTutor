@@ -106,7 +106,7 @@ python scripts/start.py
 
 Create custom knowledge bases through the web interface with support for multiple file formats.
 
-1. **Access Knowledge Base**: Navigate to http://localhost:3782/knowledge
+1. **Access Knowledge Base**: Navigate to `http://localhost:3782/knowledge`
 2. **Create New Base**: Click "New Knowledge Base"
 3. **Configure Settings**: Enter a unique name for your knowledge base
 4. **Upload Content**: Add single or multiple files for batch processing
@@ -120,12 +120,12 @@ Create custom knowledge bases through the web interface with support for multipl
 
 | Service | URL | Description |
 |:---:|:---|:---|
-| **Frontend** | http://localhost:3782 | Main web interface |
-| **API Docs** | http://localhost:8001/docs | Interactive API documentation |
-| **Health** | http://localhost:8001/api/v1/knowledge/health | System health check |
+| **Frontend** | `http://localhost:3782` | Main web interface |
+| **API Docs** | `http://localhost:8001/docs` | Interactive API documentation |
+| **Health** | `http://localhost:8001/api/v1/knowledge/health` | System health check |
 
 ## Next Steps
 
-- [Installation Details](/guide/installation) — Detailed installation guide
 - [Configuration](/guide/configuration) — Customize your setup
 - [Features Overview](/features/overview) — Explore all features
+- [Troubleshooting](/guide/troubleshooting) — Common issues and solutions

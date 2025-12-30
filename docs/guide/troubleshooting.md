@@ -75,7 +75,7 @@ npm --version   # Should show version number
 ## Frontend cannot connect to backend?
 
 **Checklist**
-- Confirm backend is running (visit http://localhost:8001/docs)
+- Confirm backend is running (visit `http://localhost:8001/docs`)
 - Check browser console for error messages
 
 **Solution**
@@ -118,7 +118,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8001
 ## How to add a new knowledge base?
 
 **Web Interface**
-1. Visit http://localhost:3782/knowledge
+1. Visit `http://localhost:3782/knowledge`
 2. Click "New Knowledge Base"
 3. Enter knowledge base name
 4. Upload PDF/TXT/MD documents
