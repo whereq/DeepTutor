@@ -21,8 +21,8 @@
 
 <div align="center">
 
-⚡ **Massive Document Knowledge Q&A** &nbsp;•&nbsp; 📈 **Interactive Learning Visualization**<br>
-🧠 **Knowledge Reinforcement** &nbsp;•&nbsp; 🔬 **Deep Research & Idea Generation**
+📚 **Massive Document Knowledge Q&A** &nbsp;•&nbsp; 🎨 **Interactive Learning Visualization**<br>
+🎯 **Knowledge Reinforcement** &nbsp;•&nbsp; 🔍 **Deep Research & Idea Generation**
 
 </div>
 
