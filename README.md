@@ -67,7 +67,7 @@
 <img src="assets/gifs/solve.gif" width="100%">
 </a>
 <br>
-<sub>Document Q&A and Step-by-Step Problem Solving</sub>
+<sub>Step-by-Step Problem Solving with citation</sub>
 
 </td>
 <td width="50%" align="center" valign="top">
@@ -77,7 +77,7 @@
 <img src="assets/gifs/guided-learning.gif" width="100%">
 </a>
 <br>
-<sub>Interactive AI Learning with Knowledge Visual Explanations</sub>
+<sub>Step-by-step Visual Explanations with Personal QAs.</sub>
 
 </td>
 </tr>
@@ -96,7 +96,7 @@
 </a>
 
 **Custom Questions**  
-<sub>Auto-Validated Practice Questions with Instant Feedback</sub>
+<sub>Auto-Validated Practice Questions Generation</sub>
 
 </td>
 <td width="50%" valign="top" align="center">
@@ -125,7 +125,7 @@
 </a>
 
 **Deep Research**  
-<sub>Web and Paper Search with Literature Review</sub>
+<sub>Knowledge Extention from Textbook with RAG, Web and Paper-search</sub>
 
 </td>
 <td width="33%" align="center">
@@ -135,7 +135,7 @@
 </a>
 
 **Automated IdeaGen**  
-<sub>Systematic Brainstorming and Concept Synthesis</sub>
+<sub>Systematic Brainstorming and Concept Synthesis with Dual-filter Workflow</sub>
 
 </td>
 <td width="33%" align="center">
@@ -145,7 +145,7 @@
 </a>
 
 **Interactive IdeaGen**  
-<sub>RAG-powered Idea Generation with Multi-Source Insights</sub>
+<sub>RAG and Web-search Powered Co-writer with Podcast Generation</sub>
 
 </td>
 </tr>
