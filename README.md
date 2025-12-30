@@ -264,7 +264,7 @@ Create a `.env` file in the project root directory based on `.env.example`:
 # Copy from .env.example template (if exists)
 cp .env.example .env
 
-# Then edit .env file with your API keys:
+# Then edit .env file with your API keys.
 ```
 
 ### Step 4: Configure Ports and LLM Settings *(Optional)*
