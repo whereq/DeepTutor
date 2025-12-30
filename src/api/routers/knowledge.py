@@ -6,11 +6,11 @@ Handles knowledge base CRUD operations, file uploads, and initialization.
 """
 
 import asyncio
+from datetime import datetime
 from pathlib import Path
 import shutil
-
-# Use unified logging system
 import sys
+import traceback
 
 from fastapi import (
     APIRouter,
@@ -24,14 +24,16 @@ from fastapi import (
 )
 from pydantic import BaseModel
 
+from src.api.utils.progress_broadcaster import ProgressBroadcaster
+from src.api.utils.task_id_manager import TaskIDManager
 from src.knowledge.add_documents import DocumentAdder
 from src.knowledge.initializer import KnowledgeBaseInitializer
 from src.knowledge.manager import KnowledgeBaseManager
-from src.knowledge.progress_tracker import ProgressTracker
+from src.knowledge.progress_tracker import ProgressStage, ProgressTracker
 
 _project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_project_root))
-from src.core.core import load_config_with_main
+from src.core.core import get_llm_config, load_config_with_main
 from src.core.logging import get_logger
 
 # Initialize logger with config
@@ -64,8 +66,6 @@ class KnowledgeBaseInfo(BaseModel):
 
 async def run_initialization_task(initializer: KnowledgeBaseInitializer):
     """Background task for knowledge base initialization"""
-    from src.api.utils.task_id_manager import TaskIDManager
-
     task_manager = TaskIDManager.get_instance()
     task_id = task_manager.generate_task_id("kb_init", initializer.kb_name)
 
@@ -82,8 +82,6 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer):
         await initializer.process_documents()
         initializer.extract_numbered_items()
 
-        from src.knowledge.progress_tracker import ProgressStage
-
         initializer.progress_tracker.update(
             ProgressStage.COMPLETED, "Knowledge base initialization complete!", current=1, total=1
         )
@@ -98,8 +96,6 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer):
         task_manager.update_task_status(task_id, "error", error=error_msg)
 
         if initializer.progress_tracker:
-            from src.knowledge.progress_tracker import ProgressStage
-
             initializer.progress_tracker.update(
                 ProgressStage.ERROR, f"Initialization failed: {error_msg}", error=error_msg
             )
@@ -109,15 +105,12 @@ async def run_upload_processing_task(
     kb_name: str, base_dir: str, api_key: str, base_url: str, uploaded_file_paths: list[str]
 ):
     """Background task for processing uploaded files"""
-    from src.api.utils.task_id_manager import TaskIDManager
-
     task_manager = TaskIDManager.get_instance()
     task_key = f"{kb_name}_upload_{len(uploaded_file_paths)}"
     task_id = task_manager.generate_task_id("kb_upload", task_key)
 
     progress_tracker = ProgressTracker(kb_name, Path(base_dir))
     progress_tracker.task_id = task_id
-    from src.knowledge.progress_tracker import ProgressStage
 
     try:
         logger.info(f"[{task_id}] Processing {len(uploaded_file_paths)} files to KB '{kb_name}'")
@@ -186,8 +179,6 @@ async def health_check():
             "knowledge_bases_count": kb_count,
         }
     except Exception as e:
-        import traceback
-
         return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
 
 
@@ -219,8 +210,6 @@ async def list_knowledge_bases():
                     )
                 )
             except Exception as e:
-                import traceback
-
                 error_msg = f"Error getting info for KB '{name}': {e}"
                 errors.append(error_msg)
                 logger.warning(f"{error_msg}\n{traceback.format_exc()}")
@@ -258,8 +247,6 @@ async def list_knowledge_bases():
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-
         error_msg = f"Error listing knowledge bases: {e}"
         logger.error(f"{error_msg}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to list knowledge bases: {e!s}")
@@ -305,8 +292,6 @@ async def upload_files(
         raw_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            from src.core.core import get_llm_config
-
             llm_config = get_llm_config()
             api_key = llm_config["api_key"]
             base_url = llm_config["base_url"]
@@ -354,15 +339,11 @@ async def create_knowledge_base(
             raise HTTPException(status_code=400, detail=f"Knowledge base '{name}' already exists")
 
         try:
-            from src.core.core import get_llm_config
-
             llm_config = get_llm_config()
             api_key = llm_config["api_key"]
             base_url = llm_config["base_url"]
         except ValueError as e:
             raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
-
-        from src.knowledge.progress_tracker import ProgressStage
 
         progress_tracker = ProgressTracker(name, _kb_base_dir)
 
@@ -415,8 +396,6 @@ async def create_knowledge_base(
         raise
     except Exception as e:
         logger.error(f"Failed to create KB: {e}")
-        import traceback
-
         logger.debug(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -452,8 +431,6 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
     """WebSocket endpoint for real-time progress updates"""
     await websocket.accept()
 
-    from src.api.utils.progress_broadcaster import ProgressBroadcaster
-
     broadcaster = ProgressBroadcaster.get_instance()
 
     try:
@@ -478,8 +455,6 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
                 should_send = True
             elif timestamp:
                 # Check if progress is recent
-                from datetime import datetime
-
                 try:
                     progress_time = datetime.fromisoformat(timestamp)
                     now = datetime.now()

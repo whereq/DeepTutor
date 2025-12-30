@@ -2,7 +2,7 @@
 Task ID Manager - Assigns unique IDs to each background task
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import threading
 from typing import Optional
 import uuid
@@ -79,8 +79,6 @@ class TaskIDManager:
     def cleanup_old_tasks(self, max_age_hours: int = 24):
         """Clean up old tasks (completed tasks older than specified hours)"""
         with self._lock:
-            from datetime import timedelta
-
             cutoff = datetime.now() - timedelta(hours=max_age_hours)
 
             to_remove = []

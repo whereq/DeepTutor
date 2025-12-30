@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import sys
 
+from src.core.core import load_config_with_main
 from src.core.logging import get_logger
 
 # Initialize logger for setup operations
@@ -55,8 +56,6 @@ def init_user_directories(project_root: Path | None = None) -> None:
 
     # Get user data directory from config
     try:
-        from src.core.core import load_config_with_main
-
         config = load_config_with_main("solve_config.yaml", project_root)
         user_data_dir = config.get("paths", {}).get("user_data_dir", "./data/user")
 
@@ -257,8 +256,6 @@ def get_backend_port(project_root: Path | None = None) -> int:
         project_root = Path(__file__).parent.parent.parent
 
     try:
-        from src.core.core import load_config_with_main
-
         config = load_config_with_main(
             "solve_config.yaml", project_root
         )  # Use any config to get main.yaml
@@ -295,8 +292,6 @@ def get_frontend_port(project_root: Path | None = None) -> int:
         project_root = Path(__file__).parent.parent.parent
 
     try:
-        from src.core.core import load_config_with_main
-
         config = load_config_with_main(
             "solve_config.yaml", project_root
         )  # Use any config to get main.yaml

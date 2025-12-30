@@ -7,7 +7,9 @@ and the validation workflow.
 import asyncio
 from collections.abc import Callable
 import copy
+from datetime import datetime
 import json
+import logging
 from pathlib import Path
 import sys
 from typing import Any
@@ -19,6 +21,7 @@ from .validation_workflow import QuestionValidationWorkflow
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from src.core.core import load_config_with_main
 from src.core.logging import Logger, get_logger
 from src.tools.rag_tool import rag_search
 
@@ -98,8 +101,6 @@ class AgentCoordinator:
 
         # Load configuration (with main.yaml merge) first
         project_root = Path(__file__).parent.parent.parent.parent
-        from src.core.core import load_config_with_main
-
         self.config = load_config_with_main("question_config.yaml", project_root)
 
         # Initialize logger (from config)
@@ -233,8 +234,6 @@ class AgentCoordinator:
     def _suppress_logging(self):
         if self._logging_suppressed:
             return
-        import logging
-
         logging.basicConfig(level=logging.ERROR, force=True)
         for logger_name in [
             "lightrag",
@@ -448,8 +447,6 @@ class AgentCoordinator:
         """
         if not self.output_dir:
             return None
-
-        from datetime import datetime
 
         try:
             # Create timestamped subdirectory
@@ -818,10 +815,6 @@ class AgentCoordinator:
 
                 # Persist results if output_dir is provided
                 if self.output_dir:
-                    from datetime import datetime
-                    import json
-                    from pathlib import Path
-
                     try:
                         # timestamped subdirectory
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1057,8 +1050,6 @@ class AgentCoordinator:
         # Persist batch results if output_dir is provided
         if self.output_dir:
             try:
-                from datetime import datetime
-
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 out_path = Path(self.output_dir)
                 out_path.mkdir(parents=True, exist_ok=True)
@@ -1550,8 +1541,6 @@ class AgentCoordinator:
         # Persist results if output_dir is provided
         if self.output_dir:
             try:
-                from datetime import datetime
-
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 out_path = Path(self.output_dir)
                 out_path.mkdir(parents=True, exist_ok=True)
@@ -1909,8 +1898,6 @@ class AgentCoordinator:
         Returns:
             Summary dict with all results
         """
-        from datetime import datetime
-
         if num_questions <= 0:
             raise ValueError("num_questions must be greater than zero")
 

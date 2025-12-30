@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import traceback
 from typing import Any
 
 import yaml
@@ -20,11 +21,22 @@ import yaml
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from src.core.core import get_llm_config, load_config_with_main, parse_language
+
 from .analysis_loop import InvestigateAgent, NoteAgent
 
 # Dual-Loop Architecture
 from .memory import CitationMemory, InvestigateMemory, SolveChainStep, SolveMemory
+from .solve_loop import (
+    ManagerAgent,
+    PrecisionAnswerAgent,
+    ResponseAgent,
+    SolveAgent,
+    ToolAgent,
+)
 from .utils import ConfigValidator, PerformanceMonitor, SolveAgentLogger
+from .utils.display_manager import get_display_manager
+from .utils.token_tracker import TokenTracker
 
 
 class MainSolver:
@@ -51,8 +63,6 @@ class MainSolver:
         # Load config from config directory (main.yaml unified config)
         if config_path is None:
             project_root = Path(__file__).parent.parent.parent.parent
-            from src.core.core import load_config_with_main
-
             # Load main.yaml (solve_config.yaml is optional and will be merged if exists)
             full_config = load_config_with_main("main.yaml", project_root)
 
@@ -111,8 +121,6 @@ class MainSolver:
         # API config
         if api_key is None or base_url is None:
             try:
-                from src.core.core import get_llm_config
-
                 llm_config = get_llm_config()
                 if api_key is None:
                     api_key = llm_config["api_key"]
@@ -147,8 +155,6 @@ class MainSolver:
         )
 
         # Attach display manager for TUI and frontend status updates
-        from .utils.display_manager import get_display_manager
-
         self.logger.display_manager = get_display_manager()
 
         # Initialize performance monitor (disabled by default - performance logging is deprecated)
@@ -160,8 +166,6 @@ class MainSolver:
         )
 
         # Initialize Token tracker
-        from .utils.token_tracker import TokenTracker
-
         self.token_tracker = TokenTracker(prefer_tiktoken=True)
 
         # Connect token_tracker to display_manager for real-time updates
@@ -286,8 +290,6 @@ class MainSolver:
 
         except Exception as e:
             self.logger.error(f"Solving failed: {e!s}")
-            import traceback
-
             self.logger.error(traceback.format_exc())
             self.logger.remove_task_log_handlers()
             raise
@@ -423,20 +425,10 @@ class MainSolver:
         # ========== Solve Loop ==========
         self.logger.stage("Solve Loop", "start", "Generating solution")
 
-        from .memory import SolveMemory
-
         solve_memory = SolveMemory.load_or_create(output_dir=output_dir, user_question=question)
 
         # Initialize Solve Loop Agents (if not yet initialized)
         if self.manager_agent is None:
-            from .solve_loop import (
-                ManagerAgent,
-                PrecisionAnswerAgent,
-                ResponseAgent,
-                SolveAgent,
-                ToolAgent,
-            )
-
             self.logger.progress("Initializing Solve Loop agents...")
             self.manager_agent = ManagerAgent(
                 self.config, self.api_key, self.base_url, token_tracker=self.token_tracker
@@ -666,8 +658,6 @@ class MainSolver:
         final_answer = "\n\n".join(step_responses)
 
         # Get language setting from config (unified in config/main.yaml system.language)
-        from src.core.core import parse_language
-
         language = self.config.get("system", {}).get("language", "zh")
         lang_code = parse_language(language)
 
@@ -764,8 +754,6 @@ class MainSolver:
 
 
 if __name__ == "__main__":
-    import asyncio
-
     from dotenv import load_dotenv
 
     load_dotenv()

@@ -16,6 +16,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.agents.solve import MainSolver
 from src.api.utils.history import ActivityType, history_manager
 from src.api.utils.log_interceptor import LogInterceptor
+from src.api.utils.task_id_manager import TaskIDManager
 
 _project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_project_root))
@@ -34,8 +35,6 @@ router = APIRouter()
 @router.websocket("/solve")
 async def websocket_solve(websocket: WebSocket):
     await websocket.accept()
-
-    from src.api.utils.task_id_manager import TaskIDManager
 
     task_manager = TaskIDManager.get_instance()
 

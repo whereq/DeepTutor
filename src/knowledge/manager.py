@@ -5,8 +5,10 @@ Knowledge Base Manager
 Manages multiple knowledge bases and provides utilities for accessing them.
 """
 
+from datetime import datetime
 import json
 from pathlib import Path
+import shutil
 
 
 class KnowledgeBaseManager:
@@ -270,8 +272,6 @@ class KnowledgeBaseManager:
         Returns:
             True if deleted successfully
         """
-        import shutil
-
         if name not in self.list_knowledge_bases():
             raise ValueError(f"Knowledge base not found: {name}")
 
@@ -313,9 +313,6 @@ class KnowledgeBaseManager:
         Returns:
             True if cleaned successfully
         """
-        from datetime import datetime
-        import shutil
-
         kb_name = name or self.get_default()
         kb_dir = self.get_knowledge_base_path(kb_name)
         rag_storage_dir = kb_dir / "rag_storage"

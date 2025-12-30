@@ -15,11 +15,11 @@ project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from pathlib import Path
-
 from src.agents.guide.agents.base_guide_agent import BaseGuideAgent
+from src.agents.guide.guide_manager import GuideManager
 from src.api.utils.notebook_manager import notebook_manager
-from src.core.core import load_config_with_main
+from src.api.utils.task_id_manager import TaskIDManager
+from src.core.core import get_llm_config, load_config_with_main
 from src.core.logging import get_logger
 
 router = APIRouter()
@@ -67,15 +67,11 @@ class NextKnowledgeRequest(BaseModel):
 def get_guide_manager():
     """Get GuideManager instance"""
     try:
-        from src.core.core import get_llm_config
-
         llm_config = get_llm_config()
         api_key = llm_config["api_key"]
         base_url = llm_config["base_url"]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
-
-    from src.agents.guide.guide_manager import GuideManager
 
     return GuideManager(api_key=api_key, base_url=base_url, language=None)  # Read from config file
 
@@ -91,8 +87,6 @@ async def create_session(request: CreateSessionRequest):
     Returns:
         Session creation result with knowledge point list.
     """
-    from src.api.utils.task_id_manager import TaskIDManager
-
     task_manager = TaskIDManager.get_instance()
 
     try:
@@ -254,8 +248,6 @@ async def websocket_guide(websocket: WebSocket, session_id: str):
     - get_session: Get session state
     """
     await websocket.accept()
-
-    from src.api.utils.task_id_manager import TaskIDManager
 
     task_manager = TaskIDManager.get_instance()
     task_id = task_manager.generate_task_id("guide", session_id)

@@ -19,6 +19,7 @@ from src.agents.ideagen.base_idea_agent import BaseIdeaAgent
 from src.agents.ideagen.idea_generation_workflow import IdeaGenerationWorkflow
 from src.agents.ideagen.material_organizer_agent import MaterialOrganizerAgent
 from src.api.utils.notebook_manager import NotebookManager
+from src.api.utils.task_id_manager import TaskIDManager
 from src.core.core import get_llm_config, load_config_with_main
 from src.core.logging import get_logger
 
@@ -108,8 +109,6 @@ async def websocket_ideagen(websocket: WebSocket):
     logger.info("=" * 60)
 
     # Get task ID manager
-    from src.api.utils.task_id_manager import TaskIDManager
-
     task_manager = TaskIDManager.get_instance()
     task_id = None
 

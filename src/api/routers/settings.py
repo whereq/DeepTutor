@@ -11,6 +11,7 @@ from typing import Any, Dict, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from src.core.core import get_embedding_config, get_llm_config, get_tts_config
 from src.utils.config_manager import ConfigManager
 
 router = APIRouter()
@@ -553,8 +554,6 @@ async def test_env_config():
 
     # Test LLM configuration
     try:
-        from src.core.core import get_llm_config
-
         llm_config = get_llm_config()
         results["llm"]["model"] = llm_config.get("model")
         results["llm"]["status"] = "configured"
@@ -567,8 +566,6 @@ async def test_env_config():
 
     # Test Embedding configuration
     try:
-        from src.core.core import get_embedding_config
-
         embedding_config = get_embedding_config()
         results["embedding"]["model"] = embedding_config.get("model")
         results["embedding"]["status"] = "configured"
@@ -581,8 +578,6 @@ async def test_env_config():
 
     # Test TTS configuration
     try:
-        from src.core.core import get_tts_config
-
         tts_config = get_tts_config()
         results["tts"]["model"] = tts_config.get("model")
         results["tts"]["status"] = "configured"

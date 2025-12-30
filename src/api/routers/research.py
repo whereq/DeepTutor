@@ -2,21 +2,22 @@ import asyncio
 import logging
 from pathlib import Path
 import sys
+import traceback
 from typing import Any
 
 from fastapi import APIRouter, WebSocket
 from pydantic import BaseModel
 
+from src.agents.research.agents import RephraseAgent
+from src.agents.research.research_pipeline import ResearchPipeline
 from src.api.utils.history import ActivityType, history_manager
+from src.api.utils.task_id_manager import TaskIDManager
+from src.core.core import get_llm_config, load_config_with_main
+from src.core.logging import get_logger
 
 # Force stdout to use utf-8 to prevent encoding errors with emojis on Windows
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
-
-# Import research modules
-from src.agents.research.agents import RephraseAgent
-from src.agents.research.research_pipeline import ResearchPipeline
-from src.core.logging import get_logger
 
 router = APIRouter()
 
@@ -24,8 +25,6 @@ router = APIRouter()
 # Helper to load config (with main.yaml merge)
 def load_config():
     project_root = Path(__file__).parent.parent.parent.parent
-    from src.core.core import load_config_with_main
-
     return load_config_with_main("research_config.yaml", project_root)
 
 
@@ -49,8 +48,6 @@ async def optimize_topic(request: OptimizeRequest):
 
         # Inject API keys
         try:
-            from src.core.core import get_llm_config
-
             llm_config = get_llm_config()
             api_key = llm_config["api_key"]
             base_url = llm_config["base_url"]
@@ -72,8 +69,6 @@ async def optimize_topic(request: OptimizeRequest):
         return result
 
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         return {"error": str(e)}
 
@@ -83,8 +78,6 @@ async def websocket_research_run(websocket: WebSocket):
     await websocket.accept()
 
     # Get task ID manager
-    from src.api.utils.task_id_manager import TaskIDManager
-
     task_manager = TaskIDManager.get_instance()
 
     pusher_task = None
@@ -117,8 +110,6 @@ async def websocket_research_run(websocket: WebSocket):
 
         # Use unified logger
         try:
-            from src.core.logging import get_logger
-
             # Get log_dir from config
             log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get(
                 "log_dir"
@@ -256,8 +247,6 @@ async def websocket_research_run(websocket: WebSocket):
 
         # Inject API keys from env if not in config
         try:
-            from src.core.core import get_llm_config
-
             llm_config = get_llm_config()
             api_key = llm_config["api_key"]
             base_url = llm_config["base_url"]
@@ -369,8 +358,6 @@ async def websocket_research_run(websocket: WebSocket):
 
             # Update task status to completed
             try:
-                from src.core.logging import get_logger
-
                 log_dir = config.get("paths", {}).get("user_log_dir") or config.get(
                     "logging", {}
                 ).get("log_dir")
@@ -389,8 +376,6 @@ async def websocket_research_run(websocket: WebSocket):
 
         # Update task status to error
         try:
-            from src.core.logging import get_logger
-
             log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get(
                 "log_dir"
             )

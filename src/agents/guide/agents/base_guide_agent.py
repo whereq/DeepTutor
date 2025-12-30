@@ -9,10 +9,14 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import yaml
+
 # Add project root to path for logs import
 _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
+
+from lightrag.llm.openai import openai_complete_if_cache
 
 from src.core.core import get_agent_params, load_config_with_main
 from src.core.logging import LLMStats, get_logger
@@ -77,8 +81,6 @@ class BaseGuideAgent(ABC):
 
     def _load_prompts(self) -> dict[str, str] | None:
         """Load Agent's prompt configuration."""
-        import yaml
-
         # Get prompts directory: from agents/base_guide_agent.py -> guide/prompts/
         prompts_dir = Path(__file__).parent.parent / "prompts"
 
@@ -131,8 +133,6 @@ class BaseGuideAgent(ABC):
         Returns:
             LLM response text
         """
-        from lightrag.llm.openai import openai_complete_if_cache
-
         model = self.get_model()
 
         # Use parameters from unified config (agents.yaml) if not explicitly provided

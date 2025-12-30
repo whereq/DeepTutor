@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import traceback
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -19,7 +20,8 @@ from src.agents.co_writer.edit_agent import (
     load_history,
     print_stats,
 )
-from src.core.core import load_config_with_main
+from src.agents.co_writer.narrator_agent import NarratorAgent
+from src.core.core import get_tts_config, load_config_with_main
 from src.core.logging import get_logger
 
 router = APIRouter()
@@ -39,8 +41,6 @@ _narrator_agent = None
 def get_narrator_agent():
     global _narrator_agent
     if _narrator_agent is None:
-        from src.agents.co_writer.narrator_agent import NarratorAgent
-
         _narrator_agent = NarratorAgent()
     return _narrator_agent
 
@@ -84,8 +84,6 @@ async def edit_text(request: EditRequest):
         return result
 
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -101,8 +99,6 @@ async def auto_mark_text(request: AutoMarkRequest):
 
         return result
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -222,8 +218,6 @@ async def narrate_content(request: NarrateRequest):
         # TTS configuration related error
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -240,8 +234,6 @@ async def generate_script_only(request: ScriptOnlyRequest):
         result = await narrator.generate_script(content=request.content, style=request.style)
         return result
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -254,8 +246,6 @@ async def get_tts_status():
     Returns whether TTS configuration is available
     """
     try:
-        from src.core.core import get_tts_config
-
         tts_config = get_tts_config()
         return {
             "available": True,

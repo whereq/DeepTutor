@@ -4,11 +4,15 @@ from datetime import datetime
 from pathlib import Path
 import re
 import sys
+import traceback
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.agents.question import AgentCoordinator
+from src.agents.question.tools.exam_mimic import mimic_exam_questions
 from src.api.utils.history import ActivityType, history_manager
+from src.api.utils.log_interceptor import LogInterceptor
+from src.api.utils.task_id_manager import TaskIDManager
 
 # Add project root for imports
 project_root = Path(__file__).parent.parent.parent.parent
@@ -185,9 +189,6 @@ async def websocket_mimic_generate(websocket: WebSocket):
                 await websocket.send_json({"type": "error", "content": f"Unknown mode: {mode}"})
                 return
 
-            # Import mimic function
-            from src.agents.question.tools.exam_mimic import mimic_exam_questions
-
             # Create WebSocket callback for real-time progress updates
             async def ws_callback(event_type: str, data: dict):
                 """Send progress updates to the frontend via WebSocket."""
@@ -262,8 +263,6 @@ async def websocket_question_generate(websocket: WebSocket):
     await websocket.accept()
 
     # Get task ID manager
-    from src.api.utils.task_id_manager import TaskIDManager
-
     task_manager = TaskIDManager.get_instance()
 
     try:
@@ -327,8 +326,6 @@ async def websocket_question_generate(websocket: WebSocket):
         pusher_task = asyncio.create_task(log_pusher())
 
         # 5. Setup LogInterceptor for capturing logger output (same as solve.py)
-        from src.api.utils.log_interceptor import LogInterceptor
-
         # Get the coordinator's logger to intercept
         target_logger = coordinator.logger.logger
         interceptor = LogInterceptor(target_logger, log_queue)
@@ -418,8 +415,6 @@ async def websocket_question_generate(websocket: WebSocket):
                     logger.debug("WebSocket closed, cannot send complete signal")
 
         except Exception as e:
-            import traceback
-
             error_traceback = traceback.format_exc()
             logger.error(f"Question generation error: {e}")
             logger.error(f"Error traceback:\n{error_traceback}")

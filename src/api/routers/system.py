@@ -7,7 +7,9 @@ from datetime import datetime
 import time
 
 from fastapi import APIRouter
+from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from pydantic import BaseModel
+from src.core.core import get_embedding_config, get_llm_config, get_tts_config
 
 router = APIRouter()
 
@@ -40,8 +42,6 @@ async def get_system_status():
 
     # Check LLM configuration
     try:
-        from src.core.core import get_llm_config
-
         llm_config = get_llm_config()
         result["llm"]["model"] = llm_config.get("model")
         result["llm"]["status"] = "configured"
@@ -54,8 +54,6 @@ async def get_system_status():
 
     # Check Embeddings configuration
     try:
-        from src.core.core import get_embedding_config
-
         embedding_config = get_embedding_config()
         result["embeddings"]["model"] = embedding_config.get("model")
         result["embeddings"]["status"] = "configured"
@@ -68,8 +66,6 @@ async def get_system_status():
 
     # Check TTS configuration
     try:
-        from src.core.core import get_tts_config
-
         tts_config = get_tts_config()
         result["tts"]["model"] = tts_config.get("model")
         result["tts"]["status"] = "configured"
@@ -94,15 +90,10 @@ async def test_llm_connection():
     start_time = time.time()
 
     try:
-        from src.core.core import get_llm_config
-
         llm_config = get_llm_config()
         model = llm_config["model"]
         api_key = llm_config["api_key"]
         base_url = llm_config["base_url"]
-
-        # Import LLM completion function
-        from lightrag.llm.openai import openai_complete_if_cache
 
         # Send a minimal test request
         test_prompt = "test"
@@ -155,15 +146,10 @@ async def test_embeddings_connection():
     start_time = time.time()
 
     try:
-        from src.core.core import get_embedding_config
-
         embedding_config = get_embedding_config()
         model = embedding_config["model"]
         api_key = embedding_config["api_key"]
         base_url = embedding_config["base_url"]
-
-        # Import embedding function
-        from lightrag.llm.openai import openai_embed
 
         # Send a minimal test request
         test_texts = ["test"]
@@ -216,8 +202,6 @@ async def test_tts_connection():
     start_time = time.time()
 
     try:
-        from src.core.core import get_tts_config
-
         tts_config = get_tts_config()
         model = tts_config["model"]
         api_key = tts_config["api_key"]

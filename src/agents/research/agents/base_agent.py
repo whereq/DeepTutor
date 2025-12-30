@@ -21,7 +21,9 @@ sys.path.insert(0, str(research_dir))
 
 from lightrag.llm.openai import openai_complete_if_cache
 
-from src.core.core import get_agent_params, get_llm_config
+from src.core.core import get_agent_params, get_llm_config, parse_language
+
+from ..utils.token_tracker import get_token_tracker
 
 
 class BaseAgent(ABC):
@@ -74,8 +76,6 @@ class BaseAgent(ABC):
     def _load_prompts(self) -> dict[str, Any]:
         """Load prompt definitions for current Agent"""
         # Get language configuration (unified in config/main.yaml system.language)
-        from src.core.core import parse_language
-
         language = self.config.get("system", {}).get("language", "zh")
         lang_code = parse_language(language)
 
@@ -228,8 +228,6 @@ class BaseAgent(ABC):
 
         # Record token usage (optional)
         try:
-            from ..utils.token_tracker import get_token_tracker
-
             tracker = get_token_tracker()
             tracker.add_usage(
                 agent_name=self.agent_name,
