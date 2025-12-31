@@ -232,13 +232,14 @@ cd DeepTutor
 # Set Up Virtual Environment (Choose One Option)
 
 # Option A: Using conda (Recommended)
-conda create -n aitutor python=3.10
-conda activate aitutor
+conda create -n deeptutor python=3.10
+conda activate deeptutor
 
 # Option B: Using venv
 python -m venv venv
 # On Windows:
 venv\Scripts\activate
+
 # On macOS/Linux:
 source venv/bin/activate
 ```
@@ -248,10 +249,10 @@ source venv/bin/activate
 Run the automated installation script to install all required dependencies:
 
 ```bash
-# Recommended: Automated Installation
+# Recommended
 bash scripts/install_all.sh
 
-# Alternative: Manual Installation
+# Alternative Python Scripts
 python scripts/install_all.py
 
 # Or Install Dependencies Manually
