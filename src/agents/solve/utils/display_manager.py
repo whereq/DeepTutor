@@ -35,7 +35,33 @@ class DisplayManager:
 
     def __init__(self):
         self.rich_available = RICH_AVAILABLE
+        
+        self.agents_status = {
+            "InvestigateAgent": "pending",
+            "NoteAgent": "pending",
+            "ManagerAgent": "pending",
+            "SolveAgent": "pending",
+            "ToolAgent": "pending",
+            "ResponseAgent": "pending",
+            "PrecisionAnswerAgent": "pending",
+        }
+        
+        self.stats = {
+            "model": "Unknown",
+            "calls": 0,
+            "tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost": 0.0,
+        }
+        
+        # Early return if rich not available (but after initializing core attributes)
         if not self.rich_available:
+            self.console = None
+            self.log_buffer = []
+            self.max_log_lines = 20
+            self.layout = None
+            self.live = None
             return
 
         # Explicitly use raw stdout, bypass logger redirection
