@@ -1357,6 +1357,8 @@ git commit --no-verify -m "Emergency fix"
 
 [![Forkers repo roster for @HKUDS/DeepTutor](https://reporoster.com/forks/dark/HKUDS/DeepTutor)](https://github.com/HKUDS/DeepTutor/network/members)
 
+## Star History
+
 [![Star History Chart](https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&legend=top-left)](https://www.star-history.com/#HKUDS/DeepTutor&type=timeline&legend=top-left)
 
 ---
