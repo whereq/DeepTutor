@@ -1,0 +1,28 @@
+# ============================================
+# DeepTutor Docker Compose - Development Override
+# ============================================
+# Use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ============================================
+
+services:
+  deeptutor:
+    build:
+      target: development
+    volumes:
+      # Mount source code for hot-reload
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - ./web/app:/app/web/app:ro
+      - ./web/components:/app/web/components:ro
+      - ./web/lib:/app/web/lib:ro
+      - ./web/hooks:/app/web/hooks:ro
+      - ./web/context:/app/web/context:ro
+      - ./web/types:/app/web/types:ro
+      - ./web/public:/app/web/public:ro
+      # Persist user data (writable)
+      - ./data/user:/app/data/user
+      - ./data/knowledge_bases:/app/data/knowledge_bases
+    environment:
+      - NODE_ENV=development
+    networks:
+      - deeptutor-network

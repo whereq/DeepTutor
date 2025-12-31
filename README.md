@@ -351,7 +351,119 @@ Create custom knowledge bases through the web interface with support for multipl
 
 ---
 
-## 📂 Data Storage
+## � Docker Deployment
+
+DeepTutor can be easily deployed using Docker, which bundles both the FastAPI backend and Next.js frontend in a single container.
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) installed
+- [Docker Compose](https://docs.docker.com/compose/install/) (included with Docker Desktop)
+
+### Quick Start with Docker
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/HKUDS/DeepTutor.git
+cd DeepTutor
+
+# 2. Copy environment template and configure your API keys
+cp .env.example .env
+# Edit .env with your LLM API keys (LLM_BINDING_API_KEY, LLM_MODEL, LLM_BINDING_HOST)
+
+# 3. Build and run with Docker Compose
+docker compose up --build
+
+# 4. Access the application
+# Frontend: http://localhost:3782
+# Backend API: http://localhost:8001
+# API Docs: http://localhost:8001/docs
+```
+
+### Docker Compose Commands
+
+```bash
+# Start in detached mode (background)
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+
+# Rebuild after code changes
+docker compose up --build
+
+# Development mode with hot-reload
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+### Environment Variables
+
+Configure the following environment variables in your `.env` file:
+
+| Variable | Required | Description |
+|:---|:---:|:---|
+| `LLM_BINDING` | No | LLM provider (default: `openai`) |
+| `LLM_MODEL` | **Yes** | Model name (e.g., `gpt-4o`, `gpt-4-turbo`) |
+| `LLM_BINDING_API_KEY` | **Yes** | Your LLM API key |
+| `LLM_BINDING_HOST` | **Yes** | API endpoint URL |
+| `BACKEND_PORT` | No | Backend port (default: `8001`) |
+| `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
+| `TTS_MODEL` | No | Text-to-Speech model |
+| `TTS_API_KEY` | No | TTS API key |
+| `TTS_URL` | No | TTS API endpoint |
+
+### Data Persistence
+
+Docker volumes are used to persist user data and knowledge bases:
+
+```yaml
+volumes:
+  - deeptutor_user_data:/app/data/user
+  - deeptutor_knowledge_bases:/app/data/knowledge_bases
+```
+
+To use local directories instead (for easier access to files):
+
+```bash
+# Create local data directories
+mkdir -p data/user data/knowledge_bases
+
+# Run with local volume mounts
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+### Building Custom Images
+
+```bash
+# Build production image
+docker build -t deeptutor:latest .
+
+# Build development image
+docker build --target development -t deeptutor:dev .
+
+# Run standalone container
+docker run -p 8001:8001 -p 3782:3782 --env-file .env deeptutor:latest
+```
+
+### Docker Architecture
+
+The Dockerfile uses a multi-stage build for optimized images:
+
+| Stage | Purpose |
+|:---|:---|
+| `frontend-builder` | Builds Next.js frontend with npm |
+| `python-base` | Installs Python dependencies |
+| `production` | Final production image with supervisord |
+| `development` | Development image with hot-reload support |
+
+Both services (backend + frontend) run in a single container managed by **supervisord**.
+
+---
+
+## �📂 Data Storage
 
 All user content and system data are stored in the `data/` directory:
 
