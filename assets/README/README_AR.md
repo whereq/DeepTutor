@@ -232,6 +232,8 @@ bash scripts/install_all.sh
 # بديل: استخدام سكريبت Python
 python scripts/install_all.py
 
+# ملاحظة: يقوم المُثبّت باكتشاف بيئات conda/venv للعزل. إذا لم يتم اكتشاف بيئة معزولة، فسيعرض تحذيراً لكنه سيواصل التثبيت.
+
 # أو التثبيت يدوياً
 pip install -r requirements.txt
 npm install

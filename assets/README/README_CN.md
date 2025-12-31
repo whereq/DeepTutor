@@ -249,6 +249,8 @@ bash scripts/install_all.sh
 # 或使用 Python 脚本
 python scripts/install_all.py
 
+# 说明：安装脚本会检测 conda/venv 等隔离环境；如果未检测到隔离环境，会给出警告，但仍会继续安装。
+
 # 或手动安装
 pip install -r requirements.txt
 npm install

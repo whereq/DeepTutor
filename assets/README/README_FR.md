@@ -232,6 +232,8 @@ bash scripts/install_all.sh
 # Alternatif: Utiliser le script Python
 python scripts/install_all.py
 
+# Remarque: L'installeur détecte conda/venv pour l'isolation. Si aucun environnement isolé n'est détecté, il affichera un avertissement mais continuera l'installation.
+
 # Ou installer manuellement
 pip install -r requirements.txt
 npm install

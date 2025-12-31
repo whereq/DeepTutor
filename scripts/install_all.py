@@ -47,19 +47,16 @@ def check_virtual_env():
     in_venv = hasattr(sys, "real_prefix") or (
         hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
     )
+    conda_env = os.environ.get("CONDA_DEFAULT_ENV")
 
-    if not in_venv:
-        print_warning("Virtual environment not detected")
-        print_info("It's recommended to run this script in a virtual environment")
-        print_info("Create virtual environment: python -m venv venv")
-        print_info("Activate virtual environment:")
-        if sys.platform == "win32":
-            print_info("  Windows: venv\\Scripts\\activate")
-        else:
-            print_info("  Linux/Mac: source venv/bin/activate")
-        print_info("Continuing installation...\n")
-    else:
+    if conda_env:
+        print_success(f"Conda environment detected: {conda_env}")
+    elif in_venv:
         print_success(f"Virtual environment detected: {sys.prefix}")
+    else:
+        print_warning("No isolated environment detected")
+        print_info("Recommended: use conda or venv for isolation")
+        print_info("Continuing installation...\n")
 
 
 def print_warning(message: str):
