@@ -141,10 +141,11 @@ def start_frontend():
         print_flush("📦 Installing frontend dependencies...")
         print_flush("   This may take a few minutes, please wait...")
         try:
+            npm_cmd = shutil.which("npm") or "npm"
             process = subprocess.Popen(
-                "npm install",
+                [npm_cmd, "install"],
                 cwd=web_dir,
-                shell=True,
+                shell=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -211,10 +212,11 @@ def start_frontend():
     if os.name == "nt":
         env["PYTHONLEGACYWINDOWSSTDIO"] = "0"
 
+    npm_cmd = shutil.which("npm") or "npm"
     frontend_process = subprocess.Popen(
-        f"npm run dev -- -p {frontend_port}",
+        [npm_cmd, "run", "dev", "--", "-p", str(frontend_port)],
         cwd=web_dir,
-        shell=True,
+        shell=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
