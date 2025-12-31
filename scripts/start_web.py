@@ -21,10 +21,10 @@ def print_flush(*args, **kwargs):
 def terminate_process_tree(process, name="Process", timeout=5):
     """
     Terminate a process and all its children (process group).
-    
+
     On Unix: Uses process group (PGID) to kill all children including uvicorn workers.
     On Windows: Uses taskkill /T to kill the process tree.
-    
+
     Args:
         process: subprocess.Popen object
         name: Display name for logging
@@ -32,10 +32,10 @@ def terminate_process_tree(process, name="Process", timeout=5):
     """
     if process is None or process.poll() is not None:
         return  # Process already terminated
-    
+
     pid = process.pid
     print_flush(f"🛑 Stopping {name} (PID: {pid})...")
-    
+
     try:
         if os.name == "nt":
             # Windows: Use taskkill with /T to kill process tree
@@ -48,7 +48,7 @@ def terminate_process_tree(process, name="Process", timeout=5):
         else:
             # Unix: Kill the entire process group
             pgid = os.getpgid(pid)
-            
+
             # Step 1: Send SIGTERM to the process group for graceful shutdown
             try:
                 os.killpg(pgid, signal.SIGTERM)
@@ -58,9 +58,9 @@ def terminate_process_tree(process, name="Process", timeout=5):
                 return
             except PermissionError:
                 # Fallback: try to terminate just the main process
-                print_flush(f"   Cannot kill process group, trying single process")
+                print_flush("   Cannot kill process group, trying single process")
                 process.terminate()
-            
+
             # Step 2: Wait for graceful termination
             try:
                 process.wait(timeout=timeout)
@@ -68,14 +68,14 @@ def terminate_process_tree(process, name="Process", timeout=5):
                 return
             except subprocess.TimeoutExpired:
                 print_flush(f"   ⚠️ {name} did not terminate in {timeout}s, sending SIGKILL...")
-            
+
             # Step 3: Force kill with SIGKILL
             try:
                 os.killpg(pgid, signal.SIGKILL)
                 process.wait(timeout=2)
                 print_flush(f"   ✅ {name} force killed")
             except ProcessLookupError:
-                print_flush(f"   Process group already terminated")
+                print_flush("   Process group already terminated")
             except Exception as e:
                 print_flush(f"   ⚠️ Error during force kill: {e}")
                 # Last resort: try to kill just the main process
@@ -84,7 +84,7 @@ def terminate_process_tree(process, name="Process", timeout=5):
                     process.wait(timeout=2)
                 except Exception:
                     pass
-                    
+
     except Exception as e:
         print_flush(f"   ⚠️ Error stopping {name}: {e}")
 
@@ -152,11 +152,11 @@ def start_backend():
         "errors": "replace",
         "env": env,
     }
-    
+
     # On Unix, create a new session so we can kill the entire process group
     if os.name != "nt":
         popen_kwargs["start_new_session"] = True
-    
+
     process = subprocess.Popen(cmd, **popen_kwargs)
 
     # Start a thread to output logs in real-time
@@ -294,7 +294,7 @@ def start_frontend():
         env["PYTHONLEGACYWINDOWSSTDIO"] = "0"
 
     npm_cmd = shutil.which("npm") or "npm"
-    
+
     # Use start_new_session=True on Unix to create a new process group
     # This allows us to kill all child processes (including Next.js workers) at once
     popen_kwargs = {
@@ -308,11 +308,11 @@ def start_frontend():
         "encoding": "utf-8",
         "errors": "replace",
     }
-    
+
     # On Unix, create a new session so we can kill the entire process group
     if os.name != "nt":
         popen_kwargs["start_new_session"] = True
-    
+
     frontend_process = subprocess.Popen(
         [npm_cmd, "run", "dev", "--", "-p", str(frontend_port)],
         **popen_kwargs,
@@ -440,5 +440,5 @@ if __name__ == "__main__":
         # including uvicorn workers and Next.js child processes
         terminate_process_tree(backend, name="Backend", timeout=5)
         terminate_process_tree(frontend, name="Frontend", timeout=5)
-        
+
         print_flush("✅ All services stopped.")

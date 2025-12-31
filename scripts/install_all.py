@@ -67,7 +67,7 @@ def print_warning(message: str):
 def install_with_uv(requirements_file: Path, project_root: Path) -> bool:
     """Try installing dependencies using uv (faster and better resolver)"""
     uv_path = shutil.which("uv")
-    
+
     if not uv_path:
         # Try to install uv first
         print_info("uv not found, attempting to install uv...")
@@ -85,7 +85,7 @@ def install_with_uv(requirements_file: Path, project_root: Path) -> bool:
                 return False
         except Exception:
             return False
-    
+
     print_info("Using uv for faster dependency resolution...")
     try:
         cmd = [sys.executable, "-m", "uv", "pip", "install", "-r", str(requirements_file)]
@@ -106,7 +106,7 @@ def install_with_uv(requirements_file: Path, project_root: Path) -> bool:
 def install_with_pip_staged(requirements_file: Path, project_root: Path) -> bool:
     """Install dependencies in stages to avoid resolution-too-deep error"""
     print_info("Using staged pip installation to avoid dependency resolution issues...")
-    
+
     # Stage 1: Install core dependencies first (without complex RAG packages)
     core_deps = [
         "python-dotenv>=1.0.0",
@@ -125,7 +125,7 @@ def install_with_pip_staged(requirements_file: Path, project_root: Path) -> bool
         "arxiv>=2.0.0",
         "pre-commit>=3.0.0",
     ]
-    
+
     print_info("Stage 1/3: Installing core dependencies...")
     try:
         cmd = [sys.executable, "-m", "pip", "install"] + core_deps
@@ -144,7 +144,7 @@ def install_with_pip_staged(requirements_file: Path, project_root: Path) -> bool
     except Exception as e:
         print_error(f"Error installing core dependencies: {e}")
         return False
-    
+
     # Stage 2: Install lightrag-hku
     print_info("Stage 2/3: Installing lightrag-hku...")
     try:
@@ -161,7 +161,7 @@ def install_with_pip_staged(requirements_file: Path, project_root: Path) -> bool
             print_warning("lightrag-hku installation had issues, continuing...")
     except Exception as e:
         print_warning(f"lightrag-hku installation error: {e}")
-    
+
     # Stage 3: Install raganything with special handling
     print_info("Stage 3/3: Installing raganything (this may take a while)...")
     try:
@@ -191,7 +191,7 @@ def install_with_pip_staged(requirements_file: Path, project_root: Path) -> bool
                 print_warning("raganything installation had issues")
     except Exception as e:
         print_warning(f"raganything installation error: {e}")
-    
+
     # Try to install any remaining optional deps
     try:
         optional_deps = ["perplexityai>=0.1.0", "dashscope>=1.14.0"]
@@ -206,7 +206,7 @@ def install_with_pip_staged(requirements_file: Path, project_root: Path) -> bool
             )
     except Exception:
         pass
-    
+
     return True
 
 
@@ -227,14 +227,14 @@ def install_backend_deps(project_root: Path) -> bool:
     if install_with_uv(requirements_file, project_root):
         print_success("Backend dependencies installed successfully with uv")
         return True
-    
+
     print_warning("uv installation failed, falling back to staged pip installation...")
-    
+
     # Strategy 2: Staged pip installation
     if install_with_pip_staged(requirements_file, project_root):
         print_success("Backend dependencies installed successfully with staged pip")
         return True
-    
+
     # Strategy 3: Direct pip install as last resort
     print_warning("Staged installation had issues, trying direct pip install...")
     try:

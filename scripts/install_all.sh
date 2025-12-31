@@ -92,7 +92,7 @@ install_with_uv() {
             return 1
         fi
     fi
-    
+
     print_info "Using uv for faster dependency resolution..."
     if python -m uv pip install -r "$REQUIREMENTS_FILE"; then
         return 0
@@ -104,7 +104,7 @@ install_with_uv() {
 # Function to install with staged pip (avoids resolution-too-deep)
 install_with_pip_staged() {
     print_info "Using staged pip installation to avoid dependency resolution issues..."
-    
+
     # Stage 1: Core dependencies
     print_info "Stage 1/3: Installing core dependencies..."
     if python -m pip install \
@@ -128,21 +128,21 @@ install_with_pip_staged() {
         print_error "Failed to install core dependencies"
         return 1
     fi
-    
+
     # Stage 2: lightrag-hku
     print_info "Stage 2/3: Installing lightrag-hku..."
     python -m pip install "lightrag-hku>=1.0.0" || print_warning "lightrag-hku installation had issues"
-    
+
     # Stage 3: raganything (complex dependencies)
     print_info "Stage 3/3: Installing raganything (this may take a while)..."
     if ! python -m pip install "raganything>=0.1.0"; then
         print_warning "Standard install failed, trying with --no-deps..."
         python -m pip install "raganything>=0.1.0" --no-deps || print_warning "raganything installation had issues"
     fi
-    
+
     # Optional deps
     python -m pip install "perplexityai>=0.1.0" "dashscope>=1.14.0" 2>/dev/null || true
-    
+
     return 0
 }
 
@@ -154,7 +154,7 @@ if install_with_uv; then
     print_success "Backend dependencies installed successfully with uv"
 else
     print_warning "uv installation failed, falling back to staged pip installation..."
-    
+
     # Strategy 2: Staged pip installation
     if install_with_pip_staged; then
         print_success "Backend dependencies installed successfully with staged pip"
