@@ -213,9 +213,10 @@
 ## 📋 Todo
 
 > 🌟 Star to follow our future updates!
-- [ ] Project-based learning
-- [ ] deepcoding from idea generation
-- [ ] Personalized memory
+- [ ] Deep-coding from Idea Generation
+- [ ] Personal Memory Layer from Notebook
+- [ ] Alternative Choices of RAG Module
+- [ ] Support Local LLM Deployment
 
 ## 🚀 Quick Start
 
