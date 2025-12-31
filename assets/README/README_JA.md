@@ -249,6 +249,8 @@ bash scripts/install_all.sh
 # または Python スクリプトを使用
 python scripts/install_all.py
 
+# 注：インストーラーは conda/venv の隔離環境を検出します。隔離環境が検出できない場合は警告を表示しますが、インストールは継続します。
+
 # または手動でインストール
 pip install -r requirements.txt
 npm install

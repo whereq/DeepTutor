@@ -251,6 +251,8 @@ bash scripts/install_all.sh
 # Alternative: Manual Installation
 python scripts/install_all.py
 
+# Note: The installer detects conda/venv for isolation. If no isolated environment is detected, it will print a warning but will continue installing.
+
 # Or Install Dependencies Manually
 pip install -r requirements.txt
 npm install
