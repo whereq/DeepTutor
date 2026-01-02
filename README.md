@@ -27,6 +27,8 @@
 </div>
 
 ---
+> **[2026.1.3]** Released DeepTutor [v0.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.2.0) - thanks to all the contributors! ❤️
+
 > **[2026.1.1]** Happy New Year! Join our [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) — shape the future of DeepTutor! 💬
 
 > **[2025.12.30]** Visit our [Official Website](https://hkuds.github.io/DeepTutor/) for more details! !
@@ -224,18 +226,12 @@
 
 ### Step 1: Pre-Configuration
 
-<table>
-<tr><td>
-
 **① Clone Repository**
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 ```
-
-</td></tr>
-<tr><td>
 
 **② Set Up Environment Variables**
 
@@ -262,17 +258,11 @@ cp .env.example .env
 
 </details>
 
-</td></tr>
-<tr><td>
-
 **③ Configure Ports & LLM** *(Optional)*
 
 - **Ports**: Edit `config/main.yaml` → `server.backend_port` / `server.frontend_port`
 - **LLM**: Edit `config/agents.yaml` → `temperature` / `max_tokens` per module
 - See [Configuration Docs](config/README.md) for details
-
-</td></tr>
-<tr><td>
 
 **④ Try Demo Knowledge Bases** *(Optional)*
 
@@ -289,17 +279,11 @@ cp .env.example .env
 
 > Demo KBs use `text-embedding-3-large` with `dimensions = 3072`
 
-</td></tr>
-<tr><td>
-
 **⑤ Create Your Own Knowledge Base** *(After Launch)*
 
 1. Go to http://localhost:3782/knowledge
 2. Click "New Knowledge Base" → Enter name → Upload PDF/TXT/MD files
 3. Monitor progress in terminal
-
-</td></tr>
-</table>
 
 ---
 
