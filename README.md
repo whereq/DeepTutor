@@ -31,7 +31,7 @@
 
 > **[2026.1.1]** Happy New Year! Join our [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
 
-> **[2025.12.30]** Visit our [Official Website](https://hkuds.github.io/DeepTutor/) for more details! 
+> **[2025.12.30]** Visit our [Official Website](https://hkuds.github.io/DeepTutor/) for more details!
 
 > **[2025.12.29]** DeepTutor v0.1 is now live! ✨
 ---
