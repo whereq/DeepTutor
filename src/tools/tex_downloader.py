@@ -11,8 +11,8 @@ Version: v1.0
 Based on: TODO.md specification
 """
 
-from pathlib import Path
 import os
+from pathlib import Path
 import re
 import shutil
 import tarfile

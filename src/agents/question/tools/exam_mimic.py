@@ -134,12 +134,14 @@ async def mimic_exam_questions(
         # Resolve relative names against reference_papers
         # SECURITY FIX: Prevent Path Injection / Traversal
         if os.path.isabs(paper_dir) or ".." in paper_dir:
-            error_msg = f"Invalid paper_dir: Absolute paths and traversal are not allowed. ({paper_dir})"
+            error_msg = (
+                f"Invalid paper_dir: Absolute paths and traversal are not allowed. ({paper_dir})"
+            )
             await send_progress("error", {"content": error_msg})
             return {"success": False, "error": error_msg}
 
         paper_path = Path(paper_dir)
-        
+
         # Candidate locations to search (including new location)
         project_root = Path(__file__).parent.parent.parent.parent.parent
         possible_paths = [
@@ -167,12 +169,12 @@ async def mimic_exam_questions(
                     continue
 
         if not latest_dir:
-                error_msg = f"Exam directory not found: {paper_dir}"
-                await send_progress("error", {"content": error_msg})
-                return {
-                    "success": False,
-                    "error": f"{error_msg}\nSearched paths: {[str(p) for p in possible_paths]}",
-                }
+            error_msg = f"Exam directory not found: {paper_dir}"
+            await send_progress("error", {"content": error_msg})
+            return {
+                "success": False,
+                "error": f"{error_msg}\nSearched paths: {[str(p) for p in possible_paths]}",
+            }
         else:
             latest_dir = paper_path.resolve()
             if not latest_dir.exists():
@@ -314,9 +316,11 @@ async def mimic_exam_questions(
             "reference_questions": [
                 {
                     "number": q.get("question_number", str(i + 1)),
-                    "preview": q["question_text"][:100] + "..."
-                    if len(q["question_text"]) > 100
-                    else q["question_text"],
+                    "preview": (
+                        q["question_text"][:100] + "..."
+                        if len(q["question_text"]) > 100
+                        else q["question_text"]
+                    ),
                 }
                 for i, q in enumerate(reference_questions)
             ],
