@@ -220,250 +220,192 @@
 - [ ] Deep-coding from idea generation
 - [ ] Personalized Interaction with Notebook
 
-## 🚀 Quick Start
+## 🚀 Getting Started
 
-### Step 1: Clone Repository and Set Up Environment
+### Step 1: Pre-Configuration
+
+<table>
+<tr><td>
+
+**① Clone Repository**
 
 ```bash
-# Clone the repository
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
+```
 
-# Set Up Virtual Environment (Choose One Option)
+</td></tr>
+<tr><td>
 
-# Option A: Using conda (Recommended)
+**② Set Up Environment Variables**
+
+```bash
+cp .env.example .env
+# Edit .env file with your API keys
+```
+
+<details>
+<summary>📋 <b>Environment Variables Reference</b></summary>
+
+| Variable | Required | Description |
+|:---|:---:|:---|
+| `LLM_MODEL` | **Yes** | Model name (e.g., `gpt-4o`) |
+| `LLM_BINDING_API_KEY` | **Yes** | Your LLM API key |
+| `LLM_BINDING_HOST` | **Yes** | API endpoint URL |
+| `EMBEDDING_MODEL` | **Yes** | Embedding model name |
+| `EMBEDDING_BINDING_API_KEY` | **Yes** | Embedding API key |
+| `EMBEDDING_BINDING_HOST` | **Yes** | Embedding API endpoint |
+| `BACKEND_PORT` | No | Backend port (default: `8001`) |
+| `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
+| `TTS_*` | No | Text-to-Speech settings |
+| `PERPLEXITY_API_KEY` | No | For web search |
+
+</details>
+
+</td></tr>
+<tr><td>
+
+**③ Configure Ports & LLM** *(Optional)*
+
+- **Ports**: Edit `config/main.yaml` → `server.backend_port` / `server.frontend_port`
+- **LLM**: Edit `config/agents.yaml` → `temperature` / `max_tokens` per module
+- See [Configuration Docs](config/README.md) for details
+
+</td></tr>
+<tr><td>
+
+**④ Try Demo Knowledge Bases** *(Optional)*
+
+<details>
+<summary>📚 <b>Available Demos</b></summary>
+
+- **Research Papers** — 5 papers from our lab ([AI-Researcher](https://github.com/HKUDS/AI-Researcher), [LightRAG](https://github.com/HKUDS/LightRAG), etc.)
+- **Data Science Textbook** — 8 chapters, 296 pages ([Book Link](https://ma-lab-berkeley.github.io/deep-representation-learning-book/))
+
+</details>
+
+1. Download from [Google Drive](https://drive.google.com/drive/folders/1iWwfZXiTuQKQqUYb5fGDZjLCeTUP6DA6?usp=sharing)
+2. Extract into `data/` directory
+
+> Demo KBs use `text-embedding-3-large` with `dimensions = 3072`
+
+</td></tr>
+<tr><td>
+
+**⑤ Create Your Own Knowledge Base** *(After Launch)*
+
+1. Go to http://localhost:3782/knowledge
+2. Click "New Knowledge Base" → Enter name → Upload PDF/TXT/MD files
+3. Monitor progress in terminal
+
+</td></tr>
+</table>
+
+---
+
+### Step 2: Choose Your Installation Method
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+<h3 align="center">🐳 Docker Deployment</h3>
+<p align="center"><b>Recommended</b> — No Python/Node.js setup</p>
+
+---
+
+**Prerequisites**: [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
+
+**Quick Start**:
+
+```bash
+# Build and start (~5-10 min first run)
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+```
+
+**Commands**:
+
+```bash
+docker compose up -d      # Start
+docker compose logs -f    # Logs
+docker compose down       # Stop
+docker compose up --build # Rebuild
+```
+
+> **Dev Mode**: Add `-f docker-compose.dev.yml`
+
+**Advanced**:
+
+```bash
+# Build custom image
+docker build -t deeptutor:latest .
+
+# Run standalone
+docker run -p 8001:8001 -p 3782:3782 \
+  --env-file .env deeptutor:latest
+```
+
+</td>
+<td width="50%" valign="top">
+
+<h3 align="center">💻 Manual Installation</h3>
+<p align="center">For development or non-Docker environments</p>
+
+---
+
+**Prerequisites**: Python 3.10+, Node.js 18+
+
+**Set Up Environment**:
+
+```bash
+# Using conda (Recommended)
 conda create -n deeptutor python=3.10
 conda activate deeptutor
 
-# Option B: Using venv
+# Or using venv
 python -m venv venv
-# On Windows:
-venv\Scripts\activate
-
-# On macOS/Linux:
 source venv/bin/activate
 ```
 
-### Step 2: Install Dependencies
-
-Run the automated installation script to install all required dependencies:
+**Install Dependencies**:
 
 ```bash
-# Recommended
 bash scripts/install_all.sh
 
-# Alternative Python Scripts
-python scripts/install_all.py
-
-# Or Install Dependencies Manually
+# Or manually:
 pip install -r requirements.txt
-npm install
+npm install --prefix web
 ```
 
-### Step 3: Set Up Environment Variables
-
-Create a `.env` file in the project root directory based on `.env.example`:
+**Launch**:
 
 ```bash
-# Copy from .env.example template (if exists)
-cp .env.example .env
-
-# Then edit .env file with your API keys.
-```
-
-### Step 4: Configure Ports and LLM Settings *(Optional)*
-
-By default, the application uses:
-- **Backend (FastAPI)**: `8001`
-- **Frontend (Next.js)**: `3782`
-
-You can modify these ports in `config/main.yaml` by editing the `server.backend_port` and `server.frontend_port` values.
-
-**LLM Configuration**: Agent settings for `temperature` and `max_tokens` are centralized in `config/agents.yaml`. Each module (guide, solve, research, question, ideagen, co_writer) has customizable parameters. See [Configuration Documentation](config/README.md) for details.
-
-### Step 5: Try Our Demos *(Optional)*
-
-Experience the system quickly with two pre-built knowledge bases and a collection of challenging questions with usage examples.
-
-<details>
-<summary><b>Research Papers Collection</b> — 5 papers (20-50 pages each)</summary>
-
-A curated collection of 5 research papers from our lab covering RAG and Agent fields. This demo showcases broad knowledge coverage for research scenarios.
-
-**Used Papers**: [AI-Researcher](https://github.com/HKUDS/AI-Researcher) | [AutoAgent](https://github.com/HKUDS/AutoAgent) | [RAG-Anything](https://github.com/HKUDS/RAG-Anything) | [LightRAG](https://github.com/HKUDS/LightRAG) | [VideoRAG](https://github.com/HKUDS/VideoRAG)
-
-</details>
-
-<details>
-<summary><b>Data Science Textbook</b> — 8 chapters, 296 pages</summary>
-
-A comprehensive data science textbook with challenging content. This demo showcases **deep knowledge depth** for learning scenarios.
-
-**Book Link**: [Deep Representation Learning Book](https://ma-lab-berkeley.github.io/deep-representation-learning-book/)
-</details>
-
-<br>
-
-**Download and Setup:**
-
-1. Download the demo package: [Google Drive](https://drive.google.com/drive/folders/1iWwfZXiTuQKQqUYb5fGDZjLCeTUP6DA6?usp=sharing)
-2. Extract the compressed files directly into the `data/` directory
-3. Knowledge bases will be automatically available once you start the system
-
-> **Note:** Our **demo knowledge bases** use `text-embedding-3-large` with `dimensions = 3072`. Ensure your embeddings model has matching dimensions (3072) for compatibility.
-
-### Step 6: Launch the Application
-
-```bash
-# Activate virtual environment
-conda activate aitutor  # or: source venv/bin/activate
-
-# Start web interface (frontend + backend)
+# Start web interface
 python scripts/start_web.py
 
-# Alternative: CLI interface only
+# Or CLI only
 python scripts/start.py
 
-# Stop the service: Ctrl+C
+# Stop: Ctrl+C
 ```
 
-### Step 7: Create Your Own Knowledge Base
-
-Create custom knowledge bases through the web interface with support for multiple file formats.
-
-1. **Access Knowledge Base**: Navigate to http://localhost:{frontend_port}/knowledge
-2. **Create New Base**: Click "New Knowledge Base"
-3. **Configure Settings**: Enter a unique name for your knowledge base
-4. **Upload Content**: Add single or multiple files for batch processing
-5. **Monitor Progress**: Track processing status in the terminal running `start_web.py`
-   - Large files may take several minutes to complete
-   - Knowledge base becomes available once processing finishes
-
-> **Tips:** Large files may require several minutes to process. Multiple files can be uploaded simultaneously for efficient batch processing.
+</td>
+</tr>
+</table>
 
 ### Access URLs
 
 | Service | URL | Description |
 |:---:|:---|:---|
-| **Frontend** | http://localhost:{frontend_port} | Main web interface |
-| **API Docs** | http://localhost:{backend_port}/docs | Interactive API documentation |
-| **Health** | http://localhost:{backend_port}/api/v1/knowledge/health | System health check |
+| **Frontend** | http://localhost:3782 | Main web interface |
+| **API Docs** | http://localhost:8001/docs | Interactive API documentation |
 
 ---
 
-## � Docker Deployment
-
-DeepTutor can be easily deployed using Docker, which bundles both the FastAPI backend and Next.js frontend in a single container.
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) installed
-- [Docker Compose](https://docs.docker.com/compose/install/) (included with Docker Desktop)
-
-### Quick Start with Docker
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/HKUDS/DeepTutor.git
-cd DeepTutor
-
-# 2. Copy environment template and configure your API keys
-cp .env.example .env
-# Edit .env with your LLM API keys (LLM_BINDING_API_KEY, LLM_MODEL, LLM_BINDING_HOST)
-
-# 3. Build and run with Docker Compose
-docker compose up --build
-
-# 4. Access the application
-# Frontend: http://localhost:3782
-# Backend API: http://localhost:8001
-# API Docs: http://localhost:8001/docs
-```
-
-### Docker Compose Commands
-
-```bash
-# Start in detached mode (background)
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop services
-docker compose down
-
-# Rebuild after code changes
-docker compose up --build
-
-# Development mode with hot-reload
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-```
-
-### Environment Variables
-
-Configure the following environment variables in your `.env` file:
-
-| Variable | Required | Description |
-|:---|:---:|:---|
-| `LLM_BINDING` | No | LLM provider (default: `openai`) |
-| `LLM_MODEL` | **Yes** | Model name (e.g., `gpt-4o`, `gpt-4-turbo`) |
-| `LLM_BINDING_API_KEY` | **Yes** | Your LLM API key |
-| `LLM_BINDING_HOST` | **Yes** | API endpoint URL |
-| `BACKEND_PORT` | No | Backend port (default: `8001`) |
-| `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
-| `TTS_MODEL` | No | Text-to-Speech model |
-| `TTS_API_KEY` | No | TTS API key |
-| `TTS_URL` | No | TTS API endpoint |
-
-### Data Persistence
-
-Docker volumes are used to persist user data and knowledge bases:
-
-```yaml
-volumes:
-  - deeptutor_user_data:/app/data/user
-  - deeptutor_knowledge_bases:/app/data/knowledge_bases
-```
-
-To use local directories instead (for easier access to files):
-
-```bash
-# Create local data directories
-mkdir -p data/user data/knowledge_bases
-
-# Run with local volume mounts
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-```
-
-### Building Custom Images
-
-```bash
-# Build production image
-docker build -t deeptutor:latest .
-
-# Build development image
-docker build --target development -t deeptutor:dev .
-
-# Run standalone container
-docker run -p 8001:8001 -p 3782:3782 --env-file .env deeptutor:latest
-```
-
-### Docker Architecture
-
-The Dockerfile uses a multi-stage build for optimized images:
-
-| Stage | Purpose |
-|:---|:---|
-| `frontend-builder` | Builds Next.js frontend with npm |
-| `python-base` | Installs Python dependencies |
-| `production` | Final production image with supervisord |
-| `development` | Development image with hot-reload support |
-
-Both services (backend + frontend) run in a single container managed by **supervisord**.
-
----
-
-## �📂 Data Storage
+## 📂 Data Storage
 
 All user content and system data are stored in the `data/` directory:
 

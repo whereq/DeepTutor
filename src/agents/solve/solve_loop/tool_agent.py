@@ -35,7 +35,7 @@ class ToolAgent(BaseAgent):
             use_prompt_loader=True,
             token_tracker=token_tracker,
         )
-    
+
     async def _generate_code_from_intent(self, intent: str) -> str:
         system_prompt = """
 You are a Python code generator.
@@ -55,17 +55,17 @@ Rules:
 - No natural language
 """
         code = await self.call_llm(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        verbose=False,
-    )
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            verbose=False,
+        )
         if "```" in code:
             raise ValueError("LLM returned markdown code fences, which is forbidden")
         if len(code) > 8000:
             raise ValueError("Generated code too large")
 
         return code.strip()
-    
+
     async def process(
         self,
         step: SolveChainStep,
@@ -262,9 +262,9 @@ Rules:
                     "execution_failed": True,
                 }
                 return raw_answer, metadata
-            
+
             code = await self._generate_code_from_intent(query)
-            
+
             exec_result = await run_code(
                 language="python",
                 code=code,

@@ -4,8 +4,12 @@
 # This Dockerfile builds a production-ready image for DeepTutor
 # containing both the FastAPI backend and Next.js frontend
 #
-# Build: docker build -t deeptutor .
-# Run:   docker run -p 8001:8001 -p 3782:3782 --env-file .env deeptutor
+# Build: docker compose build
+# Run:   docker compose up -d
+#
+# Prerequisites:
+#   1. Copy .env.example to .env and configure your API keys
+#   2. Optionally customize config/main.yaml
 # ============================================
 
 # ============================================
@@ -14,6 +18,9 @@
 FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/web
+
+# Accept build argument for backend port
+ARG BACKEND_PORT=8001
 
 # Copy package files first for better caching
 COPY web/package.json web/package-lock.json* ./
@@ -24,11 +31,12 @@ RUN npm ci --legacy-peer-deps
 # Copy frontend source code
 COPY web/ ./
 
-# Build the Next.js application
-# Create a placeholder .env.local for build (will be overridden at runtime)
-RUN echo "NEXT_PUBLIC_API_BASE=http://localhost:8001" > .env.local
+# Create .env.local with placeholder that will be replaced at runtime
+# Use a unique placeholder that can be safely replaced
+RUN echo "NEXT_PUBLIC_API_BASE=__NEXT_PUBLIC_API_BASE_PLACEHOLDER__" > .env.local
 
-# Build Next.js for production
+# Build Next.js for production with standalone output
+# This allows runtime environment variable injection
 RUN npm run build
 
 # ============================================
@@ -46,10 +54,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install system dependencies
+# Note: libgl1 and libglib2.0-0 are required for OpenCV (used by mineru)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
@@ -78,12 +92,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install Node.js 20.x (LTS) and npm
+# Install Node.js 20.x (LTS) and required tools
+# Note: libgl1 and libglib2.0-0 are required for OpenCV (used by mineru)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     gnupg \
     supervisor \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
@@ -103,10 +123,6 @@ COPY --from=frontend-builder /app/web/package.json ./web/package.json
 COPY --from=frontend-builder /app/web/next.config.js ./web/next.config.js
 COPY --from=frontend-builder /app/web/node_modules ./web/node_modules
 
-# Create a startup script for the frontend
-RUN echo '#!/bin/bash\ncd /app/web && exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${FRONTEND_PORT:-3782}' > /app/start-frontend.sh && \
-    chmod +x /app/start-frontend.sh
-
 # Copy application source code
 COPY src/ ./src/
 COPY config/ ./config/
@@ -114,7 +130,7 @@ COPY scripts/ ./scripts/
 COPY pyproject.toml ./
 COPY requirements.txt ./
 
-# Create necessary directories
+# Create necessary directories (these will be overwritten by volume mounts)
 RUN mkdir -p \
     data/user/solve \
     data/user/question \
@@ -130,22 +146,25 @@ RUN mkdir -p \
     data/knowledge_bases
 
 # Create supervisord configuration for running both services
+# Log output goes to stdout/stderr so docker logs can capture them
 RUN mkdir -p /etc/supervisor/conf.d
 
 COPY <<EOF /etc/supervisor/conf.d/deeptutor.conf
 [supervisord]
 nodaemon=true
-logfile=/var/log/supervisor/supervisord.log
+logfile=/dev/null
+logfile_maxbytes=0
 pidfile=/var/run/supervisord.pid
-childlogdir=/var/log/supervisor
 
 [program:backend]
-command=python -m uvicorn src.api.main:app --host 0.0.0.0 --port %(ENV_BACKEND_PORT)s
+command=/bin/bash /app/start-backend.sh
 directory=/app
 autostart=true
 autorestart=true
-stderr_logfile=/var/log/supervisor/backend.err.log
-stdout_logfile=/var/log/supervisor/backend.out.log
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/fd/2
+stderr_logfile_maxbytes=0
 environment=PYTHONPATH="/app",PYTHONUNBUFFERED="1"
 
 [program:frontend]
@@ -154,13 +173,63 @@ directory=/app/web
 autostart=true
 autorestart=true
 startsecs=5
-stderr_logfile=/var/log/supervisor/frontend.err.log
-stdout_logfile=/var/log/supervisor/frontend.out.log
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/fd/2
+stderr_logfile_maxbytes=0
 environment=NODE_ENV="production"
 EOF
 
-# Create log directories
-RUN mkdir -p /var/log/supervisor
+# Create backend startup script
+COPY <<'EOF' /app/start-backend.sh
+#!/bin/bash
+set -e
+
+BACKEND_PORT=${BACKEND_PORT:-8001}
+
+echo "[Backend]  🚀 Starting FastAPI backend on port ${BACKEND_PORT}..."
+
+# Run uvicorn directly - the application's logging system already handles:
+# 1. Console output (visible in docker logs)
+# 2. File logging to data/user/logs/ai_tutor_*.log
+exec python -m uvicorn src.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT}
+EOF
+
+RUN chmod +x /app/start-backend.sh
+
+# Create frontend startup script
+# This script handles runtime environment variable injection for Next.js
+COPY <<'EOF' /app/start-frontend.sh
+#!/bin/bash
+set -e
+
+# Get the backend port (default to 8001)
+BACKEND_PORT=${BACKEND_PORT:-8001}
+FRONTEND_PORT=${FRONTEND_PORT:-3782}
+
+# Determine the API base URL
+if [ -n "$NEXT_PUBLIC_API_BASE_EXTERNAL" ]; then
+    API_BASE="$NEXT_PUBLIC_API_BASE_EXTERNAL"
+else
+    API_BASE="http://localhost:${BACKEND_PORT}"
+fi
+
+echo "[Frontend] 🚀 Starting Next.js frontend on port ${FRONTEND_PORT}..."
+echo "[Frontend] 📌 API base URL: ${API_BASE}"
+
+# Replace placeholder in built Next.js files
+# This is necessary because NEXT_PUBLIC_* vars are inlined at build time
+find /app/web/.next -type f \( -name "*.js" -o -name "*.json" \) -exec \
+    sed -i "s|__NEXT_PUBLIC_API_BASE_PLACEHOLDER__|${API_BASE}|g" {} \; 2>/dev/null || true
+
+# Also update .env.local for any runtime reads
+echo "NEXT_PUBLIC_API_BASE=${API_BASE}" > /app/web/.env.local
+
+# Start Next.js
+cd /app/web && exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${FRONTEND_PORT}
+EOF
+
+RUN chmod +x /app/start-frontend.sh
 
 # Create entrypoint script
 COPY <<'EOF' /app/entrypoint.sh
@@ -175,23 +244,37 @@ echo "============================================"
 export BACKEND_PORT=${BACKEND_PORT:-8001}
 export FRONTEND_PORT=${FRONTEND_PORT:-3782}
 
-# Update Next.js environment file with actual backend URL
-echo "NEXT_PUBLIC_API_BASE=http://localhost:${BACKEND_PORT}" > /app/web/.env.local
-
-# If NEXT_PUBLIC_API_BASE is provided externally, use it
-if [ -n "$NEXT_PUBLIC_API_BASE_EXTERNAL" ]; then
-    echo "NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE_EXTERNAL}" > /app/web/.env.local
-fi
-
 echo "📌 Backend Port: ${BACKEND_PORT}"
 echo "📌 Frontend Port: ${FRONTEND_PORT}"
-echo "============================================"
 
 # Check for required environment variables
 if [ -z "$LLM_BINDING_API_KEY" ]; then
     echo "⚠️  Warning: LLM_BINDING_API_KEY not set"
-    echo "   Please provide LLM configuration via environment variables"
+    echo "   Please provide LLM configuration via environment variables or .env file"
 fi
+
+if [ -z "$LLM_MODEL" ]; then
+    echo "⚠️  Warning: LLM_MODEL not set"
+    echo "   Please configure LLM_MODEL in your .env file"
+fi
+
+# Initialize user data directories if empty
+echo "📁 Checking data directories..."
+if [ ! -f "/app/data/user/user_history.json" ]; then
+    echo "   Initializing user data directories..."
+    python -c "
+from pathlib import Path
+from src.core.setup import init_user_directories
+init_user_directories(Path('/app'))
+" 2>/dev/null || echo "   ⚠️ Directory initialization skipped (will be created on first use)"
+fi
+
+echo "============================================"
+echo "📦 Configuration loaded from:"
+echo "   - Environment variables (.env file)"
+echo "   - config/main.yaml"
+echo "   - config/agents.yaml"
+echo "============================================"
 
 # Start supervisord
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/deeptutor.conf
@@ -227,20 +310,23 @@ RUN pip install --no-cache-dir \
     ruff
 
 # Override supervisord config for development (with reload)
+# Log output goes to stdout/stderr so docker logs can capture them
 COPY <<EOF /etc/supervisor/conf.d/deeptutor.conf
 [supervisord]
 nodaemon=true
-logfile=/var/log/supervisor/supervisord.log
+logfile=/dev/null
+logfile_maxbytes=0
 pidfile=/var/run/supervisord.pid
-childlogdir=/var/log/supervisor
 
 [program:backend]
 command=python -m uvicorn src.api.main:app --host 0.0.0.0 --port %(ENV_BACKEND_PORT)s --reload
 directory=/app
 autostart=true
 autorestart=true
-stderr_logfile=/var/log/supervisor/backend.err.log
-stdout_logfile=/var/log/supervisor/backend.out.log
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/fd/2
+stderr_logfile_maxbytes=0
 environment=PYTHONPATH="/app",PYTHONUNBUFFERED="1"
 
 [program:frontend]
@@ -249,8 +335,10 @@ directory=/app/web
 autostart=true
 autorestart=true
 startsecs=5
-stderr_logfile=/var/log/supervisor/frontend.err.log
-stdout_logfile=/var/log/supervisor/frontend.out.log
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/fd/2
+stderr_logfile_maxbytes=0
 environment=NODE_ENV="development"
 EOF
 

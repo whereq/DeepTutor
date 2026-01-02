@@ -290,7 +290,6 @@ class SolveAgent(BaseAgent):
     def _prepare_query(self, tool_type: str, query: str, current_step: SolveChainStep) -> str:
         return query.strip()
 
-
     def _summarize_none_answer(self, text: str) -> str:
         return text.strip()
 

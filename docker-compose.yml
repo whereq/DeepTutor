@@ -4,9 +4,13 @@
 # This file provides orchestration for DeepTutor services
 #
 # Usage:
-#   Development: docker compose up
-#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+#   Production:  docker compose up -d
+#   Development: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 #   Build only:  docker compose build
+#
+# Prerequisites:
+#   1. Copy .env.example to .env and configure your API keys
+#   2. Optionally customize config/main.yaml and config/agents.yaml
 # ============================================
 
 services:
@@ -18,11 +22,19 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
+      args:
+        # Pass backend port at build time for Next.js static optimization
+        - BACKEND_PORT=${BACKEND_PORT:-8001}
     container_name: deeptutor
     restart: unless-stopped
     ports:
-      - "${BACKEND_PORT:-8001}:8001"
-      - "${FRONTEND_PORT:-3782}:3782"
+      - "${BACKEND_PORT:-8001}:${BACKEND_PORT:-8001}"
+      - "${FRONTEND_PORT:-3782}:${FRONTEND_PORT:-3782}"
+
+    # Load environment variables from .env file
+    env_file:
+      - .env
+
     environment:
       # LLM Configuration (Required)
       - LLM_BINDING=${LLM_BINDING:-openai}
@@ -51,29 +63,24 @@ services:
       - FRONTEND_PORT=${FRONTEND_PORT:-3782}
       # External API URL (for browser access if different from localhost)
       - NEXT_PUBLIC_API_BASE_EXTERNAL=${NEXT_PUBLIC_API_BASE_EXTERNAL:-}
+
     volumes:
-      # Persist user data and knowledge bases
-      - deeptutor_user_data:/app/data/user
-      - deeptutor_knowledge_bases:/app/data/knowledge_bases
-      # Optional: Mount custom config
-      # - ./config:/app/config:ro
+      # Mount local config directory (read-only)
+      - ./config:/app/config:ro
+      # Mount local data directory for persistence (read-write)
+      # This ensures all outputs go to your local ./data directory
+      - ./data/user:/app/data/user
+      - ./data/knowledge_bases:/app/data/knowledge_bases
+
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-8001}/"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
+
     networks:
       - deeptutor-network
-
-# ============================================
-# Named Volumes for Data Persistence
-# ============================================
-volumes:
-  deeptutor_user_data:
-    driver: local
-  deeptutor_knowledge_bases:
-    driver: local
 
 # ============================================
 # Networks
