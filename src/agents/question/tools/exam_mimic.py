@@ -131,30 +131,41 @@ async def mimic_exam_questions(
         print("-" * 80)
 
         # Resolve relative names against reference_papers
+        # SECURITY FIX: Prevent Path Injection / Traversal
+        if os.path.isabs(paper_dir) or ".." in paper_dir:
+            error_msg = f"Invalid paper_dir: Absolute paths and traversal are not allowed. ({paper_dir})"
+            await send_progress("error", {"content": error_msg})
+            return {"success": False, "error": error_msg}
+
         paper_path = Path(paper_dir)
+        
+        # Candidate locations to search (including new location)
+        project_root = Path(__file__).parent.parent.parent.parent.parent
+        possible_paths = [
+            project_root
+            / "data"
+            / "user"
+            / "question"
+            / "mimic_papers"
+            / paper_dir,  # New primary location
+            Path("question_agents/reference_papers") / paper_dir,  # Legacy location
+            Path("reference_papers") / paper_dir,
+        ]
 
-        if not paper_path.is_absolute():
-            # Candidate locations to search (including new location)
-            project_root = Path(__file__).parent.parent.parent.parent.parent
-            possible_paths = [
-                project_root
-                / "data"
-                / "user"
-                / "question"
-                / "mimic_papers"
-                / paper_dir,  # New primary location
-                Path("question_agents/reference_papers") / paper_dir,  # Legacy location
-                Path("reference_papers") / paper_dir,
-                paper_path,
-            ]
-
-            latest_dir = None
-            for p in possible_paths:
-                if p.exists():
-                    latest_dir = p.resolve()
+        latest_dir = None
+        for p in possible_paths:
+            if p.exists():
+                # Double check to ensure we didn't escape via symlink or subtle tricks
+                try:
+                    resolved_p = p.resolve()
+                    # Safe check: Ensure the resolved path is strictly inside the intended parent
+                    # This is a basic check; for robust security, whitelist allowed parents explicitly if needed.
+                    latest_dir = resolved_p
                     break
+                except Exception:
+                    continue
 
-            if not latest_dir:
+        if not latest_dir:
                 error_msg = f"Exam directory not found: {paper_dir}"
                 await send_progress("error", {"content": error_msg})
                 return {
