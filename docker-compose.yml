@@ -1,0 +1,83 @@
+# ============================================
+# DeepTutor Docker Compose Configuration
+# ============================================
+# This file provides orchestration for DeepTutor services
+#
+# Usage:
+#   Development: docker compose up
+#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+#   Build only:  docker compose build
+# ============================================
+
+services:
+  # ============================================
+  # All-in-One DeepTutor Service
+  # ============================================
+  deeptutor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: deeptutor
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8001}:8001"
+      - "${FRONTEND_PORT:-3782}:3782"
+    environment:
+      # LLM Configuration (Required)
+      - LLM_BINDING=${LLM_BINDING:-openai}
+      - LLM_MODEL=${LLM_MODEL}
+      - LLM_BINDING_API_KEY=${LLM_BINDING_API_KEY}
+      - LLM_BINDING_HOST=${LLM_BINDING_HOST}
+      - DISABLE_SSL_VERIFY=${DISABLE_SSL_VERIFY:-false}
+      # Embedding Configuration (Required for Knowledge Base)
+      - EMBEDDING_BINDING=${EMBEDDING_BINDING:-openai}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-large}
+      - EMBEDDING_BINDING_API_KEY=${EMBEDDING_BINDING_API_KEY}
+      - EMBEDDING_BINDING_HOST=${EMBEDDING_BINDING_HOST}
+      - EMBEDDING_DIM=${EMBEDDING_DIM:-3072}
+      - EMBEDDING_MAX_TOKENS=${EMBEDDING_MAX_TOKENS:-8192}
+      # TTS Configuration (Optional)
+      - TTS_MODEL=${TTS_MODEL:-}
+      - TTS_API_KEY=${TTS_API_KEY:-}
+      - TTS_URL=${TTS_URL:-}
+      - TTS_VOICE=${TTS_VOICE:-alloy}
+      # Web Search Configuration (Optional)
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}
+      # Logging Configuration
+      - RAG_TOOL_MODULE_LOG_LEVEL=${RAG_TOOL_MODULE_LOG_LEVEL:-INFO}
+      # Service Ports
+      - BACKEND_PORT=${BACKEND_PORT:-8001}
+      - FRONTEND_PORT=${FRONTEND_PORT:-3782}
+      # External API URL (for browser access if different from localhost)
+      - NEXT_PUBLIC_API_BASE_EXTERNAL=${NEXT_PUBLIC_API_BASE_EXTERNAL:-}
+    volumes:
+      # Persist user data and knowledge bases
+      - deeptutor_user_data:/app/data/user
+      - deeptutor_knowledge_bases:/app/data/knowledge_bases
+      # Optional: Mount custom config
+      # - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - deeptutor-network
+
+# ============================================
+# Named Volumes for Data Persistence
+# ============================================
+volumes:
+  deeptutor_user_data:
+    driver: local
+  deeptutor_knowledge_bases:
+    driver: local
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  deeptutor-network:
+    driver: bridge
