@@ -44,7 +44,7 @@
 • **Knowledge Simplification & Explanations**: Transform complex concepts, knowledge, and algorithms into easy-to-understand visual aids, detailed step-by-step breakdowns, and engaging interactive demonstrations.<br>
 • **Personalized Q&A**: Context-aware conversations that adapt to your learning progress, with interactive pages and session-based knowledge tracking.
 
-### 🎯 Knowledge Reinforcement with Practice Problem Generator
+### 🎯 Knowledge Reinforcement with Practice Exercise Generator
 • **Intelligent Exercise Creation**: Generate targeted quizzes, practice problems, and customized assessments tailored to your current knowledge level and specific learning objectives.<br>
 • **Authentic Exam Simulation**: Upload reference exams to generate practice questions that perfectly match the original style, format, and difficulty—giving you realistic preparation for the actual test.
 
