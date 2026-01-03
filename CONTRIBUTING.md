@@ -1,6 +1,6 @@
 # Contributing to DeepTutor
 
-Thank you for your interest in contributing to DeepTutor! 🎉
+Thank you for your interest in contributing to DeepTutor! That menas a lot for our team! 
 
 You can join our discord community for further discussion: https://discord.gg/aka9p9EW
 
@@ -20,19 +20,45 @@ We use automated tools to maintain code quality:
 - **Prettier** — Frontend formatting (`web/.prettierrc.json`)
 - **detect-secrets** — Security scanning
 
-Pre-commit hooks run automatically on `git commit`. To run manually:
+This project uses **pre-commit hooks** to automatically format code and check for issues before commits.
 
+**Step 1: Install pre-commit**
+```bash
+# Using pip
+pip install pre-commit
+
+# Or using conda
+conda install -c conda-forge pre-commit
+```
+
+**Step 2: Install Git hooks**
+```bash
+cd DeepTutor
+pre-commit install
+```
+
+**Step 3: Run checks on all files**
 ```bash
 pre-commit run --all-files
 ```
 
-## ⚙️ Configuration Guidelines
+**Common Commands**
 
-- **LLM parameters** (`temperature`, `max_tokens`): Edit `config/agents.yaml`
-- **System settings** (paths, logging, tools): Edit `config/main.yaml`
-- **API keys**: Use `.env` file (never commit secrets)
+```bash
+# Normal commit (hooks run automatically)
+git commit -m "Your commit message"
 
-See [config/README.md](config/README.md) for details.
+# Manually check all files
+pre-commit run --all-files
+
+# Update hooks to latest versions
+pre-commit autoupdate
+
+# Skip hooks (not recommended, only for emergencies)
+git commit --no-verify -m "Emergency fix"
+```
+
+</details>
 
 ## 📋 Commit Message Format
 
@@ -51,5 +77,5 @@ See [config/README.md](config/README.md) for details.
 
 ---
 
-Let's build a tutoring system for the whole community TOGETHER! 🚀
+### Let's build a tutoring system for the whole community TOGETHER! 🚀
 
