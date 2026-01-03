@@ -15,7 +15,7 @@
 # ============================================
 # Stage 1: Frontend Builder
 # ============================================
-FROM node:20-alpine AS frontend-builder
+FROM node:20-slim AS frontend-builder
 
 WORKDIR /app/web
 
@@ -92,25 +92,25 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install Node.js 20.x (LTS) and required tools
+# Install system dependencies
 # Note: libgl1 and libglib2.0-0 are required for OpenCV (used by mineru)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
-    gnupg \
     supervisor \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
-    && mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/* \
-    && npm --version
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Node.js from frontend-builder stage (avoids re-downloading from NodeSource)
+COPY --from=frontend-builder /usr/local/bin/node /usr/local/bin/node
+COPY --from=frontend-builder /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && node --version && npm --version
 
 # Copy Python packages from builder stage
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages

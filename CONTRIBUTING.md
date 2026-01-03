@@ -1,6 +1,6 @@
 # Contributing to DeepTutor
 
-Thank you for your interest in contributing to DeepTutor! That menas a lot for our team! 
+Thank you for your interest in contributing to DeepTutor! That menas a lot for our team!
 
 You can join our discord community for further discussion: https://discord.gg/aka9p9EW
 
@@ -78,4 +78,3 @@ git commit --no-verify -m "Emergency fix"
 ---
 
 ### Let's build a tutoring system for the whole community TOGETHER! 🚀
-
