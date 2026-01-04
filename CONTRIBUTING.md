@@ -66,15 +66,19 @@ git commit --no-verify -m "Emergency fix"
 <type>: <short description>
 
 [optional body]
-```
 
+[optional footer(s)]
+```
 **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 **Examples**:
-- `feat: add PDF export for research reports`
-- `fix: resolve WebSocket connection timeout`
-- `docs: update installation instructions`
-
+- `feat: for a new feature. This typically corresponds to a MINOR version bump in Semantic Versioning.`
+- `fix: for a bug fix. This typically corresponds to a PATCH version bump.`
+- `chore: for routine tasks that do not modify source code or tests (e.g., updating build processes).`
+- `docs: for documentation-only changes.`
+- `style: for changes that do not affect the meaning of the code (e.g., whitespace, semicolons).`
+- `refactor: for code changes that neither fix a bug nor add a feature.`
+- `test: for adding missing tests or correcting existing tests.`
 ---
 
 ### Let's build a tutoring system for the whole community TOGETHER! 🚀
