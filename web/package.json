@@ -24,7 +24,7 @@
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@types/node": "^22",
