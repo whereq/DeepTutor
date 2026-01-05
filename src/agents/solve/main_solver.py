@@ -126,14 +126,14 @@ class MainSolver:
                     api_key = llm_config["api_key"]
                 if base_url is None:
                     base_url = llm_config["base_url"]
-                
+
                 # Ensure LLM config is populated in self.config for agents
                 if "llm" not in self.config:
                     self.config["llm"] = {}
-                
+
                 # Update config with complete details (binding, model, etc.)
                 self.config["llm"].update(llm_config)
-                
+
             except ValueError as e:
                 raise ValueError(f"LLM config error: {e!s}")
 

@@ -301,7 +301,39 @@ cp .env.example .env
 
 **Требования**: [Docker](https://docs.docker.com/get-docker/) и [Docker Compose](https://docs.docker.com/compose/install/)
 
-**Быстрый Старт**:
+<details open>
+<summary><b>🚀 Вариант A: Предварительно Собранный Образ (Быстрее Всего)</b></summary>
+
+```bash
+# Загрузить и запустить предварительно собранный образ (~30 секунд)
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  -e LLM_MODEL=gpt-4o \
+  -e LLM_BINDING_API_KEY=your-api-key \
+  -e LLM_BINDING_HOST=https://api.openai.com/v1 \
+  -e EMBEDDING_MODEL=text-embedding-3-large \
+  -e EMBEDDING_BINDING_API_KEY=your-api-key \
+  -e EMBEDDING_BINDING_HOST=https://api.openai.com/v1 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+Или использовать файл `.env`:
+
+```bash
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+</details>
+
+<details>
+<summary><b>🔨 Вариант B: Собрать из Исходного Кода</b></summary>
 
 ```bash
 # Собрать и запустить (~5-10 мин при первом запуске)
@@ -311,6 +343,8 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
+</details>
+
 **Команды**:
 
 ```bash
@@ -318,20 +352,10 @@ docker compose up -d      # Запустить
 docker compose logs -f    # Логи
 docker compose down       # Остановить
 docker compose up --build # Пересобрать
+docker pull ghcr.io/hkuds/deeptutor:latest  # Обновить образ
 ```
 
 > **Режим Разработки**: Добавьте `-f docker-compose.dev.yml`
-
-**Продвинутый**:
-
-```bash
-# Собрать пользовательский образ
-docker build -t deeptutor:latest .
-
-# Запустить автономно
-docker run -p 8001:8001 -p 3782:3782 \
-  --env-file .env deeptutor:latest
-```
 
 </td>
 <td width="50%" valign="top">

@@ -35,13 +35,13 @@
 </div>
 
 ---
-> **[2026.1.3]** Released DeepTutor [v0.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.2.0) - thanks to all the contributors! ❤️
+> **[2026.1.3]** Released DeepTutor [v0.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v0.2.1) - Any feedbacks are welcomed! ❤️
 
-> **[2026.1.1]** Join our [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) and [Discord Community](https://discord.gg/zpP9cssj)- shape the future of DeepTutor! 💬
+> **[2026.1.1]** Join our [Discord Community](https://discord.gg/zpP9cssj) and [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
 
 > **[2025.12.30]** Visit our [Official Website](https://hkuds.github.io/DeepTutor/) for more details!
 
-> **[2025.12.29]** DeepTutor v0.1 is now live! ✨
+> **[2025.12.29]** DeepTutor is now live! ✨
 ---
 
 ## Key Features of DeepTutor
@@ -147,7 +147,7 @@
 </a>
 
 **Automated IdeaGen**  
-<sub>Systematic Brainstorming and Concept Synthesis with Dual-filter Workflow</sub>
+<sub>Brainstorming and Concept Synthesis with Dual-filter Workflow</sub>
 
 </td>
 <td width="33%" align="center">
@@ -225,8 +225,8 @@
 ## 📋 Todo
 
 > 🌟 Star to follow our future updates!
-- [ ] Support Local LLM Services (e.g., ollama)
-- [ ] Refactor RAG Module (see [Discussions](https://github.com/HKUDS/DeepTutor/discussions))
+- [-] Support Local LLM Services (e.g., ollama)
+- [-] Refactor RAG Module (see [Discussions](https://github.com/HKUDS/DeepTutor/discussions))
 - [ ] Deep-coding from idea generation
 - [ ] Personalized Interaction with Notebook
 
@@ -308,7 +308,39 @@ cp .env.example .env
 
 **Prerequisites**: [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
 
-**Quick Start**:
+<details open>
+<summary><b>🚀 Option A: Pre-built Image (Fastest)</b></summary>
+
+```bash
+# Pull and run pre-built image (~30 seconds)
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  -e LLM_MODEL=gpt-4o \
+  -e LLM_BINDING_API_KEY=your-api-key \
+  -e LLM_BINDING_HOST=https://api.openai.com/v1 \
+  -e EMBEDDING_MODEL=text-embedding-3-large \
+  -e EMBEDDING_BINDING_API_KEY=your-api-key \
+  -e EMBEDDING_BINDING_HOST=https://api.openai.com/v1 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+Or use with `.env` file:
+
+```bash
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+</details>
+
+<details>
+<summary><b>🔨 Option B: Build from Source</b></summary>
 
 ```bash
 # Build and start (~5-10 min first run)
@@ -318,6 +350,8 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
+</details>
+
 **Commands**:
 
 ```bash
@@ -325,20 +359,10 @@ docker compose up -d      # Start
 docker compose logs -f    # Logs
 docker compose down       # Stop
 docker compose up --build # Rebuild
+docker pull ghcr.io/hkuds/deeptutor:latest  # Update image
 ```
 
 > **Dev Mode**: Add `-f docker-compose.dev.yml`
-
-**Advanced**:
-
-```bash
-# Build custom image
-docker build -t deeptutor:latest .
-
-# Run standalone
-docker run -p 8001:8001 -p 3782:3782 \
-  --env-file .env deeptutor:latest
-```
 
 </td>
 <td width="50%" valign="top">

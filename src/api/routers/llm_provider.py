@@ -1,12 +1,13 @@
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
+from lightrag.llm.openai import openai_complete_if_cache
 from pydantic import BaseModel
 
-from src.core.llm_provider import provider_manager, LLMProvider
-from lightrag.llm.openai import openai_complete_if_cache
+from src.core.llm_provider import LLMProvider, provider_manager
 
 router = APIRouter()
+
 
 class TestConnectionRequest(BaseModel):
     binding: str
@@ -15,10 +16,12 @@ class TestConnectionRequest(BaseModel):
     model: str
     requires_key: bool = True  # Default to True for backward compatibility
 
+
 @router.get("/", response_model=List[LLMProvider])
 async def list_providers():
     """List all configured LLM providers."""
     return provider_manager.list_providers()
+
 
 @router.post("/", response_model=LLMProvider)
 async def add_provider(provider: LLMProvider):
@@ -28,6 +31,7 @@ async def add_provider(provider: LLMProvider):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
 @router.put("/{name}", response_model=LLMProvider)
 async def update_provider(name: str, updates: Dict[str, Any]):
     """Update an existing LLM provider."""
@@ -35,6 +39,7 @@ async def update_provider(name: str, updates: Dict[str, Any]):
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
     return provider
+
 
 @router.delete("/{name}")
 async def delete_provider(name: str):
@@ -44,17 +49,19 @@ async def delete_provider(name: str):
         raise HTTPException(status_code=404, detail="Provider not found")
     return {"message": "Provider deleted"}
 
+
 @router.post("/active", response_model=LLMProvider)
 async def set_active_provider(name_payload: Dict[str, str]):
     """Set the active LLM provider."""
     name = name_payload.get("name")
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
-        
+
     provider = provider_manager.set_active_provider(name)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
     return provider
+
 
 @router.post("/test", response_model=Dict[str, Any])
 async def test_connection(request: TestConnectionRequest):
@@ -66,8 +73,8 @@ async def test_connection(request: TestConnectionRequest):
         base_url = request.base_url.rstrip("/")
         for suffix in ["/chat/completions", "/completions"]:
             if base_url.endswith(suffix):
-                base_url = base_url[:-len(suffix)]
-        
+                base_url = base_url[: -len(suffix)]
+
         # Simple test prompt
         if not request.requires_key and not request.api_key:
             # Inject dummy key if not required and not provided
@@ -82,7 +89,7 @@ async def test_connection(request: TestConnectionRequest):
             system_prompt="You are a helpful assistant. Reply with 'Yes'.",
             api_key=api_key_to_use,
             base_url=base_url,
-            max_tokens=10
+            max_tokens=10,
         )
         return {"success": True, "message": "Connection successful", "response": response}
     except Exception as e:

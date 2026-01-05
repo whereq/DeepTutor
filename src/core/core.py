@@ -47,26 +47,27 @@ def _strip_value(value: str | None) -> str | None:
 def get_llm_config() -> dict:
     """
     Return complete environment configuration for LLM.
-    
+
     Priority:
     1. Active provider from llm_providers.json
     2. Environment variables (.env)
-    
+
     Returns:
         dict: Dictionary containing the following keys:
             - binding: LLM service provider
             - model: LLM model name
             - api_key: LLM API key
             - base_url: LLM API endpoint URL
-            
+
     Raises:
         ValueError: If required configuration is missing
     """
     # 1. Try to get active provider from new system
     try:
         from src.core.llm_provider import provider_manager
+
         active_provider = provider_manager.get_active_provider()
-        
+
         if active_provider:
             # Map provider fields to config format
             return {
@@ -86,15 +87,21 @@ def get_llm_config() -> dict:
 
     # Validate required configuration
     if not model:
-        raise ValueError("Error: LLM_MODEL not set, please configure it in .env file or activate a provider")
-    
+        raise ValueError(
+            "Error: LLM_MODEL not set, please configure it in .env file or activate a provider"
+        )
+
     # Check if API key is required (default to true for security/backward compatibility)
     requires_key = os.getenv("LLM_API_KEY_REQUIRED", "true").lower() == "true"
-    
+
     if requires_key and not api_key:
-        raise ValueError("Error: LLM_BINDING_API_KEY not set, please configure it in .env file or activate a provider")
+        raise ValueError(
+            "Error: LLM_BINDING_API_KEY not set, please configure it in .env file or activate a provider"
+        )
     if not base_url:
-        raise ValueError("Error: LLM_BINDING_HOST not set, please configure it in .env file or activate a provider")
+        raise ValueError(
+            "Error: LLM_BINDING_HOST not set, please configure it in .env file or activate a provider"
+        )
 
     return {
         "binding": binding,

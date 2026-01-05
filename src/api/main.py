@@ -6,18 +6,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src.api.routers import (
+    agent_config,
     co_writer,
     dashboard,
     guide,
     ideagen,
     knowledge,
+    llm_provider,
     notebook,
     question,
     research,
     settings,
     solve,
     system,
-    llm_provider,
 )
 from src.core.logging import get_logger
 
@@ -80,7 +81,7 @@ app.include_router(ideagen.router, prefix="/api/v1/ideagen", tags=["ideagen"])
 app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
 app.include_router(llm_provider.router, prefix="/api/v1/config/llm", tags=["config"])
-
+app.include_router(agent_config.router, prefix="/api/v1/config", tags=["config"])
 
 
 @app.get("/")

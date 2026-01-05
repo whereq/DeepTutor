@@ -301,7 +301,39 @@ cp .env.example .env
 
 **前提条件**：[Docker](https://docs.docker.com/get-docker/) と [Docker Compose](https://docs.docker.com/compose/install/)
 
-**クイックスタート**：
+<details open>
+<summary><b>🚀 オプション A: 事前構築済みイメージ（最速）</b></summary>
+
+```bash
+# 事前構築済みイメージをプルして実行（約30秒）
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  -e LLM_MODEL=gpt-4o \
+  -e LLM_BINDING_API_KEY=your-api-key \
+  -e LLM_BINDING_HOST=https://api.openai.com/v1 \
+  -e EMBEDDING_MODEL=text-embedding-3-large \
+  -e EMBEDDING_BINDING_API_KEY=your-api-key \
+  -e EMBEDDING_BINDING_HOST=https://api.openai.com/v1 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+または `.env` ファイルを使用：
+
+```bash
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+</details>
+
+<details>
+<summary><b>🔨 オプション B: ソースコードからビルド</b></summary>
 
 ```bash
 # ビルドして起動（初回実行は約 5-10 分）
@@ -311,6 +343,8 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
+</details>
+
 **コマンド**：
 
 ```bash
@@ -318,20 +352,10 @@ docker compose up -d      # 起動
 docker compose logs -f    # ログ
 docker compose down       # 停止
 docker compose up --build # 再ビルド
+docker pull ghcr.io/hkuds/deeptutor:latest  # イメージを更新
 ```
 
 > **開発モード**：`-f docker-compose.dev.yml` を追加
-
-**高度な設定**：
-
-```bash
-# カスタムイメージをビルド
-docker build -t deeptutor:latest .
-
-# スタンドアロンで実行
-docker run -p 8001:8001 -p 3782:3782 \
-  --env-file .env deeptutor:latest
-```
 
 </td>
 <td width="50%" valign="top">

@@ -283,7 +283,39 @@ cp .env.example .env
 
 **आवश्यकताएं**: [Docker](https://docs.docker.com/get-docker/) और [Docker Compose](https://docs.docker.com/compose/install/)
 
-**त्वरित प्रारंभ**:
+<details open>
+<summary><b>🚀 विकल्प A: पूर्व-निर्मित छवि (सबसे तेज़)</b></summary>
+
+```bash
+# पूर्व-निर्मित छवि को खींचें और चलाएं (~30 सेकंड)
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  -e LLM_MODEL=gpt-4o \
+  -e LLM_BINDING_API_KEY=your-api-key \
+  -e LLM_BINDING_HOST=https://api.openai.com/v1 \
+  -e EMBEDDING_MODEL=text-embedding-3-large \
+  -e EMBEDDING_BINDING_API_KEY=your-api-key \
+  -e EMBEDDING_BINDING_HOST=https://api.openai.com/v1 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+या `.env` फ़ाइल का उपयोग करें:
+
+```bash
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+</details>
+
+<details>
+<summary><b>🔨 विकल्प B: स्रोत कोड से निर्माण</b></summary>
 
 ```bash
 # निर्माण और प्रारंभ (पहली बार चलाने पर ~5-10 मिनट)
@@ -293,6 +325,8 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
+</details>
+
 **आदेश**:
 
 ```bash
@@ -300,20 +334,10 @@ docker compose up -d      # प्रारंभ
 docker compose logs -f    # लॉग
 docker compose down       # रोकें
 docker compose up --build # पुनर्निर्माण
+docker pull ghcr.io/hkuds/deeptutor:latest  # छवि अपडेट करें
 ```
 
 > **डेव मोड**: `-f docker-compose.dev.yml` जोड़ें
-
-**उन्नत**:
-
-```bash
-# कस्टम छवि निर्माण
-docker build -t deeptutor:latest .
-
-# स्टैंडअलोन चलाएं
-docker run -p 8001:8001 -p 3782:3782 \
-  --env-file .env deeptutor:latest
-```
 
 </td>
 <td width="50%" valign="top">

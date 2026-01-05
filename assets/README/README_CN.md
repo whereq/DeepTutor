@@ -301,7 +301,39 @@ cp .env.example .env
 
 **前置要求**：[Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/)
 
-**快速开始**：
+<details open>
+<summary><b>🚀 方式 A：预构建镜像（最快）</b></summary>
+
+```bash
+# 拉取并运行预构建镜像（约 30 秒）
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  -e LLM_MODEL=gpt-4o \
+  -e LLM_BINDING_API_KEY=your-api-key \
+  -e LLM_BINDING_HOST=https://api.openai.com/v1 \
+  -e EMBEDDING_MODEL=text-embedding-3-large \
+  -e EMBEDDING_BINDING_API_KEY=your-api-key \
+  -e EMBEDDING_BINDING_HOST=https://api.openai.com/v1 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+或使用 `.env` 文件：
+
+```bash
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+</details>
+
+<details>
+<summary><b>🔨 方式 B：从源码构建</b></summary>
 
 ```bash
 # 构建并启动（首次运行约 5-10 分钟）
@@ -311,6 +343,8 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
+</details>
+
 **命令**：
 
 ```bash
@@ -318,20 +352,10 @@ docker compose up -d      # 启动
 docker compose logs -f    # 日志
 docker compose down       # 停止
 docker compose up --build # 重建
+docker pull ghcr.io/hkuds/deeptutor:latest  # 更新镜像
 ```
 
 > **开发模式**：添加 `-f docker-compose.dev.yml`
-
-**高级**：
-
-```bash
-# 构建自定义镜像
-docker build -t deeptutor:latest .
-
-# 独立运行
-docker run -p 8001:8001 -p 3782:3782 \
-  --env-file .env deeptutor:latest
-```
 
 </td>
 <td width="50%" valign="top">

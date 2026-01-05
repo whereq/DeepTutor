@@ -142,7 +142,7 @@ async def test_llm_connection():
         # Sanitize Base URL (remove /chat/completions suffix if present)
         for suffix in ["/chat/completions", "/completions"]:
             if base_url.endswith(suffix):
-                base_url = base_url[:-len(suffix)]
+                base_url = base_url[: -len(suffix)]
 
         # Handle API Key (inject dummy if missing for local LLMs)
         api_key = llm_config["api_key"]
@@ -204,10 +204,10 @@ async def test_embeddings_connection():
         embedding_config = get_embedding_config()
         model = embedding_config["model"]
         base_url = embedding_config["base_url"].rstrip("/")
-        
+
         # Sanitize Base URL (remove /embeddings suffix if present, though less common)
         # OpenAI client handles /embeddings automatically
-        
+
         # Handle API Key
         api_key = embedding_config["api_key"]
         if not api_key:

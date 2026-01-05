@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -14,13 +13,14 @@ class LLMProvider(BaseModel):
     """
     Configuration model for a single LLM provider.
     """
+
     name: str = Field(..., description="Unique name for the provider configuration")
     binding: str = Field(..., description="Provider type (e.g., openai, azure_openai, ollama)")
     base_url: str = Field(..., description="API endpoint URL")
     api_key: str = Field(..., description="API Key")
     model: str = Field(..., description="Model name to use")
     is_active: bool = Field(default=False, description="Whether this provider is currently active")
-    
+
     class Config:
         populate_by_name = True
 
@@ -29,19 +29,19 @@ class LLMProviderManager:
     """
     Manages LLM provider configurations, persisting them to a JSON file.
     """
-    
+
     def __init__(self, storage_path: Path = PROVIDERS_FILE):
         self.storage_path = storage_path
         self._ensure_storage_exists()
-        
+
     def _ensure_storage_exists(self):
         """Ensure the storage directory and file exist."""
         if not self.storage_path.parent.exists():
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
         if not self.storage_path.exists():
             self._save_providers([])
-            
+
     def _load_providers(self) -> List[Dict[str, Any]]:
         """Load raw provider data from JSON."""
         try:
@@ -81,10 +81,10 @@ class LLMProviderManager:
         providers = self.list_providers()
         if any(p.name == provider.name for p in providers):
             raise ValueError(f"Provider with name '{provider.name}' already exists.")
-        
+
         # If this is the first provider or set as active, handle activation logic
         if not providers or provider.is_active:
-             # Deactivate others if this one is active
+            # Deactivate others if this one is active
             if provider.is_active:
                 for p in providers:
                     p.is_active = False
@@ -101,26 +101,26 @@ class LLMProviderManager:
         """Update an existing provider."""
         providers = self.list_providers()
         target_idx = -1
-        
+
         for i, p in enumerate(providers):
             if p.name == name:
                 target_idx = i
                 break
-        
+
         if target_idx == -1:
             return None
-            
+
         # Update fields
         current_data = providers[target_idx].model_dump()
         current_data.update(updates)
         updated_provider = LLMProvider(**current_data)
-        
+
         # Handle activation logic if changing is_active
         if updated_provider.is_active:
             for i, p in enumerate(providers):
                 if i != target_idx:
                     p.is_active = False
-        
+
         providers[target_idx] = updated_provider
         self._save_providers([p.model_dump() for p in providers])
         return updated_provider
@@ -130,7 +130,7 @@ class LLMProviderManager:
         providers = self.list_providers()
         initial_len = len(providers)
         providers = [p for p in providers if p.name != name]
-        
+
         if len(providers) < initial_len:
             self._save_providers([p.model_dump() for p in providers])
             return True
@@ -140,7 +140,7 @@ class LLMProviderManager:
         """Set a provider as active and deactivate others."""
         providers = self.list_providers()
         activated = None
-        
+
         found = False
         for p in providers:
             if p.name == name:
@@ -149,11 +149,12 @@ class LLMProviderManager:
                 found = True
             else:
                 p.is_active = False
-        
+
         if found:
             self._save_providers([p.model_dump() for p in providers])
             return activated
         return None
+
 
 # Global instance
 provider_manager = LLMProviderManager()
