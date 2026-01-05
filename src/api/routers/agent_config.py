@@ -67,4 +67,3 @@ async def get_single_agent_config(agent_type: str):
     if agent_type in AGENT_REGISTRY:
         return AGENT_REGISTRY[agent_type]
     return {"error": f"Agent type '{agent_type}' not found"}
-

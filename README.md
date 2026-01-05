@@ -35,7 +35,7 @@
 </div>
 
 ---
-> **[2026.1.3]** Released DeepTutor [v0.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v0.2.1) - Any feedbacks are welcomed! ❤️
+> **[2026.1.3]** Released DeepTutor [v0.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.3.0) - Any feedbacks are welcomed! ❤️
 
 > **[2026.1.1]** Join our [Discord Community](https://discord.gg/zpP9cssj) and [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
 

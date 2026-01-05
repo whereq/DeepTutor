@@ -80,41 +80,41 @@ class TestPromptManager:
     def test_caching(self):
         """Test that prompts are cached after first load."""
         pm = get_prompt_manager()
-        
+
         # First load
         prompts1 = pm.load_prompts("research", "research_agent", "en")
-        
+
         # Second load should return cached version
         prompts2 = pm.load_prompts("research", "research_agent", "en")
-        
+
         assert prompts1 is prompts2
 
     def test_clear_cache_all(self):
         """Test clearing all cache."""
         pm = get_prompt_manager()
-        
+
         # Load some prompts
         pm.load_prompts("research", "research_agent", "en")
         pm.load_prompts("guide", "chat_agent", "en")
-        
+
         assert len(pm._cache) >= 2
-        
+
         pm.clear_cache()
         assert len(pm._cache) == 0
 
     def test_clear_cache_module_specific(self):
         """Test clearing cache for specific module."""
         pm = get_prompt_manager()
-        
+
         # Load prompts for multiple modules
         pm.load_prompts("research", "research_agent", "en")
         pm.load_prompts("guide", "chat_agent", "en")
-        
+
         initial_count = len(pm._cache)
-        
+
         # Clear only research cache
         pm.clear_cache("research")
-        
+
         # Guide prompts should still be cached
         assert any("guide" in k for k in pm._cache)
         assert not any("research" in k for k in pm._cache)
@@ -122,7 +122,7 @@ class TestPromptManager:
     def test_get_prompt_helper(self):
         """Test the get_prompt helper method."""
         pm = get_prompt_manager()
-        
+
         test_prompts = {
             "system": {
                 "role": "You are a helpful assistant",
@@ -130,15 +130,15 @@ class TestPromptManager:
             },
             "simple_key": "Simple value",
         }
-        
+
         # Test nested access
         role = pm.get_prompt(test_prompts, "system", "role")
         assert role == "You are a helpful assistant"
-        
+
         # Test simple access (no field)
         simple = pm.get_prompt(test_prompts, "simple_key")
         assert simple == "Simple value"
-        
+
         # Test fallback
         missing = pm.get_prompt(test_prompts, "nonexistent", "field", "fallback_value")
         assert missing == "fallback_value"
@@ -146,7 +146,7 @@ class TestPromptManager:
     def test_language_fallback(self):
         """Test language fallback chain."""
         pm = get_prompt_manager()
-        
+
         # Even with a potentially missing language, should fallback
         prompts = pm.load_prompts("research", "research_agent", "zh")
         assert isinstance(prompts, dict)
@@ -154,13 +154,13 @@ class TestPromptManager:
     def test_reload_prompts(self):
         """Test force reload bypasses cache."""
         pm = get_prompt_manager()
-        
+
         # Load and cache
         prompts1 = pm.load_prompts("research", "research_agent", "en")
-        
+
         # Force reload
         prompts2 = pm.reload_prompts("research", "research_agent", "en")
-        
+
         # They should be equal but not the same object
         assert prompts1 == prompts2
         # After reload, cache should have fresh entry
@@ -197,4 +197,3 @@ class TestPromptManagerLanguages:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

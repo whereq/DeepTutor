@@ -105,4 +105,3 @@ jobs:
           echo "  -e EMBEDDING_BINDING_API_KEY=your-api-key \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-

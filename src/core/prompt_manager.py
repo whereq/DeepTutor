@@ -9,7 +9,7 @@ from typing import Any
 
 import yaml
 
-from .core import parse_language, PROJECT_ROOT
+from .core import PROJECT_ROOT, parse_language
 
 
 class PromptManager:
@@ -84,9 +84,7 @@ class PromptManager:
         fallback_chain = self.LANGUAGE_FALLBACKS.get(lang_code, ["en"])
 
         for lang in fallback_chain:
-            prompt_file = self._resolve_prompt_path(
-                prompts_dir, lang, agent_name, subdirectory
-            )
+            prompt_file = self._resolve_prompt_path(prompts_dir, lang, agent_name, subdirectory)
             if prompt_file and prompt_file.exists():
                 try:
                     with open(prompt_file, encoding="utf-8") as f:
@@ -206,4 +204,3 @@ def get_prompt_manager() -> PromptManager:
 
 
 __all__ = ["PromptManager", "get_prompt_manager"]
-
