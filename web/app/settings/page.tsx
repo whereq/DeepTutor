@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import { getTranslation } from "@/lib/i18n";
+import { setTheme } from "@/lib/theme";
 
 import { useGlobal } from "@/context/GlobalContext";
 
@@ -443,13 +444,24 @@ export default function SettingsPage() {
       const res = await fetch(apiUrl("/api/v1/settings"));
       if (res.ok) {
         const responseData = await res.json();
+        console.log("[settings] fetchSettings - backend ui:", responseData.ui);
         setData(responseData);
         setEditedConfig(JSON.parse(JSON.stringify(responseData.config)));
         if (!editedUI) {
-          setEditedUI(JSON.parse(JSON.stringify(responseData.ui)));
-        }
-        if (responseData.ui.theme) {
-          applyTheme(responseData.ui.theme);
+          const uiData = JSON.parse(JSON.stringify(responseData.ui));
+          // If there's a stored theme in localStorage, use it instead of backend default
+          const storedTheme = localStorage.getItem('deeptutor-theme');
+          console.log("[settings] fetchSettings - storedTheme from localStorage:", storedTheme);
+          if (storedTheme === 'light' || storedTheme === 'dark') {
+            console.log("[settings] Using localStorage theme:", storedTheme, "instead of backend:", uiData.theme);
+            uiData.theme = storedTheme;
+          }
+          setEditedUI(uiData);
+          // Apply the theme (either from localStorage or backend)
+          if (uiData.theme) {
+            console.log("[settings] Applying theme:", uiData.theme);
+            applyTheme(uiData.theme);
+          }
         }
       } else {
         setError("Failed to load settings");
@@ -581,11 +593,10 @@ export default function SettingsPage() {
   };
 
   const applyTheme = (theme: "light" | "dark") => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    // Persist theme to localStorage and document immediately
+    setTheme(theme);
+    // Console log for debugging
+    console.log("Theme changed to:", theme, "and saved to localStorage");
   };
 
   const handleSave = async () => {
@@ -617,6 +628,11 @@ export default function SettingsPage() {
       setData((prev) =>
         prev ? { ...prev, config: newConfig, ui: newUI } : null,
       );
+
+      // Sync theme immediately when saving
+      if (editedUI.theme) {
+        setTheme(editedUI.theme);
+      }
 
       await refreshSettings();
 

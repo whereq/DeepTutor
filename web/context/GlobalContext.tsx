@@ -8,6 +8,12 @@ import React, {
   useEffect,
 } from "react";
 import { wsUrl, apiUrl } from "@/lib/api";
+import {
+  initializeTheme,
+  setTheme,
+  getStoredTheme,
+  type Theme,
+} from "@/lib/theme";
 
 // --- Types ---
 interface LogEntry {
@@ -256,32 +262,51 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
     language: "en" | "zh";
   }>({ theme: "light", language: "en" });
 
+  const [isInitialized, setIsInitialized] = useState(false);
+
   const refreshSettings = async () => {
     try {
       const res = await fetch(apiUrl("/api/v1/settings"));
       if (res.ok) {
         const data = await res.json();
         if (data.ui) {
+          // Check if localStorage has a saved theme preference
+          const storedTheme = getStoredTheme();
+          const themeToUse = storedTheme || data.ui.theme;
+          
+          console.log("[GlobalContext] refreshSettings - storedTheme:", storedTheme, "backendTheme:", data.ui.theme, "final:", themeToUse);
+          
           setUiSettings({
-            theme: data.ui.theme,
+            theme: themeToUse,
             language: data.ui.language,
           });
-          // Apply theme immediately
-          if (data.ui.theme === "dark") {
-            document.documentElement.classList.add("dark");
-          } else {
-            document.documentElement.classList.remove("dark");
-          }
+          // Persist theme to localStorage (will sync with backend on save)
+          setTheme(themeToUse);
         }
       }
     } catch (e) {
-      console.error("Failed to load settings", e);
+      console.error("Failed to load settings from backend", e);
+      // Fall back to localStorage theme
+      const stored = getStoredTheme();
+      if (stored) {
+        console.log("[GlobalContext] Using fallback localStorage theme:", stored);
+        setUiSettings((prev) => ({ ...prev, theme: stored }));
+      }
     }
   };
 
   useEffect(() => {
-    refreshSettings();
-  }, []);
+    // Initialize theme immediately on first render
+    if (!isInitialized) {
+      const initialTheme = initializeTheme();
+      console.log("[GlobalContext] useEffect - initialized theme:", initialTheme);
+      setUiSettings((prev) => ({ ...prev, theme: initialTheme }));
+      setIsInitialized(true);
+      
+      // Then fetch from backend and sync
+      refreshSettings();
+    }
+  }, [isInitialized]);
 
   // --- Solver Logic ---
   const [solverState, setSolverState] = useState<SolverState>({
