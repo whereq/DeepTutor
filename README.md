@@ -5,12 +5,19 @@
 # DeepTutor: AI-Powered Personalized Learning Assistant
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![TailwindCSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=flat&logo=discord&logoColor=white)](https://discord.gg/aka9p9EW)
-[![Feishu](https://img.shields.io/badge/Feishu-Group-blue?style=flat)](./Communication.md)
-[![WeChat](https://img.shields.io/badge/WeChat-Group-green?style=flat&logo=wechat)](./Communication.md)
+
+<p align="center">
+  <a href="https://discord.gg/zpP9cssj"><img src="https://img.shields.io/badge/Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
+  &nbsp;&nbsp;
+  <a href="./Communication.md"><img src="https://img.shields.io/badge/Feishu-Join_Group-00D4AA?style=for-the-badge&logo=feishu&logoColor=white" alt="Feishu"></a>
+  &nbsp;&nbsp;
+  <a href="./Communication.md"><img src="https://img.shields.io/badge/WeChat-Join_Group-07C160?style=for-the-badge&logo=wechat&logoColor=white" alt="WeChat"></a>
+</p>
 
 
 
@@ -30,7 +37,7 @@
 ---
 > **[2026.1.3]** Released DeepTutor [v0.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.2.0) - thanks to all the contributors! ❤️
 
-> **[2026.1.1]** Happy New Year! Join our [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
+> **[2026.1.1]** Join our [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) and [Discord Community](https://discord.gg/zpP9cssj)- shape the future of DeepTutor! 💬
 
 > **[2025.12.30]** Visit our [Official Website](https://hkuds.github.io/DeepTutor/) for more details!
 
@@ -1276,22 +1283,38 @@ This will extract numbered items (Definitions, Theorems, Equations, etc.) from y
 
 </details>
 
-## 📄 License
 
-This project is licensed under the **[AGPL-3.0 License](LICENSE)**.
+</div>
 
-<!--
 ## ⭐ Star History
 
 <div align="center">
-<a href="https://star-history.com/#HKUDS/DeepTutor&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=Date" />
- </picture>
+
+<p>
+  <a href="https://github.com/HKUDS/DeepTutor/stargazers"><img src="assets/roster/stargazers.svg" alt="Stargazers"/></a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/HKUDS/DeepTutor/network/members"><img src="assets/roster/forkers.svg" alt="Forkers"/></a>
+</p>
+
+<a href="https://www.star-history.com/#HKUDS/DeepTutor&type=timeline&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&theme=dark&legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&legend=top-left" />
+  </picture>
 </a>
-</div> 2-->
+
+</div>
+
+## 🤝 Contribution
+
+<div align="center">
+
+We hope DeepTutor could become a gift for the community. 🎁
+
+<a href="https://github.com/HKUDS/DeepTutor/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=HKUDS/DeepTutor" />
+</a>
 
 </div>
 
@@ -1307,15 +1330,9 @@ This project is licensed under the **[AGPL-3.0 License](LICENSE)**.
 
 [⭐ Star us](https://github.com/HKUDS/DeepTutor/stargazers) · [🐛 Report a bug](https://github.com/HKUDS/DeepTutor/issues) · [💬 Discussions](https://github.com/HKUDS/DeepTutor/discussions)
 
-[![Stargazers repo roster for @HKUDS/DeepTutor](https://reporoster.com/stars/dark/HKUDS/DeepTutor)](https://github.com/HKUDS/DeepTutor/stargazers)
-
-[![Forkers repo roster for @HKUDS/DeepTutor](https://reporoster.com/forks/dark/HKUDS/DeepTutor)](https://github.com/HKUDS/DeepTutor/network/members)
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&legend=top-left)](https://www.star-history.com/#HKUDS/DeepTutor&type=timeline&legend=top-left)
-
 ---
+
+This project is licensed under the ***[AGPL-3.0 License](LICENSE)***.
 
 *✨ Thanks for visiting **DeepTutor**!*
 
