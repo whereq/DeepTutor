@@ -672,7 +672,15 @@ export default function SettingsPage() {
     setEditedUI((prev) => {
       if (!prev) return null;
       const newUI = { ...prev, [key]: value };
-      if (key === "theme") applyTheme(value);
+      if (key === "theme") {
+        applyTheme(value);
+        // Auto-save theme to backend immediately
+        fetch(apiUrl("/api/v1/settings/ui"), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...newUI, [key]: value }),
+        }).catch((err) => console.error("Failed to save theme:", err));
+      }
       return newUI;
     });
   };
@@ -694,6 +702,35 @@ export default function SettingsPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] overflow-y-auto animate-fade-in">
+      {/* Sticky Save Button at Top */}
+      <div className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-md">
+        <div className="max-w-4xl mx-auto p-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">System Settings</h1>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`py-2 px-6 rounded-lg font-medium flex items-center gap-2 transition-all ${
+              saving
+                ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
+                : saveSuccess
+                  ? "bg-green-500 text-white"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : saveSuccess ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {saving ? t("Saving...") : saveSuccess ? t("Saved") : t("Save All Changes")}
+          </button>
+        </div>
+      </div>
+
       <div className="max-w-4xl mx-auto p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -1044,30 +1081,6 @@ export default function SettingsPage() {
                 </div>
               </section>
             )}
-
-            {/* Save Button */}
-            <div className="flex justify-center pt-4 pb-8">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className={`w-full max-w-sm py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all ${
-                  saving
-                    ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
-                    : saveSuccess
-                      ? "bg-green-500 text-white shadow-xl shadow-green-500/30 scale-105"
-                      : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-1"
-                }`}
-              >
-                {saving ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : saveSuccess ? (
-                  <Check className="w-6 h-6" />
-                ) : (
-                  <Save className="w-6 h-6" />
-                )}
-                {saveSuccess ? t("Configuration Saved") : t("Save All Changes")}
-              </button>
-            </div>
           </div>
         )}
 
