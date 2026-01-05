@@ -36,7 +36,7 @@ jobs:
             --repo HKUDS/DeepTutor \
             --output assets/roster \
             --theme dark \
-            --max-users 100
+            --display 6
 
       - name: Commit and push if changed
         run: |
