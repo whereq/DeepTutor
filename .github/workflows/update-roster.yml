@@ -18,16 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      
+
       - name: Generate roster images
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -37,7 +37,7 @@ jobs:
             --output assets/roster \
             --theme dark \
             --max-users 100
-      
+
       - name: Commit and push if changed
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -45,4 +45,3 @@ jobs:
           git add assets/roster/
           git diff --quiet --cached || git commit -m "chore: update repo roster images [skip ci]"
           git push
-
