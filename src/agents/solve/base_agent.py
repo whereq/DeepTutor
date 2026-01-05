@@ -120,16 +120,23 @@ class BaseAgent(ABC):
         Raises:
             ValueError: If environment variable LLM_MODEL is not set
         """
-        # Must read from environment variable
+        # 1. Try to get from agent's specific config
+        if hasattr(self, "agent_config") and self.agent_config.get("model"):
+            return self.agent_config["model"]
+            
+        # 2. Try to get from general LLM config (injected from MainSolver)
+        if hasattr(self, "llm_config") and self.llm_config.get("model"):
+            return self.llm_config["model"]
+
+        # 3. Fallback to environment variable (for backward compatibility)
         env_model = os.getenv("LLM_MODEL")
-        if not env_model:
-            raise ValueError(
-                f"Error: Environment variable LLM_MODEL is not set\n"
-                f"Please configure LLM_MODEL in your .env file, for example:\n"
-                f"LLM_MODEL=gpt-4o-mini\n"
-                f"Agent: {self.agent_name}"
-            )
-        return env_model
+        if env_model:
+            return env_model
+            
+        raise ValueError(
+            f"Error: Model not configured for agent {self.agent_name}\n"
+            f"Please configure LLM_MODEL in .env OR activate a provider."
+        )
 
     def get_temperature(self) -> float:
         """
