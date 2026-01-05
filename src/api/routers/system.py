@@ -137,8 +137,17 @@ async def test_llm_connection():
     try:
         llm_config = get_llm_config()
         model = llm_config["model"]
+        base_url = llm_config["base_url"].rstrip("/")
+
+        # Sanitize Base URL (remove /chat/completions suffix if present)
+        for suffix in ["/chat/completions", "/completions"]:
+            if base_url.endswith(suffix):
+                base_url = base_url[:-len(suffix)]
+
+        # Handle API Key (inject dummy if missing for local LLMs)
         api_key = llm_config["api_key"]
-        base_url = llm_config["base_url"]
+        if not api_key:
+            api_key = "sk-no-key-required"
 
         # Send a minimal test request with a prompt that guarantees output
         test_prompt = "Say 'OK' to confirm you are working."
@@ -194,8 +203,15 @@ async def test_embeddings_connection():
     try:
         embedding_config = get_embedding_config()
         model = embedding_config["model"]
+        base_url = embedding_config["base_url"].rstrip("/")
+        
+        # Sanitize Base URL (remove /embeddings suffix if present, though less common)
+        # OpenAI client handles /embeddings automatically
+        
+        # Handle API Key
         api_key = embedding_config["api_key"]
-        base_url = embedding_config["base_url"]
+        if not api_key:
+            api_key = "sk-no-key-required"
 
         # Send a minimal test request
         test_texts = ["test"]

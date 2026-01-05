@@ -17,6 +17,7 @@ from src.api.routers import (
     settings,
     solve,
     system,
+    llm_provider,
 )
 from src.core.logging import get_logger
 
@@ -78,6 +79,8 @@ app.include_router(guide.router, prefix="/api/v1/guide", tags=["guide"])
 app.include_router(ideagen.router, prefix="/api/v1/ideagen", tags=["ideagen"])
 app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
+app.include_router(llm_provider.router, prefix="/api/v1/config/llm", tags=["config"])
+
 
 
 @app.get("/")
