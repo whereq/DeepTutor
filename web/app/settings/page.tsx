@@ -243,7 +243,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings();
-    fetchSettings();
     fetchEnvConfig();
     if (activeTab === "llm_providers") {
       fetchProviders();
