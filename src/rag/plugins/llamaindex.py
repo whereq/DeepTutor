@@ -121,14 +121,16 @@ async def initialize_rag(kb_name: str, documents: List[str]) -> bool:
         raise Exception(f"LlamaIndex initialization failed: {e}")
 
 
-async def search_rag(query: str, kb_name: str, mode: str = "semantic") -> Dict:
+async def search_rag(query: str, kb_name: str, mode: str = "semantic", only_need_context: bool = False, **kwargs) -> Dict:
     """
     Search using LlamaIndex.
     
     Args:
         query: Search query
         kb_name: Knowledge base name
-        mode: Search mode (semantic or hybrid)
+        mode: Search mode (semantic, hybrid)
+        only_need_context: If True, only return context without generating answer
+        **kwargs: Additional parameters (ignored for compatibility)
     
     Returns:
         Dictionary with search results
@@ -166,7 +168,26 @@ async def search_rag(query: str, kb_name: str, mode: str = "semantic") -> Dict:
             response_mode = "compact"
             similarity_top_k = 3
         
-        # Create query engine
+        # If only context needed, use retriever instead of query engine
+        if only_need_context:
+            # Get retriever for raw context
+            retriever = index.as_retriever(similarity_top_k=similarity_top_k)
+            nodes = retriever.retrieve(query)
+            
+            # Combine context from all nodes
+            context_parts = [node.text for node in nodes]
+            context_text = "\n\n".join(context_parts)
+            
+            return {
+                "query": query,
+                "answer": context_text,
+                "content": context_text,
+                "mode": mode,
+                "provider": "llamaindex",
+                "sources": len(nodes)
+            }
+        
+        # Create query engine for full answer generation
         query_engine = index.as_query_engine(
             similarity_top_k=similarity_top_k,
             response_mode=response_mode,

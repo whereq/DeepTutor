@@ -125,7 +125,7 @@ async def initialize_rag(kb_name: str, documents: List[str]) -> bool:
         raise Exception(f"LightRAG initialization failed: {e}")
 
 
-async def search_rag(query: str, kb_name: str, mode: str = "hybrid") -> Dict:
+async def search_rag(query: str, kb_name: str, mode: str = "hybrid", only_need_context: bool = False, **kwargs) -> Dict:
     """
     Search using LightRAG.
     
@@ -133,6 +133,8 @@ async def search_rag(query: str, kb_name: str, mode: str = "hybrid") -> Dict:
         query: Search query
         kb_name: Knowledge base name
         mode: Search mode (hybrid, local, global, naive)
+        only_need_context: If True, only return context without generating answer
+        **kwargs: Additional parameters (ignored for compatibility)
     
     Returns:
         Dictionary with search results
@@ -147,7 +149,7 @@ async def search_rag(query: str, kb_name: str, mode: str = "hybrid") -> Dict:
             await rag._ensure_lightrag_initialized()
             
             # Execute query
-            answer = await rag.aquery(query, mode=mode)
+            answer = await rag.aquery(query, mode=mode, only_need_context=only_need_context)
             answer_str = answer if isinstance(answer, str) else str(answer)
             
             return {
