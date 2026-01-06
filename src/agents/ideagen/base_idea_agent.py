@@ -15,7 +15,12 @@ if str(_project_root) not in sys.path:
 
 from lightrag.llm.openai import openai_complete_if_cache
 
-from src.core.core import get_agent_params, get_llm_config, load_config_with_main
+from src.core.core import (
+    get_agent_params,
+    get_llm_config,
+    get_token_limit_kwargs,
+    load_config_with_main,
+)
 from src.core.logging import LLMStats, get_logger
 
 
@@ -117,8 +122,10 @@ class BaseIdeaAgent(ABC):
             "api_key": self.api_key,
             "base_url": self.base_url,
             "temperature": temperature,
-            "max_tokens": max_tokens,
         }
+
+        if max_tokens:
+            kwargs.update(get_token_limit_kwargs(self.model, max_tokens))
 
         if response_format:
             kwargs["response_format"] = response_format

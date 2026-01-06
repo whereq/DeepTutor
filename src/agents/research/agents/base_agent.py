@@ -16,7 +16,7 @@ sys.path.insert(0, str(project_root))
 
 from lightrag.llm.openai import openai_complete_if_cache
 
-from src.core.core import get_agent_params, get_llm_config
+from src.core.core import get_agent_params, get_llm_config, get_token_limit_kwargs
 from src.core.prompt_manager import get_prompt_manager
 
 from ..utils.token_tracker import get_token_tracker
@@ -131,7 +131,7 @@ class BaseAgent(ABC):
         }
 
         if max_tokens:
-            kwargs["max_tokens"] = max_tokens
+            kwargs.update(get_token_limit_kwargs(model, max_tokens))
 
         # Call LLM and record errors
         response = None

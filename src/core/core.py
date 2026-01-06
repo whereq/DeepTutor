@@ -6,6 +6,7 @@ Combines environment variable configuration and YAML configuration loading.
 
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 from dotenv import load_dotenv
@@ -204,6 +205,64 @@ def get_agent_params(module_name: str) -> dict:
     return defaults
 
 
+def uses_max_completion_tokens(model: str) -> bool:
+    """
+    Check if the model uses max_completion_tokens instead of max_tokens.
+
+    Newer OpenAI models (o1, o3, gpt-4o, gpt-5.x, etc.) require max_completion_tokens
+    while older models use max_tokens.
+
+    Args:
+        model: The model name
+
+    Returns:
+        True if the model requires max_completion_tokens, False otherwise
+    """
+    model_lower = model.lower()
+
+    # Models that require max_completion_tokens:
+    # - o1, o3 series (reasoning models)
+    # - gpt-4o series
+    # - gpt-5.x and later
+    patterns = [
+        r"^o[13]",  # o1, o3 models
+        r"^gpt-4o",  # gpt-4o models
+        r"^gpt-[5-9]",  # gpt-5.x and later
+        r"^gpt-\d{2,}",  # gpt-10+ (future proofing)
+    ]
+
+    for pattern in patterns:
+        if re.match(pattern, model_lower):
+            return True
+
+    return False
+
+
+def get_token_limit_kwargs(model: str, max_tokens: int) -> dict:
+    """
+    Get the appropriate token limit parameter for the model.
+
+    Newer OpenAI models (gpt-5.x, o1, o3, gpt-4o) require max_completion_tokens
+    instead of max_tokens. This function automatically selects the correct parameter.
+
+    Args:
+        model: The model name
+        max_tokens: The desired token limit
+
+    Returns:
+        Dictionary with either {"max_tokens": value} or {"max_completion_tokens": value}
+
+    Example:
+        >>> get_token_limit_kwargs("gpt-4", 4096)
+        {"max_tokens": 4096}
+        >>> get_token_limit_kwargs("gpt-5.2", 4096)
+        {"max_completion_tokens": 4096}
+    """
+    if uses_max_completion_tokens(model):
+        return {"max_completion_tokens": max_tokens}
+    return {"max_tokens": max_tokens}
+
+
 def get_embedding_config() -> dict:
     """
     Return complete environment configuration for embedding models.
@@ -388,6 +447,9 @@ __all__ = [
     "get_tts_config",
     # Agent parameters
     "get_agent_params",
+    # Token limit utilities (for newer OpenAI models)
+    "uses_max_completion_tokens",
+    "get_token_limit_kwargs",
     # YAML configuration loading
     "load_config_with_main",
     "get_path_from_config",

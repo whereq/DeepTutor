@@ -19,7 +19,7 @@ _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from src.core.core import get_agent_params
+from src.core.core import get_agent_params, get_token_limit_kwargs
 from src.core.logging import get_logger
 from src.core.prompt_manager import get_prompt_manager
 
@@ -185,7 +185,7 @@ class BaseAgent(ABC):
             kwargs["response_format"] = response_format
 
         if max_tokens:
-            kwargs["max_tokens"] = max_tokens
+            kwargs.update(get_token_limit_kwargs(model, max_tokens))
 
         stage_label = stage or self.agent_name
         if hasattr(self.logger, "log_llm_input"):
