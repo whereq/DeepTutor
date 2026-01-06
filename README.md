@@ -311,7 +311,7 @@ cp .env.example .env
 <summary><b>🚀 Option A: Pre-built Image (Fastest)</b></summary>
 
 ```bash
-# Pull and run pre-built image (~30 seconds)
+# Pull and run pre-built image
 docker run -d --name deeptutor \
   -p 8001:8001 -p 3782:3782 \
   -e LLM_MODEL=gpt-4o \
