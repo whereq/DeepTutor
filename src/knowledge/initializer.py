@@ -31,6 +31,7 @@ from lightrag.utils import EmbeddingFunc
 from raganything import RAGAnything, RAGAnythingConfig
 
 from src.core.core import get_embedding_config, get_llm_config
+from src.tools.rag_tool import initialize_rag as plugin_initialize_rag, get_current_provider
 
 load_dotenv(dotenv_path=".env", override=False)
 
@@ -158,11 +159,14 @@ class KnowledgeBaseInitializer:
         return copied_files
 
     async def process_documents(self):
-        """Process documents using RAG-Anything"""
-        logger.info("Processing documents with RAG-Anything...")
+        """Process documents using configured RAG provider"""
+        # Get current RAG provider
+        rag_provider = get_current_provider()
+        logger.info(f"Processing documents with RAG provider: {rag_provider}")
+        
         self.progress_tracker.update(
             ProgressStage.PROCESSING_DOCUMENTS,
-            "Starting to process documents...",
+            f"Starting to process documents with {rag_provider}...",
             current=0,
             total=0,
         )
@@ -182,14 +186,20 @@ class KnowledgeBaseInitializer:
         logger.info(f"Found {len(doc_files)} document(s) to process")
         self.progress_tracker.update(
             ProgressStage.PROCESSING_DOCUMENTS,
-            f"Found {len(doc_files)} documents, starting to process...",
+            f"Found {len(doc_files)} documents, starting to process with {rag_provider}...",
             current=0,
             total=len(doc_files),
         )
 
-        # Create RAGAnything configuration
+        # Use RAG-Anything for document extraction (handles PDF, images, tables)
+        # Then feed extracted content to the selected RAG plugin
+        
+        # Create RAGAnything configuration for extraction only
+        extraction_dir = self.rag_storage_dir / "_extraction"
+        extraction_dir.mkdir(exist_ok=True)
+        
         config = RAGAnythingConfig(
-            working_dir=str(self.rag_storage_dir),
+            working_dir=str(extraction_dir),
             enable_image_processing=True,
             enable_table_processing=True,
             enable_equation_processing=True,
@@ -361,6 +371,62 @@ class KnowledgeBaseInitializer:
         # Fix structure: flatten nested content_list directories
         await self.fix_structure()
 
+        # Now initialize the selected RAG plugin with extracted content
+        logger.info(f"\nInitializing {rag_provider} RAG system...")
+        self.progress_tracker.update(
+            ProgressStage.PROCESSING_DOCUMENTS,
+            f"Building {rag_provider} index...",
+            current=len(doc_files),
+            total=len(doc_files),
+        )
+        
+        try:
+            # Collect all extracted text content
+            all_documents = []
+            for content_file in self.content_list_dir.glob("*.json"):
+                try:
+                    with open(content_file, 'r', encoding='utf-8') as f:
+                        content_data = json.load(f)
+                        # Extract text from content list
+                        if isinstance(content_data, list):
+                            for item in content_data:
+                                if isinstance(item, dict) and 'text' in item:
+                                    all_documents.append(item['text'])
+                                elif isinstance(item, str):
+                                    all_documents.append(item)
+                        elif isinstance(content_data, str):
+                            all_documents.append(content_data)
+                except Exception as e:
+                    logger.warning(f"Could not read {content_file.name}: {e}")
+            
+            # Also read any .txt or .md files directly
+            for doc_file in doc_files:
+                if doc_file.suffix.lower() in ['.txt', '.md']:
+                    try:
+                        all_documents.append(doc_file.read_text(encoding='utf-8'))
+                    except Exception as e:
+                        logger.warning(f"Could not read {doc_file.name}: {e}")
+            
+            if all_documents:
+                logger.info(f"Collected {len(all_documents)} text chunks for RAG indexing")
+                success = await plugin_initialize_rag(
+                    kb_name=self.kb_name,
+                    documents=all_documents,
+                    provider=rag_provider
+                )
+                
+                if success:
+                    logger.success(f"✓ {rag_provider} RAG index built successfully")
+                else:
+                    logger.error(f"✗ Failed to build {rag_provider} RAG index")
+            else:
+                logger.warning("No text content extracted for RAG indexing")
+                
+        except Exception as e:
+            logger.error(f"Error initializing RAG plugin: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+        
         # Display statistics
         await self.display_statistics(rag)
 

@@ -475,17 +475,15 @@ async def update_env_config(update: EnvConfigUpdate):
     """
     Update environment variables at runtime.
 
-    This updates the process environment variables immediately.
-    The system will use the new values for subsequent operations.
-
-    Note: These changes are NOT persisted to .env file.
-    On system restart, values will be loaded from .env again.
+    This updates the process environment variables immediately
+    and persists changes to the .env file.
 
     Returns:
         Updated variables configuration
     """
     updated_vars = []
     errors = []
+    env_file_path = Path(__file__).parent.parent.parent / ".env"
 
     for var_update in update.variables:
         key = var_update.key
@@ -512,6 +510,46 @@ async def update_env_config(update: EnvConfigUpdate):
 
         updated_vars.append(key)
 
+    # Persist changes to .env file
+    if updated_vars and env_file_path.exists():
+        try:
+            # Read existing .env file
+            env_lines = env_file_path.read_text().splitlines()
+            updated_lines = []
+            keys_updated = set()
+
+            # Update existing keys
+            for line in env_lines:
+                stripped = line.strip()
+                # Keep comments and empty lines
+                if not stripped or stripped.startswith("#"):
+                    updated_lines.append(line)
+                    continue
+
+                # Parse key=value lines
+                if "=" in stripped:
+                    key_in_file = stripped.split("=", 1)[0].strip()
+                    if key_in_file in updated_vars:
+                        new_value = os.environ.get(key_in_file, "")
+                        updated_lines.append(f"{key_in_file}={new_value}")
+                        keys_updated.add(key_in_file)
+                    else:
+                        updated_lines.append(line)
+                else:
+                    updated_lines.append(line)
+
+            # Add new keys that weren't in the file
+            for key in updated_vars:
+                if key not in keys_updated:
+                    new_value = os.environ.get(key, "")
+                    updated_lines.append(f"{key}={new_value}")
+
+            # Write back to .env file
+            env_file_path.write_text("\n".join(updated_lines) + "\n")
+        except Exception as e:
+            # Log error but don't fail the request
+            print(f"Warning: Failed to persist to .env file: {e}")
+
     if errors:
         raise HTTPException(status_code=400, detail={"errors": errors, "updated": updated_vars})
 
@@ -519,7 +557,7 @@ async def update_env_config(update: EnvConfigUpdate):
     return {
         "success": True,
         "updated": updated_vars,
-        "message": f"Updated {len(updated_vars)} environment variables. Changes are active immediately but not persisted to .env file.",
+        "message": f"Updated {len(updated_vars)} environment variables. Changes are active immediately and persisted to .env file.",
     }
 
 

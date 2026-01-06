@@ -171,7 +171,8 @@ def get_available_providers() -> List[Dict]:
 
 def get_current_provider() -> str:
     """Get the currently configured RAG provider"""
-    return DEFAULT_RAG_PROVIDER
+    # Read directly from environment to get the latest value (not cached)
+    return os.getenv("RAG_PROVIDER", "lightrag")
 
 
 if __name__ == "__main__":

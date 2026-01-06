@@ -622,6 +622,33 @@ export default function SettingsPage() {
     setError("");
 
     try {
+      // Save environment variables if there are any changes
+      if (Object.keys(editedEnvVars).length > 0) {
+        const updates = Object.entries(editedEnvVars)
+          .filter(([key, value]) => {
+            const original = envConfig?.variables.find((v) => v.key === key);
+            if (
+              original?.sensitive &&
+              value.includes("*") &&
+              value === original.value
+            ) {
+              return false;
+            }
+            return true;
+          })
+          .map(([key, value]) => ({ key, value }));
+
+        if (updates.length > 0) {
+          const envRes = await fetch(apiUrl("/api/v1/settings/env"), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ variables: updates }),
+          });
+
+          if (!envRes.ok) throw new Error("Failed to save environment variables");
+        }
+      }
+
       const configRes = await fetch(apiUrl("/api/v1/settings/config"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

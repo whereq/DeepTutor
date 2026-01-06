@@ -82,28 +82,18 @@ def _get_working_dir(kb_name: str, kb_base_dir: str = None) -> str:
         project_root = Path(__file__).parent.parent.parent.parent
         kb_base_dir = str(project_root / "data" / "knowledge_bases")
     
-    # Use KnowledgeBaseManager to get RAG storage path
-    kb_manager = KnowledgeBaseManager(kb_base_dir)
+    if kb_name:
+        kb_dir = Path(kb_base_dir) / kb_name
+    else:
+        # Use default KB if no name provided
+        from src.knowledge.manager import KnowledgeBaseManager
+        kb_manager = KnowledgeBaseManager(kb_base_dir)
+        kb_dir = Path(kb_base_dir) / kb_manager.get_default()
     
-    try:
-        working_dir = str(kb_manager.get_rag_storage_path(kb_name))
-    except ValueError as e:
-        # If rag_storage doesn't exist, try using traditional path
-        if "RAG storage not found" in str(e):
-            if kb_name:
-                kb_dir = Path(kb_base_dir) / kb_name
-            else:
-                kb_dir = Path(kb_base_dir) / kb_manager.get_default()
-            working_dir = str(kb_dir / "rag_storage")
-            
-            # If still doesn't exist, provide friendly message
-            if not Path(working_dir).exists():
-                raise ValueError(
-                    "RAG storage not initialized. "
-                    "Please initialize the knowledge base first."
-                )
-        else:
-            raise
+    working_dir = str(kb_dir / "rag_storage")
+    
+    # Create directory if it doesn't exist
+    Path(working_dir).mkdir(parents=True, exist_ok=True)
     
     return working_dir
 

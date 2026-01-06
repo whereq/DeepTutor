@@ -20,8 +20,8 @@ tools:
   run_code:
     workspace: ./data/user/run_code_workspace
     allowed_roots:
-      - ./data/user
-      - ./src/tools
+    - ./data/user
+    - ./src/tools
   web_search:
     enabled: true
   query_item:

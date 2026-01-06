@@ -29,6 +29,7 @@ from lightrag.utils import EmbeddingFunc
 from raganything import RAGAnything, RAGAnythingConfig
 
 from src.core.core import get_embedding_config, get_llm_config
+from src.tools.rag_tool import initialize_rag as plugin_initialize_rag, get_current_provider
 
 load_dotenv(dotenv_path=".env", override=False)
 
@@ -139,11 +140,17 @@ class DocumentAdder:
             logger.warning("No new files to process")
             return None
 
-        logger.info(f"\nProcessing {len(new_files)} new documents...")
+        # Get current RAG provider
+        rag_provider = get_current_provider()
+        logger.info(f"\nProcessing {len(new_files)} new documents with {rag_provider}...")
 
-        # Create RAGAnything configuration
+        # Use RAG-Anything for extraction, then plugin for indexing
+        extraction_dir = self.rag_storage_dir / "_extraction"
+        extraction_dir.mkdir(exist_ok=True)
+        
+        # Create RAGAnything configuration for extraction
         config = RAGAnythingConfig(
-            working_dir=str(self.rag_storage_dir),
+            working_dir=str(extraction_dir),
             enable_image_processing=True,
             enable_table_processing=True,
             enable_equation_processing=True,
@@ -315,6 +322,56 @@ class DocumentAdder:
 
         # Fix structure
         await self.fix_structure()
+
+        # Now add extracted content to the selected RAG plugin
+        logger.info(f"\nAdding content to {rag_provider} RAG system...")
+        try:
+            # Collect extracted text content from processed files
+            new_documents = []
+            for doc_file in processed_files:
+                content_file = self.content_list_dir / f"{doc_file.stem}.json"
+                if content_file.exists():
+                    try:
+                        with open(content_file, 'r', encoding='utf-8') as f:
+                            content_data = json.load(f)
+                            # Extract text from content list
+                            if isinstance(content_data, list):
+                                for item in content_data:
+                                    if isinstance(item, dict) and 'text' in item:
+                                        new_documents.append(item['text'])
+                                    elif isinstance(item, str):
+                                        new_documents.append(item)
+                            elif isinstance(content_data, str):
+                                new_documents.append(content_data)
+                    except Exception as e:
+                        logger.warning(f"Could not read {content_file.name}: {e}")
+                
+                # Also read .txt or .md files directly
+                if doc_file.suffix.lower() in ['.txt', '.md']:
+                    try:
+                        new_documents.append(doc_file.read_text(encoding='utf-8'))
+                    except Exception as e:
+                        logger.warning(f"Could not read {doc_file.name}: {e}")
+            
+            if new_documents:
+                logger.info(f"Adding {len(new_documents)} text chunks to {rag_provider} index...")
+                success = await plugin_initialize_rag(
+                    kb_name=self.kb_name,
+                    documents=new_documents,
+                    provider=rag_provider
+                )
+                
+                if success:
+                    logger.success(f"✓ Content added to {rag_provider} index successfully")
+                else:
+                    logger.error(f"✗ Failed to add content to {rag_provider} index")
+            else:
+                logger.warning("No text content extracted for RAG indexing")
+                
+        except Exception as e:
+            logger.error(f"Error adding to RAG plugin: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
         logger.info("\n✓ Document processing completed!")
 
