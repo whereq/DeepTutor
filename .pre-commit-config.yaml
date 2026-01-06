@@ -19,11 +19,11 @@ repos:
       # Remove trailing whitespace
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
-        exclude: ^(.*\.min\.(js|css)|.*\.lock|.*\.log|.*\.pdf|.*\.zip|.*\.tar\.gz)
+        exclude: ^(assets/roster/.*\.svg|.*\.min\.(js|css)|.*\.lock|.*\.log|.*\.pdf|.*\.zip|.*\.tar\.gz)
 
       # Ensure files end with a newline
       - id: end-of-file-fixer
-        exclude: ^(.*\.min\.(js|css)|.*\.lock|.*\.log|.*\.pdf|.*\.zip|.*\.tar\.gz)
+        exclude: ^(assets/roster/.*\.svg|.*\.min\.(js|css)|.*\.lock|.*\.log|.*\.pdf|.*\.zip|.*\.tar\.gz)
 
       # Check YAML files for syntax errors
       - id: check-yaml
@@ -55,11 +55,9 @@ repos:
       # Ruff linting - removing --exit-zero to ensure we catch issues before they land
       - id: ruff
         args: [--fix]
-        files: ^(src/|scripts/).*\.py$
 
       # Ruff import sorting
       - id: ruff-format
-        files: ^(src/|scripts/).*\.py$
 
   # ============================================
   # Frontend code formatting and linting
@@ -72,8 +70,9 @@ repos:
   #       files: ^web/.*\.(js|jsx|ts|tsx)$
   #       exclude: ^web/(node_modules|\.next|out|dist|build)/
   #       additional_dependencies:
-  #         - eslint@^8.57.0
-  #         - eslint-config-next@14.0.3
+  #         - eslint@^9.0.0
+  #         - eslint-config-next@^15.0.0
+  #         - "@eslint/eslintrc"
   #       args: [--fix]
 
   - repo: https://github.com/pre-commit/mirrors-prettier

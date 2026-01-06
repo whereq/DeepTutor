@@ -3,9 +3,10 @@
 Unit tests for the unified PromptManager.
 """
 
-import pytest
 from pathlib import Path
 import sys
+
+import pytest
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
