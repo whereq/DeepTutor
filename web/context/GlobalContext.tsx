@@ -270,26 +270,22 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         if (data.ui) {
-          // Check if localStorage has a saved theme preference
+          // localStorage takes priority over backend
           const storedTheme = getStoredTheme();
           const themeToUse = storedTheme || data.ui.theme;
-          
-          console.log("[GlobalContext] refreshSettings - storedTheme:", storedTheme, "backendTheme:", data.ui.theme, "final:", themeToUse);
           
           setUiSettings({
             theme: themeToUse,
             language: data.ui.language,
           });
-          // Persist theme to localStorage (will sync with backend on save)
+          // Apply and persist theme
           setTheme(themeToUse);
         }
       }
     } catch (e) {
-      console.error("Failed to load settings from backend", e);
-      // Fall back to localStorage theme
+      // Fall back to localStorage theme on error
       const stored = getStoredTheme();
       if (stored) {
-        console.log("[GlobalContext] Using fallback localStorage theme:", stored);
         setUiSettings((prev) => ({ ...prev, theme: stored }));
       }
     }
@@ -299,7 +295,6 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
     // Initialize theme immediately on first render
     if (!isInitialized) {
       const initialTheme = initializeTheme();
-      console.log("[GlobalContext] useEffect - initialized theme:", initialTheme);
       setUiSettings((prev) => ({ ...prev, theme: initialTheme }));
       setIsInitialized(true);
       

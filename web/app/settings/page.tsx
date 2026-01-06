@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Settings as SettingsIcon,
   Sun,
@@ -30,6 +30,7 @@ import {
 import { apiUrl } from "@/lib/api";
 import { getTranslation } from "@/lib/i18n";
 import { setTheme } from "@/lib/theme";
+import { debounce } from "@/lib/debounce";
 
 import { useGlobal } from "@/context/GlobalContext";
 
@@ -224,6 +225,21 @@ export default function SettingsPage() {
   const [originalProviderName, setOriginalProviderName] = useState<
     string | null
   >(null);
+
+  // Create debounced theme save function
+  const debouncedSaveTheme = useRef(
+    debounce(async (themeValue: "light" | "dark", uiSettings: UISettings) => {
+      try {
+        await fetch(apiUrl("/api/v1/settings/ui"), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...uiSettings, theme: themeValue }),
+        });
+      } catch (err) {
+        // Silently fail - theme is still saved to localStorage
+      }
+    }, 500)
+  ).current;
 
   useEffect(() => {
     fetchSettings();
@@ -444,22 +460,18 @@ export default function SettingsPage() {
       const res = await fetch(apiUrl("/api/v1/settings"));
       if (res.ok) {
         const responseData = await res.json();
-        console.log("[settings] fetchSettings - backend ui:", responseData.ui);
         setData(responseData);
         setEditedConfig(JSON.parse(JSON.stringify(responseData.config)));
         if (!editedUI) {
           const uiData = JSON.parse(JSON.stringify(responseData.ui));
-          // If there's a stored theme in localStorage, use it instead of backend default
+          // localStorage takes priority over backend
           const storedTheme = localStorage.getItem('deeptutor-theme');
-          console.log("[settings] fetchSettings - storedTheme from localStorage:", storedTheme);
           if (storedTheme === 'light' || storedTheme === 'dark') {
-            console.log("[settings] Using localStorage theme:", storedTheme, "instead of backend:", uiData.theme);
             uiData.theme = storedTheme;
           }
           setEditedUI(uiData);
-          // Apply the theme (either from localStorage or backend)
+          // Apply theme if present
           if (uiData.theme) {
-            console.log("[settings] Applying theme:", uiData.theme);
             applyTheme(uiData.theme);
           }
         }
@@ -595,8 +607,6 @@ export default function SettingsPage() {
   const applyTheme = (theme: "light" | "dark") => {
     // Persist theme to localStorage and document immediately
     setTheme(theme);
-    // Console log for debugging
-    console.log("Theme changed to:", theme, "and saved to localStorage");
   };
 
   const handleSave = async () => {
@@ -674,12 +684,8 @@ export default function SettingsPage() {
       const newUI = { ...prev, [key]: value };
       if (key === "theme") {
         applyTheme(value);
-        // Auto-save theme to backend immediately
-        fetch(apiUrl("/api/v1/settings/ui"), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...newUI, [key]: value }),
-        }).catch((err) => console.error("Failed to save theme:", err));
+        // Debounced auto-save to backend
+        debouncedSaveTheme(value, newUI);
       }
       return newUI;
     });
