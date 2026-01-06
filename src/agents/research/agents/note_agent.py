@@ -15,14 +15,22 @@ sys.path.insert(0, str(project_root))
 from src.agents.research.data_structures import ToolTrace
 
 from ..utils.json_utils import extract_json_from_text
-from .base_agent import BaseAgent
+from src.agents.base_agent import BaseAgent
 
 
 class NoteAgent(BaseAgent):
     """Recording Agent"""
 
     def __init__(self, config: dict[str, Any], api_key: str = None, base_url: str = None):
-        super().__init__(config=config, api_key=api_key, base_url=base_url, agent_name="note_agent")
+        language = config.get("system", {}).get("language", "zh")
+        super().__init__(
+            module_name="research",
+            agent_name="note_agent",
+            api_key=api_key,
+            base_url=base_url,
+            language=language,
+            config=config,
+        )
 
     async def process(
         self,

@@ -17,15 +17,21 @@ sys.path.insert(0, str(project_root))
 from src.agents.research.data_structures import DynamicTopicQueue, TopicBlock
 
 from ..utils.json_utils import extract_json_from_text
-from .base_agent import BaseAgent
+from src.agents.base_agent import BaseAgent
 
 
 class ResearchAgent(BaseAgent):
     """Research Agent"""
 
     def __init__(self, config: dict[str, Any], api_key: str = None, base_url: str = None):
+        language = config.get("system", {}).get("language", "zh")
         super().__init__(
-            config=config, api_key=api_key, base_url=base_url, agent_name="research_agent"
+            module_name="research",
+            agent_name="research_agent",
+            api_key=api_key,
+            base_url=base_url,
+            language=language,
+            config=config,
         )
         self.researching_config = config.get("researching", {})
         self.max_iterations = self.researching_config.get("max_iterations", 5)

@@ -15,15 +15,27 @@ if str(_project_root) not in sys.path:
 
 from src.core.prompt_manager import get_prompt_manager
 
-from .base_idea_agent import BaseIdeaAgent
+from src.agents.base_agent import BaseAgent
 
 
-class MaterialOrganizerAgent(BaseIdeaAgent):
+class MaterialOrganizerAgent(BaseAgent):
     """Material Organizer Agent - Extracts knowledge points"""
 
-    def __init__(self, language: str = "en", **kwargs):
-        super().__init__(**kwargs)
-        self.language = language
+    def __init__(
+        self,
+        language: str = "en",
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+    ):
+        super().__init__(
+            module_name="ideagen",
+            agent_name="material_organizer",
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            language=language,
+        )
         self._prompts = get_prompt_manager().load_prompts(
             module_name="ideagen",
             agent_name="material_organizer",

@@ -12,15 +12,21 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from ..utils.json_utils import extract_json_from_text
-from .base_agent import BaseAgent
+from src.agents.base_agent import BaseAgent
 
 
 class RephraseAgent(BaseAgent):
     """Topic rephrasing Agent"""
 
     def __init__(self, config: dict[str, Any], api_key: str = None, base_url: str = None):
+        language = config.get("system", {}).get("language", "zh")
         super().__init__(
-            config=config, api_key=api_key, base_url=base_url, agent_name="rephrase_agent"
+            module_name="research",
+            agent_name="rephrase_agent",
+            api_key=api_key,
+            base_url=base_url,
+            language=language,
+            config=config,
         )
         # Store complete conversation history for multi-turn optimization
         self.conversation_history: list[dict[str, Any]] = []

@@ -14,15 +14,21 @@ sys.path.insert(0, str(project_root))
 
 from src.agents.research.data_structures import DynamicTopicQueue, TopicBlock
 
-from .base_agent import BaseAgent
+from src.agents.base_agent import BaseAgent
 
 
 class ManagerAgent(BaseAgent):
     """Queue management Agent"""
 
     def __init__(self, config: dict[str, Any], api_key: str = None, base_url: str = None):
+        language = config.get("system", {}).get("language", "zh")
         super().__init__(
-            config=config, api_key=api_key, base_url=base_url, agent_name="manager_agent"
+            module_name="research",
+            agent_name="manager_agent",
+            api_key=api_key,
+            base_url=base_url,
+            language=language,
+            config=config,
         )
         self.queue: DynamicTopicQueue | None = None
         self.primary_topic: str | None = None

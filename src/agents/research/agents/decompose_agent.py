@@ -17,7 +17,7 @@ from src.agents.research.data_structures import ToolTrace
 from src.tools.rag_tool import rag_search
 
 from ..utils.json_utils import extract_json_from_text
-from .base_agent import BaseAgent
+from src.agents.base_agent import BaseAgent
 
 
 class DecomposeAgent(BaseAgent):
@@ -30,8 +30,14 @@ class DecomposeAgent(BaseAgent):
         base_url: str = None,
         kb_name: str = "ai_textbook",
     ):
+        language = config.get("system", {}).get("language", "zh")
         super().__init__(
-            config=config, api_key=api_key, base_url=base_url, agent_name="decompose_agent"
+            module_name="research",
+            agent_name="decompose_agent",
+            api_key=api_key,
+            base_url=base_url,
+            language=language,
+            config=config,
         )
         # Load KB and RAG mode from config, no hardcoding
         rag_cfg = config.get("rag", {})

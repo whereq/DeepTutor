@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.agents.guide.agents.base_guide_agent import BaseGuideAgent
+from src.agents.base_agent import BaseAgent
 from src.agents.guide.guide_manager import GuideManager
 from src.api.utils.notebook_manager import notebook_manager
 from src.api.utils.task_id_manager import TaskIDManager
@@ -112,7 +112,7 @@ async def create_session(request: CreateSessionRequest):
             raise HTTPException(status_code=400, detail="No available records")
 
         # Reset LLM stats for new session
-        BaseGuideAgent.reset_stats()
+        BaseAgent.reset_stats("guide")
 
         manager = get_guide_manager()
         result = await manager.create_session(
@@ -160,7 +160,7 @@ async def next_knowledge(request: NextKnowledgeRequest):
 
         # Print stats if learning completed
         if result.get("learning_complete", False):
-            BaseGuideAgent.print_stats()
+            BaseAgent.print_stats("guide")
 
         return result
     except Exception as e:

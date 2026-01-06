@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.agents.ideagen.base_idea_agent import BaseIdeaAgent
+from src.agents.base_agent import BaseAgent
 from src.agents.ideagen.idea_generation_workflow import IdeaGenerationWorkflow
 from src.agents.ideagen.material_organizer_agent import MaterialOrganizerAgent
 from src.api.utils.notebook_manager import NotebookManager
@@ -143,7 +143,7 @@ async def websocket_ideagen(websocket: WebSocket):
         )
 
         # Reset LLM stats for this session
-        BaseIdeaAgent.reset_stats()
+        BaseAgent.reset_stats("ideagen")
 
         # Get LLM configuration
         llm_config = get_llm_config()
@@ -371,7 +371,7 @@ async def websocket_ideagen(websocket: WebSocket):
         )
 
         # Print LLM usage stats
-        BaseIdeaAgent.print_stats()
+        BaseAgent.print_stats("ideagen")
 
         # Update task status
         task_manager.update_task_status(task_id, "completed")

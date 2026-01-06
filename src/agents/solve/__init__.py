@@ -15,7 +15,7 @@ if str(_project_root) not in sys.path:
 # Infrastructure
 from src.core.logging import Logger, get_logger
 
-from .base_agent import BaseAgent
+from src.agents.base_agent import BaseAgent
 from .utils import (
     ConfigValidator,
     PerformanceMonitor,

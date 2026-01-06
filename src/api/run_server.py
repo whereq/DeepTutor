@@ -44,6 +44,7 @@ if __name__ == "__main__":
         str(project_root / "web" / "node_modules"),  # Web node modules
         str(project_root / "web" / ".next"),  # Next.js build
         str(project_root / ".git"),  # Git directory
+        str(project_root / "scripts"),  # Scripts directory - don't reload on launcher changes
     ]
 
     # Filter out non-existent directories to avoid warnings
