@@ -10,6 +10,7 @@ from src.api.routers import (
     chat,
     co_writer,
     dashboard,
+    embedding_provider,
     guide,
     ideagen,
     knowledge,
@@ -83,6 +84,7 @@ app.include_router(ideagen.router, prefix="/api/v1/ideagen", tags=["ideagen"])
 app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
 app.include_router(llm_provider.router, prefix="/api/v1/config/llm", tags=["config"])
+app.include_router(embedding_provider.router, prefix="/api/v1/config/embedding", tags=["config"])
 app.include_router(agent_config.router, prefix="/api/v1/config", tags=["config"])
 
 

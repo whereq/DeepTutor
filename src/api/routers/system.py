@@ -7,11 +7,11 @@ from datetime import datetime
 import time
 
 from fastapi import APIRouter
-from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+from lightrag.llm.openai import openai_complete_if_cache
 from pydantic import BaseModel
 
 from src.services.llm import get_llm_config, get_token_limit_kwargs
-from src.services.embedding import get_embedding_config
+from src.services.embedding import get_embedding_config, get_embedding_client
 from src.services.tts import get_tts_config
 
 router = APIRouter()
@@ -160,30 +160,21 @@ async def test_embeddings_connection():
 
     try:
         embedding_config = get_embedding_config()
+        embedding_client = get_embedding_client()
+        
         model = embedding_config.model
-        base_url = embedding_config.base_url.rstrip("/")
+        binding = embedding_config.binding
 
-        # Sanitize Base URL (remove /embeddings suffix if present, though less common)
-        # OpenAI client handles /embeddings automatically
-
-        # Handle API Key
-        api_key = embedding_config.api_key
-        if not api_key:
-            api_key = "sk-no-key-required"
-
-        # Send a minimal test request
+        # Send a minimal test request using unified client
         test_texts = ["test"]
-        # openai_embed returns a coroutine, so we need to await it
-        embeddings = await openai_embed(
-            texts=test_texts, model=model, api_key=api_key, base_url=base_url
-        )
+        embeddings = await embedding_client.embed(test_texts)
 
         response_time = (time.time() - start_time) * 1000
 
         if embeddings is not None and len(embeddings) > 0 and len(embeddings[0]) > 0:
             return TestResponse(
                 success=True,
-                message="Embeddings connection successful",
+                message=f"Embeddings connection successful ({binding} provider)",
                 model=model,
                 response_time_ms=round(response_time, 2),
             )

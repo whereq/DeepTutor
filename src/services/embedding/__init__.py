@@ -3,6 +3,7 @@ Embedding Service
 =================
 
 Unified embedding client for all DeepTutor modules.
+Supports multiple providers: OpenAI, Azure, Google, Cohere, Ollama, Jina, HuggingFace.
 
 Usage:
     from src.services.embedding import get_embedding_client, EmbeddingClient, EmbeddingConfig
@@ -17,6 +18,20 @@ Usage:
 
 from .client import EmbeddingClient, get_embedding_client, reset_embedding_client
 from .config import EmbeddingConfig, get_embedding_config
+from .provider import get_embedding_provider_manager, reset_embedding_provider_manager
+from .provider_config import (
+    EmbeddingProvider,
+    EmbeddingProviderConfigManager,
+    embedding_provider_config_manager,
+)
+from .adapters import (
+    BaseEmbeddingAdapter,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    OpenAICompatibleEmbeddingAdapter,
+    CohereEmbeddingAdapter,
+    OllamaEmbeddingAdapter,
+)
 
 __all__ = [
     "EmbeddingClient",
@@ -24,5 +39,16 @@ __all__ = [
     "get_embedding_client",
     "get_embedding_config",
     "reset_embedding_client",
+    "get_embedding_provider_manager",
+    "reset_embedding_provider_manager",
+    "EmbeddingProvider",
+    "EmbeddingProviderConfigManager",
+    "embedding_provider_config_manager",
+    "BaseEmbeddingAdapter",
+    "EmbeddingRequest",
+    "EmbeddingResponse",
+    "OpenAICompatibleEmbeddingAdapter",
+    "CohereEmbeddingAdapter",
+    "OllamaEmbeddingAdapter",
 ]
 

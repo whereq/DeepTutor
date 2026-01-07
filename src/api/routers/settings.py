@@ -85,9 +85,10 @@ ENV_VAR_DEFINITIONS = {
     "EMBEDDING_BINDING_API_KEY": {
         "description": "Embedding API authentication key",
         "category": "embedding",
-        "required": True,
+        "required": False,  # Conditional: not required for Ollama/local providers
         "default": "",
         "sensitive": True,
+        "conditional": "Required for cloud providers (OpenAI, Jina, Cohere, etc.). Not needed for Ollama or local models.",
     },
     # RAG Configuration
     "RAG_PROVIDER": {
