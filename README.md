@@ -261,7 +261,9 @@ cp .env.example .env
 | `BACKEND_PORT` | No | Backend port (default: `8001`) |
 | `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
 | `TTS_*` | No | Text-to-Speech settings |
-| `PERPLEXITY_API_KEY` | No | For web search |
+| `SEARCH_PROVIDER` | No | Search provider (options: `perplexity`, `baidu`, default: `perplexity`) |
+| `PERPLEXITY_API_KEY` | No | For Perplexity web search |
+| `BAIDU_API_KEY` | No | For Baidu AI search |
 
 </details>
 
