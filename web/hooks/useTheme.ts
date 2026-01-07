@@ -2,7 +2,12 @@
  * useTheme hook for managing theme throughout the application
  */
 import { useEffect, useState } from "react";
-import { setTheme, getStoredTheme, initializeTheme, type Theme } from "@/lib/theme";
+import {
+  setTheme,
+  getStoredTheme,
+  initializeTheme,
+  type Theme,
+} from "@/lib/theme";
 
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme | null>(null);

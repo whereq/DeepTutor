@@ -13,7 +13,9 @@ const themeListeners = new Set<ThemeChangeListener>();
 /**
  * Subscribe to theme changes
  */
-export function subscribeToThemeChanges(listener: ThemeChangeListener): () => void {
+export function subscribeToThemeChanges(
+  listener: ThemeChangeListener,
+): () => void {
   themeListeners.add(listener);
   return () => themeListeners.delete(listener);
 }
@@ -22,7 +24,7 @@ export function subscribeToThemeChanges(listener: ThemeChangeListener): () => vo
  * Notify all listeners of theme change
  */
 function notifyThemeChange(theme: Theme): void {
-  themeListeners.forEach(listener => listener(theme));
+  themeListeners.forEach((listener) => listener(theme));
 }
 
 /**
@@ -30,7 +32,7 @@ function notifyThemeChange(theme: Theme): void {
  */
 export function getStoredTheme(): Theme | null {
   if (typeof window === "undefined") return null;
-  
+
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === "light" || stored === "dark") {
@@ -39,7 +41,7 @@ export function getStoredTheme(): Theme | null {
   } catch (e) {
     // Silently fail - localStorage may be disabled
   }
-  
+
   return null;
 }
 
@@ -48,7 +50,7 @@ export function getStoredTheme(): Theme | null {
  */
 export function saveThemeToStorage(theme: Theme): boolean {
   if (typeof window === "undefined") return false;
-  
+
   try {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
     return true;
@@ -63,7 +65,7 @@ export function saveThemeToStorage(theme: Theme): boolean {
  */
 export function getSystemTheme(): Theme {
   if (typeof window === "undefined") return "light";
-  
+
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
@@ -74,7 +76,7 @@ export function getSystemTheme(): Theme {
  */
 export function applyThemeToDocument(theme: Theme): void {
   if (typeof document === "undefined") return;
-  
+
   const html = document.documentElement;
   if (theme === "dark") {
     html.classList.add("dark");
@@ -94,7 +96,7 @@ export function initializeTheme(): Theme {
     applyThemeToDocument(stored);
     return stored;
   }
-  
+
   // Fall back to system preference
   const systemTheme = getSystemTheme();
   applyThemeToDocument(systemTheme);

@@ -273,7 +273,7 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
           // localStorage takes priority over backend
           const storedTheme = getStoredTheme();
           const themeToUse = storedTheme || data.ui.theme;
-          
+
           setUiSettings({
             theme: themeToUse,
             language: data.ui.language,
@@ -297,7 +297,7 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       const initialTheme = initializeTheme();
       setUiSettings((prev) => ({ ...prev, theme: initialTheme }));
       setIsInitialized(true);
-      
+
       // Then fetch from backend and sync
       refreshSettings();
     }

@@ -238,7 +238,7 @@ export default function SettingsPage() {
       } catch (err) {
         // Silently fail - theme is still saved to localStorage
       }
-    }, 500)
+    }, 500),
   ).current;
 
   useEffect(() => {
@@ -464,8 +464,8 @@ export default function SettingsPage() {
         if (!editedUI) {
           const uiData = JSON.parse(JSON.stringify(responseData.ui));
           // localStorage takes priority over backend
-          const storedTheme = localStorage.getItem('deeptutor-theme');
-          if (storedTheme === 'light' || storedTheme === 'dark') {
+          const storedTheme = localStorage.getItem("deeptutor-theme");
+          if (storedTheme === "light" || storedTheme === "dark") {
             uiData.theme = storedTheme;
           }
           setEditedUI(uiData);
@@ -711,7 +711,9 @@ export default function SettingsPage() {
       <div className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-md">
         <div className="max-w-4xl mx-auto p-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">System Settings</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              System Settings
+            </h1>
           </div>
           <button
             onClick={handleSave}
@@ -731,7 +733,11 @@ export default function SettingsPage() {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {saving ? t("Saving...") : saveSuccess ? t("Saved") : t("Save All Changes")}
+            {saving
+              ? t("Saving...")
+              : saveSuccess
+                ? t("Saved")
+                : t("Save All Changes")}
           </button>
         </div>
       </div>

@@ -9,7 +9,7 @@ export default function ThemeScript() {
     (function() {
       try {
         const stored = localStorage.getItem('deeptutor-theme');
-        
+
         if (stored === 'dark') {
           document.documentElement.classList.add('dark');
         } else if (stored === 'light') {

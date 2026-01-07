@@ -56,7 +56,10 @@ export function getBackgroundForTheme(theme: Theme): string {
  */
 export function onThemeChange(callback: (theme: Theme) => void): () => void {
   const handleStorageChange = (e: StorageEvent) => {
-    if (e.key === "deeptutor-theme" && (e.newValue === "light" || e.newValue === "dark")) {
+    if (
+      e.key === "deeptutor-theme" &&
+      (e.newValue === "light" || e.newValue === "dark")
+    ) {
       callback(e.newValue);
     }
   };
