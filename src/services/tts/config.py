@@ -64,4 +64,3 @@ def get_tts_config() -> dict:
 
 
 __all__ = ["get_tts_config"]
-

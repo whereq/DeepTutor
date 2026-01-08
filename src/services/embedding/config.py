@@ -21,7 +21,7 @@ load_dotenv(PROJECT_ROOT / ".env", override=False)
 @dataclass
 class EmbeddingConfig:
     """Embedding configuration dataclass."""
-    
+
     model: str
     api_key: str
     base_url: Optional[str] = None
@@ -30,7 +30,7 @@ class EmbeddingConfig:
     max_tokens: int = 8192
     request_timeout: int = 30
     input_type: Optional[str] = None  # For task-aware embeddings (Cohere, Jina)
-    
+
     # Optional provider-specific settings
     encoding_format: str = "float"
     normalized: bool = True
@@ -63,16 +63,16 @@ def _to_bool(value: Optional[str], default: bool) -> bool:
 def get_embedding_config() -> EmbeddingConfig:
     """
     Load embedding configuration from environment variables or provider manager.
-    
+
     Priority:
     1. Active provider from embedding_providers.json
     2. Environment variables (.env)
-    
+
     Strategy for environment variables:
     1. Read EMBEDDING_BINDING to determine active provider
     2. Try provider-specific variables first (e.g., JINA_EMBEDDING_MODEL)
     3. Fall back to generic EMBEDDING_* variables
-    
+
     This allows easy switching between providers without changing all vars.
 
     Returns:
@@ -103,7 +103,7 @@ def get_embedding_config() -> EmbeddingConfig:
 
     # 2. Fallback to environment variables
     binding = _strip_value(os.getenv("EMBEDDING_BINDING", "openai"))
-    
+
     # Provider-specific prefix mapping
     prefix_map = {
         "openai": "OPENAI",
@@ -115,9 +115,9 @@ def get_embedding_config() -> EmbeddingConfig:
         "ollama": "OLLAMA",
         "lm_studio": "LM_STUDIO",
     }
-    
+
     prefix = prefix_map.get(binding, "")
-    
+
     # Try provider-specific vars first, then fall back to generic
     def get_with_fallback(var_name: str, generic_name: str) -> Optional[str]:
         if prefix:
@@ -125,12 +125,12 @@ def get_embedding_config() -> EmbeddingConfig:
             if specific:
                 return specific
         return _strip_value(os.getenv(generic_name))
-    
+
     model = get_with_fallback("EMBEDDING_MODEL", "EMBEDDING_MODEL")
     api_key = get_with_fallback("EMBEDDING_API_KEY", "EMBEDDING_API_KEY")
     base_url = get_with_fallback("EMBEDDING_HOST", "EMBEDDING_HOST")
     dim_str = get_with_fallback("EMBEDDING_DIM", "EMBEDDING_DIM")
-    
+
     # Strict mode: Model is required
     if not model:
         raise ValueError(
@@ -159,7 +159,7 @@ def get_embedding_config() -> EmbeddingConfig:
     max_tokens = _to_int(_strip_value(os.getenv("EMBEDDING_MAX_TOKENS")), 8192)
     request_timeout = _to_int(_strip_value(os.getenv("EMBEDDING_REQUEST_TIMEOUT")), 30)
     input_type = _strip_value(os.getenv("EMBEDDING_INPUT_TYPE"))  # Optional
-    
+
     # Provider-specific optional settings
     encoding_format = _strip_value(os.getenv("EMBEDDING_ENCODING_FORMAT")) or "float"
     normalized = _to_bool(_strip_value(os.getenv("EMBEDDING_NORMALIZED")), True)
@@ -180,4 +180,3 @@ def get_embedding_config() -> EmbeddingConfig:
         truncate=truncate,
         late_chunking=late_chunking,
     )
-

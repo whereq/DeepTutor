@@ -13,15 +13,15 @@ from typing import Any, Dict, List, Optional
 class Chunk:
     """
     Document chunk.
-    
+
     Represents a portion of a document with optional metadata and embedding.
     """
-    
+
     content: str
     chunk_type: str = "text"  # text, definition, theorem, equation, figure, table...
     metadata: Dict[str, Any] = field(default_factory=dict)
     embedding: Optional[List[float]] = None
-    
+
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
@@ -31,16 +31,16 @@ class Chunk:
 class Document:
     """
     Parsed document.
-    
+
     Contains the full document content, metadata, and chunks.
     """
-    
+
     content: str
     file_path: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
     chunks: List[Chunk] = field(default_factory=list)
     content_items: List[Dict] = field(default_factory=list)  # MinerU format
-    
+
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
@@ -63,7 +63,7 @@ class SearchResult:
     """
     Search result from RAG query.
     """
-    
+
     query: str
     answer: str
     content: str
@@ -71,4 +71,3 @@ class SearchResult:
     provider: str = "raganything"
     chunks: List[Chunk] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-

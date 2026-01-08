@@ -16,9 +16,8 @@ _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from src.services.prompt import get_prompt_manager
-
 from src.agents.base_agent import BaseAgent
+from src.services.prompt import get_prompt_manager
 
 
 class IdeaGenerationWorkflow(BaseAgent):

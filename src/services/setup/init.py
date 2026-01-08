@@ -8,10 +8,9 @@ Combines user directory initialization and port configuration management.
 import json
 import os
 from pathlib import Path
-import sys
 
-from src.services.config import load_config_with_main
 from src.logging import get_logger
+from src.services.config import load_config_with_main
 
 # Initialize logger for setup operations
 _setup_logger = None
@@ -221,7 +220,7 @@ def init_user_directories(project_root: Path | None = None) -> None:
 def get_backend_port(project_root: Path | None = None) -> int:
     """
     Get backend port from environment variable.
-    
+
     Configure in .env file: BACKEND_PORT=8001
 
     Returns:
@@ -239,7 +238,7 @@ def get_backend_port(project_root: Path | None = None) -> int:
 def get_frontend_port(project_root: Path | None = None) -> int:
     """
     Get frontend port from environment variable.
-    
+
     Configure in .env file: FRONTEND_PORT=3782
 
     Returns:
@@ -280,4 +279,3 @@ __all__ = [
     "get_frontend_port",
     "get_ports",
 ]
-

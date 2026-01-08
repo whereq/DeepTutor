@@ -385,7 +385,8 @@ export default function HomePage() {
 
                       {/* Sources */}
                       {msg.sources &&
-                        ((msg.sources.rag?.length ?? 0) + (msg.sources.web?.length ?? 0)) >
+                        (msg.sources.rag?.length ?? 0) +
+                          (msg.sources.web?.length ?? 0) >
                           0 && (
                           <div className="flex flex-wrap gap-2">
                             {msg.sources.rag?.map((source, i) => (

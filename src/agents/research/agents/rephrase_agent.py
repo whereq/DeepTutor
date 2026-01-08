@@ -12,8 +12,9 @@ from typing import Any
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from ..utils.json_utils import extract_json_from_text
 from src.agents.base_agent import BaseAgent
+
+from ..utils.json_utils import extract_json_from_text
 
 
 class RephraseAgent(BaseAgent):

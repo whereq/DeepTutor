@@ -12,9 +12,9 @@ from src.agents.research.agents import RephraseAgent
 from src.agents.research.research_pipeline import ResearchPipeline
 from src.api.utils.history import ActivityType, history_manager
 from src.api.utils.task_id_manager import TaskIDManager
+from src.logging import get_logger
 from src.services.config import load_config_with_main
 from src.services.llm import get_llm_config
-from src.logging import get_logger
 
 # Force stdout to use utf-8 to prevent encoding errors with emojis on Windows
 if sys.platform == "win32":

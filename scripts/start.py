@@ -31,8 +31,8 @@ sys.path.insert(0, str(project_root))
 from src.agents.question import AgentCoordinator
 from src.agents.solve import MainSolver
 from src.api.utils.history import ActivityType, history_manager
-from src.services.llm import get_llm_config
 from src.logging import get_logger
+from src.services.llm import get_llm_config
 
 # Initialize logger for CLI
 logger = get_logger("CLI", console_output=True, file_output=True)

@@ -16,6 +16,14 @@ Usage:
     embed_func = client.get_embedding_func()
 """
 
+from .adapters import (
+    BaseEmbeddingAdapter,
+    CohereEmbeddingAdapter,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    OllamaEmbeddingAdapter,
+    OpenAICompatibleEmbeddingAdapter,
+)
 from .client import EmbeddingClient, get_embedding_client, reset_embedding_client
 from .config import EmbeddingConfig, get_embedding_config
 from .provider import get_embedding_provider_manager, reset_embedding_provider_manager
@@ -23,14 +31,6 @@ from .provider_config import (
     EmbeddingProvider,
     EmbeddingProviderConfigManager,
     embedding_provider_config_manager,
-)
-from .adapters import (
-    BaseEmbeddingAdapter,
-    EmbeddingRequest,
-    EmbeddingResponse,
-    OpenAICompatibleEmbeddingAdapter,
-    CohereEmbeddingAdapter,
-    OllamaEmbeddingAdapter,
 )
 
 __all__ = [
@@ -51,4 +51,3 @@ __all__ = [
     "CohereEmbeddingAdapter",
     "OllamaEmbeddingAdapter",
 ]
-

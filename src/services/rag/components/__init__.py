@@ -9,14 +9,9 @@ Components follow a simple protocol:
 - Each component has an async `process()` method
 """
 
-from .base import Component, BaseComponent
-
 # Import component modules for convenience
-from . import parsers
-from . import chunkers
-from . import embedders
-from . import indexers
-from . import retrievers
+from . import chunkers, embedders, indexers, parsers, retrievers
+from .base import BaseComponent, Component
 
 __all__ = [
     "Component",
@@ -27,4 +22,3 @@ __all__ = [
     "indexers",
     "retrievers",
 ]
-

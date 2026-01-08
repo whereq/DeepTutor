@@ -49,20 +49,20 @@ async def rag_search(
                 "mode": str,
                 "provider": str
             }
-            
+
     Raises:
         ValueError: If the specified RAG pipeline is not found
         Exception: If the query fails
-    
+
     Example:
         # Use default provider (from .env)
         result = await rag_search("What is machine learning?", kb_name="textbook")
-        
+
         # Override provider
         result = await rag_search("What is ML?", kb_name="textbook", provider="lightrag")
     """
     service = RAGService(kb_base_dir=kb_base_dir, provider=provider)
-    
+
     try:
         return await service.search(query=query, kb_name=kb_name, mode=mode, **kwargs)
     except Exception as e:
@@ -78,17 +78,17 @@ async def initialize_rag(
 ) -> bool:
     """
     Initialize RAG with documents.
-    
+
     Args:
         kb_name: Knowledge base name
         documents: List of document file paths to index
         provider: RAG pipeline to use (defaults to RAG_PROVIDER env var)
         kb_base_dir: Base directory for knowledge bases (for testing)
         **kwargs: Additional arguments passed to pipeline
-    
+
     Returns:
         True if successful
-    
+
     Example:
         documents = ["doc1.pdf", "doc2.txt"]
         success = await initialize_rag("my_kb", documents)
@@ -98,21 +98,21 @@ async def initialize_rag(
 
 
 async def delete_rag(
-    kb_name: str, 
+    kb_name: str,
     provider: Optional[str] = None,
     kb_base_dir: Optional[str] = None,
 ) -> bool:
     """
     Delete a knowledge base.
-    
+
     Args:
         kb_name: Knowledge base name
         provider: RAG pipeline to use (defaults to RAG_PROVIDER env var)
         kb_base_dir: Base directory for knowledge bases (for testing)
-    
+
     Returns:
         True if successful
-    
+
     Example:
         success = await delete_rag("old_kb")
     """
@@ -123,10 +123,10 @@ async def delete_rag(
 def get_available_providers() -> List[Dict]:
     """
     Get list of available RAG pipelines.
-    
+
     Returns:
         List of pipeline information dictionaries
-    
+
     Example:
         providers = get_available_providers()
         for p in providers:
@@ -150,6 +150,7 @@ if __name__ == "__main__":
 
     if sys.platform == "win32":
         import io
+
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
     # List available providers

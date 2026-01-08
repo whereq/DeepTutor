@@ -80,7 +80,9 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
-  const [selectedChatSession, setSelectedChatSession] = useState<string | null>(null);
+  const [selectedChatSession, setSelectedChatSession] = useState<string | null>(
+    null,
+  );
   const [filterType, setFilterType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -94,7 +96,9 @@ export default function HistoryPage() {
       // Fetch regular activity history
       if (filterType === "all" || filterType !== "chat") {
         const typeParam = filterType !== "all" ? `&type=${filterType}` : "";
-        const res = await fetch(apiUrl(`/api/v1/dashboard/recent?limit=50${typeParam}`));
+        const res = await fetch(
+          apiUrl(`/api/v1/dashboard/recent?limit=50${typeParam}`),
+        );
         const data = await res.json();
         setEntries(data);
       } else {
@@ -104,7 +108,9 @@ export default function HistoryPage() {
       // Fetch chat sessions
       if (filterType === "all" || filterType === "chat") {
         try {
-          const sessionsRes = await fetch(apiUrl("/api/v1/chat/sessions?limit=20"));
+          const sessionsRes = await fetch(
+            apiUrl("/api/v1/chat/sessions?limit=20"),
+          );
           const sessionsData = await sessionsRes.json();
           setChatSessions(sessionsData);
         } catch (err) {
@@ -136,7 +142,7 @@ export default function HistoryPage() {
   const filteredEntries = entries.filter((entry) => {
     // Exclude chat type - they are shown in dedicated Chat History section
     if (entry.type === "chat") return false;
-    
+
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -160,11 +166,17 @@ export default function HistoryPage() {
       } else if (date.toDateString() === yesterday.toDateString()) {
         dateKey = "Yesterday";
       } else {
-        dateKey = date.toLocaleDateString(uiSettings.language === "zh" ? "zh-CN" : "en-US", {
-          month: "long",
-          day: "numeric",
-          year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
-        });
+        dateKey = date.toLocaleDateString(
+          uiSettings.language === "zh" ? "zh-CN" : "en-US",
+          {
+            month: "long",
+            day: "numeric",
+            year:
+              date.getFullYear() !== today.getFullYear()
+                ? "numeric"
+                : undefined,
+          },
+        );
       }
 
       if (!groups[dateKey]) {
@@ -267,165 +279,177 @@ export default function HistoryPage() {
             </div>
           ) : filteredEntries.length > 0 ? (
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            {Object.entries(groupedEntries).map(([dateKey, dateEntries]) => (
-              <div key={dateKey}>
-                {/* Date Header */}
-                <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                  <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-                    <Calendar className="w-4 h-4" />
-                    {dateKey}
+              {Object.entries(groupedEntries).map(([dateKey, dateEntries]) => (
+                <div key={dateKey}>
+                  {/* Date Header */}
+                  <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                      <Calendar className="w-4 h-4" />
+                      {dateKey}
+                    </div>
                   </div>
+
+                  {/* Entries for this date */}
+                  {dateEntries.map((entry) => {
+                    const config = TYPE_CONFIG[entry.type] || TYPE_CONFIG.chat;
+                    const IconComponent = config.icon;
+
+                    return (
+                      <div
+                        key={entry.id}
+                        onClick={() => setSelectedEntry(entry)}
+                        className="px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer"
+                      >
+                        <div className="flex gap-4">
+                          <div className="mt-0.5">
+                            <div
+                              className={`w-10 h-10 rounded-xl ${config.bgColor} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
+                            >
+                              <IconComponent
+                                className={`w-5 h-5 ${config.textColor}`}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <span
+                                className={`text-xs font-bold uppercase tracking-wider ${config.textColor} mb-1`}
+                              >
+                                {entry.type}
+                              </span>
+                              <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {new Date(
+                                  entry.timestamp * 1000,
+                                ).toLocaleTimeString(
+                                  uiSettings.language === "zh"
+                                    ? "zh-CN"
+                                    : "en-US",
+                                  { hour: "2-digit", minute: "2-digit" },
+                                )}
+                              </span>
+                            </div>
+                            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 truncate pr-4">
+                              {entry.title}
+                            </h3>
+                            {entry.summary && (
+                              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                                {entry.summary}
+                              </p>
+                            )}
+                          </div>
+                          <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ChevronRight className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
-                {/* Entries for this date */}
-                {dateEntries.map((entry) => {
-                  const config = TYPE_CONFIG[entry.type] || TYPE_CONFIG.chat;
-                  const IconComponent = config.icon;
-
-                  return (
+        {/* Chat Sessions Section */}
+        {chatSessions.length > 0 &&
+          (filterType === "all" || filterType === "chat") && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-amber-500" />
+                <h2 className="font-semibold text-slate-900 dark:text-slate-100">
+                  {t("Chat History")}
+                </h2>
+                <span className="text-xs text-slate-400 ml-auto">
+                  {chatSessions.length}{" "}
+                  {chatSessions.length === 1 ? "session" : "sessions"}
+                </span>
+              </div>
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                {chatSessions
+                  .filter((session) => {
+                    if (!searchQuery.trim()) return true;
+                    const query = searchQuery.toLowerCase();
+                    return (
+                      session.title.toLowerCase().includes(query) ||
+                      session.last_message?.toLowerCase().includes(query)
+                    );
+                  })
+                  .map((session) => (
                     <div
-                      key={entry.id}
-                      onClick={() => setSelectedEntry(entry)}
+                      key={session.session_id}
+                      onClick={() => setSelectedChatSession(session.session_id)}
                       className="px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer"
                     >
                       <div className="flex gap-4">
                         <div className="mt-0.5">
-                          <div
-                            className={`w-10 h-10 rounded-xl ${config.bgColor} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
-                          >
-                            <IconComponent className={`w-5 h-5 ${config.textColor}`} />
+                          <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                            <MessageCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-start">
-                            <span
-                              className={`text-xs font-bold uppercase tracking-wider ${config.textColor} mb-1`}
-                            >
-                              {entry.type}
+                            <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
+                              Chat
                             </span>
                             <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              {new Date(entry.timestamp * 1000).toLocaleTimeString(
-                                uiSettings.language === "zh" ? "zh-CN" : "en-US",
-                                { hour: "2-digit", minute: "2-digit" }
+                              {new Date(
+                                session.updated_at * 1000,
+                              ).toLocaleDateString(
+                                uiSettings.language === "zh"
+                                  ? "zh-CN"
+                                  : "en-US",
                               )}
                             </span>
                           </div>
                           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 truncate pr-4">
-                            {entry.title}
+                            {session.title}
                           </h3>
-                          {entry.summary && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                              {entry.summary}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-slate-400 dark:text-slate-500">
+                              {session.message_count} messages
+                            </span>
+                            {session.last_message && (
+                              <p className="text-sm text-slate-500 dark:text-slate-400 truncate flex-1">
+                                {session.last_message}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ChevronRight className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                        <div className="self-center flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedChatSession(session.session_id);
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            {t("View")}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLoadChatSession(session.session_id);
+                            }}
+                            disabled={loadingSessionId === session.session_id}
+                            className="px-3 py-1.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            {loadingSessionId === session.session_id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            )}
+                            {t("Continue")}
+                          </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      {/* Chat Sessions Section */}
-      {chatSessions.length > 0 && (filterType === "all" || filterType === "chat") && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-amber-500" />
-            <h2 className="font-semibold text-slate-900 dark:text-slate-100">
-              {t("Chat History")}
-            </h2>
-            <span className="text-xs text-slate-400 ml-auto">
-              {chatSessions.length} {chatSessions.length === 1 ? "session" : "sessions"}
-            </span>
-          </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            {chatSessions
-              .filter((session) => {
-                if (!searchQuery.trim()) return true;
-                const query = searchQuery.toLowerCase();
-                return (
-                  session.title.toLowerCase().includes(query) ||
-                  session.last_message?.toLowerCase().includes(query)
-                );
-              })
-              .map((session) => (
-                <div
-                  key={session.session_id}
-                  onClick={() => setSelectedChatSession(session.session_id)}
-                  className="px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer"
-                >
-                  <div className="flex gap-4">
-                    <div className="mt-0.5">
-                      <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <MessageCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
-                          Chat
-                        </span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(session.updated_at * 1000).toLocaleDateString(
-                            uiSettings.language === "zh" ? "zh-CN" : "en-US"
-                          )}
-                        </span>
-                      </div>
-                      <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 truncate pr-4">
-                        {session.title}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-slate-400 dark:text-slate-500">
-                          {session.message_count} messages
-                        </span>
-                        {session.last_message && (
-                          <p className="text-sm text-slate-500 dark:text-slate-400 truncate flex-1">
-                            {session.last_message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="self-center flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedChatSession(session.session_id);
-                        }}
-                        className="px-3 py-1.5 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        {t("View")}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleLoadChatSession(session.session_id);
-                        }}
-                        disabled={loadingSessionId === session.session_id}
-                        className="px-3 py-1.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        {loadingSessionId === session.session_id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <MessageSquare className="w-3.5 h-3.5" />
-                        )}
-                        {t("Continue")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
+            </div>
+          )}
       </div>
 
       {/* Activity Detail Modal */}
@@ -450,4 +474,3 @@ export default function HistoryPage() {
     </div>
   );
 }
-

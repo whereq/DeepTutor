@@ -71,16 +71,16 @@ interface SolverState {
 // Question Progress Info
 interface QuestionProgressInfo {
   stage:
-  | "planning"
-  | "researching"
-  | "generating"
-  | "validating"
-  | "complete"
-  // Mimic mode stages
-  | "uploading"
-  | "parsing"
-  | "extracting"
-  | null;
+    | "planning"
+    | "researching"
+    | "generating"
+    | "validating"
+    | "complete"
+    // Mimic mode stages
+    | "uploading"
+    | "parsing"
+    | "extracting"
+    | null;
   progress: {
     current?: number;
     total?: number;
@@ -348,7 +348,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   const SIDEBAR_DEFAULT_WIDTH = 256;
   const SIDEBAR_COLLAPSED_WIDTH = 64;
 
-  const [sidebarWidth, setSidebarWidthState] = useState<number>(SIDEBAR_DEFAULT_WIDTH);
+  const [sidebarWidth, setSidebarWidthState] = useState<number>(
+    SIDEBAR_DEFAULT_WIDTH,
+  );
   const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(false);
 
   // Initialize sidebar state from localStorage
@@ -356,14 +358,18 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       const storedWidth = localStorage.getItem("sidebarWidth");
       const storedCollapsed = localStorage.getItem("sidebarCollapsed");
-      
+
       if (storedWidth) {
         const width = parseInt(storedWidth, 10);
-        if (!isNaN(width) && width >= SIDEBAR_MIN_WIDTH && width <= SIDEBAR_MAX_WIDTH) {
+        if (
+          !isNaN(width) &&
+          width >= SIDEBAR_MIN_WIDTH &&
+          width <= SIDEBAR_MAX_WIDTH
+        ) {
           setSidebarWidthState(width);
         }
       }
-      
+
       if (storedCollapsed) {
         setSidebarCollapsedState(storedCollapsed === "true");
       }
@@ -371,7 +377,10 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setSidebarWidth = (width: number) => {
-    const clampedWidth = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, width));
+    const clampedWidth = Math.max(
+      SIDEBAR_MIN_WIDTH,
+      Math.min(SIDEBAR_MAX_WIDTH, width),
+    );
     setSidebarWidthState(clampedWidth);
     if (typeof window !== "undefined") {
       localStorage.setItem("sidebarWidth", clampedWidth.toString());
@@ -1620,7 +1629,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
 
   const loadChatSession = async (sessionId: string) => {
     try {
-      const response = await fetch(apiUrl(`/api/v1/chat/sessions/${sessionId}`));
+      const response = await fetch(
+        apiUrl(`/api/v1/chat/sessions/${sessionId}`),
+      );
       if (!response.ok) {
         throw new Error("Session not found");
       }

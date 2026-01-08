@@ -19,9 +19,9 @@ from src.agents.base_agent import BaseAgent
 from src.agents.guide.guide_manager import GuideManager
 from src.api.utils.notebook_manager import notebook_manager
 from src.api.utils.task_id_manager import TaskIDManager
+from src.logging import get_logger
 from src.services.config import load_config_with_main
 from src.services.llm import get_llm_config
-from src.logging import get_logger
 
 router = APIRouter()
 
@@ -75,7 +75,9 @@ def get_guide_manager():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
 
-    return GuideManager(api_key=api_key, base_url=base_url, language=None, binding=binding)  # Read from config file
+    return GuideManager(
+        api_key=api_key, base_url=base_url, language=None, binding=binding
+    )  # Read from config file
 
 
 # === REST API Endpoints ===

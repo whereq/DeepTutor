@@ -14,7 +14,7 @@ Usage:
     # Or create custom client
     config = LLMConfig(model="gpt-4o", api_key="...", base_url="...")
     client = LLMClient(config)
-    
+
     # Provider management
     from src.services.llm import provider_manager, LLMProvider
     providers = provider_manager.list_providers()
@@ -24,8 +24,8 @@ from .client import LLMClient, get_llm_client, reset_llm_client
 from .config import (
     LLMConfig,
     get_llm_config,
-    uses_max_completion_tokens,
     get_token_limit_kwargs,
+    uses_max_completion_tokens,
 )
 from .provider import (
     LLMProvider,

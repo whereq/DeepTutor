@@ -29,8 +29,8 @@ load_dotenv(dotenv_path=".env", override=False)
 try:
     from pathlib import Path
 
-    from src.services.config import load_config_with_main
     from src.logging import get_logger
+    from src.services.config import load_config_with_main
 
     project_root = Path(__file__).parent.parent.parent.parent
     config = load_config_with_main(

@@ -14,6 +14,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.agents.base_agent import BaseAgent
+
 from ..memory import InvestigateMemory, SolveChainStep, SolveMemory
 from ..utils.json_utils import extract_json_from_text
 

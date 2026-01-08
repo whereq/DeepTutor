@@ -61,4 +61,3 @@ The agent uses prompts from:
 - `prompts/zh/chat_agent.yaml` (Chinese)
 
 Token limits and other parameters are configured in `config/agents.yaml`.
-

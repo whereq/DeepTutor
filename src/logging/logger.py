@@ -669,4 +669,3 @@ def reset_logger(name: Optional[str] = None):
         _loggers.clear()
     elif name in _loggers:
         del _loggers[name]
-

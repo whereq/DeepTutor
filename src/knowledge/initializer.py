@@ -31,8 +31,8 @@ from lightrag.llm.openai import openai_complete_if_cache
 from lightrag.utils import EmbeddingFunc
 from raganything import RAGAnything, RAGAnythingConfig
 
+from src.services.embedding import get_embedding_client, get_embedding_config
 from src.services.llm import get_llm_config
-from src.services.embedding import get_embedding_config, get_embedding_client
 
 load_dotenv(dotenv_path=".env", override=False)
 
@@ -279,16 +279,17 @@ class KnowledgeBaseInitializer:
         # Define embedding function using unified EmbeddingClient
         # Reset client to pick up latest config (including active provider from UI)
         from src.services.embedding import reset_embedding_client
+
         reset_embedding_client()
-        
+
         embedding_cfg = get_embedding_config()  # Reload config
         embedding_client = get_embedding_client()  # Get fresh client with new config
-        
+
         logger.info(
             f"Using embedding: {embedding_cfg.model} "
             f"({embedding_cfg.dim}D, {embedding_cfg.binding})"
         )
-        
+
         # Create async wrapper compatible with LightRAG's expected signature
         async def unified_embed_func(texts):
             """
@@ -301,7 +302,7 @@ class KnowledgeBaseInitializer:
             except Exception as e:
                 logger.error(f"Embedding failed: {e}")
                 raise
-        
+
         embedding_func = EmbeddingFunc(
             embedding_dim=embedding_cfg.dim,
             max_token_size=embedding_cfg.max_tokens,
@@ -334,14 +335,14 @@ class KnowledgeBaseInitializer:
             try:
                 # Use RAGAnything's process_document_complete method
                 # This method handles document parsing, content extraction, and insertion
-                logger.info(f"  → Starting document processing...")
+                logger.info("  → Starting document processing...")
                 await asyncio.wait_for(
                     rag.process_document_complete(
                         file_path=str(doc_file),
                         output_dir=str(self.content_list_dir),
                         parse_method="auto",
                     ),
-                    timeout=600.0  # 10 minute timeout
+                    timeout=600.0,  # 10 minute timeout
                 )
                 logger.info(f"  ✓ Successfully processed: {doc_file.name}")
 
@@ -352,9 +353,9 @@ class KnowledgeBaseInitializer:
                     logger.info(f"  ✓ Content list saved: {content_list_file.name}")
 
             except asyncio.TimeoutError:
-                error_msg = f"Processing timeout (>10 minutes)"
+                error_msg = "Processing timeout (>10 minutes)"
                 logger.error(f"  ✗ Timeout processing {doc_file.name}")
-                logger.error(f"  Possible causes: Large PDF, slow embedding API, network issues")
+                logger.error("  Possible causes: Large PDF, slow embedding API, network issues")
                 self.progress_tracker.update(
                     ProgressStage.ERROR,
                     f"Timeout processing: {doc_file.name}",
@@ -632,9 +633,7 @@ Example usage:
         default="./knowledge_bases",
         help="Base directory for knowledge bases (default: ./knowledge_bases)",
     )
-    parser.add_argument(
-        "--api-key", default=os.getenv("LLM_API_KEY"), help="OpenAI API key"
-    )
+    parser.add_argument("--api-key", default=os.getenv("LLM_API_KEY"), help="OpenAI API key")
     parser.add_argument("--base-url", default=os.getenv("LLM_HOST"), help="API base URL")
     parser.add_argument(
         "--skip-processing",

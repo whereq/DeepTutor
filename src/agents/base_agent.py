@@ -27,9 +27,9 @@ if str(_project_root) not in sys.path:
 
 from lightrag.llm.openai import openai_complete_if_cache
 
+from src.logging import LLMStats, get_logger
 from src.services.config import get_agent_params
 from src.services.llm import get_llm_config, get_token_limit_kwargs
-from src.logging import LLMStats, get_logger
 from src.services.prompt import get_prompt_manager
 
 
@@ -109,8 +109,9 @@ class BaseAgent(ABC):
         self.agent_config = self.config.get("agents", {}).get(agent_name, {})
         llm_cfg = self.config.get("llm", {})
         # Ensure llm_config is always a dict (handle case where LLMConfig object is passed)
-        if hasattr(llm_cfg, '__dataclass_fields__'):
+        if hasattr(llm_cfg, "__dataclass_fields__"):
             from dataclasses import asdict
+
             self.llm_config = asdict(llm_cfg)
         else:
             self.llm_config = llm_cfg if isinstance(llm_cfg, dict) else {}
@@ -201,9 +202,7 @@ class BaseAgent(ABC):
         Returns:
             Retry count
         """
-        return self.agent_config.get(
-            "max_retries", self.llm_config.get("max_retries", 3)
-        )
+        return self.agent_config.get("max_retries", self.llm_config.get("max_retries", 3))
 
     # -------------------------------------------------------------------------
     # Token Tracking
@@ -428,7 +427,15 @@ class BaseAgent(ABC):
             Prompt string or fallback
         """
         if not self.prompts:
-            return fallback if fallback else (field_or_fallback if isinstance(field_or_fallback, str) and field_or_fallback else None)
+            return (
+                fallback
+                if fallback
+                else (
+                    field_or_fallback
+                    if isinstance(field_or_fallback, str) and field_or_fallback
+                    else None
+                )
+            )
 
         # Check if this is a nested lookup (section.field pattern)
         # If field_or_fallback is provided and section_or_type points to a dict, use nested lookup
@@ -492,4 +499,3 @@ class BaseAgent(ABC):
 
 
 __all__ = ["BaseAgent"]
-

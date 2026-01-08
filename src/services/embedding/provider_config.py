@@ -28,9 +28,11 @@ class EmbeddingProvider(BaseModel):
     model: str = Field(..., description="Model name to use")
     dimensions: int = Field(..., description="Embedding vector dimensions")
     is_active: bool = Field(default=False, description="Whether this provider is currently active")
-    
+
     # Optional advanced settings for some specific providers, view each api references for details
-    input_type: Optional[str] = Field(default=None, description="Input type for task-aware embeddings")
+    input_type: Optional[str] = Field(
+        default=None, description="Input type for task-aware embeddings"
+    )
     normalized: bool = Field(default=True, description="L2 normalization")
     truncate: bool = Field(default=True, description="Truncate long texts")
 

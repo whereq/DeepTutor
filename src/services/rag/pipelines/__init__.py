@@ -5,10 +5,10 @@ Pre-configured Pipelines
 Ready-to-use RAG pipelines for common use cases.
 """
 
-from .raganything import RAGAnythingPipeline
+from .academic import AcademicPipeline
 from .lightrag import LightRAGPipeline
 from .llamaindex import LlamaIndexPipeline
-from .academic import AcademicPipeline
+from .raganything import RAGAnythingPipeline
 
 __all__ = [
     "RAGAnythingPipeline",
@@ -16,4 +16,3 @@ __all__ = [
     "LlamaIndexPipeline",
     "AcademicPipeline",
 ]
-

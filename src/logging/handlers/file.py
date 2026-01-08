@@ -5,6 +5,7 @@ File Log Handlers
 File-based logging with rotation support.
 """
 
+import asyncio
 from datetime import datetime
 import json
 import logging
@@ -53,7 +54,7 @@ class FileHandler(logging.FileHandler):
         """
         # Ensure directory exists
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
-        
+
         super().__init__(filename, encoding=encoding)
         self.setLevel(level)
         self.setFormatter(FileFormatter())
@@ -84,7 +85,7 @@ class RotatingFileHandler(BaseRotatingFileHandler):
         """
         # Ensure directory exists
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
-        
+
         super().__init__(
             filename,
             maxBytes=max_bytes,
@@ -121,10 +122,10 @@ class JSONFileHandler(logging.Handler):
             encoding: File encoding
         """
         super().__init__()
-        
+
         # Ensure directory exists
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-        
+
         self.filepath = filepath
         self.encoding = encoding
         self.setLevel(level)
@@ -172,7 +173,6 @@ def create_task_logger(
     Returns:
         Configured logger
     """
-    import asyncio
     from .websocket import WebSocketLogHandler
 
     # Create log directory
@@ -199,4 +199,3 @@ def create_task_logger(
         logger.addHandler(ws_handler)
 
     return logger
-

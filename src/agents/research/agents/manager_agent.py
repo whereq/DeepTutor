@@ -13,9 +13,8 @@ from typing import Any
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.agents.research.data_structures import DynamicTopicQueue, TopicBlock
-
 from src.agents.base_agent import BaseAgent
+from src.agents.research.data_structures import DynamicTopicQueue, TopicBlock
 
 
 class ManagerAgent(BaseAgent):

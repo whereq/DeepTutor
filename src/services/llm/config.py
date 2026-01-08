@@ -23,7 +23,7 @@ load_dotenv(PROJECT_ROOT / ".env", override=False)
 @dataclass
 class LLMConfig:
     """LLM configuration dataclass."""
-    
+
     model: str
     api_key: str
     base_url: Optional[str] = None

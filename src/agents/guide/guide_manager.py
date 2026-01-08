@@ -14,8 +14,8 @@ import uuid
 
 import yaml
 
-from src.services.config import load_config_with_main, parse_language
 from src.logging import get_logger
+from src.services.config import load_config_with_main, parse_language
 
 from .agents import ChatAgent, InteractiveAgent, LocateAgent, SummaryAgent
 
@@ -114,7 +114,9 @@ class GuideManager:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.locate_agent = LocateAgent(api_key, base_url, self.language, binding=self.binding)
-        self.interactive_agent = InteractiveAgent(api_key, base_url, self.language, binding=self.binding)
+        self.interactive_agent = InteractiveAgent(
+            api_key, base_url, self.language, binding=self.binding
+        )
         self.chat_agent = ChatAgent(api_key, base_url, self.language, binding=self.binding)
         self.summary_agent = SummaryAgent(api_key, base_url, self.language, binding=self.binding)
 

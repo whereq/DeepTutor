@@ -8,16 +8,16 @@ Defines the contract that all embedding providers must implement.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
 class EmbeddingRequest:
     """
     Standard embedding request structure.
-    
+
     Provider-agnostic request format. Different providers interpret fields differently:
-    
+
     Args:
         texts: List of texts to embed
         model: Model name to use
@@ -31,7 +31,7 @@ class EmbeddingRequest:
         normalized: Whether to return L2-normalized embeddings (Jina/Ollama only)
         late_chunking: Enable late chunking for long context (Jina v3 only)
     """
-    
+
     texts: List[str]
     model: str
     dimensions: Optional[int] = None
@@ -45,7 +45,7 @@ class EmbeddingRequest:
 @dataclass
 class EmbeddingResponse:
     """Standard embedding response structure."""
-    
+
     embeddings: List[List[float]]
     model: str
     dimensions: int
@@ -55,15 +55,15 @@ class EmbeddingResponse:
 class BaseEmbeddingAdapter(ABC):
     """
     Base class for all embedding adapters.
-    
+
     Each adapter implements the specific API interface for a provider
     (OpenAI, Cohere, Ollama, etc.) while exposing a unified interface.
     """
-    
+
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize the adapter with configuration.
-        
+
         Args:
             config: Dictionary containing:
                 - api_key: API authentication key (optional for local)
@@ -77,28 +77,28 @@ class BaseEmbeddingAdapter(ABC):
         self.model = config.get("model")
         self.dimensions = config.get("dimensions")
         self.request_timeout = config.get("request_timeout", 30)
-    
+
     @abstractmethod
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         """
         Generate embeddings for a list of texts.
-        
+
         Args:
             request: EmbeddingRequest with texts and parameters
-            
+
         Returns:
             EmbeddingResponse with embeddings and metadata
-            
+
         Raises:
             httpx.HTTPError: If the API request fails
         """
         pass
-    
+
     @abstractmethod
     def get_model_info(self) -> Dict[str, Any]:
         """
         Return information about the configured model.
-        
+
         Returns:
             Dictionary with model metadata (name, dimensions, etc.)
         """

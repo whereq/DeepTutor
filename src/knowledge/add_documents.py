@@ -29,8 +29,8 @@ from lightrag.llm.openai import openai_complete_if_cache
 from lightrag.utils import EmbeddingFunc
 from raganything import RAGAnything, RAGAnythingConfig
 
+from src.services.embedding import get_embedding_client, get_embedding_config
 from src.services.llm import get_llm_config
-from src.services.embedding import get_embedding_config, get_embedding_client
 
 load_dotenv(dotenv_path=".env", override=False)
 
@@ -138,10 +138,10 @@ class DocumentAdder:
             return None
 
         logger.info(f"\nProcessing {len(new_files)} new documents...")
-        
+
         self.embedding_cfg = get_embedding_config()
         self.llm_cfg = get_llm_config()
-        
+
         logger.info(
             f"Using: {self.embedding_cfg.model} "
             f"({self.embedding_cfg.dim}D, {self.embedding_cfg.binding})"
@@ -234,16 +234,17 @@ class DocumentAdder:
         # Define embedding function using unified EmbeddingClient
         # Reset client to pick up latest config (including active provider from UI)
         from src.services.embedding import reset_embedding_client
+
         reset_embedding_client()
-        
+
         embedding_cfg = get_embedding_config()  # Reload config
         embedding_client = get_embedding_client()  # Get fresh client with new config
-        
+
         logger.info(
             f"Using embedding: {embedding_cfg.model} "
             f"({embedding_cfg.dim}D, {embedding_cfg.binding})"
         )
-        
+
         # Create async wrapper compatible with LightRAG's expected signature
         async def unified_embed_func(texts):
             """
@@ -256,7 +257,7 @@ class DocumentAdder:
             except Exception as e:
                 logger.error(f"Embedding failed: {e}")
                 raise
-        
+
         embedding_func = EmbeddingFunc(
             embedding_dim=embedding_cfg.dim,
             max_token_size=embedding_cfg.max_tokens,
@@ -296,14 +297,14 @@ class DocumentAdder:
 
             try:
                 # Use RAGAnything's process_document_complete method with timeout
-                logger.info(f"  → Starting document processing...")
+                logger.info("  → Starting document processing...")
                 await asyncio.wait_for(
                     rag.process_document_complete(
                         file_path=str(doc_file),
                         output_dir=str(self.content_list_dir),
                         parse_method="auto",
                     ),
-                    timeout=600.0  # 10 minute timeout
+                    timeout=600.0,  # 10 minute timeout
                 )
                 logger.info(f"  ✓ Successfully processed: {doc_file.name}")
                 processed_files.append(doc_file)
@@ -316,15 +317,16 @@ class DocumentAdder:
 
             except asyncio.TimeoutError:
                 logger.error(f"  ✗ Processing timeout for {doc_file.name} (>10 minutes)")
-                logger.error(f"  Possible causes: Large PDF, slow embedding API, network issues")
+                logger.error("  Possible causes: Large PDF, slow embedding API, network issues")
                 if self.progress_tracker:
                     from src.knowledge.progress_tracker import ProgressStage
+
                     self.progress_tracker.update(
                         ProgressStage.ERROR,
                         f"Timeout processing: {doc_file.name}",
                         current=idx,
                         total=total_files,
-                        error=f"Processing timeout (>10 minutes)"
+                        error="Processing timeout (>10 minutes)",
                     )
             except Exception as e:
                 logger.error(f"  ✗ Processing failed {doc_file.name}: {e!s}")
@@ -333,12 +335,13 @@ class DocumentAdder:
                 logger.error(traceback.format_exc())
                 if self.progress_tracker:
                     from src.knowledge.progress_tracker import ProgressStage
+
                     self.progress_tracker.update(
                         ProgressStage.ERROR,
                         f"Error processing: {doc_file.name}",
                         current=idx,
                         total=total_files,
-                        error=str(e)
+                        error=str(e),
                     )
 
         # Copy extracted images
@@ -566,9 +569,7 @@ Usage examples:
         default="./knowledge_bases",
         help="Knowledge base base directory (default: ./knowledge_bases)",
     )
-    parser.add_argument(
-        "--api-key", default=os.getenv("LLM_API_KEY"), help="OpenAI API key"
-    )
+    parser.add_argument("--api-key", default=os.getenv("LLM_API_KEY"), help="OpenAI API key")
     parser.add_argument("--base-url", default=os.getenv("LLM_HOST"), help="API base URL")
     parser.add_argument(
         "--allow-duplicates",

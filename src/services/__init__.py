@@ -31,19 +31,13 @@ Usage:
     # RAG
     pipeline = get_pipeline("raganything")
     result = await pipeline.search("query", "kb_name")
-    
+
     # Prompt
     pm = get_prompt_manager()
     prompts = pm.load_prompts("guide", "tutor_agent")
 """
 
-from . import llm
-from . import embedding
-from . import rag
-from . import prompt
-from . import tts
-from . import setup
-from . import config
+from . import config, embedding, llm, prompt, rag, setup, tts
 
 __all__ = [
     "llm",

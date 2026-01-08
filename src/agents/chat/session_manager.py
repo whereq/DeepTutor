@@ -11,16 +11,16 @@ This module handles:
 """
 
 import json
-import time
-import uuid
 from pathlib import Path
+import time
 from typing import Any
+import uuid
 
 
 class SessionManager:
     """
     Manages persistent storage of chat sessions.
-    
+
     Sessions are stored in a JSON file at data/user/chat_sessions.json.
     Each session contains:
     - session_id: Unique identifier
@@ -115,14 +115,14 @@ class SessionManager:
 
         sessions = self._get_sessions()
         sessions.insert(0, session)  # Add to front (newest first)
-        
+
         # Limit total sessions to prevent file bloat
         max_sessions = 100
         if len(sessions) > max_sessions:
             sessions = sessions[:max_sessions]
-        
+
         self._save_sessions(sessions)
-        
+
         return session
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
@@ -161,7 +161,7 @@ class SessionManager:
             Updated session or None if not found
         """
         sessions = self._get_sessions()
-        
+
         for i, session in enumerate(sessions):
             if session.get("session_id") == session_id:
                 if messages is not None:
@@ -170,16 +170,16 @@ class SessionManager:
                     session["title"] = title[:100]
                 if settings is not None:
                     session["settings"] = settings
-                
+
                 session["updated_at"] = time.time()
-                
+
                 # Move to front (most recently updated)
                 sessions.pop(i)
                 sessions.insert(0, session)
-                
+
                 self._save_sessions(sessions)
                 return session
-        
+
         return None
 
     def add_message(
@@ -220,7 +220,7 @@ class SessionManager:
         if session.get("title") == "New Chat" and role == "user":
             new_title = content[:50] + ("..." if len(content) > 50 else "")
             return self.update_session(session_id, messages=messages, title=new_title)
-        
+
         return self.update_session(session_id, messages=messages)
 
     def list_sessions(
@@ -239,7 +239,7 @@ class SessionManager:
             List of session dicts (newest first)
         """
         sessions = self._get_sessions()[:limit]
-        
+
         if not include_messages:
             # Return summary only (without full messages)
             return [
@@ -259,7 +259,7 @@ class SessionManager:
                 }
                 for s in sessions
             ]
-        
+
         return sessions
 
     def delete_session(self, session_id: str) -> bool:
@@ -274,13 +274,13 @@ class SessionManager:
         """
         sessions = self._get_sessions()
         original_count = len(sessions)
-        
+
         sessions = [s for s in sessions if s.get("session_id") != session_id]
-        
+
         if len(sessions) < original_count:
             self._save_sessions(sessions)
             return True
-        
+
         return False
 
     def clear_all_sessions(self) -> int:
@@ -309,4 +309,3 @@ def get_session_manager() -> SessionManager:
 
 
 __all__ = ["SessionManager", "get_session_manager"]
-

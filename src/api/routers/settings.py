@@ -11,8 +11,8 @@ from typing import Any, Dict, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from src.services.llm import get_llm_config
 from src.services.embedding import get_embedding_config
+from src.services.llm import get_llm_config
 from src.services.tts import get_tts_config
 from src.utils.config_manager import ConfigManager
 
@@ -473,11 +473,10 @@ async def get_env_var(key: str):
     }
 
 
-
 def _update_dot_env(updates: Dict[str, str], removals: list[str]):
     """Update variables in .env file preserving comments and structure."""
     env_path = Path(__file__).parent.parent.parent.parent / ".env"
-    
+
     if not env_path.exists():
         # Create new if doesn't exist
         with open(env_path, "w", encoding="utf-8") as f:
@@ -498,43 +497,43 @@ def _update_dot_env(updates: Dict[str, str], removals: list[str]):
 
     new_lines = []
     processed_keys = set()
-    
+
     for line in lines:
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             new_lines.append(line)
             continue
-            
+
         # Parse key
         if "=" in stripped:
             key = stripped.split("=")[0].strip()
-            
+
             if key in removals:
-                continue # Skip/Remove this line
-                
+                continue  # Skip/Remove this line
+
             if key in updates:
                 # Update this line
                 val = updates[key]
                 # Simple quoting suggestion
                 if " " in val or "#" in val or '"' in val or "'" in val:
-                     # minimal escape of double quotes
-                     val = val.replace('"', '\\"')
-                     new_lines.append(f'{key}="{val}"\n')
+                    # minimal escape of double quotes
+                    val = val.replace('"', '\\"')
+                    new_lines.append(f'{key}="{val}"\n')
                 else:
                     new_lines.append(f"{key}={val}\n")
                 processed_keys.add(key)
                 continue
-        
+
         new_lines.append(line)
 
     # Append new keys that weren't found
     for k, v in updates.items():
         if k not in processed_keys and k not in removals:
-             if " " in v or "#" in v or '"' in v or "'" in v:
-                 val = v.replace('"', '\\"')
-                 new_lines.append(f'\n{k}="{val}"\n')
-             else:
-                 new_lines.append(f"\n{k}={v}\n")
+            if " " in v or "#" in v or '"' in v or "'" in v:
+                val = v.replace('"', '\\"')
+                new_lines.append(f'\n{k}="{val}"\n')
+            else:
+                new_lines.append(f"\n{k}={v}\n")
 
     # Write back
     try:
@@ -551,7 +550,7 @@ async def update_env_config(update: EnvConfigUpdate):
     """
     updated_vars = []
     errors = []
-    
+
     env_updates = {}
     env_removals = []
 
@@ -687,7 +686,7 @@ async def test_env_config():
 async def get_rag_providers():
     """
     Get list of available RAG providers.
-    
+
     Returns:
         {
             "providers": [...],
@@ -696,13 +695,10 @@ async def get_rag_providers():
     """
     try:
         from src.tools.rag_tool import get_available_providers, get_current_provider
-        
+
         providers = get_available_providers()
         current = get_current_provider()
-        
-        return {
-            "providers": providers,
-            "current": current
-        }
+
+        return {"providers": providers, "current": current}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get RAG providers: {str(e)}")

@@ -1,6 +1,6 @@
 # Contributing to DeepTutor
 
-Thank you for your interest in contributing to DeepTutor! We are trying to make DeepTutor smooth and robust, for every developers to develop and conribute. 
+Thank you for your interest in contributing to DeepTutor! We are trying to make DeepTutor smooth and robust, for every developers to develop and conribute.
 
 Join our community for discussion and support:
 

@@ -7,7 +7,7 @@ This module provides:
 
 Usage:
     from src.agents.chat import ChatAgent, SessionManager
-    
+
     agent = ChatAgent(language="en")
     response = await agent.process(
         message="What is machine learning?",
@@ -22,4 +22,3 @@ from .chat_agent import ChatAgent
 from .session_manager import SessionManager
 
 __all__ = ["ChatAgent", "SessionManager"]
-

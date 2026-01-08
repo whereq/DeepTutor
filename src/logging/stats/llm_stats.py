@@ -26,7 +26,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
-
 # Model pricing per 1K tokens (USD)
 MODEL_PRICING = {
     "gpt-4o": {"input": 0.0025, "output": 0.010},
@@ -178,4 +177,3 @@ class LLMStats:
         self.total_completion_tokens = 0
         self.total_cost = 0.0
         self.model_used = None
-

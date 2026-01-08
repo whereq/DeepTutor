@@ -8,13 +8,14 @@ Unified LLM client for all DeepTutor services.
 from typing import Any, Dict, List, Optional
 
 from src.logging import get_logger
+
 from .config import LLMConfig, get_llm_config
 
 
 class LLMClient:
     """
     Unified LLM client for all services.
-    
+
     Wraps the underlying LLM API (OpenAI-compatible) with a consistent interface.
     """
 
@@ -68,20 +69,20 @@ class LLMClient:
     ) -> str:
         """
         Synchronous wrapper for complete().
-        
+
         Use this when you need to call from non-async context.
         """
         import asyncio
-        
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 # If already in an async context, we need to use a different approach
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(
-                        asyncio.run,
-                        self.complete(prompt, system_prompt, history, **kwargs)
+                        asyncio.run, self.complete(prompt, system_prompt, history, **kwargs)
                     )
                     return future.result()
             else:
@@ -89,14 +90,12 @@ class LLMClient:
                     self.complete(prompt, system_prompt, history, **kwargs)
                 )
         except RuntimeError:
-            return asyncio.run(
-                self.complete(prompt, system_prompt, history, **kwargs)
-            )
+            return asyncio.run(self.complete(prompt, system_prompt, history, **kwargs))
 
     def get_model_func(self):
         """
         Get a function compatible with LightRAG's llm_model_func parameter.
-        
+
         Returns:
             Callable that can be used as llm_model_func
         """
@@ -123,7 +122,7 @@ class LLMClient:
     def get_vision_model_func(self):
         """
         Get a function compatible with RAG-Anything's vision_model_func parameter.
-        
+
         Returns:
             Callable that can be used as vision_model_func
         """
@@ -140,7 +139,8 @@ class LLMClient:
             # Handle multimodal messages
             if messages:
                 clean_kwargs = {
-                    k: v for k, v in kwargs.items()
+                    k: v
+                    for k, v in kwargs.items()
                     if k not in ["messages", "prompt", "system_prompt", "history_messages"]
                 }
                 return openai_complete_if_cache(
@@ -151,7 +151,7 @@ class LLMClient:
                     base_url=self.config.base_url,
                     **clean_kwargs,
                 )
-            
+
             # Handle image data
             if image_data:
                 # Build image message
@@ -173,7 +173,7 @@ class LLMClient:
                     base_url=self.config.base_url,
                     **kwargs,
                 )
-            
+
             # Fallback to regular completion
             return openai_complete_if_cache(
                 self.config.model,
@@ -212,4 +212,3 @@ def reset_llm_client():
     """Reset the singleton LLM client."""
     global _client
     _client = None
-

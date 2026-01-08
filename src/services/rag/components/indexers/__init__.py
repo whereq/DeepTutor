@@ -6,12 +6,11 @@ Indexers for building searchable indexes from documents.
 """
 
 from .base import BaseIndexer
-from .vector import VectorIndexer
 from .graph import GraphIndexer
+from .vector import VectorIndexer
 
 __all__ = [
     "BaseIndexer",
     "VectorIndexer",
     "GraphIndexer",
 ]
-

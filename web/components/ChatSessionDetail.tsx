@@ -2,7 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, MessageCircle, User, Bot, Clock, Loader2, MessageSquare, ExternalLink } from "lucide-react";
+import {
+  X,
+  MessageCircle,
+  User,
+  Bot,
+  Clock,
+  Loader2,
+  MessageSquare,
+  ExternalLink,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -48,7 +57,7 @@ export default function ChatSessionDetail({
 }: ChatSessionDetailProps) {
   const { uiSettings } = useGlobal();
   const t = (key: string) => getTranslation(uiSettings.language, key);
-  
+
   const [session, setSession] = useState<ChatSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +74,9 @@ export default function ChatSessionDetail({
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(apiUrl(`/api/v1/chat/sessions/${sessionId}`));
+        const response = await fetch(
+          apiUrl(`/api/v1/chat/sessions/${sessionId}`),
+        );
         if (!response.ok) {
           throw new Error("Failed to load session");
         }
@@ -96,15 +107,15 @@ export default function ChatSessionDetail({
   if (!mounted) return null;
 
   const modalContent = (
-    <div 
+    <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       onClick={onClose}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      
+
       {/* Modal */}
-      <div 
+      <div
         className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-300"
         onClick={(e) => e.stopPropagation()}
       >
@@ -122,7 +133,7 @@ export default function ChatSessionDetail({
                 <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
                   <Clock className="w-3 h-3" />
                   {new Date(session.created_at * 1000).toLocaleString(
-                    uiSettings.language === "zh" ? "zh-CN" : "en-US"
+                    uiSettings.language === "zh" ? "zh-CN" : "en-US",
                   )}
                   <span className="mx-1">•</span>
                   {session.messages.length} {t("messages")}
@@ -151,25 +162,28 @@ export default function ChatSessionDetail({
           ) : session ? (
             <div className="space-y-4">
               {/* Settings Info */}
-              {session.settings && (session.settings.kb_name || session.settings.enable_rag || session.settings.enable_web_search) && (
-                <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-slate-100 dark:border-slate-700">
-                  {session.settings.kb_name && (
-                    <span className="px-2.5 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
-                      KB: {session.settings.kb_name}
-                    </span>
-                  )}
-                  {session.settings.enable_rag && (
-                    <span className="px-2.5 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
-                      RAG Enabled
-                    </span>
-                  )}
-                  {session.settings.enable_web_search && (
-                    <span className="px-2.5 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">
-                      Web Search Enabled
-                    </span>
-                  )}
-                </div>
-              )}
+              {session.settings &&
+                (session.settings.kb_name ||
+                  session.settings.enable_rag ||
+                  session.settings.enable_web_search) && (
+                  <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+                    {session.settings.kb_name && (
+                      <span className="px-2.5 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
+                        KB: {session.settings.kb_name}
+                      </span>
+                    )}
+                    {session.settings.enable_rag && (
+                      <span className="px-2.5 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
+                        RAG Enabled
+                      </span>
+                    )}
+                    {session.settings.enable_web_search && (
+                      <span className="px-2.5 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">
+                        Web Search Enabled
+                      </span>
+                    )}
+                  </div>
+                )}
 
               {/* Messages */}
               {session.messages.map((msg, idx) => (
@@ -201,48 +215,51 @@ export default function ChatSessionDetail({
                         </ReactMarkdown>
                       </div>
                     )}
-                    
+
                     {/* Sources */}
-                    {msg.sources && (msg.sources.rag?.length || msg.sources.web?.length) && (
-                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
-                          {t("Sources")}:
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {msg.sources.rag?.map((src, i) => (
-                            <span
-                              key={`rag-${i}`}
-                              className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded"
-                            >
-                              📚 {src.kb_name}
-                            </span>
-                          ))}
-                          {msg.sources.web?.map((src, i) => (
-                            <a
-                              key={`web-${i}`}
-                              href={src.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50 flex items-center gap-1"
-                            >
-                              🌐 {src.title || new URL(src.url).hostname}
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          ))}
+                    {msg.sources &&
+                      (msg.sources.rag?.length || msg.sources.web?.length) && (
+                        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
+                            {t("Sources")}:
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {msg.sources.rag?.map((src, i) => (
+                              <span
+                                key={`rag-${i}`}
+                                className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded"
+                              >
+                                📚 {src.kb_name}
+                              </span>
+                            ))}
+                            {msg.sources.web?.map((src, i) => (
+                              <a
+                                key={`web-${i}`}
+                                href={src.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50 flex items-center gap-1"
+                              >
+                                🌐 {src.title || new URL(src.url).hostname}
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    
+                      )}
+
                     {/* Timestamp */}
                     {msg.timestamp && (
-                      <p className={`text-xs mt-2 ${
-                        msg.role === "user" 
-                          ? "text-blue-200" 
-                          : "text-slate-400 dark:text-slate-500"
-                      }`}>
+                      <p
+                        className={`text-xs mt-2 ${
+                          msg.role === "user"
+                            ? "text-blue-200"
+                            : "text-slate-400 dark:text-slate-500"
+                        }`}
+                      >
                         {new Date(msg.timestamp * 1000).toLocaleTimeString(
                           uiSettings.language === "zh" ? "zh-CN" : "en-US",
-                          { hour: "2-digit", minute: "2-digit" }
+                          { hour: "2-digit", minute: "2-digit" },
                         )}
                       </p>
                     )}

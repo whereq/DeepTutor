@@ -14,9 +14,9 @@ sys.path.insert(0, str(project_root))
 
 import json
 
+from src.agents.base_agent import BaseAgent
 from src.tools import query_numbered_item, rag_search, web_search
 
-from src.agents.base_agent import BaseAgent
 from ..memory import CitationMemory, InvestigateMemory, KnowledgeItem
 from ..utils.json_utils import extract_json_from_text
 

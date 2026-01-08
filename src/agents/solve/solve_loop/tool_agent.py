@@ -15,11 +15,11 @@ project_root = Path(__file__).parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from src.agents.base_agent import BaseAgent
 from src.tools.code_executor import run_code
 from src.tools.rag_tool import rag_search
 from src.tools.web_search import web_search
 
-from src.agents.base_agent import BaseAgent
 from ..memory import CitationMemory, SolveChainStep, SolveMemory
 from ..memory.solve_memory import ToolCallRecord
 

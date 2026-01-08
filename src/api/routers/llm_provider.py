@@ -80,7 +80,7 @@ async def test_connection(request: TestConnectionRequest):
         # Users often paste full endpoints like http://.../v1/chat/completions
         # OpenAI client needs just the base (e.g., http://.../v1)
         base_url = request.base_url.rstrip("/")
-        
+
         # Special handling for Ollama: if it ends in /api, it's likely wrong for completion but ok for tags
         # But here we want the completion base.
         if "/api" in base_url and not base_url.endswith("/v1"):
@@ -121,17 +121,17 @@ async def fetch_available_models(request: TestConnectionRequest):
         # Sanitize Base URL (same as test_connection)
         base_url = request.base_url.rstrip("/")
         if "/api" in base_url and not base_url.endswith("/v1"):
-             if ":11434" in base_url or "ollama" in base_url.lower():
-                 base_url = base_url.replace("/api", "/v1")
-        
+            if ":11434" in base_url or "ollama" in base_url.lower():
+                base_url = base_url.replace("/api", "/v1")
+
         for suffix in ["/chat/completions", "/completions"]:
-             if base_url.endswith(suffix):
-                 base_url = base_url[: -len(suffix)]
+            if base_url.endswith(suffix):
+                base_url = base_url[: -len(suffix)]
 
         models = await llm_fetch_models(
             binding=request.binding,
             base_url=base_url,
-            api_key=request.api_key if request.requires_key else None
+            api_key=request.api_key if request.requires_key else None,
         )
         return {"success": True, "models": models}
     except Exception as e:

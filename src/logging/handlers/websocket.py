@@ -8,7 +8,6 @@ Handlers for streaming logs to WebSocket clients.
 
 import asyncio
 import logging
-from typing import Optional
 
 
 class WebSocketLogHandler(logging.Handler):
@@ -126,4 +125,3 @@ class LogInterceptor:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Remove handler on context exit."""
         self.logger.removeHandler(self.handler)
-

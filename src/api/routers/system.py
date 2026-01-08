@@ -10,8 +10,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from src.core.llm_factory import llm_complete
+from src.services.embedding import get_embedding_client, get_embedding_config
 from src.services.llm import get_llm_config, get_token_limit_kwargs
-from src.services.embedding import get_embedding_config, get_embedding_client
 from src.services.tts import get_tts_config
 
 router = APIRouter()
@@ -110,7 +110,7 @@ async def test_llm_connection():
         # Send a minimal test request with a prompt that guarantees output
         test_prompt = "Say 'OK' to confirm you are working. Do not produce long output."
         token_kwargs = get_token_limit_kwargs(model, max_tokens=200)
-        
+
         response = await llm_complete(
             model=model,
             prompt=test_prompt,
@@ -163,7 +163,7 @@ async def test_embeddings_connection():
     try:
         embedding_config = get_embedding_config()
         embedding_client = get_embedding_client()
-        
+
         model = embedding_config.model
         binding = embedding_config.binding
 

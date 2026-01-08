@@ -37,13 +37,13 @@ Usage:
     )
 """
 
-from .types import Document, Chunk, SearchResult
+from .factory import get_pipeline, has_pipeline, list_pipelines, register_pipeline
 from .pipeline import RAGPipeline
-from .factory import get_pipeline, list_pipelines, register_pipeline, has_pipeline
-from .service import RAGService
 
 # Import pipeline classes for convenience
 from .pipelines.raganything import RAGAnythingPipeline
+from .service import RAGService
+from .types import Chunk, Document, SearchResult
 
 __all__ = [
     # Service (recommended entry point)
@@ -62,4 +62,3 @@ __all__ = [
     # Pipeline implementations
     "RAGAnythingPipeline",
 ]
-

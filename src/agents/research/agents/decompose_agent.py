@@ -14,11 +14,11 @@ sys.path.insert(0, str(project_root))
 
 import json
 
+from src.agents.base_agent import BaseAgent
 from src.agents.research.data_structures import ToolTrace
 from src.tools.rag_tool import rag_search
 
 from ..utils.json_utils import extract_json_from_text
-from src.agents.base_agent import BaseAgent
 
 
 class DecomposeAgent(BaseAgent):

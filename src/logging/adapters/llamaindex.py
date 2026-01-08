@@ -96,11 +96,13 @@ def LlamaIndexLogContext(
     forwarders = []
 
     for llama_logger in llama_loggers:
-        original_states.append({
-            "logger": llama_logger,
-            "handlers": llama_logger.handlers[:],
-            "level": llama_logger.level,
-        })
+        original_states.append(
+            {
+                "logger": llama_logger,
+                "handlers": llama_logger.handlers[:],
+                "level": llama_logger.level,
+            }
+        )
 
         # Temporarily remove console handlers
         console_handlers_to_remove = []
@@ -137,4 +139,3 @@ def LlamaIndexLogContext(
             for handler in state["handlers"]:
                 if handler not in llama_logger.handlers:
                     llama_logger.addHandler(handler)
-

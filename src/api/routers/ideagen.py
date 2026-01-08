@@ -20,9 +20,9 @@ from src.agents.ideagen.idea_generation_workflow import IdeaGenerationWorkflow
 from src.agents.ideagen.material_organizer_agent import MaterialOrganizerAgent
 from src.api.utils.notebook_manager import NotebookManager
 from src.api.utils.task_id_manager import TaskIDManager
+from src.logging import get_logger
 from src.services.config import load_config_with_main
 from src.services.llm import get_llm_config
-from src.logging import get_logger
 
 router = APIRouter()
 
@@ -173,7 +173,10 @@ async def websocket_ideagen(websocket: WebSocket):
         # Check if we have either records or user_thoughts
         if not records and not user_thoughts:
             await send_status(
-                websocket, IdeaGenStage.ERROR, "Please provide notebook records or describe your research topic", task_id=task_id
+                websocket,
+                IdeaGenStage.ERROR,
+                "Please provide notebook records or describe your research topic",
+                task_id=task_id,
             )
             await websocket.close()
             return

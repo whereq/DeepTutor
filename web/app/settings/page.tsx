@@ -154,13 +154,13 @@ export default function SettingsPage() {
     id: string;
     name: string;
     binding:
-    | "openai"
-    | "azure_openai"
-    | "ollama"
-    | "anthropic"
-    | "gemini"
-    | "groq"
-    | "openrouter";
+      | "openai"
+      | "azure_openai"
+      | "ollama"
+      | "anthropic"
+      | "gemini"
+      | "groq"
+      | "openrouter";
     base_url?: string;
     default_model: string;
     models: string[];
@@ -175,9 +175,18 @@ export default function SettingsPage() {
       binding: "openai",
       base_url: "http://localhost:11434/v1",
       default_model: "llama3.2",
-      models: ["llama3.2", "llama3.3", "qwen2.5", "mistral-nemo", "deepseek-r1", "kimi-k2-thinking", "qwen3-next:80b"],
+      models: [
+        "llama3.2",
+        "llama3.3",
+        "qwen2.5",
+        "mistral-nemo",
+        "deepseek-r1",
+        "kimi-k2-thinking",
+        "qwen3-next:80b",
+      ],
       requires_key: true,
-      help_text: "Uses the OpenAI-compatible protocol. For Local: http://localhost:11434/v1. For Cloud: https://ollama.com/v1.",
+      help_text:
+        "Uses the OpenAI-compatible protocol. For Local: http://localhost:11434/v1. For Cloud: https://ollama.com/v1.",
     },
     {
       id: "openai",
@@ -225,7 +234,8 @@ export default function SettingsPage() {
         "deepseek/deepseek-chat",
       ],
       requires_key: true,
-      help_text: "OpenRouter uses the OpenAI-compatible framework to access any model.",
+      help_text:
+        "OpenRouter uses the OpenAI-compatible framework to access any model.",
     },
     {
       id: "deepseek",
@@ -248,10 +258,11 @@ export default function SettingsPage() {
         "llama-3.1-70b-versatile",
         "llama-3.1-8b-instant",
         "mixtral-8x7b-32768",
-        "gemma2-9b-it"
+        "gemma2-9b-it",
       ],
       requires_key: true,
-      help_text: "Groq uses the OpenAI-compatible framework for ultra-fast inference.",
+      help_text:
+        "Groq uses the OpenAI-compatible framework for ultra-fast inference.",
     },
     {
       id: "lmstudio",
@@ -261,7 +272,8 @@ export default function SettingsPage() {
       default_model: "uploaded-model",
       models: [],
       requires_key: false,
-      help_text: "LM Studio uses the OpenAI-compatible framework locally. Standard port: 1234.",
+      help_text:
+        "LM Studio uses the OpenAI-compatible framework locally. Standard port: 1234.",
     },
   ];
 
@@ -317,13 +329,16 @@ export default function SettingsPage() {
   ).current;
 
   // RAG providers state
-  const [ragProviders, setRagProviders] = useState<Array<{
-    id: string;
-    name: string;
-    description: string;
-    supported_modes: string[];
-  }>>([]);
-  const [currentRagProvider, setCurrentRagProvider] = useState<string>("raganything");
+  const [ragProviders, setRagProviders] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description: string;
+      supported_modes: string[];
+    }>
+  >([]);
+  const [currentRagProvider, setCurrentRagProvider] =
+    useState<string>("raganything");
   const [loadingRagProviders, setLoadingRagProviders] = useState(false);
 
   useEffect(() => {
@@ -382,7 +397,11 @@ export default function SettingsPage() {
       });
 
       const data = await res.json();
-      if (data.success && Array.isArray(data.models) && data.models.length > 0) {
+      if (
+        data.success &&
+        Array.isArray(data.models) &&
+        data.models.length > 0
+      ) {
         setFetchedModels(data.models);
         setCustomModelInput(false);
       } else {
@@ -390,7 +409,10 @@ export default function SettingsPage() {
         if (preset && preset.models.length > 0) {
           setFetchedModels(preset.models);
           if (!data.success) {
-            console.warn("Backend model fetch failed, using presets:", data.message);
+            console.warn(
+              "Backend model fetch failed, using presets:",
+              data.message,
+            );
           }
         } else {
           alert(`No models found. ${data.message || ""}`);
@@ -421,11 +443,14 @@ export default function SettingsPage() {
 
       let isModelValid = false;
       try {
-        const modelCheckRes = await fetch(apiUrl("/api/v1/config/llm/models/"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...provider, requires_key: requiresKey }),
-        });
+        const modelCheckRes = await fetch(
+          apiUrl("/api/v1/config/llm/models/"),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...provider, requires_key: requiresKey }),
+          },
+        );
 
         const modelData = await modelCheckRes.json();
         if (modelData.success && Array.isArray(modelData.models)) {
@@ -433,8 +458,9 @@ export default function SettingsPage() {
           const enteredModel = provider.model;
           const normalizedEntered = normalizeModel(enteredModel);
 
-          const isMatch = modelData.models.some((m: string) =>
-            m === enteredModel || normalizeModel(m) === normalizedEntered
+          const isMatch = modelData.models.some(
+            (m: string) =>
+              m === enteredModel || normalizeModel(m) === normalizedEntered,
           );
 
           if (!isMatch) {
@@ -457,13 +483,18 @@ export default function SettingsPage() {
         // Continue with save even if validation fails
       }
 
-      setProviderError(isModelValid ? "Model verified. Saving..." : "Saving...");
+      setProviderError(
+        isModelValid ? "Model verified. Saving..." : "Saving...",
+      );
 
       // 2. Proceed with save
-      const isUpdate = originalProviderName !== null && originalProviderName !== "";
+      const isUpdate =
+        originalProviderName !== null && originalProviderName !== "";
       const method = isUpdate ? "PUT" : "POST";
       const url = isUpdate
-        ? apiUrl(`/api/v1/config/llm/${encodeURIComponent(originalProviderName!)}`)
+        ? apiUrl(
+            `/api/v1/config/llm/${encodeURIComponent(originalProviderName!)}`,
+          )
         : apiUrl("/api/v1/config/llm/");
 
       const res = await fetch(url, {
@@ -736,7 +767,10 @@ export default function SettingsPage() {
           });
           if (!envRes.ok) {
             const errorData = await envRes.json();
-            throw new Error(errorData.detail?.errors?.join(", ") || "Failed to save environment variables");
+            throw new Error(
+              errorData.detail?.errors?.join(", ") ||
+                "Failed to save environment variables",
+            );
           }
           // Reload env config immediately to get updated state (including persistence)
           await fetchEnvConfig();
@@ -892,44 +926,48 @@ export default function SettingsPage() {
         <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
           <button
             onClick={() => setActiveTab("general")}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === "general"
-              ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-              }`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "general"
+                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+            }`}
           >
             <Sliders className="w-4 h-4" />
             {t("General Settings")}
           </button>
           <button
             onClick={() => setActiveTab("environment")}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === "environment"
-              ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-              }`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "environment"
+                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+            }`}
           >
             <Key className="w-4 h-4" />
             {t("Environment Variables")}
             {testResults && (
               <span
-                className={`ml-1 w-2 h-2 rounded-full ${Object.values(testResults).every(
-                  (r) => r.status === "configured",
-                )
-                  ? "bg-green-500"
-                  : Object.values(testResults).some(
-                    (r) => r.status === "error",
+                className={`ml-1 w-2 h-2 rounded-full ${
+                  Object.values(testResults).every(
+                    (r) => r.status === "configured",
                   )
-                    ? "bg-red-500"
-                    : "bg-amber-500"
-                  }`}
+                    ? "bg-green-500"
+                    : Object.values(testResults).some(
+                          (r) => r.status === "error",
+                        )
+                      ? "bg-red-500"
+                      : "bg-amber-500"
+                }`}
               />
             )}
           </button>
           <button
             onClick={() => setActiveTab("llm_providers")}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === "llm_providers"
-              ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-              }`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "llm_providers"
+                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+            }`}
           >
             <Brain className="w-4 h-4" />
             LLM Providers
@@ -969,10 +1007,11 @@ export default function SettingsPage() {
                           onClick={() =>
                             handleUIChange("theme", themeOption as any)
                           }
-                          className={`flex-1 py-1.5 px-3 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${editedUI.theme === themeOption
-                            ? "bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                            }`}
+                          className={`flex-1 py-1.5 px-3 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                            editedUI.theme === themeOption
+                              ? "bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
                         >
                           {themeOption === "light" ? (
                             <Sun className="w-3.5 h-3.5" />
@@ -995,7 +1034,9 @@ export default function SettingsPage() {
                     </label>
                     <select
                       value={editedUI.language}
-                      onChange={(e) => handleUIChange("language", e.target.value)}
+                      onChange={(e) =>
+                        handleUIChange("language", e.target.value)
+                      }
                       className="w-full p-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                     >
                       <option value="en">{t("English")}</option>
@@ -1081,7 +1122,9 @@ export default function SettingsPage() {
                       {t("Active RAG System")}
                     </label>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-2">
-                      {t("RAG-Anything provides end-to-end academic document processing with MinerU and LightRAG")}
+                      {t(
+                        "RAG-Anything provides end-to-end academic document processing with MinerU and LightRAG",
+                      )}
                     </p>
                     {loadingRagProviders ? (
                       <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -1090,15 +1133,26 @@ export default function SettingsPage() {
                       </div>
                     ) : (
                       <div className="w-full p-2 bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                        <span>RAG-Anything - End-to-end academic document processing (MinerU + LightRAG)</span>
-                        <span className="text-[10px] px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full">Default</span>
+                        <span>
+                          RAG-Anything - End-to-end academic document processing
+                          (MinerU + LightRAG)
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full">
+                          Default
+                        </span>
                       </div>
                     )}
                   </div>
                   <div className="lg:w-1/2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg border border-slate-100 dark:border-slate-600">
-                    <p>RAG-Anything combines MinerU for multimodal PDF parsing (images, tables, equations) with LightRAG for knowledge graph construction.</p>
+                    <p>
+                      RAG-Anything combines MinerU for multimodal PDF parsing
+                      (images, tables, equations) with LightRAG for knowledge
+                      graph construction.
+                    </p>
                     <p className="mt-1.5">
-                      <span className="font-medium text-slate-600 dark:text-slate-300">Supported modes:</span>{" "}
+                      <span className="font-medium text-slate-600 dark:text-slate-300">
+                        Supported modes:
+                      </span>{" "}
                       hybrid, local, global, naive
                     </p>
                   </div>
@@ -1127,9 +1181,16 @@ export default function SettingsPage() {
                       <div className="relative inline-flex items-center cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={editedConfig.tools?.web_search?.enabled ?? true}
+                          checked={
+                            editedConfig.tools?.web_search?.enabled ?? true
+                          }
                           onChange={(e) =>
-                            handleConfigChange("tools", "enabled", e.target.checked, "web_search")
+                            handleConfigChange(
+                              "tools",
+                              "enabled",
+                              e.target.checked,
+                              "web_search",
+                            )
                           }
                           className="sr-only peer"
                         />
@@ -1146,7 +1207,12 @@ export default function SettingsPage() {
                         max="20"
                         value={editedConfig.tools?.web_search?.max_results || 5}
                         onChange={(e) =>
-                          handleConfigChange("tools", "max_results", parseInt(e.target.value), "web_search")
+                          handleConfigChange(
+                            "tools",
+                            "max_results",
+                            parseInt(e.target.value),
+                            "web_search",
+                          )
                         }
                         className="w-full p-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-slate-100"
                       />
@@ -1170,7 +1236,12 @@ export default function SettingsPage() {
                           type="text"
                           value={editedConfig.tools?.rag_tool?.default_kb || ""}
                           onChange={(e) =>
-                            handleConfigChange("tools", "default_kb", e.target.value, "rag_tool")
+                            handleConfigChange(
+                              "tools",
+                              "default_kb",
+                              e.target.value,
+                              "rag_tool",
+                            )
                           }
                           className="w-full p-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-slate-100"
                         />
@@ -1181,9 +1252,16 @@ export default function SettingsPage() {
                         </label>
                         <input
                           type="text"
-                          value={editedConfig.tools?.rag_tool?.kb_base_dir || ""}
+                          value={
+                            editedConfig.tools?.rag_tool?.kb_base_dir || ""
+                          }
                           onChange={(e) =>
-                            handleConfigChange("tools", "kb_base_dir", e.target.value, "rag_tool")
+                            handleConfigChange(
+                              "tools",
+                              "kb_base_dir",
+                              e.target.value,
+                              "rag_tool",
+                            )
                           }
                           className="w-full p-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs font-mono text-slate-600 dark:text-slate-300"
                         />
@@ -1210,7 +1288,11 @@ export default function SettingsPage() {
                       type="text"
                       value={editedConfig.tts?.default_voice || "Cherry"}
                       onChange={(e) =>
-                        handleConfigChange("tts", "default_voice", e.target.value)
+                        handleConfigChange(
+                          "tts",
+                          "default_voice",
+                          e.target.value,
+                        )
                       }
                       className="w-full p-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-slate-100"
                     />
@@ -1223,7 +1305,11 @@ export default function SettingsPage() {
                       type="text"
                       value={editedConfig.tts?.default_language || "English"}
                       onChange={(e) =>
-                        handleConfigChange("tts", "default_language", e.target.value)
+                        handleConfigChange(
+                          "tts",
+                          "default_language",
+                          e.target.value,
+                        )
                       }
                       className="w-full p-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-slate-100"
                     />
@@ -1265,9 +1351,17 @@ export default function SettingsPage() {
                 <div className="mb-3 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg text-[11px] text-blue-700 dark:text-blue-300 flex items-start gap-2">
                   <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                   <p>
-                    <span className="font-medium">{t("Runtime Configuration")}:</span>{" "}
-                    <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded text-[10px]">.env</code>{" "}
-                    {t("file on startup")}. {t("Changes made here take effect immediately but are not saved to file")}.
+                    <span className="font-medium">
+                      {t("Runtime Configuration")}:
+                    </span>{" "}
+                    <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded text-[10px]">
+                      .env
+                    </code>{" "}
+                    {t("file on startup")}.{" "}
+                    {t(
+                      "Changes made here take effect immediately but are not saved to file",
+                    )}
+                    .
                   </p>
                 </div>
 
@@ -1277,12 +1371,13 @@ export default function SettingsPage() {
                     {Object.entries(testResults).map(([key, result]) => (
                       <div
                         key={key}
-                        className={`p-2.5 rounded-lg border ${result.status === "configured"
-                          ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                          : result.status === "not_configured"
-                            ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
-                            : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-                          }`}
+                        className={`p-2.5 rounded-lg border ${
+                          result.status === "configured"
+                            ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                            : result.status === "not_configured"
+                              ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                              : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                        }`}
                       >
                         <div className="flex items-center gap-1.5 mb-1">
                           {getStatusIcon(result.status)}
@@ -1372,7 +1467,9 @@ export default function SettingsPage() {
                             onChange={(e) =>
                               handleEnvVarChange(envVar.key, e.target.value)
                             }
-                            placeholder={envVar.default || `Enter ${envVar.key}`}
+                            placeholder={
+                              envVar.default || `Enter ${envVar.key}`
+                            }
                             className="w-full p-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-xs text-slate-900 dark:text-slate-100 font-mono placeholder:text-slate-300 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                           />
                         </div>
@@ -1394,12 +1491,13 @@ export default function SettingsPage() {
               <button
                 onClick={handleEnvSave}
                 disabled={envSaving}
-                className={`w-full py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all ${envSaving
-                  ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
-                  : envSaveSuccess
-                    ? "bg-green-500 text-white shadow-lg shadow-green-500/30"
-                    : "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-lg hover:shadow-orange-500/30 hover:-translate-y-0.5"
-                  }`}
+                className={`w-full py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all ${
+                  envSaving
+                    ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
+                    : envSaveSuccess
+                      ? "bg-green-500 text-white shadow-lg shadow-green-500/30"
+                      : "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-lg hover:shadow-orange-500/30 hover:-translate-y-0.5"
+                }`}
               >
                 {envSaving ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -1494,9 +1592,15 @@ export default function SettingsPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                            <span className="font-medium text-slate-600 dark:text-slate-300">{provider.model}</span>
-                            <span className="text-slate-300 dark:text-slate-600">•</span>
-                            <span className="font-mono truncate text-[10px]">{provider.base_url}</span>
+                            <span className="font-medium text-slate-600 dark:text-slate-300">
+                              {provider.model}
+                            </span>
+                            <span className="text-slate-300 dark:text-slate-600">
+                              •
+                            </span>
+                            <span className="font-mono truncate text-[10px]">
+                              {provider.base_url}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1605,14 +1709,14 @@ export default function SettingsPage() {
                       </select>
                       {PROVIDER_PRESETS.find((p) => p.id === selectedPresetId)
                         ?.help_text && (
-                          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            {
-                              PROVIDER_PRESETS.find(
-                                (p) => p.id === selectedPresetId,
-                              )?.help_text
-                            }
-                          </p>
-                        )}
+                        <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                          {
+                            PROVIDER_PRESETS.find(
+                              (p) => p.id === selectedPresetId,
+                            )?.help_text
+                          }
+                        </p>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -1670,49 +1774,49 @@ export default function SettingsPage() {
 
                     {PROVIDER_PRESETS.find((p) => p.id === selectedPresetId)
                       ?.requires_key !== false && (
-                        <div>
-                          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            API Key
-                          </label>
-                          <input
-                            type="password"
-                            value={editingProvider.api_key}
-                            onChange={(e) =>
-                              setEditingProvider((prev) =>
-                                prev
-                                  ? { ...prev, api_key: e.target.value }
-                                  : null,
-                              )
-                            }
-                            placeholder="sk-..."
-                            className="w-full p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg font-mono text-xs"
-                          />
-                        </div>
-                      )}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          API Key
+                        </label>
+                        <input
+                          type="password"
+                          value={editingProvider.api_key}
+                          onChange={(e) =>
+                            setEditingProvider((prev) =>
+                              prev
+                                ? { ...prev, api_key: e.target.value }
+                                : null,
+                            )
+                          }
+                          placeholder="sk-..."
+                          className="w-full p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg font-mono text-xs"
+                        />
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1 flex justify-between">
                         <span>Model</span>
                         {PROVIDER_PRESETS.find((p) => p.id === selectedPresetId)
                           ?.models.length! > 0 && (
-                            <button
-                              onClick={() =>
-                                setCustomModelInput(!customModelInput)
-                              }
-                              className="text-[10px] text-blue-600 hover:underline"
-                            >
-                              {customModelInput
-                                ? "Select from list"
-                                : "Enter custom"}
-                            </button>
-                          )}
+                          <button
+                            onClick={() =>
+                              setCustomModelInput(!customModelInput)
+                            }
+                            className="text-[10px] text-blue-600 hover:underline"
+                          >
+                            {customModelInput
+                              ? "Select from list"
+                              : "Enter custom"}
+                          </button>
+                        )}
                       </label>
                       <div className="flex gap-2">
                         {!customModelInput &&
-                          (fetchedModels.length > 0 ||
-                            PROVIDER_PRESETS.find(
-                              (p) => p.id === selectedPresetId,
-                            )?.models.length! > 0) ? (
+                        (fetchedModels.length > 0 ||
+                          PROVIDER_PRESETS.find(
+                            (p) => p.id === selectedPresetId,
+                          )?.models.length! > 0) ? (
                           <div className="relative flex-1">
                             <select
                               value={editingProvider.model}
@@ -1747,8 +1851,18 @@ export default function SettingsPage() {
                               )}
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M19 9l-7 7-7-7"
+                                ></path>
                               </svg>
                             </div>
                           </div>

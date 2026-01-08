@@ -29,11 +29,7 @@ const SIDEBAR_COLLAPSED_WIDTH = 64;
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const {
-    uiSettings,
-    sidebarCollapsed,
-    toggleSidebar,
-  } = useGlobal();
+  const { uiSettings, sidebarCollapsed, toggleSidebar } = useGlobal();
   const lang = uiSettings.language;
 
   const t = (key: string) => getTranslation(lang, key);
@@ -68,7 +64,9 @@ export default function Sidebar() {
     },
   ];
 
-  const currentWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  const currentWidth = sidebarCollapsed
+    ? SIDEBAR_COLLAPSED_WIDTH
+    : SIDEBAR_EXPANDED_WIDTH;
 
   // Collapsed sidebar
   if (sidebarCollapsed) {
@@ -161,7 +159,7 @@ export default function Sidebar() {
               </div>
             )}
           </div>
-          
+
           {/* Expand button at bottom */}
           <button
             onClick={toggleSidebar}

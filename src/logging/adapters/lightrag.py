@@ -99,7 +99,7 @@ def LightRAGLogContext(logger_name: Optional[str] = None, scene: Optional[str] =
             rag = RAGAnything(...)
     """
     from ..logger import get_logger
-    
+
     # Get configuration
     config = get_lightrag_forwarding_config()
 
@@ -182,4 +182,3 @@ def LightRAGLogContext(logger_name: Optional[str] = None, scene: Optional[str] =
         for handler in console_handlers_to_remove:
             if handler not in lightrag_logger.handlers:
                 lightrag_logger.addHandler(handler)
-

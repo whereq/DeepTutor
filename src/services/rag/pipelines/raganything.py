@@ -16,12 +16,12 @@ from src.logging.adapters import LightRAGLogContext
 class RAGAnythingPipeline:
     """
     RAG-Anything end-to-end Pipeline.
-    
+
     Uses RAG-Anything's complete processing:
     - MinerU PDF parsing (multimodal: images, tables, equations)
     - LightRAG knowledge graph construction
     - Hybrid retrieval (hybrid/local/global/naive modes)
-    
+
     This is a "monolithic" pipeline - best for academic documents.
     """
 
@@ -36,7 +36,7 @@ class RAGAnythingPipeline:
     ):
         """
         Initialize RAGAnything pipeline.
-        
+
         Args:
             kb_base_dir: Base directory for knowledge bases
             enable_image_processing: Enable image extraction and processing
@@ -45,8 +45,7 @@ class RAGAnythingPipeline:
         """
         self.logger = get_logger("RAGAnythingPipeline")
         self.kb_base_dir = kb_base_dir or str(
-            Path(__file__).resolve().parent.parent.parent.parent.parent
-            / "data" / "knowledge_bases"
+            Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "knowledge_bases"
         )
         self.enable_image = enable_image_processing
         self.enable_table = enable_table_processing
@@ -72,8 +71,9 @@ class RAGAnythingPipeline:
 
         from lightrag.llm.openai import openai_complete_if_cache
         from raganything import RAGAnything, RAGAnythingConfig
-        from src.services.llm import get_llm_client
+
         from src.services.embedding import get_embedding_client
+        from src.services.llm import get_llm_client
 
         llm_client = get_llm_client()
         embed_client = get_embedding_client()
@@ -100,7 +100,8 @@ class RAGAnythingPipeline:
             # Handle multimodal messages
             if messages:
                 clean_kwargs = {
-                    k: v for k, v in kwargs.items()
+                    k: v
+                    for k, v in kwargs.items()
                     if k not in ["messages", "prompt", "system_prompt", "history_messages"]
                 }
                 return openai_complete_if_cache(
@@ -159,13 +160,13 @@ class RAGAnythingPipeline:
     ) -> bool:
         """
         Initialize KB using RAG-Anything's process_document_complete().
-        
+
         Args:
             kb_name: Knowledge base name
             file_paths: List of file paths to process
             extract_numbered_items: Whether to extract numbered items after processing
             **kwargs: Additional arguments
-            
+
         Returns:
             True if successful
         """
@@ -197,10 +198,11 @@ class RAGAnythingPipeline:
         """Extract numbered items using existing extraction logic."""
         try:
             import json
-            from src.services.llm import get_llm_client
+
             from src.knowledge.extract_numbered_items import (
                 extract_numbered_items_with_llm_async,
             )
+            from src.services.llm import get_llm_client
 
             kb_dir = Path(self.kb_base_dir) / kb_name
             content_list_dir = kb_dir / "content_list"
@@ -220,7 +222,9 @@ class RAGAnythingPipeline:
                 self.logger.warning("No content items found for extraction")
                 return
 
-            self.logger.info(f"Extracting numbered items from {len(all_content_items)} content items")
+            self.logger.info(
+                f"Extracting numbered items from {len(all_content_items)} content items"
+            )
 
             llm_client = get_llm_client()
             items = await extract_numbered_items_with_llm_async(
@@ -251,14 +255,14 @@ class RAGAnythingPipeline:
     ) -> Dict[str, Any]:
         """
         Search using RAG-Anything's aquery().
-        
+
         Args:
             query: Search query
             kb_name: Knowledge base name
             mode: Search mode (hybrid, local, global, naive)
             only_need_context: Whether to only return context without answer
             **kwargs: Additional arguments
-            
+
         Returns:
             Search results dictionary
         """
@@ -280,10 +284,10 @@ class RAGAnythingPipeline:
     async def delete(self, kb_name: str) -> bool:
         """
         Delete knowledge base.
-        
+
         Args:
             kb_name: Knowledge base name
-            
+
         Returns:
             True if successful
         """
@@ -303,4 +307,3 @@ class RAGAnythingPipeline:
             return True
 
         return False
-

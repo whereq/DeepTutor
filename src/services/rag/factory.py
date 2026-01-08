@@ -8,9 +8,8 @@ Factory for creating and managing RAG pipelines.
 from typing import Callable, Dict, List, Optional, Union
 
 from .pipeline import RAGPipeline
+from .pipelines import academic, lightrag, llamaindex
 from .pipelines.raganything import RAGAnythingPipeline
-from .pipelines import lightrag, llamaindex, academic
-
 
 # Pipeline registry
 _PIPELINES: Dict[str, Callable] = {
@@ -22,30 +21,28 @@ _PIPELINES: Dict[str, Callable] = {
 
 
 def get_pipeline(
-    name: str = "raganything",
-    kb_base_dir: Optional[str] = None,
-    **kwargs
+    name: str = "raganything", kb_base_dir: Optional[str] = None, **kwargs
 ) -> Union[RAGPipeline, RAGAnythingPipeline]:
     """
     Get a pre-configured pipeline by name.
-    
+
     Args:
         name: Pipeline name (raganything, lightrag, llamaindex, academic)
         kb_base_dir: Base directory for knowledge bases (passed to all pipelines)
         **kwargs: Additional arguments passed to pipeline constructor
-        
+
     Returns:
         Pipeline instance
-        
+
     Raises:
         ValueError: If pipeline name is not found
     """
     if name not in _PIPELINES:
         available = list(_PIPELINES.keys())
         raise ValueError(f"Unknown pipeline: {name}. Available: {available}")
-    
+
     factory = _PIPELINES[name]
-    
+
     # All pipelines now accept kb_base_dir
     if name == "raganything":
         if kb_base_dir:
@@ -59,7 +56,7 @@ def get_pipeline(
 def list_pipelines() -> List[Dict[str, str]]:
     """
     List available pipelines.
-    
+
     Returns:
         List of pipeline info dictionaries
     """
@@ -90,7 +87,7 @@ def list_pipelines() -> List[Dict[str, str]]:
 def register_pipeline(name: str, factory: Callable):
     """
     Register a custom pipeline.
-    
+
     Args:
         name: Pipeline name
         factory: Factory function or class that creates the pipeline
@@ -101,10 +98,10 @@ def register_pipeline(name: str, factory: Callable):
 def has_pipeline(name: str) -> bool:
     """
     Check if a pipeline exists.
-    
+
     Args:
         name: Pipeline name
-        
+
     Returns:
         True if pipeline exists
     """
@@ -115,16 +112,17 @@ def has_pipeline(name: str) -> bool:
 def get_plugin(name: str) -> Dict[str, Callable]:
     """
     DEPRECATED: Use get_pipeline() instead.
-    
+
     Get a plugin by name (maps to pipeline API).
     """
     import warnings
+
     warnings.warn(
         "get_plugin() is deprecated, use get_pipeline() instead",
         DeprecationWarning,
         stacklevel=2,
     )
-    
+
     pipeline = get_pipeline(name)
     return {
         "initialize": pipeline.initialize,
@@ -138,6 +136,7 @@ def list_plugins() -> List[Dict[str, str]]:
     DEPRECATED: Use list_pipelines() instead.
     """
     import warnings
+
     warnings.warn(
         "list_plugins() is deprecated, use list_pipelines() instead",
         DeprecationWarning,
@@ -151,10 +150,10 @@ def has_plugin(name: str) -> bool:
     DEPRECATED: Use has_pipeline() instead.
     """
     import warnings
+
     warnings.warn(
         "has_plugin() is deprecated, use has_pipeline() instead",
         DeprecationWarning,
         stacklevel=2,
     )
     return has_pipeline(name)
-

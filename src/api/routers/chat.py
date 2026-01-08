@@ -15,15 +15,13 @@ _project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_project_root))
 
 from src.agents.chat import ChatAgent, SessionManager
-from src.services.config import load_config_with_main
 from src.logging import get_logger
+from src.services.config import load_config_with_main
 
 # Initialize logger
 project_root = Path(__file__).parent.parent.parent.parent
 config = load_config_with_main("solve_config.yaml", project_root)
-log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get(
-    "log_dir"
-)
+log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = get_logger("ChatAPI", level="INFO", log_dir=log_dir)
 
 router = APIRouter()
@@ -129,9 +127,7 @@ async def websocket_chat(websocket: WebSocket):
             enable_web_search = data.get("enable_web_search", False)
 
             if not message:
-                await websocket.send_json(
-                    {"type": "error", "message": "Message is required"}
-                )
+                await websocket.send_json({"type": "error", "message": "Message is required"})
                 continue
 
             logger.info(
@@ -167,10 +163,12 @@ async def websocket_chat(websocket: WebSocket):
                     session_id = session["session_id"]
 
                 # Send session ID to frontend
-                await websocket.send_json({
-                    "type": "session",
-                    "session_id": session_id,
-                })
+                await websocket.send_json(
+                    {
+                        "type": "session",
+                        "session_id": session_id,
+                    }
+                )
 
                 # Build history from session or explicit override
                 if explicit_history is not None:
@@ -194,24 +192,30 @@ async def websocket_chat(websocket: WebSocket):
 
                 # Send status updates
                 if enable_rag and kb_name:
-                    await websocket.send_json({
-                        "type": "status",
-                        "stage": "rag",
-                        "message": f"Searching knowledge base: {kb_name}...",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "status",
+                            "stage": "rag",
+                            "message": f"Searching knowledge base: {kb_name}...",
+                        }
+                    )
 
                 if enable_web_search:
-                    await websocket.send_json({
-                        "type": "status",
-                        "stage": "web",
-                        "message": "Searching the web...",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "status",
+                            "stage": "web",
+                            "message": "Searching the web...",
+                        }
+                    )
 
-                await websocket.send_json({
-                    "type": "status",
-                    "stage": "generating",
-                    "message": "Generating response...",
-                })
+                await websocket.send_json(
+                    {
+                        "type": "status",
+                        "stage": "generating",
+                        "message": "Generating response...",
+                    }
+                )
 
                 # Process with streaming
                 full_response = ""
@@ -228,10 +232,12 @@ async def websocket_chat(websocket: WebSocket):
 
                 async for chunk_data in stream_generator:
                     if chunk_data["type"] == "chunk":
-                        await websocket.send_json({
-                            "type": "stream",
-                            "content": chunk_data["content"],
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "stream",
+                                "content": chunk_data["content"],
+                            }
+                        )
                         full_response += chunk_data["content"]
                     elif chunk_data["type"] == "complete":
                         full_response = chunk_data["response"]
@@ -242,10 +248,12 @@ async def websocket_chat(websocket: WebSocket):
                     await websocket.send_json({"type": "sources", **sources})
 
                 # Send final result
-                await websocket.send_json({
-                    "type": "result",
-                    "content": full_response,
-                })
+                await websocket.send_json(
+                    {
+                        "type": "result",
+                        "content": full_response,
+                    }
+                )
 
                 # Save assistant message to session
                 session_manager.add_message(

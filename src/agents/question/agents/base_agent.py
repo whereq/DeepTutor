@@ -22,8 +22,8 @@ load_dotenv(override=False)
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.services.config import get_agent_params
 from src.logging import get_logger
+from src.services.config import get_agent_params
 
 # Module logger
 _logger = get_logger("QuestionAgent")

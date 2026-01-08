@@ -7,18 +7,18 @@ Pipeline optimized for academic documents with numbered item extraction.
 
 from typing import Optional
 
-from ..pipeline import RAGPipeline
-from ..components.parsers import TextParser
-from ..components.chunkers import SemanticChunker, NumberedItemExtractor
+from ..components.chunkers import NumberedItemExtractor, SemanticChunker
 from ..components.embedders import OpenAIEmbedder
 from ..components.indexers import GraphIndexer
+from ..components.parsers import TextParser
 from ..components.retrievers import HybridRetriever
+from ..pipeline import RAGPipeline
 
 
 def AcademicPipeline(kb_base_dir: Optional[str] = None) -> RAGPipeline:
     """
     Create an academic document pipeline.
-    
+
     This pipeline uses:
     - TextParser for document parsing (supports txt, md files)
     - SemanticChunker for text chunking
@@ -26,10 +26,10 @@ def AcademicPipeline(kb_base_dir: Optional[str] = None) -> RAGPipeline:
     - OpenAIEmbedder for embedding generation
     - GraphIndexer for knowledge graph indexing
     - HybridRetriever for hybrid retrieval
-    
+
     Args:
         kb_base_dir: Base directory for knowledge bases
-    
+
     Returns:
         Configured RAGPipeline
     """

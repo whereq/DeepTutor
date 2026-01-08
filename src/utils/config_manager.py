@@ -86,7 +86,7 @@ class ConfigManager:
     def get_env_info(self) -> Dict[str, str]:
         """
         Get actual LLM and Embedding configuration.
-        
+
         Strategy:
         1. Try initialized services (most accurate)
         2. Fallback to .env file parsing
@@ -95,7 +95,7 @@ class ConfigManager:
         env_vars = self._read_env_file()
         llm_config = self._get_safe_llm_config(env_vars)
         emb_config = self._get_safe_embedding_config(env_vars)
-        
+
         return {
             "llm_model": llm_config["model"],
             "llm_binding": llm_config["binding"],
@@ -108,7 +108,7 @@ class ConfigManager:
         """Parse .env file directly."""
         env_vars = {}
         env_path = self.project_root / ".env"
-        
+
         if env_path.exists():
             try:
                 with open(env_path, "r", encoding="utf-8") as f:
@@ -121,13 +121,14 @@ class ConfigManager:
                             env_vars[key.strip()] = val.strip().strip('"').strip("'")
             except Exception as e:
                 print(f"Warning: Error reading .env: {e}")
-        
+
         return env_vars
 
     def _get_safe_llm_config(self, env_vars: Dict[str, str]) -> Dict[str, str]:
         """Get LLM config with fallback chain."""
         try:
             from src.services.llm import get_llm_config
+
             cfg = get_llm_config()
             return {"model": cfg.model, "binding": cfg.binding}
         except Exception as e:
@@ -140,6 +141,7 @@ class ConfigManager:
         """Get Embedding config with fallback chain."""
         try:
             from src.services.embedding import get_embedding_config
+
             cfg = get_embedding_config()
             return {
                 "model": cfg.model,
@@ -153,10 +155,12 @@ class ConfigManager:
                 dim = int(dim_str)
             except (ValueError, TypeError):
                 dim = 1536
-            
+
             model = env_vars.get("EMBEDDING_MODEL") or os.environ.get("EMBEDDING_MODEL", "unknown")
-            binding = env_vars.get("EMBEDDING_BINDING") or os.environ.get("EMBEDDING_BINDING", "openai")
-            
+            binding = env_vars.get("EMBEDDING_BINDING") or os.environ.get(
+                "EMBEDDING_BINDING", "openai"
+            )
+
             return {
                 "model": model,
                 "binding": binding,

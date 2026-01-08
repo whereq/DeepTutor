@@ -216,7 +216,8 @@ export default function IdeaGenPage() {
   };
 
   // Check if we can generate (either have records or user thoughts)
-  const canGenerate = selectedRecords.size > 0 || userThoughts.trim().length > 0;
+  const canGenerate =
+    selectedRecords.size > 0 || userThoughts.trim().length > 0;
 
   const startGeneration = () => {
     if (!canGenerate) return;
@@ -527,7 +528,8 @@ export default function IdeaGenPage() {
           {/* User Thoughts Input */}
           <div className="p-3 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">
-              Your Thoughts {selectedRecords.size > 0 ? "(Optional)" : "(Required)"}
+              Your Thoughts{" "}
+              {selectedRecords.size > 0 ? "(Optional)" : "(Required)"}
             </label>
             <textarea
               value={userThoughts}
@@ -542,7 +544,8 @@ export default function IdeaGenPage() {
             />
             {selectedRecords.size === 0 && (
               <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                💡 You can generate ideas from text description alone, or select notebook records above for richer context.
+                💡 You can generate ideas from text description alone, or select
+                notebook records above for richer context.
               </p>
             )}
           </div>

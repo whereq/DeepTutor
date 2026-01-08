@@ -15,6 +15,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from src.agents.base_agent import BaseAgent
+
 from ..memory import CitationMemory, InvestigateMemory, SolveChainStep, SolveMemory
 from ..utils.json_utils import extract_json_from_text
 

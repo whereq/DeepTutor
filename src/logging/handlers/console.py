@@ -73,4 +73,3 @@ class ConsoleHandler(logging.StreamHandler):
         super().__init__(sys.stdout)
         self.setLevel(level)
         self.setFormatter(ConsoleFormatter())
-

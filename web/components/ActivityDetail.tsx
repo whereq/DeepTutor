@@ -40,19 +40,19 @@ export default function ActivityDetail({
   if (!activity || !mounted) return null;
 
   const modalContent = (
-    <div 
+    <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       onClick={onClose}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      
+
       {/* Modal */}
-      <div 
+      <div
         className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-300"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}  
+        {/* Header */}
         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-4">
             <div
@@ -115,13 +115,17 @@ export default function ActivityDetail({
           {activity.type === "solve" && (
             <>
               <div className="space-y-2">
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Question</h3>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                  Question
+                </h3>
                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 leading-relaxed">
                   {activity.content.question}
                 </div>
               </div>
               <div className="space-y-2">
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Final Answer</h3>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                  Final Answer
+                </h3>
                 <div className="p-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                   <div className="prose prose-slate dark:prose-invert max-w-none prose-sm">
                     <ReactMarkdown
@@ -140,7 +144,9 @@ export default function ActivityDetail({
           {activity.type === "question" && (
             <>
               <div className="space-y-2">
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Parameters</h3>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                  Parameters
+                </h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">
                     <span className="font-bold">Topic:</span>{" "}
@@ -160,7 +166,9 @@ export default function ActivityDetail({
               </div>
 
               <div className="space-y-2">
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Generated Question</h3>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                  Generated Question
+                </h3>
                 <div className="p-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
                   <p className="text-lg font-medium text-slate-900 dark:text-slate-100">
                     {activity.content?.question?.content ||
@@ -229,13 +237,17 @@ export default function ActivityDetail({
           {activity.type === "research" && (
             <>
               <div className="space-y-2">
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Topic</h3>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                  Topic
+                </h3>
                 <div className="text-lg font-medium text-slate-800 dark:text-slate-200">
                   {activity.content.topic}
                 </div>
               </div>
               <div className="space-y-2">
-                <h3 className="font-bold text-slate-900 dark:text-slate-100">Report Preview</h3>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                  Report Preview
+                </h3>
                 <div className="p-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm max-h-96 overflow-y-auto font-mono text-xs text-slate-600 dark:text-slate-300">
                   {activity.content.report}
                 </div>
