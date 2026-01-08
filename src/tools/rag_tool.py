@@ -1,254 +1,183 @@
 #!/usr/bin/env python
 """
-RAG Query Tool - Wrapper for RAG query functionality
+RAG Query Tool - Pipeline-based RAG system
+Supports multiple RAG implementations through a unified pipeline system
 """
 
 import asyncio
+import os
 from pathlib import Path
-import sys
-
-# Add parent directory to path (insert at front to prioritize project modules)
-project_root = Path(__file__).parent.parent.parent
-# Add raganything module path
-raganything_path = project_root.parent / "raganything" / "RAG-Anything"
-if raganything_path.exists():
-    sys.path.insert(0, str(raganything_path))
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from lightrag.llm.openai import openai_complete_if_cache, openai_embed
-from lightrag.utils import EmbeddingFunc
-from raganything import RAGAnything, RAGAnythingConfig
-
-from src.core.core import get_embedding_config, get_llm_config
-from src.core.llm_factory import llm_complete, sanitize_url
-from src.core.logging import LightRAGLogContext
-from src.knowledge.manager import KnowledgeBaseManager
 
 # Load environment variables
+project_root = Path(__file__).parent.parent.parent
 load_dotenv(project_root / "DeepTutor.env", override=False)
 load_dotenv(project_root / ".env", override=False)
+
+# Import from new services/rag module
+from src.services.rag.factory import get_pipeline, list_pipelines, has_pipeline
+
+
+# Default RAG provider (can be overridden via environment variable)
+DEFAULT_RAG_PROVIDER = os.getenv("RAG_PROVIDER", "raganything")
 
 
 async def rag_search(
     query: str,
-    kb_name: str | None = None,
+    kb_name: Optional[str] = None,
     mode: str = "hybrid",
-    api_key: str | None = None,
-    base_url: str | None = None,
-    kb_base_dir: str | None = None,
+    provider: Optional[str] = None,
     **kwargs,
 ) -> dict:
     """
-    Query knowledge base using RAG
+    Query knowledge base using configurable RAG pipeline.
 
     Args:
         query: Query question
         kb_name: Knowledge base name (optional, defaults to default knowledge base)
-        mode: Query mode, options: "local", "global", "hybrid", "naive" (default: "hybrid")
-        api_key: LLM API key (optional, defaults to reading from environment variables)
-        base_url: LLM API Base URL (optional, defaults to reading from environment variables)
-        kb_base_dir: Knowledge base base directory (default: "./knowledge_bases")
-        **kwargs: Other query parameters (e.g., only_need_context, only_need_prompt, etc.)
+        mode: Query mode (e.g., "hybrid", "local", "global", "naive")
+        provider: RAG pipeline to use (defaults to RAG_PROVIDER env var or "raganything")
+        **kwargs: Additional parameters passed to the RAG pipeline
 
     Returns:
         dict: Dictionary containing query results
             {
                 "query": str,
                 "answer": str,
-                "mode": str
+                "content": str,
+                "mode": str,
+                "provider": str
             }
-    """
-    # Get LLM configuration
-    try:
-        llm_config = get_llm_config()
-    except ValueError as e:
-        raise ValueError(f"LLM configuration error: {e!s}")
-
-    # Get Embedding configuration
-    try:
-        embedding_config = get_embedding_config()
-    except ValueError as e:
-        raise ValueError(f"Embedding configuration error: {e!s}")
-
-    # Override configuration with provided parameters (if provided)
-    llm_api_key = api_key or llm_config["api_key"]
-    llm_base_url = base_url or llm_config["base_url"]
-    llm_model = llm_config["model"]
-
-    embedding_api_key = embedding_config["api_key"]
-    embedding_base_url = embedding_config["base_url"]
-    embedding_model = embedding_config["model"]
-    embedding_dim = embedding_config["dim"]
-    embedding_max_tokens = embedding_config["max_tokens"]
-
-    # If knowledge base path not specified, try to get from config
-    if kb_base_dir is None:
-        try:
-            from src.core.core import get_path_from_config, load_config_with_main
-
-            project_root = Path(__file__).parent.parent.parent
-            # Try loading from solve_config (most common)
-            config = load_config_with_main("solve_config.yaml", project_root)
-            kb_base_dir = get_path_from_config(config, "knowledge_bases_dir") or config.get(
-                "tools", {}
-            ).get("rag_tool", {}).get("kb_base_dir")
-            if kb_base_dir:
-                kb_base_dir = str(kb_base_dir)
-        except Exception:
-            pass
-
-        # Fallback to default path
-        if kb_base_dir is None:
-            project_root = Path(__file__).parent.parent.parent
-            kb_base_dir = str(project_root / "data" / "knowledge_bases")
-
-    # Use KnowledgeBaseManager to get RAG storage path
-    try:
-        kb_manager = KnowledgeBaseManager(kb_base_dir)
-        working_dir = str(kb_manager.get_rag_storage_path(kb_name))
-    except ValueError as e:
-        # If rag_storage doesn't exist, try using traditional path
-        if "RAG storage not found" in str(e):
-            if kb_name:
-                kb_dir = Path(kb_base_dir) / kb_name
-            else:
-                kb_dir = Path(kb_base_dir) / kb_manager.get_default()
-            working_dir = str(kb_dir / "rag_storage")
-            # If still doesn't exist, provide friendly message
-            if not Path(working_dir).exists():
-                raise ValueError(
-                    "Error: Knowledge base RAG storage not initialized\nHint: Please run init_knowledge_base.py to initialize the knowledge base"
-                )
-        else:
-            raise ValueError(f"Error: {e!s}")
-    except Exception as e:
-        raise Exception(f"Error: Unable to access knowledge base - {e!s}")
-
-    # Define LLM function
-    async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-        # Use our centralized llm_complete for sanitization and fallback support
-        return await llm_complete(
-            binding="openai",
-            model=llm_model,
-            prompt=prompt,
-            system_prompt=system_prompt,
-            history_messages=history_messages,
-            api_key=llm_api_key,
-            base_url=llm_base_url,
-            **kwargs,
-        )
-
-    async def vision_model_func(
-        prompt,
-        system_prompt=None,
-        history_messages=[],
-        image_data=None,
-        messages=None,
-        **kwargs,
-    ):
-        # If messages format is provided (for multimodal VLM enhanced query), use it directly
-        if messages:
-            # Remove 'messages' and other message-related params from kwargs to avoid duplicate parameter
-            clean_kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k not in ["messages", "prompt", "system_prompt", "history_messages"]
-            }
-            return await llm_complete(
-                binding="openai",
-                model=llm_model,
-                prompt="",  # Empty prompt when using messages
-                system_prompt=None,
-                history_messages=[],
-                messages=messages,
-                api_key=llm_api_key,
-                base_url=llm_base_url,
-                **clean_kwargs,
-            )
-        # Traditional single image format
-        if image_data:
-            # Remove message-related params from kwargs to avoid duplicate parameter
-            clean_kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k not in ["messages", "prompt", "system_prompt", "history_messages"]
-            }
-            return await llm_complete(
-                binding="openai",
-                model=llm_model,
-                prompt="",  # Empty prompt when using messages
-                system_prompt=None,
-                history_messages=[],
-                messages=[
-                    {"role": "system", "content": system_prompt} if system_prompt else None,
-                    (
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
-                                },
-                            ],
-                        }
-                        if image_data
-                        else {"role": "user", "content": prompt}
-                    ),
-                ],
-                api_key=llm_api_key,
-                base_url=llm_base_url,
-                **clean_kwargs,
-            )
-        # Pure text format
-        return await llm_model_func(prompt, system_prompt, history_messages, **kwargs)
-
-    # Sanitize embedding URL
-    embedding_base_url_sanitized = sanitize_url(embedding_base_url, embedding_model)
+            
+    Raises:
+        ValueError: If the specified RAG pipeline is not found
+        Exception: If the query fails
     
-    # Define embedding function
-    # CRITICAL: Use openai_embed.func to avoid double decoration
-    # openai_embed is already decorated with @wrap_embedding_func_with_attrs
-    # We need to access the unwrapped function to prevent dimension mismatch
-    embedding_func = EmbeddingFunc(
-        embedding_dim=embedding_dim,
-        max_token_size=embedding_max_tokens,
-        func=lambda texts: openai_embed.func(
-            texts,
-            model=embedding_model,
-            api_key=embedding_api_key,
-            base_url=embedding_base_url_sanitized,
-        ),
-    )
-
-    # Create RAG instance
-    config = RAGAnythingConfig(
-        working_dir=working_dir,
-        enable_image_processing=True,
-        enable_table_processing=True,
-        enable_equation_processing=True,
-    )
-
-    # Use log forwarding context manager
-    with LightRAGLogContext(scene="rag_tool"):
-        rag = RAGAnything(
-            config=config,
-            llm_model_func=llm_model_func,
-            # vision_model_func=vision_model_func,
-            embedding_func=embedding_func,
+    Example:
+        # Use default provider (from .env)
+        result = await rag_search("What is machine learning?", kb_name="textbook")
+        
+        # Override provider
+        result = await rag_search("What is ML?", kb_name="textbook", provider="lightrag")
+    """
+    # Determine which provider to use
+    provider_name = provider or DEFAULT_RAG_PROVIDER
+    
+    # Validate provider exists
+    if not has_pipeline(provider_name):
+        available = [p["id"] for p in list_pipelines()]
+        raise ValueError(
+            f"RAG pipeline '{provider_name}' not found. "
+            f"Available pipelines: {available}. "
+            f"Set RAG_PROVIDER in .env or pass provider parameter."
         )
+    
+    # Get the pipeline
+    pipeline = get_pipeline(provider_name)
+    
+    # Execute search using the pipeline
+    try:
+        result = await pipeline.search(
+            query=query,
+            kb_name=kb_name,
+            mode=mode,
+            **kwargs
+        )
+        
+        # Ensure consistent return format
+        if "query" not in result:
+            result["query"] = query
+        if "answer" not in result and "content" in result:
+            result["answer"] = result["content"]
+        if "content" not in result and "answer" in result:
+            result["content"] = result["answer"]
+        if "provider" not in result:
+            result["provider"] = provider_name
+        
+        return result
+        
+    except Exception as e:
+        raise Exception(f"RAG search failed with pipeline '{provider_name}': {e}")
 
-        # Ensure initialization
-        await rag._ensure_lightrag_initialized()
 
-        # Execute query
-        try:
-            answer = await rag.aquery(query, mode=mode, **kwargs)
-            answer_str = answer if isinstance(answer, str) else str(answer)
+async def initialize_rag(
+    kb_name: str,
+    documents: List[str],
+    provider: Optional[str] = None
+) -> bool:
+    """
+    Initialize RAG with documents.
+    
+    Args:
+        kb_name: Knowledge base name
+        documents: List of document file paths to index
+        provider: RAG pipeline to use (defaults to RAG_PROVIDER env var)
+    
+    Returns:
+        True if successful
+    
+    Example:
+        documents = ["doc1.pdf", "doc2.pdf"]
+        success = await initialize_rag("my_kb", documents)
+    """
+    provider_name = provider or DEFAULT_RAG_PROVIDER
+    
+    if not has_pipeline(provider_name):
+        raise ValueError(f"RAG pipeline '{provider_name}' not found")
+    
+    pipeline = get_pipeline(provider_name)
+    return await pipeline.initialize(kb_name=kb_name, file_paths=documents)
 
-            return {"query": query, "answer": answer_str, "mode": mode}
-        except Exception as e:
-            raise Exception(f"Query failed: {e!s}")
+
+async def delete_rag(kb_name: str, provider: Optional[str] = None) -> bool:
+    """
+    Delete a knowledge base.
+    
+    Args:
+        kb_name: Knowledge base name
+        provider: RAG pipeline to use (defaults to RAG_PROVIDER env var)
+    
+    Returns:
+        True if successful
+    
+    Example:
+        success = await delete_rag("old_kb")
+    """
+    provider_name = provider or DEFAULT_RAG_PROVIDER
+    
+    if not has_pipeline(provider_name):
+        raise ValueError(f"RAG pipeline '{provider_name}' not found")
+    
+    pipeline = get_pipeline(provider_name)
+    return await pipeline.delete(kb_name=kb_name)
+
+
+def get_available_providers() -> List[Dict]:
+    """
+    Get list of available RAG pipelines.
+    
+    Returns:
+        List of pipeline information dictionaries
+    
+    Example:
+        providers = get_available_providers()
+        for p in providers:
+            print(f"{p['name']}: {p['description']}")
+    """
+    return list_pipelines()
+
+
+def get_current_provider() -> str:
+    """Get the currently configured RAG provider"""
+    # Read directly from environment to get the latest value (not cached)
+    return os.getenv("RAG_PROVIDER", "raganything")
+
+
+# Backward compatibility aliases
+get_available_plugins = get_available_providers
+list_providers = list_pipelines
 
 
 if __name__ == "__main__":
@@ -256,18 +185,23 @@ if __name__ == "__main__":
 
     if sys.platform == "win32":
         import io
-
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-    # Test
+    # List available providers
+    print("Available RAG Pipelines:")
+    for provider in get_available_providers():
+        print(f"  - {provider['id']}: {provider['description']}")
+    print(f"\nCurrent provider: {get_current_provider()}\n")
+
+    # Test search
     result = asyncio.run(
         rag_search(
             "What is the lookup table (LUT) in FPGA?",
             kb_name="DE-all",
             mode="naive",
-            only_need_context=False,
         )
     )
 
     print(f"Query: {result['query']}")
     print(f"Answer: {result['answer']}")
+    print(f"Provider: {result.get('provider', 'unknown')}")

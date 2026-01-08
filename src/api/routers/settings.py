@@ -11,7 +11,9 @@ from typing import Any, Dict, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from src.core.core import get_embedding_config, get_llm_config, get_tts_config
+from src.services.llm import get_llm_config
+from src.services.embedding import get_embedding_config
+from src.services.tts import get_tts_config
 from src.utils.config_manager import ConfigManager
 
 router = APIRouter()
@@ -87,6 +89,14 @@ ENV_VAR_DEFINITIONS = {
         "default": "",
         "sensitive": True,
     },
+    # RAG Configuration
+    "RAG_PROVIDER": {
+        "description": "RAG provider to use (lightrag, chromadb, pinecone, etc.)",
+        "category": "rag",
+        "required": False,
+        "default": "lightrag",
+        "sensitive": False,
+    },
     # TTS Configuration (OpenAI compatible API)
     "TTS_MODEL": {
         "description": "OpenAI TTS model (tts-1 for speed, tts-1-hd for quality)",
@@ -152,6 +162,11 @@ ENV_CATEGORIES = {
         "name": "Embedding Configuration",
         "description": "Text embedding model settings for semantic search and RAG",
         "icon": "database",
+    },
+    "rag": {
+        "name": "RAG Configuration",
+        "description": "Retrieval-Augmented Generation provider settings",
+        "icon": "search",
     },
     "tts": {
         "name": "TTS Configuration",
@@ -628,7 +643,7 @@ async def test_env_config():
     # Test LLM configuration
     try:
         llm_config = get_llm_config()
-        results["llm"]["model"] = llm_config.get("model")
+        results["llm"]["model"] = llm_config.model
         results["llm"]["status"] = "configured"
     except ValueError as e:
         results["llm"]["status"] = "not_configured"
@@ -640,7 +655,7 @@ async def test_env_config():
     # Test Embedding configuration
     try:
         embedding_config = get_embedding_config()
-        results["embedding"]["model"] = embedding_config.get("model")
+        results["embedding"]["model"] = embedding_config.model
         results["embedding"]["status"] = "configured"
     except ValueError as e:
         results["embedding"]["status"] = "not_configured"
@@ -662,3 +677,31 @@ async def test_env_config():
         results["tts"]["error"] = str(e)
 
     return results
+
+
+# ==================== RAG Provider Configuration ====================
+
+
+@router.get("/rag/providers")
+async def get_rag_providers():
+    """
+    Get list of available RAG providers.
+    
+    Returns:
+        {
+            "providers": [...],
+            "current": "lightrag"
+        }
+    """
+    try:
+        from src.tools.rag_tool import get_available_providers, get_current_provider
+        
+        providers = get_available_providers()
+        current = get_current_provider()
+        
+        return {
+            "providers": providers,
+            "current": current
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get RAG providers: {str(e)}")

@@ -316,9 +316,20 @@ export default function SettingsPage() {
     }, 500),
   ).current;
 
+  // RAG providers state
+  const [ragProviders, setRagProviders] = useState<Array<{
+    id: string;
+    name: string;
+    description: string;
+    supported_modes: string[];
+  }>>([]);
+  const [currentRagProvider, setCurrentRagProvider] = useState<string>("lightrag");
+  const [loadingRagProviders, setLoadingRagProviders] = useState(false);
+
   useEffect(() => {
     fetchSettings();
     fetchEnvConfig();
+    fetchRagProviders();
     if (activeTab === "llm_providers") {
       fetchProviders();
     }
@@ -336,6 +347,22 @@ export default function SettingsPage() {
       console.error("Failed to fetch providers:", err);
     } finally {
       setLoadingProviders(false);
+    }
+  };
+
+  const fetchRagProviders = async () => {
+    setLoadingRagProviders(true);
+    try {
+      const res = await fetch(apiUrl("/api/v1/settings/rag/providers"));
+      if (res.ok) {
+        const data = await res.json();
+        setRagProviders(data.providers || []);
+        setCurrentRagProvider(data.current || "lightrag");
+      }
+    } catch (err) {
+      console.error("Failed to fetch RAG providers:", err);
+    } finally {
+      setLoadingRagProviders(false);
     }
   };
 
@@ -702,7 +729,7 @@ export default function SettingsPage() {
           .map(([key, value]) => ({ key, value }));
 
         if (envUpdates.length > 0) {
-          const envRes = await fetch(apiUrl("/api/v1/settings/env/"), {
+          const envRes = await fetch(apiUrl("/api/v1/settings/env"), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ variables: envUpdates }),
@@ -977,7 +1004,66 @@ export default function SettingsPage() {
               </div>
             </section>
 
-            {/* 2. System Configuration */}
+            {/* 2. RAG Provider Configuration */}
+            <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors duration-200">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center gap-2">
+                <Database className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                <h2 className="font-semibold text-slate-900 dark:text-slate-100">
+                  {t("RAG Provider")}
+                </h2>
+              </div>
+              <div className="p-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    {t("Active RAG System")}
+                  </label>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
+                    {t("Choose the Retrieval-Augmented Generation system for knowledge base queries")}
+                  </p>
+                  {loadingRagProviders ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Loading providers...</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <select
+                        value={currentRagProvider}
+                        onChange={(e) => {
+                          const newProvider = e.target.value;
+                          setCurrentRagProvider(newProvider);
+                          // Update environment variable
+                          setEditedEnvVars(prev => ({
+                            ...prev,
+                            RAG_PROVIDER: newProvider
+                          }));
+                        }}
+                        className="w-full md:w-2/3 p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                      >
+                        {ragProviders.map((provider) => (
+                          <option key={provider.id} value={provider.id}>
+                            {provider.name} - {provider.description}
+                          </option>
+                        ))}
+                      </select>
+                      {ragProviders.length > 0 && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                          {ragProviders.find(p => p.id === currentRagProvider)?.description || ""}
+                          {ragProviders.find(p => p.id === currentRagProvider)?.supported_modes && (
+                            <div className="mt-2">
+                              <span className="font-medium">Supported modes:</span>{" "}
+                              {ragProviders.find(p => p.id === currentRagProvider)?.supported_modes.join(", ")}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 3. System Configuration */}
             <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors duration-200">
               <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center gap-2">
                 <Server className="w-4 h-4 text-slate-500 dark:text-slate-400" />

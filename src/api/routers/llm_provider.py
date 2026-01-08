@@ -2,8 +2,9 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
 from src.core.llm_factory import llm_complete, llm_fetch_models
-from src.core.llm_provider import LLMProvider, provider_manager
+from src.services.llm.provider import LLMProvider, provider_manager
 
 router = APIRouter()
 

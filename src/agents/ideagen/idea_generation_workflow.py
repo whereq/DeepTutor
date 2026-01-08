@@ -16,12 +16,12 @@ _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from src.core.prompt_manager import get_prompt_manager
+from src.services.prompt import get_prompt_manager
 
-from .base_idea_agent import BaseIdeaAgent
+from src.agents.base_agent import BaseAgent
 
 
-class IdeaGenerationWorkflow(BaseIdeaAgent):
+class IdeaGenerationWorkflow(BaseAgent):
     """Idea generation workflow"""
 
     def __init__(
@@ -44,10 +44,16 @@ class IdeaGenerationWorkflow(BaseIdeaAgent):
             output_dir: Output directory for saving intermediate results
             language: Language for prompts ("en" or "zh")
         """
-        super().__init__(api_key, base_url, model)
+        super().__init__(
+            module_name="ideagen",
+            agent_name="idea_generation",
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            language=language,
+        )
         self.progress_callback = progress_callback
         self.output_dir = output_dir
-        self.language = language
         self._prompts = get_prompt_manager().load_prompts(
             module_name="ideagen",
             agent_name="idea_generation",

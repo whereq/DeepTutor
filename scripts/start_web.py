@@ -11,11 +11,52 @@ os.environ["PYTHONUNBUFFERED"] = "1"
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
 
-
 def print_flush(*args, **kwargs):
     """Print with flush=True by default"""
     kwargs.setdefault("flush", True)
     print(*args, **kwargs)
+
+
+# Windows-specific: Use SetConsoleCtrlHandler to prevent Ctrl+C from propagating to children
+# and handle it only in the parent process
+if os.name == "nt":
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.windll.kernel32
+
+    # Define the handler function type
+    HANDLER_ROUTINE = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
+
+    # Global flag to track if we received Ctrl+C
+    _ctrl_c_received = False
+
+    def _ctrl_handler(ctrl_type):
+        """Handle console control events on Windows."""
+        global _ctrl_c_received
+        if ctrl_type == 0:  # CTRL_C_EVENT
+            _ctrl_c_received = True
+            return True  # Return True to indicate we handled it
+        return False
+
+    # Keep a reference to prevent garbage collection
+    _handler = HANDLER_ROUTINE(_ctrl_handler)
+
+    def setup_windows_ctrl_handler():
+        """Set up Windows Ctrl+C handler to prevent propagation to children."""
+        # Add our handler
+        if not kernel32.SetConsoleCtrlHandler(_handler, True):
+            print_flush("⚠️ Warning: Failed to set console control handler")
+
+    def check_ctrl_c_received():
+        """Check if Ctrl+C was received."""
+        return _ctrl_c_received
+else:
+    def setup_windows_ctrl_handler():
+        pass
+
+    def check_ctrl_c_received():
+        return False
 
 
 def terminate_process_tree(process, name="Process", timeout=5):
@@ -38,13 +79,26 @@ def terminate_process_tree(process, name="Process", timeout=5):
 
     try:
         if os.name == "nt":
-            # Windows: Use taskkill with /T to kill process tree
-            subprocess.run(
+            # Windows: Use taskkill with /T to kill the entire process tree
+            # /F = Force termination, /T = Kill child processes too
+            result = subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(pid)],
                 check=False,
-                stderr=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
             )
+            # Wait for process to actually terminate
+            try:
+                process.wait(timeout=timeout)
+                print_flush(f"   ✅ {name} terminated successfully")
+            except subprocess.TimeoutExpired:
+                print_flush(f"   ⚠️ {name} did not terminate within {timeout}s")
+                # Force kill via process.kill() as backup
+                try:
+                    process.kill()
+                    process.wait(timeout=2)
+                except Exception:
+                    pass
         else:
             # Unix: Kill the entire process group
             pgid = os.getpgid(pid)
@@ -102,7 +156,7 @@ def start_backend():
 
     # Get port from configuration
     try:
-        from src.core.setup import get_backend_port
+        from src.services.setup import get_backend_port
 
         backend_port = get_backend_port(Path(project_root))
         print_flush(f"✅ Backend port configured: {backend_port}")
@@ -111,7 +165,7 @@ def start_backend():
         raise
     except Exception as e:
         print_flush(f"❌ Failed to get backend port: {e}")
-        from src.core.setup import print_port_config_tutorial
+        from src.services.setup import print_port_config_tutorial
 
         print_port_config_tutorial()
         raise
@@ -156,6 +210,10 @@ def start_backend():
     # On Unix, create a new session so we can kill the entire process group
     if os.name != "nt":
         popen_kwargs["start_new_session"] = True
+    else:
+        # On Windows, create a new process group so Ctrl+C doesn't propagate to children
+        # This prevents child processes from receiving Ctrl+C signals directly
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
 
     process = subprocess.Popen(cmd, **popen_kwargs)
 
@@ -192,7 +250,7 @@ def start_frontend():
     try:
         from pathlib import Path
 
-        from src.core.setup import get_frontend_port
+        from src.services.setup import get_frontend_port
 
         frontend_port = get_frontend_port(Path(project_root))
         print_flush(f"✅ Frontend port configured: {frontend_port}")
@@ -201,7 +259,7 @@ def start_frontend():
         raise
     except Exception as e:
         print_flush(f"❌ Failed to get frontend port: {e}")
-        from src.core.setup import print_port_config_tutorial
+        from src.services.setup import print_port_config_tutorial
 
         print_port_config_tutorial()
         raise
@@ -261,7 +319,7 @@ def start_frontend():
     # Get backend port for frontend API configuration
     from pathlib import Path
 
-    from src.core.setup import get_backend_port
+    from src.services.setup import get_backend_port
 
     backend_port = get_backend_port(Path(project_root))
 
@@ -312,6 +370,10 @@ def start_frontend():
     # On Unix, create a new session so we can kill the entire process group
     if os.name != "nt":
         popen_kwargs["start_new_session"] = True
+    else:
+        # On Windows, create a new process group so Ctrl+C doesn't propagate to children
+        # This prevents npm from showing "Terminate batch job (Y/N)?" prompt
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
 
     frontend_process = subprocess.Popen(
         [npm_cmd, "run", "dev", "--", "-p", str(frontend_port)],
@@ -339,6 +401,9 @@ def start_frontend():
 
 
 if __name__ == "__main__":
+    # Set up Windows-specific Ctrl+C handler before starting any processes
+    setup_windows_ctrl_handler()
+
     print_flush("=" * 50)
     print_flush("DeepTutor Web Platform Launcher")
     print_flush("=" * 50)
@@ -350,7 +415,7 @@ if __name__ == "__main__":
             sys.path.insert(0, project_root)
         from pathlib import Path
 
-        from src.core.setup import init_user_directories
+        from src.services.setup import init_user_directories
 
         init_user_directories(Path(project_root))
     except Exception as e:
@@ -366,7 +431,7 @@ if __name__ == "__main__":
         # Get backend port for health check
         from pathlib import Path
 
-        from src.core.setup import get_backend_port
+        from src.services.setup import get_backend_port
 
         backend_port = get_backend_port(
             Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -404,7 +469,7 @@ if __name__ == "__main__":
         # Get ports for display
         from pathlib import Path
 
-        from src.core.setup import get_ports
+        from src.services.setup import get_ports
 
         backend_port, frontend_port = get_ports(
             Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -421,12 +486,16 @@ if __name__ == "__main__":
         print_flush("Press Ctrl+C to stop all services.")
 
         while True:
+            # Check for Ctrl+C via Windows handler or process exit
+            if check_ctrl_c_received():
+                print_flush("\n🛑 Ctrl+C detected, stopping services...")
+                break
             if backend.poll() is not None:
                 print_flush(
                     f"\n❌ Backend process exited unexpectedly (code: {backend.returncode})"
                 )
                 break
-            time.sleep(1)
+            time.sleep(0.5)  # Check more frequently for responsive shutdown
 
     except KeyboardInterrupt:
         print_flush("\n🛑 Stopping services...")
