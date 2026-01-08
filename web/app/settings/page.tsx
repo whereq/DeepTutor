@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Settings as SettingsIcon,
   Sun,
@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import { getTranslation } from "@/lib/i18n";
+import { setTheme } from "@/lib/theme";
+import { debounce } from "@/lib/debounce";
 
 import { useGlobal } from "@/context/GlobalContext";
 
@@ -224,8 +226,22 @@ export default function SettingsPage() {
     string | null
   >(null);
 
+  // Create debounced theme save function
+  const debouncedSaveTheme = useRef(
+    debounce(async (themeValue: "light" | "dark", uiSettings: UISettings) => {
+      try {
+        await fetch(apiUrl("/api/v1/settings/ui"), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...uiSettings, theme: themeValue }),
+        });
+      } catch (err) {
+        // Silently fail - theme is still saved to localStorage
+      }
+    }, 500),
+  ).current;
+
   useEffect(() => {
-    fetchSettings();
     fetchSettings();
     fetchEnvConfig();
     if (activeTab === "llm_providers") {
@@ -446,10 +462,17 @@ export default function SettingsPage() {
         setData(responseData);
         setEditedConfig(JSON.parse(JSON.stringify(responseData.config)));
         if (!editedUI) {
-          setEditedUI(JSON.parse(JSON.stringify(responseData.ui)));
-        }
-        if (responseData.ui.theme) {
-          applyTheme(responseData.ui.theme);
+          const uiData = JSON.parse(JSON.stringify(responseData.ui));
+          // localStorage takes priority over backend
+          const storedTheme = localStorage.getItem("deeptutor-theme");
+          if (storedTheme === "light" || storedTheme === "dark") {
+            uiData.theme = storedTheme;
+          }
+          setEditedUI(uiData);
+          // Apply theme if present
+          if (uiData.theme) {
+            applyTheme(uiData.theme);
+          }
         }
       } else {
         setError("Failed to load settings");
@@ -581,11 +604,8 @@ export default function SettingsPage() {
   };
 
   const applyTheme = (theme: "light" | "dark") => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    // Persist theme to localStorage and document immediately
+    setTheme(theme);
   };
 
   const handleSave = async () => {
@@ -617,6 +637,11 @@ export default function SettingsPage() {
       setData((prev) =>
         prev ? { ...prev, config: newConfig, ui: newUI } : null,
       );
+
+      // Sync theme immediately when saving
+      if (editedUI.theme) {
+        setTheme(editedUI.theme);
+      }
 
       await refreshSettings();
 
@@ -656,7 +681,11 @@ export default function SettingsPage() {
     setEditedUI((prev) => {
       if (!prev) return null;
       const newUI = { ...prev, [key]: value };
-      if (key === "theme") applyTheme(value);
+      if (key === "theme") {
+        applyTheme(value);
+        // Debounced auto-save to backend
+        debouncedSaveTheme(value, newUI);
+      }
       return newUI;
     });
   };
@@ -678,6 +707,41 @@ export default function SettingsPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] overflow-y-auto animate-fade-in">
+      {/* Sticky Save Button at Top */}
+      <div className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-md">
+        <div className="max-w-4xl mx-auto p-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              System Settings
+            </h1>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`py-2 px-6 rounded-lg font-medium flex items-center gap-2 transition-all ${
+              saving
+                ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
+                : saveSuccess
+                  ? "bg-green-500 text-white"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : saveSuccess ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {saving
+              ? t("Saving...")
+              : saveSuccess
+                ? t("Saved")
+                : t("Save All Changes")}
+          </button>
+        </div>
+      </div>
+
       <div className="max-w-4xl mx-auto p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -1028,30 +1092,6 @@ export default function SettingsPage() {
                 </div>
               </section>
             )}
-
-            {/* Save Button */}
-            <div className="flex justify-center pt-4 pb-8">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className={`w-full max-w-sm py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all ${
-                  saving
-                    ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
-                    : saveSuccess
-                      ? "bg-green-500 text-white shadow-xl shadow-green-500/30 scale-105"
-                      : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-1"
-                }`}
-              >
-                {saving ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : saveSuccess ? (
-                  <Check className="w-6 h-6" />
-                ) : (
-                  <Save className="w-6 h-6" />
-                )}
-                {saveSuccess ? t("Configuration Saved") : t("Save All Changes")}
-              </button>
-            </div>
           </div>
         )}
 
