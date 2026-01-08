@@ -16,7 +16,7 @@ _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from lightrag.llm.openai import openai_complete_if_cache
+from src.core.llm_factory import llm_complete
 
 from src.core.core import get_agent_params, get_llm_config, load_config_with_main
 from src.core.logging import LLMStats, get_logger
@@ -138,6 +138,12 @@ class EditAgent:
                 - edited_text: Edited text
                 - operation_id: Operation ID
         """
+        # Always refresh LLM config before starting to avoid stale credentials
+        try:
+            self.llm_config = get_llm_config()
+        except Exception as e:
+            logger.error(f"Failed to refresh LLM config: {e}")
+
         if not self.llm_config:
             raise ValueError("LLM configuration not available")
 
@@ -226,7 +232,8 @@ class EditAgent:
         # 3. Call LLM
         logger.info(f"Calling LLM for {action}...")
         model = self.llm_config["model"]
-        response = await openai_complete_if_cache(
+        response = await llm_complete(
+            binding=self.llm_config["binding"],
             model=model,
             prompt=user_prompt,
             system_prompt=system_prompt,
@@ -271,6 +278,12 @@ class EditAgent:
                 - marked_text: Text with annotations
                 - operation_id: Operation ID
         """
+        # Always refresh LLM config before starting to avoid stale credentials
+        try:
+            self.llm_config = get_llm_config()
+        except Exception as e:
+            logger.error(f"Failed to refresh LLM config: {e}")
+
         if not self.llm_config:
             raise ValueError("LLM configuration not available")
 
@@ -284,7 +297,8 @@ class EditAgent:
 
         logger.info("Calling LLM for auto-mark...")
         model = self.llm_config["model"]
-        response = await openai_complete_if_cache(
+        response = await llm_complete(
+            binding=self.llm_config["binding"],
             model=model,
             prompt=user_prompt,
             system_prompt=system_prompt,

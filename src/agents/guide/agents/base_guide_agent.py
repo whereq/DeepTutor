@@ -15,7 +15,7 @@ _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from lightrag.llm.openai import openai_complete_if_cache
+from src.core.llm_factory import llm_complete
 
 from src.core.core import get_agent_params, load_config_with_main
 from src.core.logging import LLMStats, get_logger
@@ -28,7 +28,7 @@ class BaseGuideAgent(ABC):
     # Shared stats tracker for all guide agents
     _shared_stats: LLMStats | None = None
 
-    def __init__(self, api_key: str, base_url: str, agent_name: str, language: str = "zh"):
+    def __init__(self, api_key: str, base_url: str, agent_name: str, language: str = "zh", binding: str = "openai"):
         """
         Initialize base Agent.
 
@@ -37,11 +37,13 @@ class BaseGuideAgent(ABC):
             base_url: API endpoint
             agent_name: Agent name
             language: Language setting ('zh' | 'en')
+            binding: LLM provider binding
         """
         self.api_key = api_key
         self.base_url = base_url
         self.agent_name = agent_name
         self.language = language
+        self.binding = binding
 
         # Load agent parameters from unified config (agents.yaml)
         self._agent_params = get_agent_params("guide")
@@ -129,12 +131,13 @@ class BaseGuideAgent(ABC):
             "base_url": self.base_url,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "binding": self.binding,
         }
 
         if response_format:
             kwargs["response_format"] = response_format
 
-        response = await openai_complete_if_cache(**kwargs)
+        response = await llm_complete(**kwargs)
 
         # Track token usage
         stats = self.get_stats()

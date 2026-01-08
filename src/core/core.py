@@ -10,6 +10,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 import yaml
+from settings import settings
 
 # PROJECT_ROOT points to the actual project root directory (DeepTutor/)
 # Path(__file__) = src/core/core.py
@@ -46,30 +47,14 @@ def _strip_value(value: str | None) -> str | None:
 
 def get_llm_config() -> dict:
     """
-    Return complete environment configuration for LLM.
-
-    Priority:
-    1. Active provider from llm_providers.json
-    2. Environment variables (.env)
-
-    Returns:
-        dict: Dictionary containing the following keys:
-            - binding: LLM service provider
-            - model: LLM model name
-            - api_key: LLM API key
-            - base_url: LLM API endpoint URL
-
-    Raises:
-        ValueError: If required configuration is missing
+    Return complete configuration for LLM.
+    Uses centralized settings singleton.
     """
     # 1. Try to get active provider from new system
     try:
         from src.core.llm_provider import provider_manager
-
         active_provider = provider_manager.get_active_provider()
-
         if active_provider:
-            # Map provider fields to config format
             return {
                 "binding": active_provider.binding,
                 "model": active_provider.model,
@@ -79,74 +64,27 @@ def get_llm_config() -> dict:
     except Exception as e:
         print(f"⚠️ Failed to load active provider: {e}")
 
-    # 2. Fallback to environment variables
-    binding = _strip_value(os.getenv("LLM_BINDING", "openai"))
-    model = _strip_value(os.getenv("LLM_MODEL"))
-    api_key = _strip_value(os.getenv("LLM_BINDING_API_KEY"))
-    base_url = _strip_value(os.getenv("LLM_BINDING_HOST"))
-
-    # Validate required configuration
-    if not model:
-        raise ValueError(
-            "Error: LLM_MODEL not set, please configure it in .env file or activate a provider"
-        )
-
-    # Check if API key is required (default to true for security/backward compatibility)
-    requires_key = os.getenv("LLM_API_KEY_REQUIRED", "true").lower() == "true"
-
-    if requires_key and not api_key:
-        raise ValueError(
-            "Error: LLM_BINDING_API_KEY not set, please configure it in .env file or activate a provider"
-        )
-    if not base_url:
-        raise ValueError(
-            "Error: LLM_BINDING_HOST not set, please configure it in .env file or activate a provider"
-        )
-
+    # 2. Fallback to centralized settings
+    llm = settings.llm
     return {
-        "binding": binding,
-        "model": model,
-        "api_key": api_key,
-        "base_url": base_url,
+        "binding": llm.binding,
+        "model": llm.model,
+        "api_key": llm.api_key,
+        "base_url": llm.host,
+        "disable_ssl_verify": llm.disable_ssl_verify
     }
 
 
 def get_tts_config() -> dict:
     """
-    Return complete environment configuration for TTS (Text-to-Speech).
-
-    Returns:
-        dict: Dictionary containing the following keys:
-            - model: TTS model name
-            - api_key: TTS API key
-            - base_url: TTS API endpoint URL
-            - voice: Default voice character
-
-    Raises:
-        ValueError: If required configuration is missing
+    Return complete configuration for TTS (Text-to-Speech).
     """
-    model = _strip_value(os.getenv("TTS_MODEL"))
-    api_key = _strip_value(os.getenv("TTS_API_KEY"))
-    base_url = _strip_value(os.getenv("TTS_URL"))
-    voice = _strip_value(os.getenv("TTS_VOICE", "alloy"))
-
-    # Validate required configuration
-    if not model:
-        raise ValueError(
-            "Error: TTS_MODEL not set, please configure it in .env file (e.g., tts-1 or tts-1-hd)"
-        )
-    if not api_key:
-        raise ValueError("Error: TTS_API_KEY not set, please configure it in .env file")
-    if not base_url:
-        raise ValueError(
-            "Error: TTS_URL not set, please configure it in .env file (e.g., https://api.openai.com/v1)"
-        )
-
+    tts = settings.tts
     return {
-        "model": model,
-        "api_key": api_key,
-        "base_url": base_url,
-        "voice": voice,
+        "model": tts.model,
+        "api_key": tts.api_key,
+        "base_url": tts.url,
+        "voice": os.getenv("TTS_VOICE", "alloy"), # Still allowing voice from env if not in settings
     }
 
 
@@ -206,50 +144,16 @@ def get_agent_params(module_name: str) -> dict:
 
 def get_embedding_config() -> dict:
     """
-    Return complete environment configuration for embedding models.
-
-    Returns:
-        dict: Dictionary containing the following keys:
-            - binding: Embedding service provider
-            - model: Embedding model name
-            - api_key: Embedding API key
-            - base_url: Embedding API endpoint URL
-            - dim: Embedding dimension
-            - max_tokens: Maximum tokens for embedding
-
-    Raises:
-        ValueError: If required configuration is missing
+    Return complete configuration for embedding models.
     """
-    binding = _strip_value(os.getenv("EMBEDDING_BINDING", "openai"))
-    model = _strip_value(os.getenv("EMBEDDING_MODEL"))
-    api_key = _strip_value(os.getenv("EMBEDDING_BINDING_API_KEY"))
-    base_url = _strip_value(os.getenv("EMBEDDING_BINDING_HOST"))
-
-    # Strict mode: All model configuration must come from .env, no automatic fallback or default inference
-    if not model:
-        raise ValueError("Error: EMBEDDING_MODEL not set, please configure it in .env file")
-
-    # Check if API key is required (default to true for security/backward compatibility)
-    requires_key = os.getenv("EMBEDDING_API_KEY_REQUIRED", "true").lower() == "true"
-
-    if requires_key and not api_key:
-        raise ValueError(
-            "Error: EMBEDDING_BINDING_API_KEY not set, please configure it in .env file"
-        )
-    if not base_url:
-        raise ValueError("Error: EMBEDDING_BINDING_HOST not set, please configure it in .env file")
-
-    # Get optional configuration
-    dim = _to_int(_strip_value(os.getenv("EMBEDDING_DIM")), 3072)
-    max_tokens = _to_int(_strip_value(os.getenv("EMBEDDING_MAX_TOKENS")), 8192)
-
+    emb = settings.embedding
     return {
-        "binding": binding,
-        "model": model,
-        "api_key": api_key,
-        "base_url": base_url,
-        "dim": dim,
-        "max_tokens": max_tokens,
+        "binding": emb.binding,
+        "model": emb.model,
+        "api_key": emb.api_key,
+        "base_url": emb.host,
+        "dim": emb.dimension,
+        "max_tokens": 8192, # Default
     }
 
 

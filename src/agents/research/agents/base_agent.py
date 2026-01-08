@@ -14,9 +14,8 @@ from typing import Any
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from lightrag.llm.openai import openai_complete_if_cache
-
 from src.core.core import get_agent_params, get_llm_config
+from src.core.llm_factory import llm_complete
 from src.core.prompt_manager import get_prompt_manager
 
 from ..utils.token_tracker import get_token_tracker
@@ -53,11 +52,13 @@ class BaseAgent(ABC):
             self.api_key = api_key or env_llm.get("api_key")
             self.base_url = base_url or env_llm.get("base_url")
             self.default_model = env_llm.get("model")
+            self.binding = env_llm.get("binding", "openai")
         except ValueError as e:
             print(f"⚠️ Environment configuration error: {e}")
             self.api_key = api_key
             self.base_url = base_url
             self.default_model = "gpt-4o"
+            self.binding = "openai"
 
         # Get Agent-specific configuration
         self.agent_config = config.get("agents", {}).get(agent_name, {})
@@ -137,7 +138,10 @@ class BaseAgent(ABC):
         response = None
         error = None
         try:
-            response = await openai_complete_if_cache(**kwargs)
+            response = await llm_complete(
+                binding=self.binding,
+                **kwargs
+            )
         except Exception as e:
             error = e
             # Log error

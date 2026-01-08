@@ -52,6 +52,7 @@ class GuideManager:
         language: str | None = None,
         output_dir: str | None = None,
         config_path: str | None = None,
+        binding: str = "openai",
     ):
         """
         Initialize manager
@@ -62,9 +63,11 @@ class GuideManager:
             language: Language setting (if None, read from config file)
             output_dir: Output directory
             config_path: Configuration file path (if None, use default path)
+            binding: LLM provider binding
         """
         self.api_key = api_key
         self.base_url = base_url
+        self.binding = binding
 
         if config_path is None:
             project_root = Path(__file__).parent.parent.parent.parent
@@ -109,10 +112,10 @@ class GuideManager:
                 self.output_dir = project_root / "data" / "user" / "guide"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.locate_agent = LocateAgent(api_key, base_url, self.language)
-        self.interactive_agent = InteractiveAgent(api_key, base_url, self.language)
-        self.chat_agent = ChatAgent(api_key, base_url, self.language)
-        self.summary_agent = SummaryAgent(api_key, base_url, self.language)
+        self.locate_agent = LocateAgent(api_key, base_url, self.language, binding=self.binding)
+        self.interactive_agent = InteractiveAgent(api_key, base_url, self.language, binding=self.binding)
+        self.chat_agent = ChatAgent(api_key, base_url, self.language, binding=self.binding)
+        self.summary_agent = SummaryAgent(api_key, base_url, self.language, binding=self.binding)
 
         self._sessions: dict[str, GuidedSession] = {}
 

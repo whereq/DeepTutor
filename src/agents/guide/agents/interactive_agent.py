@@ -13,9 +13,9 @@ from .base_guide_agent import BaseGuideAgent
 class InteractiveAgent(BaseGuideAgent):
     """Interactive page generation agent"""
 
-    def __init__(self, api_key: str, base_url: str, language: str = "zh"):
+    def __init__(self, api_key: str, base_url: str, language: str = "zh", binding: str = "openai"):
         super().__init__(
-            api_key=api_key, base_url=base_url, agent_name="interactive_agent", language=language
+            api_key=api_key, base_url=base_url, agent_name="interactive_agent", language=language, binding=binding
         )
 
     def _extract_html(self, response: str) -> str:
