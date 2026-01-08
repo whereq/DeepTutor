@@ -821,12 +821,13 @@ export default function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className={`py-2 px-6 rounded-lg font-medium flex items-center gap-2 transition-all ${saving
-              ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
-              : saveSuccess
-                ? "bg-green-500 text-white"
-                : "bg-blue-600 text-white hover:bg-blue-700"
-              }`}
+            className={`py-2 px-6 rounded-lg font-medium flex items-center gap-2 transition-all ${
+              saving
+                ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
+                : saveSuccess
+                  ? "bg-green-500 text-white"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
