@@ -37,6 +37,7 @@ class EmbeddingProviderManager:
         "google": OpenAICompatibleEmbeddingAdapter,
         "cohere": CohereEmbeddingAdapter,
         "ollama": OllamaEmbeddingAdapter,
+        "lm_studio": OpenAICompatibleEmbeddingAdapter,  # LM Studio (OpenAI-compatible)
     }
     
     def __init__(self):

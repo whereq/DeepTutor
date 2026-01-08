@@ -96,15 +96,23 @@ class CohereEmbeddingAdapter(BaseEmbeddingAdapter):
         else:
             embeddings = data["embeddings"]["float"]
         
+        actual_dims = len(embeddings[0]) if embeddings else 0
+        expected_dims = request.dimensions or self.dimensions
+        
+        if expected_dims and actual_dims != expected_dims:
+            logger.warning(
+                f"Dimension mismatch: expected {expected_dims}, got {actual_dims}"
+            )
+        
         logger.info(
             f"Successfully generated {len(embeddings)} embeddings "
-            f"(model: {data.get('model', self.model)}, dimensions: {len(embeddings[0])})"
+            f"(model: {data.get('model', self.model)}, dimensions: {actual_dims})"
         )
         
         return EmbeddingResponse(
             embeddings=embeddings,
             model=data.get("model", self.model),
-            dimensions=len(embeddings[0]),
+            dimensions=actual_dims,
             usage=data.get("meta", {}).get("billed_units", {})
         )
     

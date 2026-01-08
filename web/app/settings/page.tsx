@@ -325,6 +325,10 @@ export default function SettingsPage() {
   const [originalEmbeddingProviderName, setOriginalEmbeddingProviderName] = useState<string | null>(
     null
   )
+  const [fetchedEmbeddingModels, setFetchedEmbeddingModels] = useState<
+    Array<{ name: string; dimensions?: number }>
+  >([])
+  const [fetchingEmbeddingModels, setFetchingEmbeddingModels] = useState(false)
 
   // RAG providers state
   const [ragProviders, setRagProviders] = useState<
@@ -658,6 +662,35 @@ export default function SettingsPage() {
       setTestEmbeddingProviderResult({ success: false, message: 'Connection failed' })
     } finally {
       setTestingEmbeddingProvider(false)
+    }
+  }
+
+  const fetchEmbeddingModels = async () => {
+    if (!editingEmbeddingProvider?.name) return
+    setFetchingEmbeddingModels(true)
+    setFetchedEmbeddingModels([])
+
+    try {
+      const res = await fetch(
+        apiUrl(`/api/v1/config/embedding/${editingEmbeddingProvider.name}/models`)
+      )
+      if (res.ok) {
+        const data = await res.json()
+        setFetchedEmbeddingModels(data.models || [])
+      } else {
+        const preset = EMBEDDING_PROVIDER_PRESETS.find(p => p.id === selectedEmbeddingPresetId)
+        if (preset?.models) {
+          setFetchedEmbeddingModels(preset.models)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch embedding models:', err)
+      const preset = EMBEDDING_PROVIDER_PRESETS.find(p => p.id === selectedEmbeddingPresetId)
+      if (preset?.models) {
+        setFetchedEmbeddingModels(preset.models)
+      }
+    } finally {
+      setFetchingEmbeddingModels(false)
     }
   }
 
@@ -2158,33 +2191,71 @@ export default function SettingsPage() {
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                         Model
                       </label>
-                      <select
-                        value={editingEmbeddingProvider.model}
-                        onChange={e => {
-                          const preset = EMBEDDING_PROVIDER_PRESETS.find(
-                            p => p.id === selectedEmbeddingPresetId
-                          )
-                          const selectedModel = preset?.models?.find(m => m.name === e.target.value)
-                          setEditingEmbeddingProvider(prev =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  model: e.target.value,
-                                  dimensions: selectedModel?.dimensions || prev.dimensions,
-                                }
-                              : null
-                          )
-                        }}
-                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg"
-                      >
-                        {EMBEDDING_PROVIDER_PRESETS.find(
-                          p => p.id === selectedEmbeddingPresetId
-                        )?.models?.map(model => (
-                          <option key={model.name} value={model.name}>
-                            {model.name} ({model.dimensions}D)
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex gap-2">
+                        <select
+                          value={editingEmbeddingProvider.model}
+                          onChange={e => {
+                            const selectedModelName = e.target.value
+                            let selectedDimensions = editingEmbeddingProvider.dimensions
+
+                            if (fetchedEmbeddingModels.length > 0) {
+                              const model = fetchedEmbeddingModels.find(
+                                m => m.name === selectedModelName
+                              )
+                              if (model?.dimensions) {
+                                selectedDimensions = model.dimensions
+                              }
+                            } else {
+                              const preset = EMBEDDING_PROVIDER_PRESETS.find(
+                                p => p.id === selectedEmbeddingPresetId
+                              )
+                              const model = preset?.models?.find(m => m.name === selectedModelName)
+                              if (model?.dimensions) {
+                                selectedDimensions = model.dimensions
+                              }
+                            }
+
+                            setEditingEmbeddingProvider(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    model: selectedModelName,
+                                    dimensions: selectedDimensions,
+                                  }
+                                : null
+                            )
+                          }}
+                          className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg"
+                        >
+                          {(fetchedEmbeddingModels.length > 0
+                            ? fetchedEmbeddingModels
+                            : EMBEDDING_PROVIDER_PRESETS.find(
+                                p => p.id === selectedEmbeddingPresetId
+                              )?.models || []
+                          ).map(model => (
+                            <option key={model.name} value={model.name}>
+                              {model.name}
+                              {model.dimensions ? ` (${model.dimensions}D)` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {(selectedEmbeddingPresetId === 'ollama' ||
+                          selectedEmbeddingPresetId === 'lmstudio') && (
+                          <button
+                            type="button"
+                            onClick={fetchEmbeddingModels}
+                            disabled={fetchingEmbeddingModels}
+                            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+                            title="Fetch available models from server"
+                          >
+                            {fetchingEmbeddingModels ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div>

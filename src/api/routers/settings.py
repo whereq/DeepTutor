@@ -55,7 +55,7 @@ ENV_VAR_DEFINITIONS = {
     },
     # Embedding Configuration
     "EMBEDDING_BINDING": {
-        "description": "Embedding service provider type (openai, ollama, lollms, azure_openai)",
+        "description": "Embedding service provider type (openai, ollama, lm_studio, azure_openai, jina, cohere, huggingface)",
         "category": "embedding",
         "required": False,
         "default": "openai",

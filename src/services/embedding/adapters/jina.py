@@ -10,11 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 class JinaEmbeddingAdapter(BaseEmbeddingAdapter):
-    """Adapter for Jina AI embeddings (v3/v4)."""
     
     MODELS_INFO = {
-        "jina-embeddings-v3": 1024,
-        "jina-embeddings-v4": 1024,
+        "jina-embeddings-v3": {"default": 1024, "dimensions": [32, 64, 128, 256, 512, 768, 1024]},
+        "jina-embeddings-v4": {"default": 1024, "dimensions": [32, 64, 128, 256, 512, 768, 1024]},
     }
     
     INPUT_TYPE_TO_TASK = {
@@ -36,6 +35,11 @@ class JinaEmbeddingAdapter(BaseEmbeddingAdapter):
             "model": request.model or self.model,
         }
         
+        if request.dimensions:
+            payload["dimensions"] = request.dimensions
+        elif self.dimensions:
+            payload["dimensions"] = self.dimensions
+        
         if request.input_type:
             task = self.INPUT_TYPE_TO_TASK.get(
                 request.input_type,
@@ -47,8 +51,8 @@ class JinaEmbeddingAdapter(BaseEmbeddingAdapter):
         if request.normalized is not None:
             payload["normalized"] = request.normalized
         
-        if "jina-embeddings-v3" in (request.model or self.model) and request.late_chunking:
-            payload["late_chunking"] = request.late_chunking
+        if request.late_chunking:
+            payload["late_chunking"] = True
         
         url = f"{self.base_url}/embeddings"
         
@@ -64,23 +68,35 @@ class JinaEmbeddingAdapter(BaseEmbeddingAdapter):
             data = response.json()
         
         embeddings = [item["embedding"] for item in data["data"]]
+        actual_dims = len(embeddings[0]) if embeddings else 0
         
         logger.info(
             f"Successfully generated {len(embeddings)} embeddings "
-            f"(model: {data['model']}, dimensions: {len(embeddings[0])})"
+            f"(model: {data['model']}, dimensions: {actual_dims})"
         )
         
         return EmbeddingResponse(
             embeddings=embeddings,
             model=data["model"],
-            dimensions=len(embeddings[0]),
+            dimensions=actual_dims,
             usage=data.get("usage", {})
         )
     
     def get_model_info(self) -> Dict[str, Any]:
-        """Return information about the configured model."""
-        return {
-            "model": self.model,
-            "dimensions": self.MODELS_INFO.get(self.model, self.dimensions),
-            "provider": "jina",
-        }
+        model_info = self.MODELS_INFO.get(self.model, self.dimensions)
+        
+        if isinstance(model_info, dict):
+            return {
+                "model": self.model,
+                "dimensions": model_info.get("default", self.dimensions),
+                "supported_dimensions": model_info.get("dimensions", []),
+                "supports_variable_dimensions": True,
+                "provider": "jina",
+            }
+        else:
+            return {
+                "model": self.model,
+                "dimensions": model_info or self.dimensions,
+                "supports_variable_dimensions": False,
+                "provider": "jina",
+            }

@@ -1,4 +1,4 @@
-"""OpenAI-compatible embedding adapter for OpenAI, Azure, HuggingFace, etc."""
+"""OpenAI-compatible embedding adapter for OpenAI, Azure, HuggingFace, LM Studio, etc."""
 
 import httpx
 from typing import Dict, Any
@@ -10,11 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
-    """Adapter for OpenAI-compatible APIs: OpenAI, Azure, HuggingFace."""
     
     MODELS_INFO = {
-        "text-embedding-3-large": 3072,
-        "text-embedding-3-small": 1536,
+        "text-embedding-3-large": {"default": 3072, "dimensions": [256, 512, 1024, 3072]},
+        "text-embedding-3-small": {"default": 1536, "dimensions": [512, 1536]},
         "text-embedding-ada-002": 1536,
     }
     
@@ -48,21 +47,42 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         
         embeddings = [item["embedding"] for item in data["data"]]
         
+        actual_dims = len(embeddings[0]) if embeddings else 0
+        expected_dims = request.dimensions or self.dimensions
+        
+        if expected_dims and actual_dims != expected_dims:
+            logger.warning(
+                f"Dimension mismatch: expected {expected_dims}, got {actual_dims}. "
+                f"Model '{data['model']}' may not support custom dimensions."
+            )
+        
         logger.info(
             f"Successfully generated {len(embeddings)} embeddings "
-            f"(model: {data['model']}, dimensions: {len(embeddings[0])})"
+            f"(model: {data['model']}, dimensions: {actual_dims})"
         )
         
         return EmbeddingResponse(
             embeddings=embeddings,
             model=data["model"],
-            dimensions=len(embeddings[0]),
+            dimensions=actual_dims,
             usage=data.get("usage", {})
         )
     
     def get_model_info(self) -> Dict[str, Any]:
-        return {
-            "model": self.model,
-            "dimensions": self.MODELS_INFO.get(self.model, self.dimensions),
-            "provider": "openai_compatible",
-        }
+        model_info = self.MODELS_INFO.get(self.model, self.dimensions)
+        
+        if isinstance(model_info, dict):
+            return {
+                "model": self.model,
+                "dimensions": model_info.get("default", self.dimensions),
+                "supported_dimensions": model_info.get("dimensions", []),
+                "supports_variable_dimensions": len(model_info.get("dimensions", [])) > 1,
+                "provider": "openai_compatible",
+            }
+        else:
+            return {
+                "model": self.model,
+                "dimensions": model_info or self.dimensions,
+                "supports_variable_dimensions": False,
+                "provider": "openai_compatible",
+            }

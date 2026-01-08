@@ -1,10 +1,4 @@
-"""
-Ollama Embedding Adapter
-=========================
-
-Adapter for Ollama local embeddings.
-No authentication required, runs on localhost.
-"""
+"""Ollama Embedding Adapter for local embeddings."""
 
 import httpx
 from typing import Dict, Any
@@ -16,23 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class OllamaEmbeddingAdapter(BaseEmbeddingAdapter):
-    """
-    Adapter for Ollama embeddings (local deployment).
     
-    Ollama runs locally without authentication.
-    
-    API format:
-        POST /api/embed
-        {
-            "model": "all-minilm",
-            "input": ["text1", "text2", ...],
-            "dimensions": 384  # optional
-        }
-    
-    Default URL: http://localhost:11434
-    """
-    
-    # Known Ollama embedding models with their dimensions
     MODELS_INFO = {
         "all-minilm": 384,
         "all-mpnet-base-v2": 768,
@@ -42,56 +20,86 @@ class OllamaEmbeddingAdapter(BaseEmbeddingAdapter):
     }
     
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
-        """
-        Generate embeddings using Ollama API.
-        
-        Args:
-            request: EmbeddingRequest with texts to embed
-            
-        Returns:
-            EmbeddingResponse with embeddings and metadata
-            
-        Raises:
-            httpx.HTTPError: If the API request fails
-        """
         payload = {
             "model": request.model or self.model,
             "input": request.texts,
         }
         
-        # Add dimensions if specified (supported in newer Ollama versions)
         if request.dimensions or self.dimensions:
             payload["dimensions"] = request.dimensions or self.dimensions
         
-        # Truncate parameter
         if request.truncate is not None:
             payload["truncate"] = request.truncate
         
-        # Keep alive parameter (keeps model loaded in memory)
-        # Format: duration string like "5m", "1h", or -1 to keep indefinitely
-        payload["keep_alive"] = "5m"  # Default: keep model for 5 minutes
+        payload["keep_alive"] = "5m"
         
         url = f"{self.base_url}/api/embed"
         
         logger.debug(f"Sending embedding request to {url} with {len(request.texts)} texts")
         
-        # Ollama doesn't require authentication
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+                response = await client.post(url, json=payload)
+                
+                if response.status_code == 404:
+                    try:
+                        health_check = await client.get(f"{self.base_url}/api/tags")
+                        if health_check.status_code == 200:
+                            available_models = [
+                                m.get("name", "") for m in health_check.json().get("models", [])
+                            ]
+                            raise ValueError(
+                                f"Model '{payload['model']}' not found in Ollama. "
+                                f"Available models: {', '.join(available_models[:10])}. "
+                                f"Download it with: ollama pull {payload['model']}"
+                            )
+                    except httpx.HTTPError:
+                        pass
+                    
+                    raise ValueError(
+                        f"Model '{payload['model']}' not found. "
+                        f"Download it with: ollama pull {payload['model']}"
+                    )
+                
+                response.raise_for_status()
+                data = response.json()
+        
+        except httpx.ConnectError as e:
+            raise ConnectionError(
+                f"Cannot connect to Ollama at {self.base_url}. "
+                f"Make sure Ollama is running. Start it with: ollama serve"
+            ) from e
+        
+        except httpx.TimeoutException as e:
+            raise TimeoutError(
+                f"Request to Ollama timed out after {self.request_timeout}s. "
+                f"The model might be too large or the server is overloaded."
+            ) from e
+        
+        except httpx.HTTPError as e:
+            logger.error(f"Ollama API error: {e}")
+            raise
         
         embeddings = data["embeddings"]
         
+        actual_dims = len(embeddings[0]) if embeddings else 0
+        expected_dims = request.dimensions or self.dimensions
+        
+        if expected_dims and actual_dims != expected_dims:
+            logger.warning(
+                f"Dimension mismatch: expected {expected_dims}, got {actual_dims}. "
+                f"Model '{payload['model']}' may not support custom dimensions."
+            )
+        
         logger.info(
             f"Successfully generated {len(embeddings)} embeddings "
-            f"(model: {data.get('model', self.model)}, dimensions: {len(embeddings[0])})"
+            f"(model: {data.get('model', self.model)}, dimensions: {actual_dims})"
         )
         
         return EmbeddingResponse(
             embeddings=embeddings,
             model=data.get("model", self.model),
-            dimensions=len(embeddings[0]),
+            dimensions=actual_dims,
             usage={
                 "prompt_eval_count": data.get("prompt_eval_count", 0),
                 "total_duration": data.get("total_duration", 0),
@@ -99,10 +107,10 @@ class OllamaEmbeddingAdapter(BaseEmbeddingAdapter):
         )
     
     def get_model_info(self) -> Dict[str, Any]:
-        """Return information about the configured model."""
         return {
             "model": self.model,
             "dimensions": self.MODELS_INFO.get(self.model, self.dimensions),
             "local": True,
+            "supports_variable_dimensions": False,
             "provider": "ollama",
         }

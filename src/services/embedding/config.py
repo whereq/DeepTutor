@@ -113,6 +113,7 @@ def get_embedding_config() -> EmbeddingConfig:
         "azure_openai": "AZURE",
         "huggingface": "HF",
         "ollama": "OLLAMA",
+        "lm_studio": "LM_STUDIO",
     }
     
     prefix = prefix_map.get(binding, "")
@@ -138,8 +139,8 @@ def get_embedding_config() -> EmbeddingConfig:
         )
 
     # Check if API key is required
-    # Local providers (Ollama, LM Studio, etc.) don't need API keys
-    providers_without_key = ["ollama", "lollms", "lm_studio"]
+    # Local providers (Ollama, LM Studio) don't need API keys
+    providers_without_key = ["ollama", "lm_studio"]
     requires_key = binding not in providers_without_key
 
     if requires_key and not api_key:
