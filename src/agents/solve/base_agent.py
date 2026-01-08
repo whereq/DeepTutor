@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from lightrag.llm.openai import openai_complete_if_cache
+
 
 from .utils.token_tracker import TokenTracker
 
@@ -20,6 +20,7 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from src.core.core import get_agent_params
+from src.core.llm_factory import llm_complete
 from src.core.logging import get_logger
 from src.core.prompt_manager import get_prompt_manager
 
@@ -61,6 +62,7 @@ class BaseAgent(ABC):
 
         # Get general LLM configuration
         self.llm_config = config.get("llm", {})
+        self.binding = self.llm_config.get("binding", "openai")
 
         # Agent status
         self.enabled = True
@@ -222,7 +224,10 @@ class BaseAgent(ABC):
             )
             kwargs["token_tracker"] = token_tracker_wrapper
 
-        response = await openai_complete_if_cache(**kwargs)
+        response = await llm_complete(
+            binding=self.binding,
+            **kwargs
+        )
 
         # If token_tracker exists but didn't get usage info from API, try using more precise method
         if self.token_tracker and token_tracker_wrapper and not token_tracker_wrapper.usage:
