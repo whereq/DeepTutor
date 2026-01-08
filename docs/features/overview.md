@@ -4,7 +4,9 @@
 
 ### 💬 User Interface Layer
 • **Intuitive Interaction**: Simple bidirectional query-response flow for intuitive interaction.  
-• **Structured Output**: Structured response generation that organizes complex information into actionable outputs.
+• **Structured Output**: Structured response generation that organizes complex information into actionable outputs.  
+• **Dark/Light Mode**: System-wide theme support with automatic system preference detection.  
+• **Collapsible Sidebar**: Compact navigation with icon-only mode for focused learning.
 
 ### 🤖 Intelligent Agent Modules
 • **Problem Solving & Assessment**: Step-by-step problem solving and custom assessment generation.  
@@ -13,7 +15,8 @@
 
 ### 🔧 Tool Integration Layer
 • **Information Retrieval**: RAG hybrid retrieval, real-time web search, and academic paper databases.  
-• **Processing & Analysis**: Python code execution, query item lookup, and PDF parsing for document analysis.
+• **Processing & Analysis**: Python code execution, query item lookup, and PDF parsing for document analysis.  
+• **Multi-Provider Support**: Flexible LLM providers (OpenAI, Anthropic, Ollama, etc.) and embedding adapters (OpenAI, Jina, Cohere, Ollama, etc.).
 
 ### 🧠 Knowledge & Memory Foundation
 • **Knowledge Graph**: Entity-relation mapping for semantic connections and knowledge discovery.  

@@ -97,21 +97,6 @@ git commit --no-verify -m "Emergency fix"
 - `test: for adding missing tests or correcting existing tests.`
 ---
 
-## 📢 Call for PRs
-
-We welcome contributions in the following areas! Check our current roadmap and pick something that interests you:
-
-### 🗺️ Current Roadmap
-
-| Priority | Area | Description |
-|----------|------|-------------|
-| 🔴 High | **Multi-modal Support** | Enhance support for images, tables, and diagrams in documents |
-| 🔴 High | **Performance Optimization** | Improve response speed and reduce latency |
-| 🟡 Medium | **New LLM Integrations** | Add support for more LLM providers and models |
-| 🟡 Medium | **UI/UX Improvements** | Enhance the chat interface and user experience |
-| 🟢 Low | **Documentation** | Improve docs, tutorials, and examples |
-| 🟢 Low | **Testing** | Increase test coverage and add integration tests |
-
 ### 💡 How to Get Started
 
 1. Check our [Issues](https://github.com/HKUDS/DeepTutor/issues) for tasks labeled `good first issue` or `help wanted`

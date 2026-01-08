@@ -282,7 +282,7 @@ if [ ! -f "/app/data/user/user_history.json" ]; then
     echo "   Initializing user data directories..."
     python -c "
 from pathlib import Path
-from src.core.setup import init_user_directories
+from src.services.setup import init_user_directories
 init_user_directories(Path('/app'))
 " 2>/dev/null || echo "   ⚠️ Directory initialization skipped (will be created on first use)"
 fi

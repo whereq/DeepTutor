@@ -236,11 +236,10 @@
 • **Memory System**: Session state management and citation tracking for contextual continuity.
 
 ## 📋 Todo
-
 > 🌟 Star to follow our future updates!
-- [-] Refactor RAG Module (see [Discussions](https://github.com/HKUDS/DeepTutor/discussions))
-- [ ] Deep-coding from idea generation
-- [ ] Personalized Interaction with Notebook
+- [ x ] Support More RAG Pipelines
+- [ x ] DataBase Robostness and Visualization
+- [   ] Personalized Interaction with Notebook
 
 ## 🚀 Getting Started
 

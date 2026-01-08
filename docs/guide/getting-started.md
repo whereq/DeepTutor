@@ -54,7 +54,15 @@ By default, the application uses:
 - **Backend (FastAPI)**: `8001`
 - **Frontend (Next.js)**: `3782`
 
-You can modify these ports in `config/main.yaml` by editing the `server.backend_port` and `server.frontend_port` values.
+You can modify these ports in your `.env` file:
+
+```bash
+BACKEND_PORT=8001
+FRONTEND_PORT=3782
+
+# For remote/LAN access, set your server's IP address:
+# NEXT_PUBLIC_API_BASE=http://192.168.1.100:8001
+```
 
 **LLM Configuration**: Agent settings for `temperature` and `max_tokens` are centralized in `config/agents.yaml`. Each module (guide, solve, research, question, ideagen, co_writer) has customizable parameters. See [Configuration](/guide/configuration) for details.
 

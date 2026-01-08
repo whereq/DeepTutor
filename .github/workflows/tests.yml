@@ -84,7 +84,9 @@ jobs:
 
       - name: Check core module imports
         run: |
-          python -c "from src.core.core import get_llm_config, load_config_with_main; print('✅ Core imports OK')"
+          python -c "from src.core import LLMFactory, llm_complete, sanitize_url; print('✅ Core imports OK')"
+          python -c "from src.services.llm.config import get_llm_config; print('✅ LLM config imports OK')"
+          python -c "from src.services.config.loader import load_config_with_main; print('✅ Config loader imports OK')"
           python -c "from src.knowledge.kb import KnowledgeBase; print('✅ Knowledge imports OK')"
           python -c "from src.tools.rag_tool import rag_search; print('✅ Tools imports OK')"
         env:
