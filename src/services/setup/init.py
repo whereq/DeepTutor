@@ -6,6 +6,7 @@ Combines user directory initialization and port configuration management.
 """
 
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -209,112 +210,48 @@ def init_user_directories(project_root: Path | None = None) -> None:
 
 
 # ============================================================================
-# Port Configuration Management (from port_config.py)
+# Port Configuration Management
 # ============================================================================
-
-
-def print_port_config_tutorial():
-    """Print tutorial for configuring ports"""
-    logger = _get_setup_logger()
-    logger.error("\n" + "=" * 80)
-    logger.error("PORT CONFIGURATION REQUIRED")
-    logger.error("=" * 80)
-    logger.error("")
-    logger.error("Please configure the server ports in config/main.yaml:")
-    logger.error("")
-    logger.error("Add the following section to config/main.yaml:")
-    logger.error("")
-    logger.error("  server:")
-    logger.error("    # Backend API server port (FastAPI/Uvicorn)")
-    logger.error("    backend_port: 8000")
-    logger.error("")
-    logger.error("    # Frontend development server port (Next.js)")
-    logger.error("    frontend_port: 3000")
-    logger.error("")
-    logger.error("Example:")
-    logger.error("  - Open config/main.yaml")
-    logger.error("  - Add the 'server' section with 'backend_port' and 'frontend_port'")
-    logger.error("  - Save the file and restart the application")
-    logger.error("")
-    logger.error("Note:")
-    logger.error("  - Backend port: Port for the FastAPI backend server (default: 8000)")
-    logger.error("  - Frontend port: Port for the Next.js frontend server (default: 3000)")
-    logger.error("  - Make sure the ports are not already in use by other applications")
-    logger.error("")
-    logger.error("=" * 80)
-    logger.error("")
+# Ports are configured via environment variables in .env file:
+#   BACKEND_PORT=8001   (default: 8001)
+#   FRONTEND_PORT=3782  (default: 3782)
+# ============================================================================
 
 
 def get_backend_port(project_root: Path | None = None) -> int:
     """
-    Get backend port from configuration.
-
-    Args:
-        project_root: Project root directory (if None, will try to detect)
+    Get backend port from environment variable.
+    
+    Configure in .env file: BACKEND_PORT=8001
 
     Returns:
-        Backend port number
-
-    Raises:
-        SystemExit: If port is not configured
+        Backend port number (default: 8001)
     """
-    if project_root is None:
-        project_root = Path(__file__).parent.parent.parent.parent
-
+    env_port = os.environ.get("BACKEND_PORT", "8001")
     try:
-        config = load_config_with_main(
-            "solve_config.yaml", project_root
-        )  # Use any config to get main.yaml
-
-        server_config = config.get("server", {})
-        backend_port = server_config.get("backend_port")
-
-        if backend_port is None:
-            print_port_config_tutorial()
-            sys.exit(1)
-
-        return int(backend_port)
-    except Exception as e:
+        return int(env_port)
+    except ValueError:
         logger = _get_setup_logger()
-        logger.error(f"\nError reading port configuration: {e}")
-        print_port_config_tutorial()
-        sys.exit(1)
+        logger.warning(f"Invalid BACKEND_PORT: {env_port}, using default 8001")
+        return 8001
 
 
 def get_frontend_port(project_root: Path | None = None) -> int:
     """
-    Get frontend port from configuration.
-
-    Args:
-        project_root: Project root directory (if None, will try to detect)
+    Get frontend port from environment variable.
+    
+    Configure in .env file: FRONTEND_PORT=3782
 
     Returns:
-        Frontend port number
-
-    Raises:
-        SystemExit: If port is not configured
+        Frontend port number (default: 3782)
     """
-    if project_root is None:
-        project_root = Path(__file__).parent.parent.parent.parent
-
+    env_port = os.environ.get("FRONTEND_PORT", "3782")
     try:
-        config = load_config_with_main(
-            "solve_config.yaml", project_root
-        )  # Use any config to get main.yaml
-
-        server_config = config.get("server", {})
-        frontend_port = server_config.get("frontend_port")
-
-        if frontend_port is None:
-            print_port_config_tutorial()
-            sys.exit(1)
-
-        return int(frontend_port)
-    except Exception as e:
+        return int(env_port)
+    except ValueError:
         logger = _get_setup_logger()
-        logger.error(f"\nError reading port configuration: {e}")
-        print_port_config_tutorial()
-        sys.exit(1)
+        logger.warning(f"Invalid FRONTEND_PORT: {env_port}, using default 3782")
+        return 3782
 
 
 def get_ports(project_root: Path | None = None) -> tuple[int, int]:
@@ -338,10 +275,9 @@ def get_ports(project_root: Path | None = None) -> tuple[int, int]:
 __all__ = [
     # User directory initialization
     "init_user_directories",
-    # Port configuration
+    # Port configuration (from .env)
     "get_backend_port",
     "get_frontend_port",
     "get_ports",
-    "print_port_config_tutorial",
 ]
 

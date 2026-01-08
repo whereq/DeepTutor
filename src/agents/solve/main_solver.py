@@ -142,7 +142,7 @@ class MainSolver:
 
         if not api_key:
             raise ValueError(
-                "API key not set. Provide api_key param or set LLM_BINDING_API_KEY in .env"
+                "API key not set. Provide api_key param or set LLM_API_KEY in .env"
             )
 
         self.api_key = api_key

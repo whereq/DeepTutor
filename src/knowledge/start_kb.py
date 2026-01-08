@@ -119,7 +119,7 @@ async def init_knowledge_base(args):
 
     if not api_key and not args.skip_processing:
         print("✗ Error: API Key not set")
-        print("Please set environment variable LLM_BINDING_API_KEY or use --api-key parameter\n")
+        print("Please set environment variable LLM_API_KEY or use --api-key parameter\n")
         return
 
     # Collect document files
@@ -185,7 +185,7 @@ def extract_items(args):
 
     if not api_key:
         print("✗ Error: API Key not set")
-        print("Please set environment variable LLM_BINDING_API_KEY or use --api-key parameter\n")
+        print("Please set environment variable LLM_API_KEY or use --api-key parameter\n")
         return
 
     # Build paths
@@ -285,7 +285,7 @@ async def refresh_knowledge_base(args):
 
     if not api_key:
         print("✗ Error: API Key not set")
-        print("Please set environment variable LLM_BINDING_API_KEY or use --api-key parameter\n")
+        print("Please set environment variable LLM_API_KEY or use --api-key parameter\n")
         return
 
     try:

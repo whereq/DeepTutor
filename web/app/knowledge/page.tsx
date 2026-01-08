@@ -569,7 +569,7 @@ export default function KnowledgePage() {
   }, []);
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in h-screen overflow-y-auto p-6">
       {/* Header */}
       <div className="flex justify-between items-end mb-8">
         <div>

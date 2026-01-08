@@ -169,37 +169,55 @@ async def websocket_ideagen(websocket: WebSocket):
             if record_ids:
                 records = [r for r in records if r.get("id") in record_ids]
             logger.info(f"Loaded {len(records)} records from notebook")
-        else:
+
+        # Check if we have either records or user_thoughts
+        if not records and not user_thoughts:
             await send_status(
-                websocket, IdeaGenStage.ERROR, "Missing notebook_id or records", task_id=task_id
+                websocket, IdeaGenStage.ERROR, "Please provide notebook records or describe your research topic", task_id=task_id
             )
             await websocket.close()
             return
 
-        if not records:
-            await send_status(websocket, IdeaGenStage.ERROR, "No records found", task_id=task_id)
-            await websocket.close()
-            return
-
         # ========== Stage 2: EXTRACTING ==========
-        await send_status(
-            websocket,
-            IdeaGenStage.EXTRACTING,
-            f"Extracting knowledge points from {len(records)} records...",
-            {"record_count": len(records)},
-            task_id=task_id,
-        )
+        # If we have records, extract knowledge points from them
+        # If only user_thoughts, create a virtual knowledge point from the text
+        if records:
+            await send_status(
+                websocket,
+                IdeaGenStage.EXTRACTING,
+                f"Extracting knowledge points from {len(records)} records...",
+                {"record_count": len(records)},
+                task_id=task_id,
+            )
 
-        organizer = MaterialOrganizerAgent(
-            api_key=llm_config.api_key,
-            base_url=llm_config.base_url,
-            model=llm_config.model,
-        )
+            organizer = MaterialOrganizerAgent(
+                api_key=llm_config.api_key,
+                base_url=llm_config.base_url,
+                model=llm_config.model,
+            )
 
-        knowledge_points = await organizer.process(
-            records, user_thoughts if user_thoughts else None
-        )
-        logger.info(f"Extracted {len(knowledge_points)} knowledge points")
+            knowledge_points = await organizer.process(
+                records, user_thoughts if user_thoughts else None
+            )
+            logger.info(f"Extracted {len(knowledge_points)} knowledge points")
+        else:
+            # Text-only mode: create virtual knowledge point from user_thoughts
+            await send_status(
+                websocket,
+                IdeaGenStage.EXTRACTING,
+                "Processing your research topic description...",
+                {"record_count": 0, "text_only_mode": True},
+                task_id=task_id,
+            )
+
+            # Create a virtual knowledge point from user_thoughts
+            knowledge_points = [
+                {
+                    "knowledge_point": "User Research Topic",
+                    "description": user_thoughts.strip(),
+                }
+            ]
+            logger.info("Created virtual knowledge point from user thoughts (text-only mode)")
 
         # ========== Stage 3: KNOWLEDGE_EXTRACTED ==========
         await send_status(

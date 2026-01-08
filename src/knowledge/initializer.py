@@ -633,9 +633,9 @@ Example usage:
         help="Base directory for knowledge bases (default: ./knowledge_bases)",
     )
     parser.add_argument(
-        "--api-key", default=os.getenv("LLM_BINDING_API_KEY"), help="OpenAI API key"
+        "--api-key", default=os.getenv("LLM_API_KEY"), help="OpenAI API key"
     )
-    parser.add_argument("--base-url", default=os.getenv("LLM_BINDING_HOST"), help="API base URL")
+    parser.add_argument("--base-url", default=os.getenv("LLM_HOST"), help="API base URL")
     parser.add_argument(
         "--skip-processing",
         action="store_true",
@@ -658,7 +658,7 @@ Example usage:
     # Check API key
     if not args.skip_processing and not args.api_key:
         logger.error("Error: OpenAI API key required")
-        logger.error("Set LLM_BINDING_API_KEY environment variable or use --api-key option")
+        logger.error("Set LLM_API_KEY environment variable or use --api-key option")
         return
 
     # Collect document files

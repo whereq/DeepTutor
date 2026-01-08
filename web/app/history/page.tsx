@@ -16,11 +16,13 @@ import {
   X,
   MessageSquare,
   Loader2,
+  Eye,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import { getTranslation } from "@/lib/i18n";
 import { useGlobal } from "@/context/GlobalContext";
 import ActivityDetail from "@/components/ActivityDetail";
+import ChatSessionDetail from "@/components/ChatSessionDetail";
 
 interface HistoryEntry {
   id: string;
@@ -78,6 +80,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
+  const [selectedChatSession, setSelectedChatSession] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -176,90 +179,94 @@ export default function HistoryPage() {
   const groupedEntries = groupEntriesByDate(filteredEntries);
 
   return (
-    <div className="animate-fade-in space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-3">
-            <History className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-            {t("History")}
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-2">
-            {t("All Activities")}
-          </p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder={`${t("Search")}...`}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+    <div className="h-screen flex flex-col animate-fade-in p-6">
+      {/* Header - Fixed */}
+      <div className="shrink-0 pb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-3">
+              <History className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              {t("History")}
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-2">
+              {t("All Activities")}
+            </p>
+          </div>
         </div>
 
-        {/* Type Filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-            {[
-              { value: "all", label: t("All") },
-              { value: "chat", label: t("Chat") },
-              { value: "solve", label: t("Solve") },
-              { value: "question", label: t("Question") },
-              { value: "research", label: t("Research") },
-            ].map((option) => (
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-4 mt-4">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder={`${t("Search")}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 dark:text-slate-100"
+            />
+            {searchQuery && (
               <button
-                key={option.value}
-                onClick={() => setFilterType(option.value)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  filterType === option.value
-                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                }`}
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                {option.label}
+                <X className="w-4 h-4" />
               </button>
-            ))}
+            )}
+          </div>
+
+          {/* Type Filter */}
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+              {[
+                { value: "all", label: t("All") },
+                { value: "chat", label: t("Chat") },
+                { value: "solve", label: t("Solve") },
+                { value: "question", label: t("Question") },
+                { value: "research", label: t("Research") },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setFilterType(option.value)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    filterType === option.value
+                      ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        {loading ? (
-          <div className="p-12 text-center text-slate-400 dark:text-slate-500">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            {t("Loading")}...
-          </div>
-        ) : filteredEntries.length === 0 && chatSessions.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-16 h-16 bg-slate-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <History className="w-8 h-8 text-slate-300 dark:text-slate-500" />
+      {/* Scrollable Content Area */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+        {/* Regular Activity History */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {loading ? (
+            <div className="p-12 text-center text-slate-400 dark:text-slate-500">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              {t("Loading")}...
             </div>
-            <p className="text-slate-500 dark:text-slate-400 font-medium">
-              {t("No history found")}
-            </p>
-            <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
-              {t("Your activities will appear here")}
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+          ) : filteredEntries.length === 0 && chatSessions.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="w-16 h-16 bg-slate-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                <History className="w-8 h-8 text-slate-300 dark:text-slate-500" />
+              </div>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">
+                {t("No history found")}
+              </p>
+              <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
+                {t("Your activities will appear here")}
+              </p>
+            </div>
+          ) : filteredEntries.length > 0 ? (
+            <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {Object.entries(groupedEntries).map(([dateKey, dateEntries]) => (
               <div key={dateKey}>
                 {/* Date Header */}
@@ -323,7 +330,7 @@ export default function HistoryPage() {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Chat Sessions Section */}
@@ -351,7 +358,8 @@ export default function HistoryPage() {
               .map((session) => (
                 <div
                   key={session.session_id}
-                  className="px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group"
+                  onClick={() => setSelectedChatSession(session.session_id)}
+                  className="px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer"
                 >
                   <div className="flex gap-4">
                     <div className="mt-0.5">
@@ -385,9 +393,22 @@ export default function HistoryPage() {
                         )}
                       </div>
                     </div>
-                    <div className="self-center">
+                    <div className="self-center flex items-center gap-2">
                       <button
-                        onClick={() => handleLoadChatSession(session.session_id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedChatSession(session.session_id);
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        {t("View")}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLoadChatSession(session.session_id);
+                        }}
                         disabled={loadingSessionId === session.session_id}
                         className="px-3 py-1.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                       >
@@ -405,12 +426,25 @@ export default function HistoryPage() {
           </div>
         </div>
       )}
+      </div>
 
       {/* Activity Detail Modal */}
       {selectedEntry && (
         <ActivityDetail
           activity={selectedEntry}
           onClose={() => setSelectedEntry(null)}
+        />
+      )}
+
+      {/* Chat Session Detail Modal */}
+      {selectedChatSession && (
+        <ChatSessionDetail
+          sessionId={selectedChatSession}
+          onClose={() => setSelectedChatSession(null)}
+          onContinue={() => {
+            handleLoadChatSession(selectedChatSession);
+            setSelectedChatSession(null);
+          }}
         />
       )}
     </div>

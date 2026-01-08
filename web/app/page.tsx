@@ -138,10 +138,10 @@ export default function HomePage() {
   const hasMessages = chatState.messages.length > 0;
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col animate-fade-in">
+    <div className="h-screen flex flex-col animate-fade-in">
       {/* Empty State / Welcome Screen */}
       {!hasMessages && (
-        <div className="flex-1 flex flex-col items-center justify-center px-4">
+        <div className="flex-1 flex flex-col items-center justify-center px-6">
           <div className="text-center max-w-2xl mx-auto mb-8">
             <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mb-3 tracking-tight">
               {t("Welcome to DeepTutor")}
@@ -276,7 +276,7 @@ export default function HomePage() {
       {hasMessages && (
         <>
           {/* Header Bar */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+          <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
             <div className="flex items-center gap-3">
               {/* Mode Toggles */}
               <button
@@ -343,7 +343,7 @@ export default function HomePage() {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
             {chatState.messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -450,7 +450,7 @@ export default function HomePage() {
           </div>
 
           {/* Input Area - Fixed at bottom */}
-          <div className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-4">
+          <div className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-4">
             <div className="max-w-4xl mx-auto relative">
               <input
                 ref={inputRef}

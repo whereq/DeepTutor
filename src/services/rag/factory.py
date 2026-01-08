@@ -5,7 +5,7 @@ Pipeline Factory
 Factory for creating and managing RAG pipelines.
 """
 
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from .pipeline import RAGPipeline
 from .pipelines.raganything import RAGAnythingPipeline
@@ -23,6 +23,7 @@ _PIPELINES: Dict[str, Callable] = {
 
 def get_pipeline(
     name: str = "raganything",
+    kb_base_dir: Optional[str] = None,
     **kwargs
 ) -> Union[RAGPipeline, RAGAnythingPipeline]:
     """
@@ -30,6 +31,7 @@ def get_pipeline(
     
     Args:
         name: Pipeline name (raganything, lightrag, llamaindex, academic)
+        kb_base_dir: Base directory for knowledge bases (passed to all pipelines)
         **kwargs: Additional arguments passed to pipeline constructor
         
     Returns:
@@ -44,12 +46,14 @@ def get_pipeline(
     
     factory = _PIPELINES[name]
     
-    # RAGAnythingPipeline takes kwargs, others are factory functions
+    # All pipelines now accept kb_base_dir
     if name == "raganything":
+        if kb_base_dir:
+            kwargs["kb_base_dir"] = kb_base_dir
         return factory(**kwargs) if kwargs else factory()
     else:
-        # Factory functions don't take kwargs
-        return factory()
+        # Component-based pipelines - pass kb_base_dir
+        return factory(kb_base_dir=kb_base_dir)
 
 
 def list_pipelines() -> List[Dict[str, str]]:

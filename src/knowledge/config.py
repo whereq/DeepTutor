@@ -36,8 +36,8 @@ def get_env_config():
     except Exception:
         # Compatibility fallback: directly read environment variables
         return {
-            "api_key": os.getenv("LLM_BINDING_API_KEY"),
-            "base_url": os.getenv("LLM_BINDING_HOST"),
+            "api_key": os.getenv("LLM_API_KEY"),
+            "base_url": os.getenv("LLM_HOST"),
         }
 
 

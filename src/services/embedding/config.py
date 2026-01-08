@@ -127,8 +127,8 @@ def get_embedding_config() -> EmbeddingConfig:
         return _strip_value(os.getenv(generic_name))
     
     model = get_with_fallback("EMBEDDING_MODEL", "EMBEDDING_MODEL")
-    api_key = get_with_fallback("EMBEDDING_API_KEY", "EMBEDDING_BINDING_API_KEY")
-    base_url = get_with_fallback("EMBEDDING_HOST", "EMBEDDING_BINDING_HOST")
+    api_key = get_with_fallback("EMBEDDING_API_KEY", "EMBEDDING_API_KEY")
+    base_url = get_with_fallback("EMBEDDING_HOST", "EMBEDDING_HOST")
     dim_str = get_with_fallback("EMBEDDING_DIM", "EMBEDDING_DIM")
     
     # Strict mode: Model is required
@@ -146,12 +146,12 @@ def get_embedding_config() -> EmbeddingConfig:
     if requires_key and not api_key:
         raise ValueError(
             f"Error: EMBEDDING_API_KEY not set for binding '{binding}'. "
-            f"Set either {prefix}_EMBEDDING_API_KEY or EMBEDDING_BINDING_API_KEY in .env file"
+            f"Set {prefix}_EMBEDDING_API_KEY or EMBEDDING_API_KEY in .env file"
         )
     if not base_url:
         raise ValueError(
             f"Error: EMBEDDING_HOST not set for binding '{binding}'. "
-            f"Set either {prefix}_EMBEDDING_HOST or EMBEDDING_BINDING_HOST in .env file"
+            f"Set {prefix}_EMBEDDING_HOST or EMBEDDING_HOST in .env file"
         )
 
     # Get optional configuration

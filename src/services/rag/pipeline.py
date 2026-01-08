@@ -6,11 +6,19 @@ Composable RAG pipeline with fluent API.
 """
 
 import asyncio
+import shutil
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.logging import get_logger
 from .types import Document, Chunk
 from .components.base import Component
+
+
+# Default knowledge base directory
+DEFAULT_KB_BASE_DIR = str(
+    Path(__file__).resolve().parent.parent.parent.parent / "data" / "knowledge_bases"
+)
 
 
 class RAGPipeline:
@@ -20,7 +28,7 @@ class RAGPipeline:
     Build custom RAG pipelines using a fluent API:
     
         pipeline = (
-            RAGPipeline("custom")
+            RAGPipeline("custom", kb_base_dir="/path/to/kb")
             .parser(PDFParser())
             .chunker(SemanticChunker())
             .embedder(OpenAIEmbedder())
@@ -32,14 +40,16 @@ class RAGPipeline:
         result = await pipeline.search("query", "kb_name")
     """
 
-    def __init__(self, name: str = "default"):
+    def __init__(self, name: str = "default", kb_base_dir: Optional[str] = None):
         """
         Initialize RAG pipeline.
         
         Args:
             name: Pipeline name for logging
+            kb_base_dir: Base directory for knowledge bases
         """
         self.name = name
+        self.kb_base_dir = kb_base_dir or DEFAULT_KB_BASE_DIR
         self.logger = get_logger(f"Pipeline:{name}")
         self._parser: Optional[Component] = None
         self._chunkers: List[Component] = []
@@ -150,6 +160,13 @@ class RAGPipeline:
             True if successful
         """
         self.logger.info(f"Deleting KB '{kb_name}'")
-        # Placeholder - actual deletion logic would depend on indexers
-        return True
+        
+        kb_dir = Path(self.kb_base_dir) / kb_name
+        if kb_dir.exists():
+            shutil.rmtree(kb_dir)
+            self.logger.info(f"Deleted KB directory: {kb_dir}")
+            return True
+        
+        self.logger.warning(f"KB directory not found: {kb_dir}")
+        return False
 

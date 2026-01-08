@@ -314,7 +314,7 @@ export default function ResearchPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] animate-fade-in flex gap-6">
+    <div className="h-screen animate-fade-in flex gap-4 p-4">
       {/* LEFT PANEL */}
       <div className="flex-[1_1_33%] min-w-[350px] max-w-[500px] flex flex-col gap-4 h-full">
         {/* Config Header */}

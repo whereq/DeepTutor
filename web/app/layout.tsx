@@ -32,7 +32,7 @@ export default function RootLayout({
           <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden transition-colors duration-200">
             <Sidebar />
             <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900">
-              <div className="w-full p-8">{children}</div>
+              {children}
             </main>
           </div>
         </GlobalProvider>

@@ -76,8 +76,8 @@ Create a `.env` file based on `.env.example`:
 # ============================================================================
 LLM_BINDING=openai                        # Options: openai, azure_openai, ollama
 LLM_MODEL=gpt-4o                          # e.g., gpt-4o, deepseek-chat, qwen-plus
-LLM_BINDING_HOST=https://api.openai.com/v1
-LLM_BINDING_API_KEY=your_api_key
+LLM_HOST=https://api.openai.com/v1
+LLM_API_KEY=your_api_key
 
 # ============================================================================
 # Embedding Model Configuration - Required for Knowledge Base
@@ -85,8 +85,8 @@ LLM_BINDING_API_KEY=your_api_key
 EMBEDDING_BINDING=openai
 EMBEDDING_MODEL=text-embedding-3-large    # e.g., text-embedding-3-large, text-embedding-3-small
 EMBEDDING_DIM=3072                        # Important !! Must match model dimensions
-EMBEDDING_BINDING_HOST=https://api.openai.com/v1
-EMBEDDING_BINDING_API_KEY=your_api_key
+EMBEDDING_HOST=https://api.openai.com/v1
+EMBEDDING_API_KEY=your_api_key
 
 # ============================================================================
 # Optional Features

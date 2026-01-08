@@ -5,47 +5,60 @@ RAG Service
 Unified RAG pipeline service for DeepTutor.
 
 Provides:
+- RAGService: Unified entry point for all RAG operations
 - Composable RAG pipelines
 - Pre-configured pipelines (RAGAnything, LightRAG, LlamaIndex, Academic)
 - Modular components (parsers, chunkers, embedders, indexers, retrievers)
 - Factory for pipeline creation
 
 Usage:
-    from src.services.rag import get_pipeline, RAGPipeline, RAGAnythingPipeline
+    # Recommended: Use RAGService for all operations
+    from src.services.rag import RAGService
 
-    # Get pre-configured pipeline
+    service = RAGService(provider="llamaindex")
+    await service.initialize("kb_name", ["doc1.txt", "doc2.txt"])
+    result = await service.search("query", "kb_name")
+
+    # Alternative: Use factory directly
+    from src.services.rag import get_pipeline
+
     pipeline = get_pipeline("raganything")
-    await pipeline.initialize("kb_name", ["doc1.pdf", "doc2.pdf"])
+    await pipeline.initialize("kb_name", ["doc1.pdf"])
     result = await pipeline.search("query", "kb_name")
 
     # Or build custom pipeline
-    from src.services.rag.components import PDFParser, SemanticChunker, GraphIndexer
+    from src.services.rag import RAGPipeline
+    from src.services.rag.components import TextParser, SemanticChunker
 
     custom = (
         RAGPipeline("custom")
-        .parser(PDFParser())
+        .parser(TextParser())
         .chunker(SemanticChunker())
-        .indexer(GraphIndexer())
     )
 """
 
-from .types import Document, Chunk
+from .types import Document, Chunk, SearchResult
 from .pipeline import RAGPipeline
-from .factory import get_pipeline, list_pipelines, register_pipeline
+from .factory import get_pipeline, list_pipelines, register_pipeline, has_pipeline
+from .service import RAGService
 
 # Import pipeline classes for convenience
 from .pipelines.raganything import RAGAnythingPipeline
 
 __all__ = [
+    # Service (recommended entry point)
+    "RAGService",
     # Types
     "Document",
     "Chunk",
+    "SearchResult",
     # Pipeline
     "RAGPipeline",
     # Factory
     "get_pipeline",
     "list_pipelines",
     "register_pipeline",
+    "has_pipeline",
     # Pipeline implementations
     "RAGAnythingPipeline",
 ]

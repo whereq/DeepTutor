@@ -144,7 +144,7 @@ export default function QuestionPage() {
   }, [questionState.step, totalQuestions]);
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col animate-fade-in overflow-hidden p-4">
+    <div className="h-screen flex flex-col animate-fade-in overflow-hidden p-4">
       {/* Main Panel */}
       <div className="flex-1 flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden min-h-0">
         {/* Header Row */}

@@ -97,9 +97,9 @@ class BaseAgent(ABC):
         self._agent_params = get_agent_params("question")
 
         if not api_key:
-            api_key = os.getenv("LLM_BINDING_API_KEY")
+            api_key = os.getenv("LLM_API_KEY")
         if not base_url:
-            base_url = os.getenv("LLM_BINDING_HOST")
+            base_url = os.getenv("LLM_HOST")
 
         if model is None:
             model = os.getenv("LLM_MODEL", "gpt-4o")

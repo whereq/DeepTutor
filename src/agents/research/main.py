@@ -133,8 +133,8 @@ Examples:
         print(f"✗ Error: {e}")
         print("Please configure in .env or DeepTutor.env file:")
         print("  LLM_MODEL=gpt-4o")
-        print("  LLM_BINDING_API_KEY=your_api_key_here")
-        print("  LLM_BINDING_HOST=https://api.openai.com/v1")
+        print("  LLM_API_KEY=your_api_key_here")
+        print("  LLM_HOST=https://api.openai.com/v1")
         sys.exit(1)
 
     # Load configuration

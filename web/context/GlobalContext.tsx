@@ -283,6 +283,13 @@ interface GlobalContextType {
   // UI Settings
   uiSettings: { theme: "light" | "dark"; language: "en" | "zh" };
   refreshSettings: () => Promise<void>;
+
+  // Sidebar
+  sidebarWidth: number;
+  setSidebarWidth: (width: number) => void;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebar: () => void;
 }
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
@@ -334,6 +341,53 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       refreshSettings();
     }
   }, [isInitialized]);
+
+  // --- Sidebar State ---
+  const SIDEBAR_MIN_WIDTH = 64;
+  const SIDEBAR_MAX_WIDTH = 320;
+  const SIDEBAR_DEFAULT_WIDTH = 256;
+  const SIDEBAR_COLLAPSED_WIDTH = 64;
+
+  const [sidebarWidth, setSidebarWidthState] = useState<number>(SIDEBAR_DEFAULT_WIDTH);
+  const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(false);
+
+  // Initialize sidebar state from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedWidth = localStorage.getItem("sidebarWidth");
+      const storedCollapsed = localStorage.getItem("sidebarCollapsed");
+      
+      if (storedWidth) {
+        const width = parseInt(storedWidth, 10);
+        if (!isNaN(width) && width >= SIDEBAR_MIN_WIDTH && width <= SIDEBAR_MAX_WIDTH) {
+          setSidebarWidthState(width);
+        }
+      }
+      
+      if (storedCollapsed) {
+        setSidebarCollapsedState(storedCollapsed === "true");
+      }
+    }
+  }, []);
+
+  const setSidebarWidth = (width: number) => {
+    const clampedWidth = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, width));
+    setSidebarWidthState(clampedWidth);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sidebarWidth", clampedWidth.toString());
+    }
+  };
+
+  const setSidebarCollapsed = (collapsed: boolean) => {
+    setSidebarCollapsedState(collapsed);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sidebarCollapsed", collapsed.toString());
+    }
+  };
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
 
   // --- Solver Logic ---
   const [solverState, setSolverState] = useState<SolverState>({
@@ -1387,6 +1441,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
     currentStage: null,
   });
   const chatWs = useRef<WebSocket | null>(null);
+  // Use ref to always have the latest sessionId in WebSocket callbacks (avoid closure issues)
+  const sessionIdRef = useRef<string | null>(null);
 
   const sendChatMessage = (message: string) => {
     if (!message.trim() || chatState.isLoading) return;
@@ -1419,7 +1475,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       ws.send(
         JSON.stringify({
           message,
-          session_id: chatState.sessionId,
+          // Use ref to get the latest sessionId (avoids closure capturing stale state)
+          session_id: sessionIdRef.current,
           history,
           kb_name: chatState.selectedKb,
           enable_rag: chatState.enableRag,
@@ -1432,7 +1489,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       const data = JSON.parse(event.data);
 
       if (data.type === "session") {
-        // Store session ID from backend
+        // Store session ID from backend - update both ref and state
+        sessionIdRef.current = data.session_id;
         setChatState((prev) => ({
           ...prev,
           sessionId: data.session_id,
@@ -1533,6 +1591,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearChatHistory = () => {
+    // Clear both ref and state
+    sessionIdRef.current = null;
     setChatState((prev) => ({
       ...prev,
       sessionId: null,
@@ -1547,7 +1607,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       chatWs.current.close();
       chatWs.current = null;
     }
-    // Reset to new session
+    // Reset to new session - clear both ref and state
+    sessionIdRef.current = null;
     setChatState((prev) => ({
       ...prev,
       sessionId: null,
@@ -1575,6 +1636,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
 
       // Restore session settings
       const settings = session.settings || {};
+
+      // Update ref with loaded session ID for continued conversation
+      sessionIdRef.current = session.session_id;
 
       setChatState((prev) => ({
         ...prev,
@@ -1617,6 +1681,11 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         newChatSession,
         uiSettings,
         refreshSettings,
+        sidebarWidth,
+        setSidebarWidth,
+        sidebarCollapsed,
+        setSidebarCollapsed,
+        toggleSidebar,
       }}
     >
       {children}

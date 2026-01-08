@@ -16,7 +16,7 @@
   &nbsp;&nbsp;
   <a href="./Communication.md"><img src="https://img.shields.io/badge/Feishu-Join_Group-00D4AA?style=for-the-badge&logo=feishu&logoColor=white" alt="Feishu"></a>
   &nbsp;&nbsp;
-  <a href="./Communication.md"><img src="https://img.shields.io/badge/WeChat-Join_Group-07C160?style=for-the-badge&logo=wechat&logoColor=white" alt="WeChat"></a>
+  <a href="https://github.com/HKUDS/DeepTutor/issues/78"><img src="https://img.shields.io/badge/WeChat-Join_Group-07C160?style=for-the-badge&logo=wechat&logoColor=white" alt="WeChat"></a>
 </p>
 
 
@@ -35,13 +35,26 @@
 </div>
 
 ---
-> **[2026.1.3]** Released DeepTutor [v0.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.3.0) - Any feedbacks are welcomed! ❤️
+### 📰 News
 
 > **[2026.1.1]** Join our [Discord Community](https://discord.gg/zpP9cssj) and [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
 
 > **[2025.12.30]** Visit our [Official Website](https://hkuds.github.io/DeepTutor/) for more details!
 
 > **[2025.12.29]** DeepTutor is now live! ✨
+
+### 📦 Releases
+
+> **[2026.1.3]** Release [v0.4.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.4.0) with new code structure, multiple llm & embeddings support - Thanks to all the contributors!
+<details>
+<summary>History releases</summary>
+
+> **[2026.1.5]** [v0.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.3.0) - Unified PromptManager architecture, CI/CD automation & pre-built Docker images on GHCR
+>
+> **[2026.1.2]** [v0.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.2.0) - Docker deployment, Next.js 16 & React 19 upgrade, WebSocket security & critical vulnerability fixes
+
+</details>
+
 ---
 
 ## Key Features of DeepTutor
@@ -253,23 +266,29 @@ cp .env.example .env
 | Variable | Required | Description |
 |:---|:---:|:---|
 | `LLM_MODEL` | **Yes** | Model name (e.g., `gpt-4o`) |
-| `LLM_BINDING_API_KEY` | **Yes** | Your LLM API key |
-| `LLM_BINDING_HOST` | **Yes** | API endpoint URL |
+| `LLM_API_KEY` | **Yes** | Your LLM API key |
+| `LLM_HOST` | **Yes** | API endpoint URL |
 | `EMBEDDING_MODEL` | **Yes** | Embedding model name |
-| `EMBEDDING_BINDING_API_KEY` | **Yes** | Embedding API key |
-| `EMBEDDING_BINDING_HOST` | **Yes** | Embedding API endpoint |
+| `EMBEDDING_API_KEY` | **Yes** | Embedding API key |
+| `EMBEDDING_HOST` | **Yes** | Embedding API endpoint |
 | `BACKEND_PORT` | No | Backend port (default: `8001`) |
 | `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
+| `NEXT_PUBLIC_API_BASE` | No | **Frontend API URL** - Set this for remote/LAN access (e.g., `http://192.168.1.100:8001`) |
 | `TTS_*` | No | Text-to-Speech settings |
 | `SEARCH_PROVIDER` | No | Search provider (options: `perplexity`, `baidu`, default: `perplexity`) |
 | `PERPLEXITY_API_KEY` | No | For Perplexity web search |
 | `BAIDU_API_KEY` | No | For Baidu AI search |
 
+> 💡 **Remote Access**: If accessing from another device (e.g., `192.168.31.66:3782`), add to `.env`:
+> ```bash
+> NEXT_PUBLIC_API_BASE=http://192.168.31.66:8001
+> ```
+
 </details>
 
 **③ Configure Ports & LLM** *(Optional)*
 
-- **Ports**: Edit `config/main.yaml` → `server.backend_port` / `server.frontend_port`
+- **Ports**: Set in `.env` file → `BACKEND_PORT` / `FRONTEND_PORT` (defaults: 8001/3782)
 - **LLM**: Edit `config/agents.yaml` → `temperature` / `max_tokens` per module
 - See [Configuration Docs](config/README.md) for details
 
@@ -310,51 +329,7 @@ cp .env.example .env
 **Prerequisites**: [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
 
 <details open>
-<summary><b>🚀 Option A: Pre-built Image (Fastest)</b></summary>
-
-```bash
-# Pull and run pre-built image (Linux/macOS)
-docker run -d --name deeptutor \
-  -p 8001:8001 -p 3782:3782 \
-  -e LLM_MODEL=gpt-4o \
-  -e LLM_BINDING_API_KEY=your-api-key \
-  -e LLM_BINDING_HOST=https://api.openai.com/v1 \
-  -e EMBEDDING_MODEL=text-embedding-3-large \
-  -e EMBEDDING_BINDING_API_KEY=your-api-key \
-  -e EMBEDDING_BINDING_HOST=https://api.openai.com/v1 \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/config:/app/config:ro \
-  ghcr.io/hkuds/deeptutor:latest
-
-# Windows PowerShell: use ${PWD} instead of $(pwd)
-docker run -d --name deeptutor `
-  -p 8001:8001 -p 3782:3782 `
-  -e LLM_MODEL=gpt-4o `
-  -e LLM_BINDING_API_KEY=your-api-key `
-  -e LLM_BINDING_HOST=https://api.openai.com/v1 `
-  -e EMBEDDING_MODEL=text-embedding-3-large `
-  -e EMBEDDING_BINDING_API_KEY=your-api-key `
-  -e EMBEDDING_BINDING_HOST=https://api.openai.com/v1 `
-  -v ${PWD}/data:/app/data `
-  -v ${PWD}/config:/app/config:ro `
-  ghcr.io/hkuds/deeptutor:latest
-```
-
-Or use with `.env` file:
-
-```bash
-docker run -d --name deeptutor \
-  -p 8001:8001 -p 3782:3782 \
-  --env-file .env \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/config:/app/config:ro \
-  ghcr.io/hkuds/deeptutor:latest
-```
-
-</details>
-
-<details>
-<summary><b>🔨 Option B: Build from Source</b></summary>
+<summary><b>🔨 Option A: Build from Source</b></summary>
 
 ```bash
 # Build and start (~5-10 min first run)
@@ -366,6 +341,81 @@ docker compose logs -f
 
 </details>
 
+<details>
+<summary><b>🚀 Option B: Pre-built Image (Fastest)</b></summary>
+
+**Choose the right image for your architecture:**
+
+| Architecture | Image Tag | Use Case |
+|:-------------|:----------|:---------|
+| **AMD64** | `ghcr.io/hkuds/deeptutor:latest` | Intel/AMD processors (most cloud servers, Windows/Linux PCs) |
+| **ARM64** | `ghcr.io/hkuds/deeptutor:latest-arm64` | Apple Silicon (M1/M2/M3/M4), ARM servers (AWS Graviton, Raspberry Pi) |
+
+```bash
+# For AMD64 (Intel/AMD) - Linux/macOS
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  -e LLM_MODEL=gpt-4o \
+  -e LLM_API_KEY=your-api-key \
+  -e LLM_HOST=https://api.openai.com/v1 \
+  -e EMBEDDING_MODEL=text-embedding-3-large \
+  -e EMBEDDING_API_KEY=your-api-key \
+  -e EMBEDDING_HOST=https://api.openai.com/v1 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+
+# For ARM64 (Apple Silicon M1/M2/M3/M4, ARM servers)
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  -e LLM_MODEL=gpt-4o \
+  -e LLM_API_KEY=your-api-key \
+  -e LLM_HOST=https://api.openai.com/v1 \
+  -e EMBEDDING_MODEL=text-embedding-3-large \
+  -e EMBEDDING_API_KEY=your-api-key \
+  -e EMBEDDING_HOST=https://api.openai.com/v1 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest-arm64
+
+# Windows PowerShell: use ${PWD} instead of $(pwd)
+docker run -d --name deeptutor `
+  -p 8001:8001 -p 3782:3782 `
+  -e LLM_MODEL=gpt-4o `
+  -e LLM_API_KEY=your-api-key `
+  -e LLM_HOST=https://api.openai.com/v1 `
+  -e EMBEDDING_MODEL=text-embedding-3-large `
+  -e EMBEDDING_API_KEY=your-api-key `
+  -e EMBEDDING_HOST=https://api.openai.com/v1 `
+  -v ${PWD}/data:/app/data `
+  -v ${PWD}/config:/app/config:ro `
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+Or use with `.env` file:
+
+```bash
+# AMD64
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest
+
+# ARM64 (Apple Silicon, ARM servers)
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  --env-file .env \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config:ro \
+  ghcr.io/hkuds/deeptutor:latest-arm64
+```
+
+> 💡 **Tip**: Not sure which architecture? Run `uname -m` in terminal. `x86_64` = AMD64, `arm64`/`aarch64` = ARM64
+
+</details>
+
 **Commands**:
 
 ```bash
@@ -373,10 +423,50 @@ docker compose up -d      # Start
 docker compose logs -f    # Logs
 docker compose down       # Stop
 docker compose up --build # Rebuild
-docker pull ghcr.io/hkuds/deeptutor:latest  # Update image
+
+# Update image (choose your architecture)
+docker pull ghcr.io/hkuds/deeptutor:latest        # AMD64
+docker pull ghcr.io/hkuds/deeptutor:latest-arm64  # ARM64
 ```
 
 > **Dev Mode**: Add `-f docker-compose.dev.yml`
+
+<details>
+<summary><b>☁️ Cloud Deployment Configuration</b></summary>
+
+For cloud/remote server deployment, you **must** configure the external API URL so the browser can connect to your backend:
+
+```bash
+# Set NEXT_PUBLIC_API_BASE_EXTERNAL to your server's public URL
+docker run -d --name deeptutor \
+  -p 8001:8001 -p 3782:3782 \
+  -e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001 \
+  -e LLM_MODEL=gpt-4o \
+  -e LLM_API_KEY=your-api-key \
+  ... other env vars ...
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+Or in `.env` file:
+```bash
+NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
+```
+
+**Custom Ports Example:**
+```bash
+# Using port 9001 for backend and 3000 for frontend
+docker run -d --name deeptutor \
+  -p 9001:9001 -p 3000:3000 \
+  -e BACKEND_PORT=9001 \
+  -e FRONTEND_PORT=3000 \
+  -e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:9001 \
+  ... other env vars ...
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+> ⚠️ **Important**: Without `NEXT_PUBLIC_API_BASE_EXTERNAL`, the frontend defaults to `localhost:8001`, which only works for local development.
+
+</details>
 
 </td>
 <td width="50%" valign="top">
@@ -1146,11 +1236,11 @@ asyncio.run(main())
 **Checklist**
 - Confirm Python version >= 3.10
 - Confirm all dependencies installed: `pip install -r requirements.txt`
-- Check if port 8001 is in use (configurable in `config/main.yaml`)
+- Check if port 8001 is in use
 - Check `.env` file configuration
 
 **Solutions**
-- **Change port**: Edit `config/main.yaml` server.backend_port
+- **Change port**: Set `BACKEND_PORT=9001` in `.env` file
 - **Check logs**: Review terminal error messages
 
 </details>
@@ -1229,6 +1319,62 @@ Create `.env.local` in `web` directory:
 ```bash
 NEXT_PUBLIC_API_BASE=http://localhost:8001
 ```
+
+</details>
+
+<details>
+<summary><b>Docker: Frontend cannot connect in cloud deployment?</b></summary>
+
+**Problem**
+
+When deploying to a cloud server, the frontend shows connection errors like "Failed to fetch" or "NEXT_PUBLIC_API_BASE is not configured".
+
+**Cause**
+
+The default API URL is `localhost:8001`, which points to the user's local machine in the browser, not your server.
+
+**Solution**
+
+Set the `NEXT_PUBLIC_API_BASE_EXTERNAL` environment variable to your server's public URL:
+
+```bash
+# Using docker run
+docker run -d --name deeptutor \
+  -e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001 \
+  ... other options ...
+  ghcr.io/hkuds/deeptutor:latest
+
+# Or in .env file
+NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
+```
+
+**Custom Port Example:**
+```bash
+# If using backend port 9001
+-e BACKEND_PORT=9001 \
+-e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:9001
+```
+
+</details>
+
+<details>
+<summary><b>Docker: How to use custom ports?</b></summary>
+
+**Solution**
+
+Set both the port environment variables AND the port mappings:
+
+```bash
+docker run -d --name deeptutor \
+  -p 9001:9001 -p 4000:4000 \
+  -e BACKEND_PORT=9001 \
+  -e FRONTEND_PORT=4000 \
+  -e NEXT_PUBLIC_API_BASE_EXTERNAL=http://localhost:9001 \
+  ... other env vars ...
+  ghcr.io/hkuds/deeptutor:latest
+```
+
+**Important**: The `-p` port mapping must match the `BACKEND_PORT`/`FRONTEND_PORT` values.
 
 </details>
 

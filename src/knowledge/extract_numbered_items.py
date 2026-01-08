@@ -897,13 +897,13 @@ def main():
     )
     parser.add_argument(
         "--api-key",
-        default=os.getenv("LLM_BINDING_API_KEY"),
-        help="OpenAI API key (default reads from LLM_BINDING_API_KEY)",
+        default=os.getenv("LLM_API_KEY"),
+        help="OpenAI API key (default reads from LLM_API_KEY)",
     )
     parser.add_argument(
         "--base-url",
-        default=os.getenv("LLM_BINDING_HOST"),
-        help="OpenAI API Base URL (default reads from LLM_BINDING_HOST)",
+        default=os.getenv("LLM_HOST"),
+        help="OpenAI API Base URL (default reads from LLM_HOST)",
     )
 
     args = parser.parse_args()
@@ -915,7 +915,7 @@ def main():
     # Validate API key
     if not api_key:
         raise SystemExit(
-            "Missing API Key: Please set environment variable LLM_BINDING_API_KEY or pass via --api-key"
+            "Missing API Key: Please set environment variable LLM_API_KEY or pass via --api-key"
         )
 
     # Build paths

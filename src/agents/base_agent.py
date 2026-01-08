@@ -101,8 +101,8 @@ class BaseAgent(ABC):
             self.model = model or env_llm.model
         except ValueError:
             # Fallback if env config not available
-            self.api_key = api_key or os.getenv("LLM_BINDING_API_KEY")
-            self.base_url = base_url or os.getenv("LLM_BINDING_HOST")
+            self.api_key = api_key or os.getenv("LLM_API_KEY")
+            self.base_url = base_url or os.getenv("LLM_HOST")
             self.model = model or os.getenv("LLM_MODEL", "gpt-4o")
 
         # Get Agent-specific configuration (if config provided)

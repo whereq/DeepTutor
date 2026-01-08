@@ -52,7 +52,8 @@ class VectorIndexer(BaseComponent):
         all_chunks = []
         for doc in documents:
             for chunk in doc.chunks:
-                if chunk.embedding:
+                # Check if embedding exists (handles numpy arrays and lists)
+                if chunk.embedding is not None and len(chunk.embedding) > 0:
                     all_chunks.append(chunk)
         
         if not all_chunks:

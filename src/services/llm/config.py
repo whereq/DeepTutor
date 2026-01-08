@@ -72,8 +72,8 @@ def get_llm_config() -> LLMConfig:
     # 2. Fallback to environment variables
     binding = _strip_value(os.getenv("LLM_BINDING", "openai"))
     model = _strip_value(os.getenv("LLM_MODEL"))
-    api_key = _strip_value(os.getenv("LLM_BINDING_API_KEY"))
-    base_url = _strip_value(os.getenv("LLM_BINDING_HOST"))
+    api_key = _strip_value(os.getenv("LLM_API_KEY"))
+    base_url = _strip_value(os.getenv("LLM_HOST"))
 
     # Validate required configuration
     if not model:
@@ -86,11 +86,11 @@ def get_llm_config() -> LLMConfig:
 
     if requires_key and not api_key:
         raise ValueError(
-            "Error: LLM_BINDING_API_KEY not set, please configure it in .env file or activate a provider"
+            "Error: LLM_API_KEY not set, please configure it in .env file or activate a provider"
         )
     if not base_url:
         raise ValueError(
-            "Error: LLM_BINDING_HOST not set, please configure it in .env file or activate a provider"
+            "Error: LLM_HOST not set, please configure it in .env file or activate a provider"
         )
 
     return LLMConfig(

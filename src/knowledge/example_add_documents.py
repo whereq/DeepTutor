@@ -27,8 +27,8 @@ async def example_add_single_document():
     adder = DocumentAdder(
         kb_name="ai_textbook",
         base_dir="./data/knowledge_bases",
-        api_key=os.getenv("LLM_BINDING_API_KEY"),
-        base_url=os.getenv("LLM_BINDING_HOST"),
+        api_key=os.getenv("LLM_API_KEY"),
+        base_url=os.getenv("LLM_HOST"),
     )
 
     # Add documents
@@ -59,8 +59,8 @@ async def example_add_multiple_documents():
     adder = DocumentAdder(
         kb_name="math2211",
         base_dir="./data/knowledge_bases",
-        api_key=os.getenv("LLM_BINDING_API_KEY"),
-        base_url=os.getenv("LLM_BINDING_HOST"),
+        api_key=os.getenv("LLM_API_KEY"),
+        base_url=os.getenv("LLM_HOST"),
     )
 
     # Add multiple documents
@@ -98,8 +98,8 @@ async def example_add_from_directory():
     adder = DocumentAdder(
         kb_name="ai_textbook",
         base_dir="./data/knowledge_bases",
-        api_key=os.getenv("LLM_BINDING_API_KEY"),
-        base_url=os.getenv("LLM_BINDING_HOST"),
+        api_key=os.getenv("LLM_API_KEY"),
+        base_url=os.getenv("LLM_HOST"),
     )
 
     # Collect all documents in directory
@@ -136,8 +136,8 @@ async def example_add_only_no_processing():
     adder = DocumentAdder(
         kb_name="ai_textbook",
         base_dir="./data/knowledge_bases",
-        api_key=os.getenv("LLM_BINDING_API_KEY"),
-        base_url=os.getenv("LLM_BINDING_HOST"),
+        api_key=os.getenv("LLM_API_KEY"),
+        base_url=os.getenv("LLM_HOST"),
     )
 
     # Only add files to raw directory
@@ -175,8 +175,8 @@ def example_with_error_handling():
         adder = DocumentAdder(
             kb_name="ai_textbook",
             base_dir="./data/knowledge_bases",
-            api_key=os.getenv("LLM_BINDING_API_KEY"),
-            base_url=os.getenv("LLM_BINDING_HOST"),
+            api_key=os.getenv("LLM_API_KEY"),
+            base_url=os.getenv("LLM_HOST"),
         )
 
         # Check if file exists
