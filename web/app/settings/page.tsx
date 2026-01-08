@@ -153,7 +153,14 @@ export default function SettingsPage() {
   interface ProviderPreset {
     id: string;
     name: string;
-    binding: "openai" | "azure_openai" | "ollama";
+    binding:
+    | "openai"
+    | "azure_openai"
+    | "ollama"
+    | "anthropic"
+    | "gemini"
+    | "groq"
+    | "openrouter";
     base_url?: string;
     default_model: string;
     models: string[];
@@ -164,19 +171,87 @@ export default function SettingsPage() {
   const PROVIDER_PRESETS: ProviderPreset[] = [
     {
       id: "ollama",
-      name: "Ollama (Local)",
-      binding: "ollama",
+      name: "Ollama (Local / Cloud)",
+      binding: "openai",
       base_url: "http://localhost:11434/v1",
       default_model: "llama3.2",
+      models: ["llama3.2", "llama3.3", "qwen2.5", "mistral-nemo", "deepseek-r1", "kimi-k2-thinking", "qwen3-next:80b"],
+      requires_key: true,
+      help_text: "Uses the OpenAI-compatible protocol. For Local: http://localhost:11434/v1. For Cloud: https://ollama.com/v1.",
+    },
+    {
+      id: "openai",
+      name: "OpenAI",
+      binding: "openai",
+      base_url: "https://api.openai.com/v1",
+      default_model: "gpt-4o",
+      models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-preview"],
+      requires_key: true,
+      help_text: "Requires an OpenAI API Key.",
+    },
+    {
+      id: "anthropic",
+      name: "Anthropic (Claude)",
+      binding: "anthropic",
+      base_url: "https://api.anthropic.com/v1/messages",
+      default_model: "claude-3-5-sonnet-latest",
       models: [
-        "llama3.3",
-        "llama3.2",
-        "qwen2.5",
-        "mistral-nemo",
-        "deepseek-r1",
+        "claude-3-5-sonnet-latest",
+        "claude-3-5-haiku-latest",
+        "claude-3-opus-latest",
       ],
-      requires_key: false,
-      help_text: "Ensure Ollama is running (`ollama serve`).",
+      requires_key: true,
+      help_text: "Anthropic uses its own custom protocol (Native Binding).",
+    },
+    {
+      id: "gemini",
+      name: "Google Gemini",
+      binding: "openai",
+      base_url: "https://generativelanguage.googleapis.com/v1beta/openai",
+      default_model: "gemini-1.5-pro",
+      models: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"],
+      requires_key: true,
+      help_text: "Google Gemini uses the OpenAI-compatible framework.",
+    },
+    {
+      id: "openrouter",
+      name: "OpenRouter",
+      binding: "openai",
+      base_url: "https://openrouter.ai/api/v1",
+      default_model: "anthropic/claude-3.5-sonnet",
+      models: [
+        "anthropic/claude-3.5-sonnet",
+        "google/gemini-2.0-flash-thinking-exp:free",
+        "deepseek/deepseek-chat",
+      ],
+      requires_key: true,
+      help_text: "OpenRouter uses the OpenAI-compatible framework to access any model.",
+    },
+    {
+      id: "deepseek",
+      name: "DeepSeek",
+      binding: "openai",
+      base_url: "https://api.deepseek.com",
+      default_model: "deepseek-chat",
+      models: ["deepseek-chat", "deepseek-reasoner"],
+      requires_key: true,
+      help_text: "DeepSeek uses the OpenAI-compatible framework.",
+    },
+    {
+      id: "groq",
+      name: "Groq",
+      binding: "openai",
+      base_url: "https://api.groq.com/openai/v1",
+      default_model: "llama-3.3-70b-versatile",
+      models: [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-70b-versatile",
+        "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it"
+      ],
+      requires_key: true,
+      help_text: "Groq uses the OpenAI-compatible framework for ultra-fast inference.",
     },
     {
       id: "lmstudio",
@@ -186,7 +261,7 @@ export default function SettingsPage() {
       default_model: "uploaded-model",
       models: [],
       requires_key: false,
-      help_text: "Ensure LM Studio is running. Standard port is 1234.",
+      help_text: "LM Studio uses the OpenAI-compatible framework locally. Standard port: 1234.",
     },
   ];
 
@@ -252,7 +327,7 @@ export default function SettingsPage() {
   const fetchProviders = async () => {
     setLoadingProviders(true);
     try {
-      const res = await fetch(apiUrl("/api/v1/config/llm"));
+      const res = await fetch(apiUrl("/api/v1/config/llm/"));
       if (res.ok) {
         const data = await res.json();
         setProviders(data);
@@ -269,107 +344,39 @@ export default function SettingsPage() {
     setFetchingModels(true);
     setFetchedModels([]);
 
-    // Determine endpoints to try based on provider/URL
-    // We try multiple strategies if one fails
-    let errorMsg = "";
-
     try {
-      let models: string[] = [];
-      let success = false;
+      const preset = PROVIDER_PRESETS.find((p) => p.id === selectedPresetId);
+      const requiresKey = preset ? preset.requires_key : true;
 
-      const headers = editingProvider.api_key
-        ? {
-            Authorization: `Bearer ${editingProvider.api_key}`,
-          }
-        : undefined;
+      const res = await fetch(apiUrl("/api/v1/config/llm/models/"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...editingProvider, requires_key: requiresKey }),
+      });
 
-      // Strategy 1: Ollama /api/tags
-      if (
-        !success &&
-        (editingProvider.base_url.includes("11434") ||
-          selectedPresetId === "ollama")
-      ) {
-        try {
-          // Remove /v1 if present for the tags endpoint
-          const baseUrl = editingProvider.base_url.replace(/\/v1\/?$/, "");
-          const res = await fetch(`${baseUrl}/api/tags`, { headers });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.models)) {
-              models = data.models.map((m: any) => m.name);
-              success = true;
-            }
-          }
-        } catch (e) {
-          console.warn("Ollama fetch failed", e);
-        }
-      }
-
-      // Strategy 2: LM Studio /api/v0/models (user requested specific format)
-      if (
-        !success &&
-        (editingProvider.base_url.includes("1234") ||
-          selectedPresetId === "lmstudio")
-      ) {
-        try {
-          const baseUrl = editingProvider.base_url.replace(/\/v1\/?$/, "");
-          const res = await fetch(`${baseUrl}/api/v0/models`, { headers });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.data)) {
-              models = data.data.map((m: any) => m.id);
-              success = true;
-            }
-          }
-        } catch (e) {
-          console.warn("LM Studio v0 fetch failed", e);
-        }
-      }
-
-      // Strategy 3: Standard OpenAI /models
-      if (!success) {
-        try {
-          let url = editingProvider.base_url;
-          if (url.endsWith("/")) url = url.slice(0, -1);
-          // Don't append /models if it's already there (rare but possible)
-          if (!url.endsWith("/models")) url = `${url}/models`;
-
-          const res = await fetch(url, { headers });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.data)) {
-              models = data.data.map((m: any) => m.id || m.model || m.name);
-              success = true;
-            } else if (Array.isArray(data.models)) {
-              models = data.models.map((m: any) => m.id || m.model || m.name);
-              success = true;
-            }
-          } else {
-            errorMsg = `HTTP ${res.status}`;
-          }
-        } catch (e) {
-          errorMsg = (e as any).message;
-        }
-      }
-
-      if (success && models.length > 0) {
-        setFetchedModels(models);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.models) && data.models.length > 0) {
+        setFetchedModels(data.models);
         setCustomModelInput(false);
       } else {
         // Fallback to preset models if available
-        const preset = PROVIDER_PRESETS.find((p) => p.id === selectedPresetId);
         if (preset && preset.models.length > 0) {
           setFetchedModels(preset.models);
-          alert(
-            `Could not fetch models from API (${errorMsg}), used preset defaults.`,
-          );
+          if (!data.success) {
+            console.warn("Backend model fetch failed, using presets:", data.message);
+          }
         } else {
-          alert(`No models found. Error: ${errorMsg || "Unknown"}`);
+          alert(`No models found. ${data.message || ""}`);
         }
       }
     } catch (err) {
       console.error(err);
-      alert("Failed to fetch models: " + (err as any).message);
+      const preset = PROVIDER_PRESETS.find((p) => p.id === selectedPresetId);
+      if (preset && preset.models.length > 0) {
+        setFetchedModels(preset.models);
+      } else {
+        alert("Failed to connect to backend for model fetching.");
+      }
     } finally {
       setFetchingModels(false);
     }
@@ -379,11 +386,58 @@ export default function SettingsPage() {
     setSavingProvider(true);
     setProviderError(null);
     try {
-      const isUpdate = originalProviderName !== null;
+      // 1. Validate model exists at the provider (optional)
+      setProviderError("Validating model...");
+
+      const preset = PROVIDER_PRESETS.find((p) => p.id === selectedPresetId);
+      const requiresKey = preset ? preset.requires_key : true;
+
+      let isModelValid = false;
+      try {
+        const modelCheckRes = await fetch(apiUrl("/api/v1/config/llm/models/"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...provider, requires_key: requiresKey }),
+        });
+
+        const modelData = await modelCheckRes.json();
+        if (modelData.success && Array.isArray(modelData.models)) {
+          const normalizeModel = (m: string) => m.split(":")[0].toLowerCase();
+          const enteredModel = provider.model;
+          const normalizedEntered = normalizeModel(enteredModel);
+
+          const isMatch = modelData.models.some((m: string) =>
+            m === enteredModel || normalizeModel(m) === normalizedEntered
+          );
+
+          if (!isMatch) {
+            const availableModels = modelData.models.slice(0, 5).join(", ");
+            const warning = `Model "${enteredModel}" not found at provider. Available: ${availableModels}${modelData.models.length > 5 ? "..." : ""}. Continue anyway?`;
+            if (!confirm(warning)) {
+              setSavingProvider(false);
+              setProviderError(null);
+              return;
+            }
+          } else {
+            isModelValid = true;
+          }
+        } else {
+          // Model fetch failed but proceed with save
+          console.warn("Model validation failed:", modelData.message);
+        }
+      } catch (validationErr) {
+        console.warn("Model validation error:", validationErr);
+        // Continue with save even if validation fails
+      }
+
+      setProviderError(isModelValid ? "Model verified. Saving..." : "Saving...");
+
+      // 2. Proceed with save
+      const isUpdate = originalProviderName !== null && originalProviderName !== "";
       const method = isUpdate ? "PUT" : "POST";
       const url = isUpdate
-        ? apiUrl(`/api/v1/config/llm/${originalProviderName}`)
-        : apiUrl("/api/v1/config/llm");
+        ? apiUrl(`/api/v1/config/llm/${encodeURIComponent(originalProviderName!)}`)
+        : apiUrl("/api/v1/config/llm/");
 
       const res = await fetch(url, {
         method,
@@ -395,13 +449,14 @@ export default function SettingsPage() {
         fetchProviders();
         setShowProviderForm(false);
         setEditingProvider(null);
+        setOriginalProviderName(null);
       } else {
         const err = await res.json();
         setProviderError(err.detail || "Failed to save provider");
       }
     } catch (err) {
       console.error(err);
-      setProviderError("Failed to save provider: " + (err as any).message);
+      setProviderError("An error occurred: " + (err as any).message);
     } finally {
       setSavingProvider(false);
     }
@@ -410,18 +465,32 @@ export default function SettingsPage() {
   const handleDeleteProvider = async (name: string) => {
     if (!confirm(`Delete provider ${name}?`)) return;
     try {
-      const res = await fetch(apiUrl(`/api/v1/config/llm/${name}`), {
+      let url;
+      if (!name) {
+        // Handle empty name using query param endpoint
+        url = apiUrl("/api/v1/config/llm/?name=");
+      } else {
+        url = apiUrl(`/api/v1/config/llm/${encodeURIComponent(name)}`);
+      }
+
+      const res = await fetch(url, {
         method: "DELETE",
       });
-      if (res.ok) fetchProviders();
+      if (res.ok) {
+        fetchProviders();
+      } else {
+        const err = await res.json();
+        alert(`Failed to delete provider: ${err.detail || res.statusText}`);
+      }
     } catch (err) {
       console.error(err);
+      alert("Failed to delete provider: " + (err as any).message);
     }
   };
 
   const handleActivateProvider = async (name: string) => {
     try {
-      const res = await fetch(apiUrl("/api/v1/config/llm/active"), {
+      const res = await fetch(apiUrl("/api/v1/config/llm/active/"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -440,7 +509,7 @@ export default function SettingsPage() {
       const preset = PROVIDER_PRESETS.find((p) => p.id === selectedPresetId);
       const requiresKey = preset ? preset.requires_key : true;
 
-      const res = await fetch(apiUrl("/api/v1/config/llm/test"), {
+      const res = await fetch(apiUrl("/api/v1/config/llm/test/"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...provider, requires_key: requiresKey }),
@@ -456,7 +525,7 @@ export default function SettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch(apiUrl("/api/v1/settings"));
+      const res = await fetch(apiUrl("/api/v1/settings/"));
       if (res.ok) {
         const responseData = await res.json();
         setData(responseData);
@@ -486,7 +555,7 @@ export default function SettingsPage() {
 
   const fetchEnvConfig = async () => {
     try {
-      const res = await fetch(apiUrl("/api/v1/settings/env"));
+      const res = await fetch(apiUrl("/api/v1/settings/env/"));
       if (res.ok) {
         const responseData: EnvConfigResponse = await res.json();
         setEnvConfig(responseData);
@@ -531,7 +600,7 @@ export default function SettingsPage() {
         })
         .map(([key, value]) => ({ key, value }));
 
-      const res = await fetch(apiUrl("/api/v1/settings/env"), {
+      const res = await fetch(apiUrl("/api/v1/settings/env/"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ variables: updates }),
@@ -559,7 +628,7 @@ export default function SettingsPage() {
   const testEnvConfig = async () => {
     setTesting(true);
     try {
-      const res = await fetch(apiUrl("/api/v1/settings/env/test"), {
+      const res = await fetch(apiUrl("/api/v1/settings/env/test/"), {
         method: "POST",
       });
       if (res.ok) {
@@ -615,6 +684,39 @@ export default function SettingsPage() {
     setError("");
 
     try {
+      // 1. Save Environment Variables if they exist
+      if (Object.keys(editedEnvVars).length > 0) {
+        const envUpdates = Object.entries(editedEnvVars)
+          .filter(([key, value]) => {
+            const original = envConfig?.variables.find((v) => v.key === key);
+            // Don't send masked values back if they haven't changed
+            if (
+              original?.sensitive &&
+              value.includes("*") &&
+              value === original.value
+            ) {
+              return false;
+            }
+            return true;
+          })
+          .map(([key, value]) => ({ key, value }));
+
+        if (envUpdates.length > 0) {
+          const envRes = await fetch(apiUrl("/api/v1/settings/env/"), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ variables: envUpdates }),
+          });
+          if (!envRes.ok) {
+            const errorData = await envRes.json();
+            throw new Error(errorData.detail?.errors?.join(", ") || "Failed to save environment variables");
+          }
+          // Reload env config immediately to get updated state (including persistence)
+          await fetchEnvConfig();
+        }
+      }
+
+      // 2. Save Config
       const configRes = await fetch(apiUrl("/api/v1/settings/config"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -623,6 +725,7 @@ export default function SettingsPage() {
 
       if (!configRes.ok) throw new Error("Failed to save configuration");
 
+      // 3. Save UI Settings
       const uiRes = await fetch(apiUrl("/api/v1/settings/ui"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -718,13 +821,12 @@ export default function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className={`py-2 px-6 rounded-lg font-medium flex items-center gap-2 transition-all ${
-              saving
-                ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
-                : saveSuccess
-                  ? "bg-green-500 text-white"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
-            }`}
+            className={`py-2 px-6 rounded-lg font-medium flex items-center gap-2 transition-all ${saving
+              ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
+              : saveSuccess
+                ? "bg-green-500 text-white"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -762,48 +864,44 @@ export default function SettingsPage() {
         <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
           <button
             onClick={() => setActiveTab("general")}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "general"
-                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === "general"
+              ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
           >
             <Sliders className="w-4 h-4" />
             {t("General Settings")}
           </button>
           <button
             onClick={() => setActiveTab("environment")}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "environment"
-                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === "environment"
+              ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
           >
             <Key className="w-4 h-4" />
             {t("Environment Variables")}
             {testResults && (
               <span
-                className={`ml-1 w-2 h-2 rounded-full ${
-                  Object.values(testResults).every(
-                    (r) => r.status === "configured",
+                className={`ml-1 w-2 h-2 rounded-full ${Object.values(testResults).every(
+                  (r) => r.status === "configured",
+                )
+                  ? "bg-green-500"
+                  : Object.values(testResults).some(
+                    (r) => r.status === "error",
                   )
-                    ? "bg-green-500"
-                    : Object.values(testResults).some(
-                          (r) => r.status === "error",
-                        )
-                      ? "bg-red-500"
-                      : "bg-amber-500"
-                }`}
+                    ? "bg-red-500"
+                    : "bg-amber-500"
+                  }`}
               />
             )}
           </button>
           <button
             onClick={() => setActiveTab("llm_providers")}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "llm_providers"
-                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === "llm_providers"
+              ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
           >
             <Brain className="w-4 h-4" />
             LLM Providers
@@ -841,11 +939,10 @@ export default function SettingsPage() {
                         onClick={() =>
                           handleUIChange("theme", themeOption as any)
                         }
-                        className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${
-                          editedUI.theme === themeOption
-                            ? "bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                        }`}
+                        className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${editedUI.theme === themeOption
+                          ? "bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm"
+                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
                       >
                         {themeOption === "light" ? (
                           <Sun className="w-4 h-4" />
@@ -1148,13 +1245,12 @@ export default function SettingsPage() {
                     {Object.entries(testResults).map(([key, result]) => (
                       <div
                         key={key}
-                        className={`p-4 rounded-xl border ${
-                          result.status === "configured"
-                            ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                            : result.status === "not_configured"
-                              ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
-                              : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-                        }`}
+                        className={`p-4 rounded-xl border ${result.status === "configured"
+                          ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                          : result.status === "not_configured"
+                            ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                            : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                          }`}
                       >
                         <div className="flex items-center gap-2 mb-2">
                           {getStatusIcon(result.status)}
@@ -1264,13 +1360,12 @@ export default function SettingsPage() {
               <button
                 onClick={handleEnvSave}
                 disabled={envSaving}
-                className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all ${
-                  envSaving
-                    ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
-                    : envSaveSuccess
-                      ? "bg-green-500 text-white shadow-xl shadow-green-500/30 scale-[1.02]"
-                      : "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-1"
-                }`}
+                className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all ${envSaving
+                  ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"
+                  : envSaveSuccess
+                    ? "bg-green-500 text-white shadow-xl shadow-green-500/30 scale-[1.02]"
+                    : "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-1"
+                  }`}
               >
                 {envSaving ? (
                   <Loader2 className="w-6 h-6 animate-spin" />
@@ -1481,14 +1576,14 @@ export default function SettingsPage() {
                       </select>
                       {PROVIDER_PRESETS.find((p) => p.id === selectedPresetId)
                         ?.help_text && (
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {
-                            PROVIDER_PRESETS.find(
-                              (p) => p.id === selectedPresetId,
-                            )?.help_text
-                          }
-                        </p>
-                      )}
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {
+                              PROVIDER_PRESETS.find(
+                                (p) => p.id === selectedPresetId,
+                              )?.help_text
+                            }
+                          </p>
+                        )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1547,51 +1642,51 @@ export default function SettingsPage() {
 
                     {PROVIDER_PRESETS.find((p) => p.id === selectedPresetId)
                       ?.requires_key !== false && (
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          API Key
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="password"
-                            value={editingProvider.api_key}
-                            onChange={(e) =>
-                              setEditingProvider((prev) =>
-                                prev
-                                  ? { ...prev, api_key: e.target.value }
-                                  : null,
-                              )
-                            }
-                            placeholder="sk-..."
-                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg font-mono text-sm"
-                          />
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            API Key
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="password"
+                              value={editingProvider.api_key}
+                              onChange={(e) =>
+                                setEditingProvider((prev) =>
+                                  prev
+                                    ? { ...prev, api_key: e.target.value }
+                                    : null,
+                                )
+                              }
+                              placeholder="sk-..."
+                              className="w-full p-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg font-mono text-sm"
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 flex justify-between">
                         <span>Model</span>
                         {PROVIDER_PRESETS.find((p) => p.id === selectedPresetId)
                           ?.models.length! > 0 && (
-                          <button
-                            onClick={() =>
-                              setCustomModelInput(!customModelInput)
-                            }
-                            className="text-xs text-blue-600 hover:underline"
-                          >
-                            {customModelInput
-                              ? "Select from list"
-                              : "Enter custom"}
-                          </button>
-                        )}
+                            <button
+                              onClick={() =>
+                                setCustomModelInput(!customModelInput)
+                              }
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              {customModelInput
+                                ? "Select from list"
+                                : "Enter custom"}
+                            </button>
+                          )}
                       </label>
                       <div className="flex gap-2">
                         {!customModelInput &&
-                        (fetchedModels.length > 0 ||
-                          PROVIDER_PRESETS.find(
-                            (p) => p.id === selectedPresetId,
-                          )?.models.length! > 0) ? (
+                          (fetchedModels.length > 0 ||
+                            PROVIDER_PRESETS.find(
+                              (p) => p.id === selectedPresetId,
+                            )?.models.length! > 0) ? (
                           <div className="relative flex-1">
                             <select
                               value={editingProvider.model}
