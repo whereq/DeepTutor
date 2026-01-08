@@ -55,7 +55,7 @@ ENV_VAR_DEFINITIONS = {
     },
     # Embedding Configuration
     "EMBEDDING_BINDING": {
-        "description": "Embedding service provider type (openai, ollama, lollms, azure_openai)",
+        "description": "Embedding service provider type (openai, ollama, lm_studio, azure_openai, jina, cohere, huggingface)",
         "category": "embedding",
         "required": False,
         "default": "openai",
@@ -85,9 +85,10 @@ ENV_VAR_DEFINITIONS = {
     "EMBEDDING_BINDING_API_KEY": {
         "description": "Embedding API authentication key",
         "category": "embedding",
-        "required": True,
+        "required": False,  # Conditional: not required for Ollama/local providers
         "default": "",
         "sensitive": True,
+        "conditional": "Required for cloud providers (OpenAI, Jina, Cohere, etc.). Not needed for Ollama or local models.",
     },
     # RAG Configuration
     "RAG_PROVIDER": {
