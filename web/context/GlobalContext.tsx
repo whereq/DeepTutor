@@ -71,16 +71,16 @@ interface SolverState {
 // Question Progress Info
 interface QuestionProgressInfo {
   stage:
-    | "planning"
-    | "researching"
-    | "generating"
-    | "validating"
-    | "complete"
-    // Mimic mode stages
-    | "uploading"
-    | "parsing"
-    | "extracting"
-    | null;
+  | "planning"
+  | "researching"
+  | "generating"
+  | "validating"
+  | "complete"
+  // Mimic mode stages
+  | "uploading"
+  | "parsing"
+  | "extracting"
+  | null;
   progress: {
     current?: number;
     total?: number;
@@ -214,6 +214,7 @@ interface GlobalContextType {
   solverState: SolverState;
   setSolverState: React.Dispatch<React.SetStateAction<SolverState>>;
   startSolver: (question: string, kb: string) => void;
+  stopSolver: () => void;
 
   // Question
   questionState: QuestionState;
@@ -460,6 +461,22 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         solverWs.current = null;
       }
     };
+  };
+
+  // Stop the current solving process
+  const stopSolver = () => {
+    if (solverWs.current) {
+      // Close the WebSocket to signal cancellation to backend
+      solverWs.current.close();
+      solverWs.current = null;
+    }
+    // Reset solving state but keep logs for user reference if desired
+    setSolverState((prev) => ({
+      ...prev,
+      isSolving: false,
+      // Optionally clear logs or keep them; here we keep existing logs
+    }));
+    addSolverLog({ type: "system", content: "Solver stopped by user." });
   };
 
   const addSolverLog = (log: LogEntry) => {
@@ -1334,6 +1351,7 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         solverState,
         setSolverState,
         startSolver,
+        stopSolver,
         questionState,
         setQuestionState,
         startQuestionGen,

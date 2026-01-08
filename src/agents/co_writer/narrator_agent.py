@@ -21,7 +21,7 @@ _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from lightrag.llm.openai import openai_complete_if_cache
+from src.core.llm_factory import llm_complete
 
 from src.core.core import get_agent_params, get_llm_config, get_tts_config, load_config_with_main
 from src.core.logging import get_logger
@@ -160,6 +160,12 @@ class NarratorAgent:
                 - script: Narration script text
                 - key_points: List of extracted key points
         """
+        # Always refresh LLM config before starting to avoid stale credentials
+        try:
+            self.llm_config = get_llm_config()
+        except Exception as e:
+            logger.error(f"Failed to refresh LLM config: {e}")
+
         if not self.llm_config:
             raise ValueError("LLM configuration not available")
 
@@ -196,7 +202,8 @@ class NarratorAgent:
         logger.info(f"Generating narration script with style: {style}")
 
         model = self.llm_config["model"]
-        response = await openai_complete_if_cache(
+        response = await llm_complete(
+            binding=self.llm_config["binding"],
             model=model,
             prompt=user_prompt,
             system_prompt=system_prompt,
@@ -256,7 +263,8 @@ class NarratorAgent:
 
         try:
             model = self.llm_config["model"]
-            response = await openai_complete_if_cache(
+            response = await llm_complete(
+                binding=self.llm_config["binding"],
                 model=model,
                 prompt=user_prompt,
                 system_prompt=system_prompt,
@@ -388,6 +396,14 @@ class NarratorAgent:
         Returns:
             Dict containing script info and optionally audio info
         """
+        # Refresh TTS config before starting to avoid stale credentials
+        try:
+            self.tts_config = get_tts_config()
+            # Also refresh LLM config since narrate calls generate_script
+            self.llm_config = get_llm_config()
+        except Exception as e:
+            logger.error(f"Failed to refresh configs: {e}")
+
         script_result = await self.generate_script(content, style)
 
         # Use default voice if not specified

@@ -20,6 +20,7 @@ from lightrag.utils import EmbeddingFunc
 from raganything import RAGAnything, RAGAnythingConfig
 
 from src.core.core import get_embedding_config, get_llm_config
+from src.core.llm_factory import llm_complete, sanitize_url
 from src.core.logging import LightRAGLogContext
 from src.knowledge.manager import KnowledgeBaseManager
 
@@ -124,10 +125,12 @@ async def rag_search(
         raise Exception(f"Error: Unable to access knowledge base - {e!s}")
 
     # Define LLM function
-    def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-        return openai_complete_if_cache(
-            llm_model,
-            prompt,
+    async def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
+        # Use our centralized llm_complete for sanitization and fallback support
+        return await llm_complete(
+            binding="openai",
+            model=llm_model,
+            prompt=prompt,
             system_prompt=system_prompt,
             history_messages=history_messages,
             api_key=llm_api_key,
@@ -135,7 +138,7 @@ async def rag_search(
             **kwargs,
         )
 
-    def vision_model_func(
+    async def vision_model_func(
         prompt,
         system_prompt=None,
         history_messages=[],
@@ -151,8 +154,9 @@ async def rag_search(
                 for k, v in kwargs.items()
                 if k not in ["messages", "prompt", "system_prompt", "history_messages"]
             }
-            return openai_complete_if_cache(
-                llm_model,
+            return await llm_complete(
+                binding="openai",
+                model=llm_model,
                 prompt="",  # Empty prompt when using messages
                 system_prompt=None,
                 history_messages=[],
@@ -169,8 +173,9 @@ async def rag_search(
                 for k, v in kwargs.items()
                 if k not in ["messages", "prompt", "system_prompt", "history_messages"]
             }
-            return openai_complete_if_cache(
-                llm_model,
+            return await llm_complete(
+                binding="openai",
+                model=llm_model,
                 prompt="",  # Empty prompt when using messages
                 system_prompt=None,
                 history_messages=[],
@@ -196,8 +201,11 @@ async def rag_search(
                 **clean_kwargs,
             )
         # Pure text format
-        return llm_model_func(prompt, system_prompt, history_messages, **kwargs)
+        return await llm_model_func(prompt, system_prompt, history_messages, **kwargs)
 
+    # Sanitize embedding URL
+    embedding_base_url_sanitized = sanitize_url(embedding_base_url, embedding_model)
+    
     # Define embedding function
     # CRITICAL: Use openai_embed.func to avoid double decoration
     # openai_embed is already decorated with @wrap_embedding_func_with_attrs
@@ -209,7 +217,7 @@ async def rag_search(
             texts,
             model=embedding_model,
             api_key=embedding_api_key,
-            base_url=embedding_base_url,
+            base_url=embedding_base_url_sanitized,
         ),
     )
 

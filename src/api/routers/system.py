@@ -8,10 +8,11 @@ import re
 import time
 
 from fastapi import APIRouter
-from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+from lightrag.llm.openai import openai_embed
 from pydantic import BaseModel
 
 from src.core.core import get_embedding_config, get_llm_config, get_tts_config
+from src.core.llm_factory import llm_complete
 
 router = APIRouter()
 
@@ -124,7 +125,7 @@ async def get_system_status():
     return result
 
 
-@router.post("/test/llm", response_model=TestResponse)
+@router.post("/test/llm/", response_model=TestResponse)
 async def test_llm_connection():
     """
     Test LLM model connection by sending a simple completion request
@@ -150,16 +151,18 @@ async def test_llm_connection():
             api_key = "sk-no-key-required"
 
         # Send a minimal test request with a prompt that guarantees output
-        test_prompt = "Say 'OK' to confirm you are working."
-        token_kwargs = _get_token_limit_kwargs(model, max_tokens=20)
-        response = await openai_complete_if_cache(
+        test_prompt = "Say 'OK' to confirm you are working. Do not produce long output."
+        token_kwargs = _get_token_limit_kwargs(model, max_tokens=200)
+        
+        response = await llm_complete(
             model=model,
             prompt=test_prompt,
             system_prompt="You are a helpful assistant. Respond briefly.",
+            binding=llm_config.get("binding", "openai"),
             api_key=api_key,
             base_url=base_url,
             temperature=0.1,
-            **token_kwargs,  # Use appropriate token param for model
+            **token_kwargs,
         )
 
         response_time = (time.time() - start_time) * 1000
@@ -190,7 +193,7 @@ async def test_llm_connection():
         )
 
 
-@router.post("/test/embeddings", response_model=TestResponse)
+@router.post("/test/embeddings/", response_model=TestResponse)
 async def test_embeddings_connection():
     """
     Test Embeddings model connection by sending a simple embedding request
@@ -250,7 +253,7 @@ async def test_embeddings_connection():
         )
 
 
-@router.post("/test/tts", response_model=TestResponse)
+@router.post("/test/tts/", response_model=TestResponse)
 async def test_tts_connection():
     """
     Test TTS model connection by checking configuration

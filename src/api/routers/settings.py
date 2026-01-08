@@ -24,7 +24,7 @@ config_manager = ConfigManager()
 ENV_VAR_DEFINITIONS = {
     # LLM Configuration
     "LLM_BINDING": {
-        "description": "LLM service provider type (e.g., openai, azure_openai, ollama)",
+        "description": "LLM service provider type (e.g., openai, anthropic, gemini, openrouter, ollama)",
         "category": "llm",
         "required": False,
         "default": "openai",
@@ -37,14 +37,14 @@ ENV_VAR_DEFINITIONS = {
         "default": "",
         "sensitive": False,
     },
-    "LLM_BINDING_HOST": {
+    "LLM_HOST": {
         "description": "LLM API endpoint URL (e.g., https://api.openai.com/v1)",
         "category": "llm",
         "required": True,
         "default": "",
         "sensitive": False,
     },
-    "LLM_BINDING_API_KEY": {
+    "LLM_API_KEY": {
         "description": "LLM API authentication key",
         "category": "llm",
         "required": True,
@@ -66,21 +66,21 @@ ENV_VAR_DEFINITIONS = {
         "default": "",
         "sensitive": False,
     },
-    "EMBEDDING_DIM": {
+    "EMBEDDING_DIMENSION": {
         "description": "Embedding vector dimension (e.g., 3072 for text-embedding-3-large)",
         "category": "embedding",
         "required": False,
         "default": "3072",
         "sensitive": False,
     },
-    "EMBEDDING_BINDING_HOST": {
+    "EMBEDDING_HOST": {
         "description": "Embedding API endpoint URL",
         "category": "embedding",
         "required": True,
         "default": "",
         "sensitive": False,
     },
-    "EMBEDDING_BINDING_API_KEY": {
+    "EMBEDDING_API_KEY": {
         "description": "Embedding API authentication key",
         "category": "embedding",
         "required": True,
@@ -457,22 +457,87 @@ async def get_env_var(key: str):
     }
 
 
+
+def _update_dot_env(updates: Dict[str, str], removals: list[str]):
+    """Update variables in .env file preserving comments and structure."""
+    env_path = Path(__file__).parent.parent.parent.parent / ".env"
+    
+    if not env_path.exists():
+        # Create new if doesn't exist
+        with open(env_path, "w", encoding="utf-8") as f:
+            for k, v in updates.items():
+                if " " in v or "#" in v:
+                    f.write(f'{k}="{v}"\n')
+                else:
+                    f.write(f"{k}={v}\n")
+        return
+
+    # Read existing
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except Exception as e:
+        print(f"Error reading .env: {e}")
+        return
+
+    new_lines = []
+    processed_keys = set()
+    
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            new_lines.append(line)
+            continue
+            
+        # Parse key
+        if "=" in stripped:
+            key = stripped.split("=")[0].strip()
+            
+            if key in removals:
+                continue # Skip/Remove this line
+                
+            if key in updates:
+                # Update this line
+                val = updates[key]
+                # Simple quoting suggestion
+                if " " in val or "#" in val or '"' in val or "'" in val:
+                     # minimal escape of double quotes
+                     val = val.replace('"', '\\"')
+                     new_lines.append(f'{key}="{val}"\n')
+                else:
+                    new_lines.append(f"{key}={val}\n")
+                processed_keys.add(key)
+                continue
+        
+        new_lines.append(line)
+
+    # Append new keys that weren't found
+    for k, v in updates.items():
+        if k not in processed_keys and k not in removals:
+             if " " in v or "#" in v or '"' in v or "'" in v:
+                 val = v.replace('"', '\\"')
+                 new_lines.append(f'\n{k}="{val}"\n')
+             else:
+                 new_lines.append(f"\n{k}={v}\n")
+
+    # Write back
+    try:
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+    except Exception as e:
+        print(f"Error writing .env: {e}")
+
+
 @router.put("/env")
 async def update_env_config(update: EnvConfigUpdate):
     """
-    Update environment variables at runtime.
-
-    This updates the process environment variables immediately.
-    The system will use the new values for subsequent operations.
-
-    Note: These changes are NOT persisted to .env file.
-    On system restart, values will be loaded from .env again.
-
-    Returns:
-        Updated variables configuration
+    Update environment variables at runtime and persist to .env.
     """
     updated_vars = []
     errors = []
+    
+    env_updates = {}
+    env_removals = []
 
     for var_update in update.variables:
         key = var_update.key
@@ -493,11 +558,17 @@ async def update_env_config(update: EnvConfigUpdate):
         # Update the environment variable
         if value:
             os.environ[key] = value
+            env_updates[key] = value
         elif key in os.environ:
             # If value is empty and variable exists, remove it
             del os.environ[key]
+            env_removals.append(key)
 
         updated_vars.append(key)
+
+    # Persist to .env
+    if env_updates or env_removals:
+        _update_dot_env(env_updates, env_removals)
 
     if errors:
         raise HTTPException(status_code=400, detail={"errors": errors, "updated": updated_vars})
@@ -506,7 +577,7 @@ async def update_env_config(update: EnvConfigUpdate):
     return {
         "success": True,
         "updated": updated_vars,
-        "message": f"Updated {len(updated_vars)} environment variables. Changes are active immediately but not persisted to .env file.",
+        "message": f"Updated {len(updated_vars)} environment variables.",
     }
 
 
@@ -529,13 +600,15 @@ async def update_single_env_var(key: str, value: str):
     # Update the environment variable
     if value:
         os.environ[key] = value
+        _update_dot_env({key: value}, [])
     elif key in os.environ:
         del os.environ[key]
+        _update_dot_env({}, [key])
 
     return {
         "success": True,
         "key": key,
-        "message": f"Environment variable {key} updated. Changes are active immediately.",
+        "message": f"Environment variable {key} updated.",
     }
 
 

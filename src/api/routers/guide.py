@@ -70,10 +70,11 @@ def get_guide_manager():
         llm_config = get_llm_config()
         api_key = llm_config["api_key"]
         base_url = llm_config["base_url"]
+        binding = llm_config.get("binding", "openai")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
 
-    return GuideManager(api_key=api_key, base_url=base_url, language=None)  # Read from config file
+    return GuideManager(api_key=api_key, base_url=base_url, language=None, binding=binding)  # Read from config file
 
 
 # === REST API Endpoints ===
