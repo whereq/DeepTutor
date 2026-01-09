@@ -13,7 +13,7 @@ import sys
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI, AsyncAzureOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 # Load environment variables
 load_dotenv(override=False)
@@ -110,7 +110,7 @@ class BaseAgent(ABC):
 
         # For local LLM servers, use placeholder key if none provided
         client_api_key = api_key or "sk-no-key-required"
-        
+
         binding = os.getenv("LLM_BINDING", "openai")
         if binding == "azure_openai" or api_version:
             self.client = AsyncAzureOpenAI(
@@ -120,7 +120,7 @@ class BaseAgent(ABC):
             )
         else:
             self.client = AsyncOpenAI(api_key=client_api_key, base_url=base_url)
-            
+
         self.api_key = api_key
         self.base_url = base_url
         self.api_version = api_version

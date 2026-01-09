@@ -12,7 +12,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from openai import AsyncOpenAI, AsyncAzureOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -64,7 +64,7 @@ class QuestionValidationWorkflow:
 
         # For local LLM servers, use placeholder key if none provided
         client_api_key = api_key or "sk-no-key-required"
-        
+
         binding = os.getenv("LLM_BINDING", "openai")
         if binding == "azure_openai" or api_version:
             self.client = AsyncAzureOpenAI(
@@ -74,7 +74,7 @@ class QuestionValidationWorkflow:
             )
         else:
             self.client = AsyncOpenAI(api_key=client_api_key, base_url=base_url)
-            
+
         self.api_key = api_key
         self.base_url = base_url
         self.api_version = api_version

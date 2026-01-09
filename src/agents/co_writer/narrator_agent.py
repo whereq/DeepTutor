@@ -353,12 +353,13 @@ class NarratorAgent:
         try:
             # Check for Azure OpenAI TTS
             import os
+
             from openai import AsyncAzureOpenAI
 
             binding = os.getenv("TTS_BINDING", "openai")
             api_version = self.tts_config.get("api_version")
 
-            # Only use Azure client if binding is explicitly Azure, 
+            # Only use Azure client if binding is explicitly Azure,
             # OR if binding is generic 'openai' but an Azure-specific api_version is present.
             if binding == "azure_openai" or (binding == "openai" and api_version):
                 client = AsyncAzureOpenAI(

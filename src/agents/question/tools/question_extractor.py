@@ -17,7 +17,7 @@ from typing import Any
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from openai import OpenAI, AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 
 from src.services.config import get_agent_params
 from src.services.llm import get_llm_config
