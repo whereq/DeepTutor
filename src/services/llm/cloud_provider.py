@@ -7,7 +7,7 @@ Provides both complete() and stream() methods.
 """
 
 import os
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, List, Optional
 
 import aiohttp
 from lightrag.llm.openai import openai_complete_if_cache
@@ -435,4 +435,3 @@ __all__ = [
     "stream",
     "fetch_models",
 ]
-

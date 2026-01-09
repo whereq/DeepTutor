@@ -26,14 +26,14 @@ Deployment Modes (LLM_MODE env var):
 - hybrid: Use whatever is active (default)0
 """
 
-import os
 from enum import Enum
+import os
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from . import cloud_provider, local_provider
 from .config import LLMConfig, get_llm_config
 from .provider import provider_manager
-from .utils import is_local_llm_server, sanitize_url
+from .utils import is_local_llm_server
 
 
 class LLMMode(str, Enum):

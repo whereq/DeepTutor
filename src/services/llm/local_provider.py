@@ -19,7 +19,6 @@ import aiohttp
 
 from .utils import sanitize_url
 
-
 # Extended timeout for local servers (may be slower than cloud)
 DEFAULT_TIMEOUT = 300  # 5 minutes
 
@@ -370,4 +369,3 @@ __all__ = [
     "stream",
     "fetch_models",
 ]
-
