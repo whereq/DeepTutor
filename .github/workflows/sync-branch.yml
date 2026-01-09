@@ -34,8 +34,8 @@ jobs:
           else
             echo "sync branch does not exist, creating..."
           fi
-          
+
           # 强制将 main 分支的内容推送到 sync 分支
           git push origin main:sync --force
-          
+
           echo "✅ Successfully synced main branch to sync branch"
