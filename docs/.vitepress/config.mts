@@ -11,6 +11,11 @@ export default defineConfig({
     ['link', { rel: 'icon', href: '/DeepTutor/logo.png' }]
   ],
 
+  // 忽略 localhost 链接检查（这些是示例地址，构建时不可访问）
+  ignoreDeadLinks: [
+    /^http:\/\/localhost/
+  ],
+
   // 国际化配置
   locales: {
     root: {
