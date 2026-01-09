@@ -18,18 +18,18 @@ import os
 from pathlib import Path
 import sys
 import time
-from typing import Any
+from typing import Any, AsyncGenerator
 
 # Add project root to path
 _project_root = Path(__file__).parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from lightrag.llm.openai import openai_complete_if_cache
-
 from src.logging import LLMStats, get_logger
 from src.services.config import get_agent_params
+from src.services.llm import complete as llm_complete
 from src.services.llm import get_llm_config, get_token_limit_kwargs
+from src.services.llm import stream as llm_stream
 from src.services.prompt import get_prompt_manager
 
 
@@ -316,7 +316,10 @@ class BaseAgent(ABC):
         stage: str | None = None,
     ) -> str:
         """
-        Unified interface for calling LLM.
+        Unified interface for calling LLM (non-streaming).
+
+        Uses the LLM factory to route calls to the appropriate provider
+        (cloud or local) based on configuration.
 
         Args:
             user_prompt: User prompt
@@ -338,13 +341,8 @@ class BaseAgent(ABC):
         # Record call start time
         start_time = time.time()
 
-        # Build kwargs
+        # Build kwargs for LLM factory
         kwargs = {
-            "model": model,
-            "prompt": user_prompt,
-            "system_prompt": system_prompt,
-            "api_key": self.api_key,
-            "base_url": self.base_url,
             "temperature": temperature,
         }
 
@@ -366,10 +364,17 @@ class BaseAgent(ABC):
                 metadata={"model": model, "temperature": temperature, "max_tokens": max_tokens},
             )
 
-        # Call LLM
+        # Call LLM via factory (routes to cloud or local provider)
         response = None
         try:
-            response = await openai_complete_if_cache(**kwargs)
+            response = await llm_complete(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                model=model,
+                api_key=self.api_key,
+                base_url=self.base_url,
+                **kwargs,
+            )
         except Exception as e:
             self.logger.error(f"LLM call failed: {e}")
             raise
@@ -400,6 +405,105 @@ class BaseAgent(ABC):
             self.logger.debug(f"LLM response: model={model}, duration={call_duration:.2f}s")
 
         return response
+
+    async def stream_llm(
+        self,
+        user_prompt: str,
+        system_prompt: str,
+        messages: list[dict[str, str]] | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        model: str | None = None,
+        stage: str | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Unified interface for streaming LLM responses.
+
+        Uses the LLM factory to route calls to the appropriate provider
+        (cloud or local) based on configuration.
+
+        Args:
+            user_prompt: User prompt (ignored if messages provided)
+            system_prompt: System prompt (ignored if messages provided)
+            messages: Pre-built messages array (optional, overrides prompt/system_prompt)
+            temperature: Temperature parameter (optional, uses config by default)
+            max_tokens: Maximum tokens (optional, uses config by default)
+            model: Model name (optional, uses config by default)
+            stage: Stage marker for logging
+
+        Yields:
+            Response chunks as strings
+        """
+        model = model or self.get_model()
+        temperature = temperature if temperature is not None else self.get_temperature()
+        max_tokens = max_tokens if max_tokens is not None else self.get_max_tokens()
+
+        # Build kwargs
+        kwargs = {
+            "temperature": temperature,
+        }
+
+        # Handle token limit for newer OpenAI models
+        if max_tokens:
+            kwargs.update(get_token_limit_kwargs(model, max_tokens))
+
+        # Log input
+        stage_label = stage or self.agent_name
+        if hasattr(self.logger, "log_llm_input"):
+            self.logger.log_llm_input(
+                agent_name=self.agent_name,
+                stage=stage_label,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                metadata={"model": model, "temperature": temperature, "streaming": True},
+            )
+
+        # Track start time
+        start_time = time.time()
+        full_response = ""
+
+        try:
+            # Stream via factory (routes to cloud or local provider)
+            async for chunk in llm_stream(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                model=model,
+                api_key=self.api_key,
+                base_url=self.base_url,
+                messages=messages,
+                **kwargs,
+            ):
+                full_response += chunk
+                yield chunk
+
+            # Track token usage after streaming completes
+            self._track_tokens(
+                model=model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response=full_response,
+                stage=stage_label,
+            )
+
+            # Log output
+            call_duration = time.time() - start_time
+            if hasattr(self.logger, "log_llm_output"):
+                self.logger.log_llm_output(
+                    agent_name=self.agent_name,
+                    stage=stage_label,
+                    response=full_response[:200] + "..."
+                    if len(full_response) > 200
+                    else full_response,
+                    metadata={
+                        "length": len(full_response),
+                        "duration": call_duration,
+                        "streaming": True,
+                    },
+                )
+
+        except Exception as e:
+            self.logger.error(f"LLM streaming failed: {e}")
+            raise
 
     # -------------------------------------------------------------------------
     # Prompt Helpers

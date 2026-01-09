@@ -9,8 +9,8 @@ import time
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from src.core.llm_factory import llm_complete
 from src.services.embedding import get_embedding_client, get_embedding_config
+from src.services.llm import complete as llm_complete
 from src.services.llm import get_llm_config, get_token_limit_kwargs
 from src.services.tts import get_tts_config
 

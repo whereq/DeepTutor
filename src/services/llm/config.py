@@ -4,13 +4,18 @@ LLM Configuration
 =================
 
 Configuration management for LLM services.
+
+Supports multiple deployment modes:
+- api: Cloud API providers only (OpenAI, Anthropic, etc.)
+- local: Local/self-hosted LLM servers only (Ollama, LM Studio, etc.)
+- hybrid: Both API and local, uses active provider (default)
 """
 
 from dataclasses import dataclass
 import os
 from pathlib import Path
 import re
-from typing import Optional
+from typing import Literal, Optional
 
 from dotenv import load_dotenv
 
@@ -18,6 +23,11 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 load_dotenv(PROJECT_ROOT / "DeepTutor.env", override=False)
 load_dotenv(PROJECT_ROOT / ".env", override=False)
+
+# LLM deployment modes
+LLM_MODE_API = "api"
+LLM_MODE_LOCAL = "local"
+LLM_MODE_HYBRID = "hybrid"
 
 
 @dataclass
@@ -30,6 +40,7 @@ class LLMConfig:
     binding: str = "openai"
     max_tokens: int = 4096
     temperature: float = 0.7
+    provider_type: Literal["api", "local"] = "api"  # Track if this is API or local config
 
 
 def _strip_value(value: Optional[str]) -> Optional[str]:
@@ -39,12 +50,27 @@ def _strip_value(value: Optional[str]) -> Optional[str]:
     return value.strip().strip("\"'")
 
 
+def get_llm_mode() -> str:
+    """
+    Get the current LLM deployment mode from environment.
+
+    Returns:
+        str: 'api', 'local', or 'hybrid' (default)
+    """
+    return os.getenv("LLM_MODE", LLM_MODE_HYBRID).lower()
+
+
 def get_llm_config() -> LLMConfig:
     """
     Load LLM configuration from environment variables or provider manager.
 
+    The behavior depends on the LLM_MODE environment variable:
+    - hybrid (default): Use active provider if available, else env config
+    - api: Only use API providers (active API provider or env config)
+    - local: Only use local providers (active local provider or env config)
+
     Priority:
-    1. Active provider from llm_providers.json
+    1. Active provider from llm_providers.json (if mode compatible)
     2. Environment variables (.env)
 
     Returns:
@@ -53,6 +79,8 @@ def get_llm_config() -> LLMConfig:
     Raises:
         ValueError: If required configuration is missing
     """
+    mode = get_llm_mode()
+
     # 1. Try to get active provider from provider manager
     try:
         from .provider import provider_manager
@@ -60,12 +88,25 @@ def get_llm_config() -> LLMConfig:
         active_provider = provider_manager.get_active_provider()
 
         if active_provider:
-            return LLMConfig(
-                binding=active_provider.binding,
-                model=active_provider.model,
-                api_key=active_provider.api_key,
-                base_url=active_provider.base_url,
-            )
+            provider_is_local = getattr(active_provider, "provider_type", "local") == "local"
+
+            # Check mode compatibility
+            use_provider = False
+            if mode == LLM_MODE_HYBRID:
+                use_provider = True
+            elif mode == LLM_MODE_API and not provider_is_local:
+                use_provider = True
+            elif mode == LLM_MODE_LOCAL and provider_is_local:
+                use_provider = True
+
+            if use_provider:
+                return LLMConfig(
+                    binding=active_provider.binding,
+                    model=active_provider.model,
+                    api_key=active_provider.api_key,
+                    base_url=active_provider.base_url,
+                    provider_type=getattr(active_provider, "provider_type", "local"),
+                )
     except Exception as e:
         print(f"⚠️ Failed to load active provider: {e}")
 
@@ -81,8 +122,15 @@ def get_llm_config() -> LLMConfig:
             "Error: LLM_MODEL not set, please configure it in .env file or activate a provider"
         )
 
-    # Check if API key is required
-    requires_key = os.getenv("LLM_API_KEY_REQUIRED", "true").lower() == "true"
+    # Determine provider type from base_url
+    from .utils import is_local_llm_server
+
+    provider_type: Literal["api", "local"] = "local" if is_local_llm_server(base_url) else "api"
+
+    # Check if API key is required (not required for local providers)
+    requires_key = (
+        provider_type == "api" or os.getenv("LLM_API_KEY_REQUIRED", "false").lower() == "true"
+    )
 
     if requires_key and not api_key:
         raise ValueError(
@@ -96,8 +144,9 @@ def get_llm_config() -> LLMConfig:
     return LLMConfig(
         binding=binding,
         model=model,
-        api_key=api_key,
+        api_key=api_key or "",
         base_url=base_url,
+        provider_type=provider_type,
     )
 
 
@@ -162,6 +211,10 @@ def get_token_limit_kwargs(model: str, max_tokens: int) -> dict:
 __all__ = [
     "LLMConfig",
     "get_llm_config",
+    "get_llm_mode",
     "uses_max_completion_tokens",
     "get_token_limit_kwargs",
+    "LLM_MODE_API",
+    "LLM_MODE_LOCAL",
+    "LLM_MODE_HYBRID",
 ]

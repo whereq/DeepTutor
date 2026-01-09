@@ -1,9 +1,19 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from src.core.llm_factory import llm_complete, llm_fetch_models
+from src.services.llm import (
+    complete as llm_complete,
+)
+from src.services.llm import (
+    fetch_models as llm_fetch_models,
+)
+from src.services.llm import (
+    get_mode_info,
+    get_provider_presets,
+    sanitize_url,
+)
 from src.services.llm.provider import LLMProvider, provider_manager
 
 router = APIRouter()
@@ -15,6 +25,7 @@ class TestConnectionRequest(BaseModel):
     api_key: str
     model: str
     requires_key: bool = True  # Default to True for backward compatibility
+    provider_type: Literal["api", "local"] = "local"  # New field
 
 
 @router.get("/", response_model=List[LLMProvider])
@@ -76,21 +87,9 @@ async def set_active_provider(name_payload: Dict[str, str]):
 async def test_connection(request: TestConnectionRequest):
     """Test connection to an LLM provider."""
     try:
-        # Sanitize Base URL
-        # Users often paste full endpoints like http://.../v1/chat/completions
-        # OpenAI client needs just the base (e.g., http://.../v1)
-        base_url = request.base_url.rstrip("/")
-
-        # Special handling for Ollama: if it ends in /api, it's likely wrong for completion but ok for tags
-        # But here we want the completion base.
-        if "/api" in base_url and not base_url.endswith("/v1"):
-            # If user has http://localhost:11434/api -> change to http://localhost:11434/v1
-            if ":11434" in base_url or "ollama" in base_url.lower():
-                base_url = base_url.replace("/api", "/v1")
-
-        for suffix in ["/chat/completions", "/completions"]:
-            if base_url.endswith(suffix):
-                base_url = base_url[: -len(suffix)]
+        # Use unified sanitize_url for consistent URL handling
+        # Handles Ollama, LM Studio, and other local servers
+        base_url = sanitize_url(request.base_url)
 
         # Simple test prompt
         if not request.requires_key and not request.api_key:
@@ -118,15 +117,8 @@ async def test_connection(request: TestConnectionRequest):
 async def fetch_available_models(request: TestConnectionRequest):
     """Fetch available models from the provider."""
     try:
-        # Sanitize Base URL (same as test_connection)
-        base_url = request.base_url.rstrip("/")
-        if "/api" in base_url and not base_url.endswith("/v1"):
-            if ":11434" in base_url or "ollama" in base_url.lower():
-                base_url = base_url.replace("/api", "/v1")
-
-        for suffix in ["/chat/completions", "/completions"]:
-            if base_url.endswith(suffix):
-                base_url = base_url[: -len(suffix)]
+        # Use unified sanitize_url for consistent URL handling
+        base_url = sanitize_url(request.base_url)
 
         models = await llm_fetch_models(
             binding=request.binding,
@@ -136,3 +128,34 @@ async def fetch_available_models(request: TestConnectionRequest):
         return {"success": True, "models": models}
     except Exception as e:
         return {"success": False, "message": f"Failed to fetch models: {str(e)}"}
+
+
+# ==================== LLM Mode Endpoints ====================
+
+
+@router.get("/mode/", response_model=Dict[str, Any])
+async def get_llm_mode_info():
+    """
+    Get information about the current LLM configuration mode.
+
+    Returns:
+        Dict containing:
+        - mode: Current deployment mode ('api', 'local', or 'hybrid')
+        - active_provider: Active provider info (if any)
+        - env_configured: Whether env vars are properly configured
+        - effective_source: Which config source is being used ('env' or 'provider')
+    """
+    return get_mode_info()
+
+
+@router.get("/presets/", response_model=Dict[str, Any])
+async def get_presets():
+    """
+    Get provider presets for API and Local providers.
+
+    Returns:
+        Dict containing:
+        - api: API provider presets (OpenAI, Anthropic, DeepSeek, etc.)
+        - local: Local provider presets (Ollama, LM Studio, vLLM, etc.)
+    """
+    return get_provider_presets()

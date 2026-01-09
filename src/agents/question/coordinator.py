@@ -250,24 +250,24 @@ class AgentCoordinator:
 
     def _extract_json_from_markdown(self, content: str) -> str:
         """Extract JSON from markdown code blocks.
-        
+
         LLMs often wrap JSON in ```json ... ``` blocks. This method strips
         the markdown formatting and any surrounding text.
         """
         if not content:
             return content
-        
+
         # Remove leading explanatory text (look for the first ```json or ```)
         import re
-        
+
         # Try to find JSON code block
-        json_block_pattern = r'```(?:json)?\s*\n?(.*?)```'
+        json_block_pattern = r"```(?:json)?\s*\n?(.*?)```"
         matches = re.findall(json_block_pattern, content, re.DOTALL)
-        
+
         if matches:
             # Return the content inside the first code block
             return matches[0].strip()
-        
+
         # If no code blocks found, return as-is (might already be valid JSON)
         return content.strip()
 
@@ -321,16 +321,14 @@ class AgentCoordinator:
         # Validate content is not None or empty
         if response_content is None:
             error_msg = (
-                f"[{stage or 'coordinator'}] LLM returned None content. "
-                f"Response: {response}"
+                f"[{stage or 'coordinator'}] LLM returned None content. Response: {response}"
             )
             self.logger.error(error_msg)
             raise ValueError(error_msg)
 
         if not response_content.strip():
             error_msg = (
-                f"[{stage or 'coordinator'}] LLM returned empty string. "
-                f"Response object: {response}"
+                f"[{stage or 'coordinator'}] LLM returned empty string. Response object: {response}"
             )
             self.logger.error(error_msg)
             raise ValueError(error_msg)
@@ -1735,7 +1733,7 @@ class AgentCoordinator:
             content = await self._call_llm(
                 system_prompt=system_prompt, user_prompt=user_prompt, stage="generate_question_plan"
             )
-            
+
             # Validate content before JSON parsing
             if not content or content.strip() == "":
                 self.logger.error("LLM returned empty content for question plan generation")
@@ -1952,7 +1950,7 @@ class AgentCoordinator:
                 user_prompt=user_prompt,
                 stage=f"generate_question_{question_id}",
             )
-            
+
             # Validate content before JSON parsing
             if not content or content.strip() == "":
                 self.logger.error(f"LLM returned empty content for question {question_id}")
@@ -1961,7 +1959,7 @@ class AgentCoordinator:
                     "success": False,
                     "error": "LLM returned empty response",
                 }
-            
+
             try:
                 # Extract JSON from markdown code blocks if present
                 json_content = self._extract_json_from_markdown(content)

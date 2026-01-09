@@ -141,8 +141,16 @@ class MainSolver:
             except ValueError as e:
                 raise ValueError(f"LLM config error: {e!s}")
 
-        if not api_key:
+        # Check if API key is required
+        # Local LLM servers (Ollama, LM Studio, etc.) don't need API keys
+        from src.services.llm import is_local_llm_server
+
+        if not api_key and not is_local_llm_server(base_url):
             raise ValueError("API key not set. Provide api_key param or set LLM_API_KEY in .env")
+
+        # For local servers, use a placeholder key if none provided
+        if not api_key and is_local_llm_server(base_url):
+            api_key = "sk-no-key-required"
 
         self.api_key = api_key
         self.base_url = base_url

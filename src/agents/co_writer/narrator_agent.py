@@ -22,9 +22,9 @@ _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from src.core.llm_factory import llm_complete
 from src.logging import get_logger
 from src.services.config import get_agent_params, load_config_with_main
+from src.services.llm import complete as llm_complete
 from src.services.llm import get_llm_config
 from src.services.prompt import get_prompt_manager
 from src.services.tts import get_tts_config

@@ -105,7 +105,9 @@ class BaseAgent(ABC):
             model = os.getenv("LLM_MODEL", "gpt-4o")
         self.model = model
 
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        # For local LLM servers, use placeholder key if none provided
+        client_api_key = api_key or "sk-no-key-required"
+        self.client = AsyncOpenAI(api_key=client_api_key, base_url=base_url)
         self.api_key = api_key
         self.base_url = base_url
 

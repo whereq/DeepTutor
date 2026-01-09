@@ -7,6 +7,8 @@ This agent provides:
 - Token-based context truncation
 - Optional RAG and Web Search augmentation
 - Streaming response generation
+
+Uses the unified LLM factory from BaseAgent for both cloud and local LLM support.
 """
 
 from pathlib import Path
@@ -18,10 +20,7 @@ _project_root = Path(__file__).parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from openai import AsyncOpenAI
-
 from src.agents.base_agent import BaseAgent
-from src.services.llm import get_llm_config
 from src.tools import rag_search, web_search
 
 
@@ -33,7 +32,7 @@ class ChatAgent(BaseAgent):
     - Conversation history management with token limits
     - RAG (Retrieval-Augmented Generation) support
     - Web search integration
-    - Streaming response generation
+    - Streaming response generation via BaseAgent.stream_llm()
     """
 
     # Default token limit for conversation history
@@ -68,12 +67,7 @@ class ChatAgent(BaseAgent):
             "max_history_tokens", self.DEFAULT_MAX_HISTORY_TOKENS
         )
 
-        # Initialize async OpenAI client for streaming
-        llm_config = get_llm_config()
-        self._async_client = AsyncOpenAI(
-            api_key=llm_config.api_key,
-            base_url=llm_config.base_url,
-        )
+        self.logger.info(f"ChatAgent initialized: model={self.model}, base_url={self.base_url}")
 
     def count_tokens(self, text: str) -> int:
         """
@@ -281,31 +275,44 @@ class ChatAgent(BaseAgent):
         """
         Generate streaming response from LLM.
 
+        Uses BaseAgent.stream_llm() which routes to the appropriate provider
+        (cloud or local) based on configuration.
+
         Args:
             messages: Messages array for OpenAI API
 
         Yields:
             Response chunks as strings
         """
-        try:
-            response = await self._async_client.chat.completions.create(
-                model=self.get_model(),
-                messages=messages,
-                temperature=self.get_temperature(),
-                stream=True,
-            )
+        # Extract system prompt from messages
+        system_prompt = ""
+        user_prompt = ""
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_prompt = msg.get("content", "")
+                break
 
-            async for chunk in response:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+        # Get the last user message as user_prompt (for logging/tracking)
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_prompt = msg.get("content", "")
+                break
 
-        except Exception as e:
-            self.logger.error(f"Streaming generation failed: {e}")
-            raise
+        # Use BaseAgent's stream_llm which routes through the factory
+        async for chunk in self.stream_llm(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            messages=messages,
+            stage="chat_stream",
+        ):
+            yield chunk
 
     async def generate(self, messages: list[dict[str, str]]) -> str:
         """
         Generate complete response from LLM (non-streaming).
+
+        Uses BaseAgent.call_llm() which routes to the appropriate provider
+        (cloud or local) based on configuration.
 
         Args:
             messages: Messages array for OpenAI API
@@ -313,29 +320,45 @@ class ChatAgent(BaseAgent):
         Returns:
             Complete response string
         """
-        try:
-            response = await self._async_client.chat.completions.create(
-                model=self.get_model(),
-                messages=messages,
-                temperature=self.get_temperature(),
-            )
+        # Extract system prompt from messages
+        system_prompt = ""
+        user_prompt = ""
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_prompt = msg.get("content", "")
+                break
 
-            content = response.choices[0].message.content or ""
+        # Get the last user message
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_prompt = msg.get("content", "")
+                break
 
-            # Track token usage
-            self._track_tokens(
-                model=self.get_model(),
-                system_prompt=messages[0]["content"] if messages else "",
-                user_prompt=messages[-1]["content"] if messages else "",
-                response=content,
-                stage="chat",
-            )
+        # Use BaseAgent's call_llm which routes through the factory
+        # Note: call_llm expects simple prompt/system_prompt, but for multi-turn
+        # we need to use the factory directly with messages
+        from src.services.llm import complete as llm_complete
 
-            return content
+        response = await llm_complete(
+            prompt=user_prompt,
+            system_prompt=system_prompt,
+            model=self.get_model(),
+            api_key=self.api_key,
+            base_url=self.base_url,
+            messages=messages,
+            temperature=self.get_temperature(),
+        )
 
-        except Exception as e:
-            self.logger.error(f"Generation failed: {e}")
-            raise
+        # Track token usage
+        self._track_tokens(
+            model=self.get_model(),
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response=response,
+            stage="chat",
+        )
+
+        return response
 
     async def process(
         self,

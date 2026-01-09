@@ -3,11 +3,13 @@ LLM Provider Management
 =======================
 
 Manages LLM provider configurations, persisting them to a JSON file.
+Supports both API (cloud) and Local (self-hosted) providers.
 """
 
+from enum import Enum
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,17 +18,34 @@ USER_DATA_DIR = Path("./data/user")
 PROVIDERS_FILE = USER_DATA_DIR / "llm_providers.json"
 
 
+class ProviderType(str, Enum):
+    """Type of LLM provider."""
+
+    API = "api"  # Cloud API providers (OpenAI, Anthropic, DeepSeek, etc.)
+    LOCAL = "local"  # Local/self-hosted (Ollama, LM Studio, vLLM, etc.)
+
+
 class LLMProvider(BaseModel):
     """
     Configuration model for a single LLM provider.
+
+    Supports both API (cloud) and Local (self-hosted) providers.
     """
 
     name: str = Field(..., description="Unique name for the provider configuration")
     binding: str = Field(..., description="Provider type (e.g., openai, azure_openai, ollama)")
     base_url: str = Field(..., description="API endpoint URL")
-    api_key: str = Field(..., description="API Key")
+    api_key: str = Field(default="", description="API Key (optional for local providers)")
     model: str = Field(..., description="Model name to use")
     is_active: bool = Field(default=False, description="Whether this provider is currently active")
+    provider_type: Literal["api", "local"] = Field(
+        default="local",
+        description="Provider type: 'api' for cloud services, 'local' for self-hosted",
+    )
+    requires_key: bool = Field(
+        default=False,
+        description="Whether this provider requires an API key",
+    )
 
     class Config:
         populate_by_name = True
@@ -168,6 +187,7 @@ provider_manager = LLMProviderManager()
 
 
 __all__ = [
+    "ProviderType",
     "LLMProvider",
     "LLMProviderManager",
     "provider_manager",

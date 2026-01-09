@@ -232,9 +232,7 @@ class QuestionGenerationAgent(BaseAgent):
             )
             _logger.error(error_msg)
             return Observation(
-                success=False,
-                result=None,
-                message=f"Failed to parse question JSON: {e}"
+                success=False, result=None, message=f"Failed to parse question JSON: {e}"
             )
 
         # Automatically submit after generation
@@ -304,20 +302,14 @@ class QuestionGenerationAgent(BaseAgent):
             error_msg = f"[refine_question] LLM API call failed: {type(e).__name__}: {e}"
             _logger.error(error_msg)
             return Observation(
-                success=False,
-                result=None,
-                message=f"Failed to refine question: {e}"
+                success=False, result=None, message=f"Failed to refine question: {e}"
             )
 
         # Validate response structure
         if not response or not response.choices:
             error_msg = "[refine_question] LLM returned empty response or no choices"
             _logger.error(error_msg)
-            return Observation(
-                success=False,
-                result=None,
-                message="LLM returned empty response"
-            )
+            return Observation(success=False, result=None, message="LLM returned empty response")
 
         # Extract response content with validation
         response_content = response.choices[0].message.content
@@ -326,20 +318,12 @@ class QuestionGenerationAgent(BaseAgent):
         if response_content is None:
             error_msg = f"[refine_question] LLM returned None content. Response: {response}"
             _logger.error(error_msg)
-            return Observation(
-                success=False,
-                result=None,
-                message="LLM returned None content"
-            )
+            return Observation(success=False, result=None, message="LLM returned None content")
 
         if not response_content.strip():
             error_msg = f"[refine_question] LLM returned empty string. Response: {response}"
             _logger.error(error_msg)
-            return Observation(
-                success=False,
-                result=None,
-                message="LLM returned empty string"
-            )
+            return Observation(success=False, result=None, message="LLM returned empty string")
 
         # Log successful response
         _logger.debug(
@@ -385,9 +369,7 @@ class QuestionGenerationAgent(BaseAgent):
             )
             _logger.error(error_msg)
             return Observation(
-                success=False,
-                result=None,
-                message=f"Failed to parse question JSON: {e}"
+                success=False, result=None, message=f"Failed to parse question JSON: {e}"
             )
 
         # Remove the processed feedback message

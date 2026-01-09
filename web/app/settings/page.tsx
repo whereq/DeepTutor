@@ -129,10 +129,24 @@ interface LLMProvider {
   api_key: string;
   model: string;
   is_active: boolean;
+  provider_type: "api" | "local";
+  requires_key: boolean;
+}
+
+interface LLMModeInfo {
+  mode: "api" | "local" | "hybrid";
+  active_provider: {
+    name: string;
+    model: string;
+    provider_type: "api" | "local";
+    binding: string;
+  } | null;
+  env_configured: boolean;
+  effective_source: "env" | "provider";
 }
 
 // Tab types
-type SettingsTab = "general" | "environment" | "llm_providers";
+type SettingsTab = "general" | "environment" | "local_models";
 
 export default function SettingsPage() {
   const { uiSettings, refreshSettings } = useGlobal();
@@ -168,10 +182,11 @@ export default function SettingsPage() {
     help_text?: string;
   }
 
+  // Local deployment presets only - cloud providers should use Environment Variables tab
   const PROVIDER_PRESETS: ProviderPreset[] = [
     {
       id: "ollama",
-      name: "Ollama (Local / Cloud)",
+      name: "Ollama",
       binding: "openai",
       base_url: "http://localhost:11434/v1",
       default_model: "llama3.2",
@@ -179,101 +194,58 @@ export default function SettingsPage() {
         "llama3.2",
         "llama3.3",
         "qwen2.5",
+        "qwen3",
         "mistral-nemo",
         "deepseek-r1",
-        "kimi-k2-thinking",
-        "qwen3-next:80b",
+        "gemma2",
+        "phi3",
       ],
-      requires_key: true,
+      requires_key: false,
       help_text:
-        "Uses the OpenAI-compatible protocol. For Local: http://localhost:11434/v1. For Cloud: https://ollama.com/v1.",
-    },
-    {
-      id: "openai",
-      name: "OpenAI",
-      binding: "openai",
-      base_url: "https://api.openai.com/v1",
-      default_model: "gpt-4o",
-      models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-preview"],
-      requires_key: true,
-      help_text: "Requires an OpenAI API Key.",
-    },
-    {
-      id: "anthropic",
-      name: "Anthropic (Claude)",
-      binding: "anthropic",
-      base_url: "https://api.anthropic.com/v1/messages",
-      default_model: "claude-3-5-sonnet-latest",
-      models: [
-        "claude-3-5-sonnet-latest",
-        "claude-3-5-haiku-latest",
-        "claude-3-opus-latest",
-      ],
-      requires_key: true,
-      help_text: "Anthropic uses its own custom protocol (Native Binding).",
-    },
-    {
-      id: "gemini",
-      name: "Google Gemini",
-      binding: "openai",
-      base_url: "https://generativelanguage.googleapis.com/v1beta/openai",
-      default_model: "gemini-1.5-pro",
-      models: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-exp"],
-      requires_key: true,
-      help_text: "Google Gemini uses the OpenAI-compatible framework.",
-    },
-    {
-      id: "openrouter",
-      name: "OpenRouter",
-      binding: "openai",
-      base_url: "https://openrouter.ai/api/v1",
-      default_model: "anthropic/claude-3.5-sonnet",
-      models: [
-        "anthropic/claude-3.5-sonnet",
-        "google/gemini-2.0-flash-thinking-exp:free",
-        "deepseek/deepseek-chat",
-      ],
-      requires_key: true,
-      help_text:
-        "OpenRouter uses the OpenAI-compatible framework to access any model.",
-    },
-    {
-      id: "deepseek",
-      name: "DeepSeek",
-      binding: "openai",
-      base_url: "https://api.deepseek.com",
-      default_model: "deepseek-chat",
-      models: ["deepseek-chat", "deepseek-reasoner"],
-      requires_key: true,
-      help_text: "DeepSeek uses the OpenAI-compatible framework.",
-    },
-    {
-      id: "groq",
-      name: "Groq",
-      binding: "openai",
-      base_url: "https://api.groq.com/openai/v1",
-      default_model: "llama-3.3-70b-versatile",
-      models: [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-70b-versatile",
-        "llama-3.1-8b-instant",
-        "mixtral-8x7b-32768",
-        "gemma2-9b-it",
-      ],
-      requires_key: true,
-      help_text:
-        "Groq uses the OpenAI-compatible framework for ultra-fast inference.",
+        "Ollama runs models locally. Default: http://localhost:11434/v1. Run 'ollama serve' first.",
     },
     {
       id: "lmstudio",
-      name: "LM Studio (Local)",
+      name: "LM Studio",
       binding: "openai",
-      base_url: "http://localhost:1234/v1",
-      default_model: "uploaded-model",
+      base_url: "http://127.0.0.1:1234",
+      default_model: "local-model",
       models: [],
       requires_key: false,
       help_text:
-        "LM Studio uses the OpenAI-compatible framework locally. Standard port: 1234.",
+        "LM Studio provides a local OpenAI-compatible API. Default port: 1234. Use 'Refresh Models' to auto-detect loaded models.",
+    },
+    {
+      id: "llamacpp",
+      name: "llama.cpp Server",
+      binding: "openai",
+      base_url: "http://localhost:8080/v1",
+      default_model: "local-model",
+      models: [],
+      requires_key: false,
+      help_text:
+        "llama.cpp server with OpenAI-compatible API. Default port: 8080.",
+    },
+    {
+      id: "vllm",
+      name: "vLLM",
+      binding: "openai",
+      base_url: "http://localhost:8000/v1",
+      default_model: "local-model",
+      models: [],
+      requires_key: false,
+      help_text: "vLLM high-throughput inference server. Default port: 8000.",
+    },
+    {
+      id: "custom",
+      name: "Custom Local Server",
+      binding: "openai",
+      base_url: "http://localhost:8000/v1",
+      default_model: "",
+      models: [],
+      requires_key: false,
+      help_text:
+        "Any OpenAI-compatible local server. Configure the URL and model manually.",
     },
   ];
 
@@ -290,6 +262,22 @@ export default function SettingsPage() {
   const [envError, setEnvError] = useState("");
   const [testResults, setTestResults] = useState<TestResults | null>(null);
   const [testing, setTesting] = useState(false);
+  // Individual service testing states
+  const [testingService, setTestingService] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [serviceTestResults, setServiceTestResults] = useState<
+    Record<
+      string,
+      {
+        status: string;
+        model: string | null;
+        error: string | null;
+        response_time_ms: number | null;
+        message: string | null;
+      }
+    >
+  >({});
 
   // LLM Providers state
   const [providers, setProviders] = useState<LLMProvider[]>([]);
@@ -312,6 +300,12 @@ export default function SettingsPage() {
   const [originalProviderName, setOriginalProviderName] = useState<
     string | null
   >(null);
+
+  // LLM Mode state
+  const [llmModeInfo, setLlmModeInfo] = useState<LLMModeInfo | null>(null);
+  const [providerTypeFilter, setProviderTypeFilter] = useState<
+    "all" | "api" | "local"
+  >("all");
 
   // Create debounced theme save function
   const debouncedSaveTheme = useRef(
@@ -345,10 +339,23 @@ export default function SettingsPage() {
     fetchSettings();
     fetchEnvConfig();
     fetchRagProviders();
-    if (activeTab === "llm_providers") {
+    fetchLLMMode();
+    if (activeTab === "local_models") {
       fetchProviders();
     }
   }, [uiSettings, activeTab]);
+
+  const fetchLLMMode = async () => {
+    try {
+      const res = await fetch(apiUrl("/api/v1/config/llm/mode/"));
+      if (res.ok) {
+        const data = await res.json();
+        setLlmModeInfo(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch LLM mode:", err);
+    }
+  };
 
   const fetchProviders = async () => {
     setLoadingProviders(true);
@@ -700,6 +707,48 @@ export default function SettingsPage() {
     }
   };
 
+  // Test a single service (llm, embedding, tts)
+  const testSingleService = async (service: "llm" | "embedding" | "tts") => {
+    setTestingService((prev) => ({ ...prev, [service]: true }));
+    try {
+      const res = await fetch(apiUrl(`/api/v1/settings/env/test/${service}`), {
+        method: "POST",
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setServiceTestResults((prev) => ({ ...prev, [service]: result }));
+        // Also update testResults for status icons
+        setTestResults((prev) =>
+          prev
+            ? {
+                ...prev,
+                [service]: {
+                  status:
+                    result.status === "success" ? "configured" : result.status,
+                  model: result.model,
+                  error: result.error,
+                },
+              }
+            : null,
+        );
+      }
+    } catch (err) {
+      console.error(`Failed to test ${service}:`, err);
+      setServiceTestResults((prev) => ({
+        ...prev,
+        [service]: {
+          status: "error",
+          model: null,
+          error: "Connection failed",
+          response_time_ms: null,
+          message: null,
+        },
+      }));
+    } finally {
+      setTestingService((prev) => ({ ...prev, [service]: false }));
+    }
+  };
+
   const getCategoryIcon = (iconName: string) => {
     switch (iconName) {
       case "brain":
@@ -923,7 +972,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-4">
           <button
             onClick={() => setActiveTab("general")}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -962,16 +1011,263 @@ export default function SettingsPage() {
             )}
           </button>
           <button
-            onClick={() => setActiveTab("llm_providers")}
+            onClick={() => setActiveTab("local_models")}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "llm_providers"
+              activeTab === "local_models"
                 ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
-            <Brain className="w-4 h-4" />
-            LLM Providers
+            <Server className="w-4 h-4" />
+            {t("LLM Providers")}
+            {llmModeInfo && (
+              <span
+                className={`ml-1 px-1.5 py-0.5 text-[9px] rounded font-medium ${
+                  llmModeInfo.mode === "hybrid"
+                    ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                    : llmModeInfo.mode === "api"
+                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                      : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                {llmModeInfo.mode.toUpperCase()}
+              </span>
+            )}
           </button>
+        </div>
+
+        {/* Configuration Status Panel - Quick Test */}
+        <div className="mb-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-800/50 dark:to-blue-900/20 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+              <h2 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                {t("Configuration Status")}
+              </h2>
+            </div>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400">
+              {t("Click each card to test")}
+            </span>
+          </div>
+          <div className="p-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* LLM Status */}
+              <div
+                className={`p-3 rounded-lg border transition-all ${
+                  serviceTestResults.llm?.status === "success" ||
+                  testResults?.llm?.status === "configured"
+                    ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                    : serviceTestResults.llm?.status === "error" ||
+                        testResults?.llm?.status === "error"
+                      ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                      : "bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-purple-500" />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      LLM
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {serviceTestResults.llm?.response_time_ms && (
+                      <span className="text-[9px] text-slate-400">
+                        {serviceTestResults.llm.response_time_ms}ms
+                      </span>
+                    )}
+                    {(serviceTestResults.llm || testResults?.llm) &&
+                      getStatusIcon(
+                        serviceTestResults.llm?.status === "success"
+                          ? "configured"
+                          : serviceTestResults.llm?.status ||
+                              testResults?.llm?.status ||
+                              "unknown",
+                      )}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400 font-mono truncate mb-1">
+                  {serviceTestResults.llm?.model ||
+                    testResults?.llm?.model ||
+                    editedEnvVars["LLM_MODEL"] ||
+                    t("Not configured")}
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-500 truncate mb-2">
+                  {editedEnvVars["LLM_HOST"]
+                    ? editedEnvVars["LLM_HOST"].includes("localhost") ||
+                      editedEnvVars["LLM_HOST"].includes("127.0.0.1")
+                      ? `🏠 ${editedEnvVars["LLM_HOST"]}`
+                      : `☁️ ${editedEnvVars["LLM_HOST"]}`
+                    : t("No endpoint")}
+                </p>
+                {serviceTestResults.llm?.message && (
+                  <p className="text-[9px] text-green-600 dark:text-green-400 truncate mb-2">
+                    {serviceTestResults.llm.message}
+                  </p>
+                )}
+                {serviceTestResults.llm?.error && (
+                  <p className="text-[9px] text-red-600 dark:text-red-400 truncate mb-2">
+                    {serviceTestResults.llm.error}
+                  </p>
+                )}
+                <button
+                  onClick={() => testSingleService("llm")}
+                  disabled={testingService.llm}
+                  className="w-full py-1.5 text-[10px] font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded flex items-center justify-center gap-1.5 transition-colors border border-purple-200 dark:border-purple-800 disabled:opacity-50"
+                >
+                  {testingService.llm ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3 h-3" />
+                  )}
+                  {testingService.llm ? t("Testing...") : t("Test LLM")}
+                </button>
+              </div>
+
+              {/* Embedding Status */}
+              <div
+                className={`p-3 rounded-lg border transition-all ${
+                  serviceTestResults.embedding?.status === "success" ||
+                  testResults?.embedding?.status === "configured"
+                    ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                    : serviceTestResults.embedding?.status === "error" ||
+                        testResults?.embedding?.status === "error"
+                      ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                      : "bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      Embedding
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {serviceTestResults.embedding?.response_time_ms && (
+                      <span className="text-[9px] text-slate-400">
+                        {serviceTestResults.embedding.response_time_ms}ms
+                      </span>
+                    )}
+                    {(serviceTestResults.embedding || testResults?.embedding) &&
+                      getStatusIcon(
+                        serviceTestResults.embedding?.status === "success"
+                          ? "configured"
+                          : serviceTestResults.embedding?.status ||
+                              testResults?.embedding?.status ||
+                              "unknown",
+                      )}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400 font-mono truncate mb-1">
+                  {serviceTestResults.embedding?.model ||
+                    testResults?.embedding?.model ||
+                    editedEnvVars["EMBEDDING_MODEL"] ||
+                    t("Not configured")}
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-500 truncate mb-2">
+                  {editedEnvVars["EMBEDDING_HOST"]
+                    ? editedEnvVars["EMBEDDING_HOST"].includes("localhost") ||
+                      editedEnvVars["EMBEDDING_HOST"].includes("127.0.0.1")
+                      ? `🏠 ${editedEnvVars["EMBEDDING_HOST"]}`
+                      : `☁️ ${editedEnvVars["EMBEDDING_HOST"]}`
+                    : t("No endpoint")}
+                </p>
+                {serviceTestResults.embedding?.message && (
+                  <p className="text-[9px] text-green-600 dark:text-green-400 truncate mb-2">
+                    {serviceTestResults.embedding.message}
+                  </p>
+                )}
+                {serviceTestResults.embedding?.error && (
+                  <p className="text-[9px] text-red-600 dark:text-red-400 truncate mb-2">
+                    {serviceTestResults.embedding.error}
+                  </p>
+                )}
+                <button
+                  onClick={() => testSingleService("embedding")}
+                  disabled={testingService.embedding}
+                  className="w-full py-1.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded flex items-center justify-center gap-1.5 transition-colors border border-indigo-200 dark:border-indigo-800 disabled:opacity-50"
+                >
+                  {testingService.embedding ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3 h-3" />
+                  )}
+                  {testingService.embedding
+                    ? t("Testing...")
+                    : t("Test Embedding")}
+                </button>
+              </div>
+
+              {/* TTS Status */}
+              <div
+                className={`p-3 rounded-lg border transition-all ${
+                  serviceTestResults.tts?.status === "success" ||
+                  testResults?.tts?.status === "configured"
+                    ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                    : serviceTestResults.tts?.status === "error" ||
+                        testResults?.tts?.status === "error"
+                      ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                      : "bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-rose-500" />
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      TTS
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {serviceTestResults.tts?.response_time_ms && (
+                      <span className="text-[9px] text-slate-400">
+                        {serviceTestResults.tts.response_time_ms}ms
+                      </span>
+                    )}
+                    {(serviceTestResults.tts || testResults?.tts) &&
+                      getStatusIcon(
+                        serviceTestResults.tts?.status === "success"
+                          ? "configured"
+                          : serviceTestResults.tts?.status ||
+                              testResults?.tts?.status ||
+                              "unknown",
+                      )}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400 font-mono truncate mb-1">
+                  {serviceTestResults.tts?.model ||
+                    testResults?.tts?.model ||
+                    editedEnvVars["TTS_MODEL"] ||
+                    t("Not configured")}
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-500 truncate mb-2">
+                  {editedEnvVars["TTS_URL"] || t("No endpoint")}
+                </p>
+                {serviceTestResults.tts?.message && (
+                  <p className="text-[9px] text-green-600 dark:text-green-400 truncate mb-2">
+                    {serviceTestResults.tts.message}
+                  </p>
+                )}
+                {serviceTestResults.tts?.error && (
+                  <p className="text-[9px] text-red-600 dark:text-red-400 truncate mb-2">
+                    {serviceTestResults.tts.error}
+                  </p>
+                )}
+                <button
+                  onClick={() => testSingleService("tts")}
+                  disabled={testingService.tts}
+                  className="w-full py-1.5 text-[10px] font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 rounded flex items-center justify-center gap-1.5 transition-colors border border-rose-200 dark:border-rose-800 disabled:opacity-50"
+                >
+                  {testingService.tts ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3 h-3" />
+                  )}
+                  {testingService.tts ? t("Testing...") : t("Test TTS")}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -1323,78 +1619,6 @@ export default function SettingsPage() {
         {/* Environment Variables Tab */}
         {activeTab === "environment" && envConfig && (
           <div className="space-y-4">
-            {/* Status Overview */}
-            <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Cpu className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                  <h2 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                    {t("Configuration Status")}
-                  </h2>
-                </div>
-                <button
-                  onClick={testEnvConfig}
-                  disabled={testing}
-                  className="px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md flex items-center gap-1.5 transition-colors"
-                >
-                  {testing ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3 h-3" />
-                  )}
-                  {t("Refresh Status")}
-                </button>
-              </div>
-
-              <div className="p-4">
-                {/* Info Banner */}
-                <div className="mb-3 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg text-[11px] text-blue-700 dark:text-blue-300 flex items-start gap-2">
-                  <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                  <p>
-                    <span className="font-medium">
-                      {t("Runtime Configuration")}:
-                    </span>{" "}
-                    <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded text-[10px]">
-                      .env
-                    </code>{" "}
-                    {t("file on startup")}.{" "}
-                    {t(
-                      "Changes made here take effect immediately but are not saved to file",
-                    )}
-                    .
-                  </p>
-                </div>
-
-                {/* Test Results */}
-                {testResults && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {Object.entries(testResults).map(([key, result]) => (
-                      <div
-                        key={key}
-                        className={`p-2.5 rounded-lg border ${
-                          result.status === "configured"
-                            ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                            : result.status === "not_configured"
-                              ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
-                              : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 mb-1">
-                          {getStatusIcon(result.status)}
-                          <span className="text-xs font-semibold uppercase text-slate-700 dark:text-slate-200">
-                            {key}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-slate-600 dark:text-slate-400 truncate font-mono">
-                          {result.model || result.error || "Not configured"}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-
             {/* Environment Variables by Category - 2-column layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {envConfig.categories.map((category) => {
@@ -1515,16 +1739,96 @@ export default function SettingsPage() {
         )}
 
         {/* LLM Providers Tab */}
-        {activeTab === "llm_providers" && (
+        {activeTab === "local_models" && (
           <div className="space-y-4">
+            {/* LLM Mode Status Banner */}
+            {llmModeInfo && (
+              <div
+                className={`p-4 rounded-xl border ${
+                  llmModeInfo.mode === "hybrid"
+                    ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800"
+                    : llmModeInfo.mode === "api"
+                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                      : "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2 rounded-lg ${
+                        llmModeInfo.mode === "hybrid"
+                          ? "bg-purple-100 dark:bg-purple-800/30"
+                          : llmModeInfo.mode === "api"
+                            ? "bg-blue-100 dark:bg-blue-800/30"
+                            : "bg-emerald-100 dark:bg-emerald-800/30"
+                      }`}
+                    >
+                      <Cpu
+                        className={`w-5 h-5 ${
+                          llmModeInfo.mode === "hybrid"
+                            ? "text-purple-600 dark:text-purple-400"
+                            : llmModeInfo.mode === "api"
+                              ? "text-blue-600 dark:text-blue-400"
+                              : "text-emerald-600 dark:text-emerald-400"
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {t("LLM Mode")}:{" "}
+                          <span className="uppercase">{llmModeInfo.mode}</span>
+                        </h3>
+                        <span
+                          className={`px-2 py-0.5 text-[10px] rounded-full font-medium ${
+                            llmModeInfo.effective_source === "provider"
+                              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {llmModeInfo.effective_source === "provider"
+                            ? t("Using Provider")
+                            : t("Using ENV")}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        {llmModeInfo.mode === "hybrid"
+                          ? t(
+                              "Both API and Local providers available. Active provider takes priority.",
+                            )
+                          : llmModeInfo.mode === "api"
+                            ? t("Only API (cloud) providers are used.")
+                            : t("Only Local (self-hosted) providers are used.")}
+                      </p>
+                    </div>
+                  </div>
+                  {llmModeInfo.active_provider && (
+                    <div className="text-right">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        {t("Active")}
+                      </p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {llmModeInfo.active_provider.name}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        {llmModeInfo.active_provider.model}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Header & Add Button */}
             <div className="flex justify-between items-center bg-white dark:bg-slate-800 px-4 py-3 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
               <div>
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  LLM Service Providers
+                  {t("LLM Providers")}
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Configure and manage multiple LLM backends.
+                  {t(
+                    "Manage both API and Local LLM providers. Set LLM_MODE in Environment Variables to control which type is used.",
+                  )}
                 </p>
               </div>
               <button
@@ -1537,6 +1841,8 @@ export default function SettingsPage() {
                     api_key: "",
                     model: defaultPreset.default_model,
                     is_active: false,
+                    provider_type: "local",
+                    requires_key: defaultPreset.requires_key,
                   });
                   setOriginalProviderName(null);
                   setSelectedPresetId(defaultPreset.id);
@@ -1544,117 +1850,171 @@ export default function SettingsPage() {
                   setShowProviderForm(true);
                   setTestProviderResult(null);
                 }}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors"
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors"
               >
-                <SettingsIcon className="w-3.5 h-3.5" />
-                Add Provider
+                <Server className="w-3.5 h-3.5" />
+                {t("Add Provider")}
               </button>
+            </div>
+
+            {/* Provider Type Filter */}
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {t("Filter")}:
+              </span>
+              <div className="flex bg-slate-100 dark:bg-slate-700 p-0.5 rounded-lg">
+                {(["all", "api", "local"] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setProviderTypeFilter(filter)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      providerTypeFilter === filter
+                        ? "bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    {filter === "all"
+                      ? t("All")
+                      : filter === "api"
+                        ? t("API (Cloud)")
+                        : t("Local")}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Provider List */}
             {loadingProviders ? (
               <div className="flex justify-center p-6">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
               </div>
-            ) : providers.length === 0 ? (
+            ) : providers.filter(
+                (p) =>
+                  providerTypeFilter === "all" ||
+                  p.provider_type === providerTypeFilter,
+              ).length === 0 ? (
               <div className="text-center p-8 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
-                <Brain className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                <Server className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No providers configured yet.
+                  {providerTypeFilter === "all"
+                    ? t("No providers configured yet.")
+                    : providerTypeFilter === "api"
+                      ? t("No API providers configured.")
+                      : t("No local providers configured.")}
+                </p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                  {t("Add providers to manage your LLM configurations.")}
                 </p>
               </div>
             ) : (
               <div className="grid gap-3">
-                {providers.map((provider) => (
-                  <div
-                    key={provider.name}
-                    className={`bg-white dark:bg-slate-800 px-4 py-3 rounded-xl shadow-sm border transition-all ${provider.is_active ? "border-blue-500 ring-1 ring-blue-500/20" : "border-slate-200 dark:border-slate-700"}`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div
-                          className={`p-2 rounded-lg flex-shrink-0 ${provider.is_active ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}
-                        >
-                          <Server className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
-                              {provider.name}
-                            </h3>
-                            {provider.is_active && (
-                              <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] rounded font-medium">
-                                Active
-                              </span>
-                            )}
-                            <span className="text-[10px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600 uppercase tracking-wider font-semibold text-slate-500">
-                              {provider.binding}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                            <span className="font-medium text-slate-600 dark:text-slate-300">
-                              {provider.model}
-                            </span>
-                            <span className="text-slate-300 dark:text-slate-600">
-                              •
-                            </span>
-                            <span className="font-mono truncate text-[10px]">
-                              {provider.base_url}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                        {!provider.is_active && (
-                          <button
-                            onClick={() =>
-                              handleActivateProvider(provider.name)
-                            }
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
-                            title="Set as Active"
+                {providers
+                  .filter(
+                    (p) =>
+                      providerTypeFilter === "all" ||
+                      p.provider_type === providerTypeFilter,
+                  )
+                  .map((provider) => (
+                    <div
+                      key={provider.name}
+                      className={`bg-white dark:bg-slate-800 px-4 py-3 rounded-xl shadow-sm border transition-all ${provider.is_active ? "border-blue-500 ring-1 ring-blue-500/20" : "border-slate-200 dark:border-slate-700"}`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div
+                            className={`p-2 rounded-lg flex-shrink-0 ${provider.is_active ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}
                           >
-                            <CheckCircle className="w-4 h-4" />
+                            <Server className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                                {provider.name}
+                              </h3>
+                              {provider.is_active && (
+                                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] rounded font-medium">
+                                  Active
+                                </span>
+                              )}
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                  provider.provider_type === "api"
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                                    : "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+                                }`}
+                              >
+                                {provider.provider_type === "api"
+                                  ? "☁️ API"
+                                  : "🏠 Local"}
+                              </span>
+                              <span className="text-[10px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600 uppercase tracking-wider font-semibold text-slate-500">
+                                {provider.binding}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                              <span className="font-medium text-slate-600 dark:text-slate-300">
+                                {provider.model}
+                              </span>
+                              <span className="text-slate-300 dark:text-slate-600">
+                                •
+                              </span>
+                              <span className="font-mono truncate text-[10px]">
+                                {provider.base_url}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                          {!provider.is_active && (
+                            <button
+                              onClick={() =>
+                                handleActivateProvider(provider.name)
+                              }
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                              title="Set as Active"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleTestProvider(provider)}
+                            className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md transition-colors"
+                            title="Test Connection"
+                          >
+                            <RefreshCw className="w-4 h-4" />
                           </button>
-                        )}
-                        <button
-                          onClick={() => handleTestProvider(provider)}
-                          className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md transition-colors"
-                          title="Test Connection"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingProvider({ ...provider });
-                            setOriginalProviderName(provider.name);
-                            const preset =
-                              PROVIDER_PRESETS.find(
-                                (p) =>
-                                  p.base_url &&
-                                  provider.base_url.includes(p.base_url),
-                              ) ||
-                              PROVIDER_PRESETS.find((p) => p.id === "custom");
-                            if (preset) setSelectedPresetId(preset.id);
-                            setFetchedModels([]);
-                            setShowProviderForm(true);
-                            setTestProviderResult(null);
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-md transition-colors"
-                          title="Edit"
-                        >
-                          <Sliders className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProvider(provider.name)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-                          title="Delete"
-                        >
-                          <XCircle className="w-4 h-4" />
-                        </button>
+                          <button
+                            onClick={() => {
+                              setEditingProvider({ ...provider });
+                              setOriginalProviderName(provider.name);
+                              const preset =
+                                PROVIDER_PRESETS.find(
+                                  (p) =>
+                                    p.base_url &&
+                                    provider.base_url.includes(p.base_url),
+                                ) ||
+                                PROVIDER_PRESETS.find((p) => p.id === "custom");
+                              if (preset) setSelectedPresetId(preset.id);
+                              setFetchedModels([]);
+                              setShowProviderForm(true);
+                              setTestProviderResult(null);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-md transition-colors"
+                            title="Edit"
+                          >
+                            <Sliders className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProvider(provider.name)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                            title="Delete"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
 
@@ -1662,9 +2022,12 @@ export default function SettingsPage() {
             {showProviderForm && editingProvider && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]">
-                  <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                    <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                      {editingProvider.name ? "Edit Provider" : "Add Provider"}
+                  <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-emerald-50/50 dark:bg-emerald-900/20 flex justify-between items-center">
+                    <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Server className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      {editingProvider.name
+                        ? t("Edit Provider")
+                        : t("Add Provider")}
                     </h3>
                     <button
                       onClick={() => setShowProviderForm(false)}
@@ -1674,9 +2037,69 @@ export default function SettingsPage() {
                     </button>
                   </div>
                   <div className="p-4 overflow-y-auto space-y-3">
+                    {/* Provider Type Selection */}
                     <div>
                       <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        Provider Service
+                        {t("Provider Type")}
+                      </label>
+                      <div className="flex bg-slate-100 dark:bg-slate-700 p-0.5 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingProvider((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    provider_type: "local",
+                                    requires_key: false,
+                                  }
+                                : null,
+                            )
+                          }
+                          className={`flex-1 py-1.5 px-3 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                            editingProvider.provider_type === "local"
+                              ? "bg-white dark:bg-slate-600 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          🏠 {t("Local")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingProvider((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    provider_type: "api",
+                                    requires_key: true,
+                                  }
+                                : null,
+                            )
+                          }
+                          className={`flex-1 py-1.5 px-3 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${
+                            editingProvider.provider_type === "api"
+                              ? "bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          ☁️ {t("API (Cloud)")}
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                        {editingProvider.provider_type === "local"
+                          ? t(
+                              "Local servers (Ollama, LM Studio, vLLM) running on your machine.",
+                            )
+                          : t(
+                              "Cloud API providers (OpenAI, Anthropic, DeepSeek, etc.).",
+                            )}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        {t("Server Preset")}
                       </label>
                       <select
                         value={selectedPresetId}
@@ -1694,6 +2117,7 @@ export default function SettingsPage() {
                                 preset.base_url || editingProvider.base_url,
                               model:
                                 preset.default_model || editingProvider.model,
+                              requires_key: preset.requires_key,
                             });
                             setCustomModelInput(preset.models.length === 0);
                             setFetchedModels([]);
@@ -1767,16 +2191,69 @@ export default function SettingsPage() {
                             prev ? { ...prev, base_url: e.target.value } : null,
                           )
                         }
-                        placeholder="https://api.openai.com/v1"
-                        className="w-full p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg font-mono text-xs"
+                        placeholder={
+                          selectedPresetId === "lmstudio"
+                            ? "http://127.0.0.1:1234"
+                            : selectedPresetId === "ollama"
+                              ? "http://localhost:11434/v1"
+                              : "http://localhost:8080/v1"
+                        }
+                        className={`w-full p-2 bg-slate-50 dark:bg-slate-700 border rounded-lg font-mono text-xs ${
+                          editingProvider.base_url.includes(
+                            "/chat/completions",
+                          ) || editingProvider.base_url.includes("/models/")
+                            ? "border-red-400 dark:border-red-500 ring-1 ring-red-400/30"
+                            : "border-slate-200 dark:border-slate-600"
+                        }`}
                       />
+                      {/* Base URL validation warning */}
+                      {(editingProvider.base_url.includes(
+                        "/chat/completions",
+                      ) ||
+                        editingProvider.base_url.includes("/models/")) && (
+                        <div className="mt-1.5 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                          <p className="text-[11px] text-red-600 dark:text-red-400 font-medium flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {t("Invalid URL format detected")}
+                          </p>
+                          <p className="text-[10px] text-red-500 dark:text-red-400/80 mt-0.5">
+                            {t(
+                              "Base URL should NOT include '/chat/completions' or '/models/'. The system will append these automatically.",
+                            )}
+                          </p>
+                          <p className="text-[10px] text-red-500 dark:text-red-400/80 mt-0.5">
+                            {t("Example")}:{" "}
+                            <code className="bg-red-100 dark:bg-red-800/30 px-1 rounded">
+                              http://127.0.0.1:1234
+                            </code>{" "}
+                            {t("or")}{" "}
+                            <code className="bg-red-100 dark:bg-red-800/30 px-1 rounded">
+                              http://127.0.0.1:1234/v1
+                            </code>
+                          </p>
+                        </div>
+                      )}
+                      {/* Normal help text */}
+                      {!editingProvider.base_url.includes(
+                        "/chat/completions",
+                      ) &&
+                        !editingProvider.base_url.includes("/models/") && (
+                          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            {t(
+                              "Only enter the base URL. '/chat/completions' will be appended automatically.",
+                            )}
+                          </p>
+                        )}
                     </div>
 
                     {PROVIDER_PRESETS.find((p) => p.id === selectedPresetId)
-                      ?.requires_key !== false && (
+                      ?.requires_key && (
                       <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          API Key
+                          {t("API Key")}{" "}
+                          <span className="text-slate-400">
+                            ({t("optional for local")})
+                          </span>
                         </label>
                         <input
                           type="password"
@@ -1788,7 +2265,9 @@ export default function SettingsPage() {
                                 : null,
                             )
                           }
-                          placeholder="sk-..."
+                          placeholder={t(
+                            "Usually not required for local servers",
+                          )}
                           className="w-full p-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg font-mono text-xs"
                         />
                       </div>
@@ -1937,12 +2416,12 @@ export default function SettingsPage() {
                       <button
                         onClick={() => handleProviderSave(editingProvider)}
                         disabled={savingProvider}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                       >
                         {savingProvider && (
                           <Loader2 className="w-3 h-3 animate-spin" />
                         )}
-                        {savingProvider ? "Saving..." : "Save Provider"}
+                        {savingProvider ? t("Saving...") : t("Save Server")}
                       </button>
                     </div>
                   </div>
