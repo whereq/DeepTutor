@@ -57,7 +57,23 @@ async def websocket_solve(websocket: WebSocket):
         root_dir = Path(__file__).parent.parent.parent.parent
         output_base = root_dir / "data" / "user" / "solve"
 
-        solver = MainSolver(kb_name=kb_name, output_base_dir=str(output_base))
+        try:
+            llm_config = get_llm_config()
+            api_key = llm_config.api_key
+            base_url = llm_config.base_url
+            api_version = getattr(llm_config, "api_version", None)
+        except Exception:
+            api_key = None
+            base_url = None
+            api_version = None
+
+        solver = MainSolver(
+            kb_name=kb_name,
+            output_base_dir=str(output_base),
+            api_key=api_key,
+            base_url=base_url,
+            api_version=api_version,
+        )
 
         logger.info(f"[{task_id}] Solving: {question[:50]}...")
 
