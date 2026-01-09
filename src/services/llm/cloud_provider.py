@@ -6,11 +6,17 @@ Handles all cloud API LLM calls (OpenAI, DeepSeek, Anthropic, etc.)
 Provides both complete() and stream() methods.
 """
 
+import logging
 import os
 from typing import AsyncGenerator, Dict, List, Optional
 
 import aiohttp
 from lightrag.llm.openai import openai_complete_if_cache
+
+# Get loggers for suppression during fallback scenarios
+# (lightrag logs errors internally before raising exceptions)
+_lightrag_logger = logging.getLogger("lightrag")
+_openai_logger = logging.getLogger("openai")
 
 from .capabilities import supports_response_format
 from .config import get_token_limit_kwargs
@@ -156,15 +162,30 @@ async def _openai_complete(
     content = None
     try:
         # Try using lightrag's openai_complete_if_cache first (has caching)
-        content = await openai_complete_if_cache(
-            model=model,
-            prompt=prompt,
-            system_prompt=system_prompt,
-            api_key=api_key,
-            base_url=base_url,
-            api_version=api_version,
+        # Only pass api_version if it's set (for Azure OpenAI)
+        # Standard OpenAI SDK doesn't accept api_version parameter
+        lightrag_kwargs = {
+            "system_prompt": system_prompt,
+            "history_messages": [],  # Required by lightrag to build messages array
+            "api_key": api_key,
+            "base_url": base_url,
             **kwargs,
-        )
+        }
+        if api_version:
+            lightrag_kwargs["api_version"] = api_version
+
+        # Suppress lightrag's and openai's internal error logging during the call
+        # (errors are handled by our fallback mechanism)
+        original_lightrag_level = _lightrag_logger.level
+        original_openai_level = _openai_logger.level
+        _lightrag_logger.setLevel(logging.CRITICAL)
+        _openai_logger.setLevel(logging.CRITICAL)
+        try:
+            # model and prompt must be positional arguments
+            content = await openai_complete_if_cache(model, prompt, **lightrag_kwargs)
+        finally:
+            _lightrag_logger.setLevel(original_lightrag_level)
+            _openai_logger.setLevel(original_openai_level)
     except Exception:
         pass  # Fall through to direct call
 

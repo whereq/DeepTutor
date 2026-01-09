@@ -142,15 +142,21 @@ class LLMClient:
             history_messages: Optional[List[Dict]] = None,
             **kwargs: Any,
         ):
+            # Only pass api_version if set (for Azure OpenAI)
+            lightrag_kwargs = {
+                "system_prompt": system_prompt,
+                "history_messages": history_messages or [],
+                "api_key": self.config.api_key,
+                "base_url": self.config.base_url,
+                **kwargs,
+            }
+            api_version = getattr(self.config, "api_version", None)
+            if api_version:
+                lightrag_kwargs["api_version"] = api_version
             return openai_complete_if_cache(
                 self.config.model,
                 prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages or [],
-                api_key=self.config.api_key,
-                base_url=self.config.base_url,
-                api_version=getattr(self.config, "api_version", None),
-                **kwargs,
+                **lightrag_kwargs,
             )
 
         return llm_model_func
@@ -196,6 +202,9 @@ class LLMClient:
         # OpenAI-compatible bindings
         from lightrag.llm.openai import openai_complete_if_cache
 
+        # Get api_version once for reuse
+        api_version = getattr(self.config, "api_version", None)
+
         def vision_model_func(
             prompt: str,
             system_prompt: Optional[str] = None,
@@ -211,14 +220,18 @@ class LLMClient:
                     for k, v in kwargs.items()
                     if k not in ["messages", "prompt", "system_prompt", "history_messages"]
                 }
+                lightrag_kwargs = {
+                    "messages": messages,
+                    "api_key": self.config.api_key,
+                    "base_url": self.config.base_url,
+                    **clean_kwargs,
+                }
+                if api_version:
+                    lightrag_kwargs["api_version"] = api_version
                 return openai_complete_if_cache(
                     self.config.model,
                     prompt="",
-                    messages=messages,
-                    api_key=self.config.api_key,
-                    base_url=self.config.base_url,
-                    api_version=getattr(self.config, "api_version", None),
-                    **clean_kwargs,
+                    **lightrag_kwargs,
                 )
 
             # Handle image data
@@ -234,26 +247,34 @@ class LLMClient:
                         },
                     ],
                 }
+                lightrag_kwargs = {
+                    "messages": [image_message],
+                    "api_key": self.config.api_key,
+                    "base_url": self.config.base_url,
+                    **kwargs,
+                }
+                if api_version:
+                    lightrag_kwargs["api_version"] = api_version
                 return openai_complete_if_cache(
                     self.config.model,
                     prompt="",
-                    messages=[image_message],
-                    api_key=self.config.api_key,
-                    base_url=self.config.base_url,
-                    api_version=getattr(self.config, "api_version", None),
-                    **kwargs,
+                    **lightrag_kwargs,
                 )
 
             # Fallback to regular completion
+            lightrag_kwargs = {
+                "system_prompt": system_prompt,
+                "history_messages": history_messages or [],
+                "api_key": self.config.api_key,
+                "base_url": self.config.base_url,
+                **kwargs,
+            }
+            if api_version:
+                lightrag_kwargs["api_version"] = api_version
             return openai_complete_if_cache(
                 self.config.model,
                 prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages or [],
-                api_key=self.config.api_key,
-                base_url=self.config.base_url,
-                api_version=getattr(self.config, "api_version", None),
-                **kwargs,
+                **lightrag_kwargs,
             )
 
         return vision_model_func
