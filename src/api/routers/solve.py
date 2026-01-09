@@ -21,7 +21,8 @@ from src.api.utils.task_id_manager import TaskIDManager
 _project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_project_root))
 from src.logging import get_logger
-from src.services.config import get_llm_config, load_config_with_main
+from src.services.config import load_config_with_main
+from src.services.llm import get_llm_config
 
 # Initialize logger with config
 project_root = Path(__file__).parent.parent.parent.parent

@@ -3,12 +3,16 @@ LLM Client
 ==========
 
 Unified LLM client for all DeepTutor services.
+
+Note: This is a legacy interface. Prefer using the factory functions directly:
+    from src.services.llm import complete, stream
 """
 
 from typing import Any, Dict, List, Optional
 
 from src.logging import get_logger
 
+from .capabilities import system_in_messages
 from .config import LLMConfig, get_llm_config
 
 
@@ -16,7 +20,8 @@ class LLMClient:
     """
     Unified LLM client for all services.
 
-    Wraps the underlying LLM API (OpenAI-compatible) with a consistent interface.
+    Wraps the LLM Factory with a class-based interface.
+    Prefer using factory functions (complete, stream) directly for new code.
     """
 
     def __init__(self, config: Optional[LLMConfig] = None):
@@ -37,7 +42,7 @@ class LLMClient:
         **kwargs: Any,
     ) -> str:
         """
-        Call LLM completion.
+        Call LLM completion via Factory.
 
         Args:
             prompt: User prompt
@@ -48,16 +53,17 @@ class LLMClient:
         Returns:
             LLM response text
         """
-        from lightrag.llm.openai import openai_complete_if_cache
+        from . import factory
 
-        return await openai_complete_if_cache(
-            self.config.model,
-            prompt,
-            system_prompt=system_prompt,
-            history_messages=history or [],
+        # Delegate to factory for unified routing and retry handling
+        return await factory.complete(
+            prompt=prompt,
+            system_prompt=system_prompt or "You are a helpful assistant.",
+            model=self.config.model,
             api_key=self.config.api_key,
             base_url=self.config.base_url,
             api_version=getattr(self.config, "api_version", None),
+            binding=getattr(self.config, "binding", "openai"),
             **kwargs,
         )
 
@@ -100,6 +106,34 @@ class LLMClient:
         Returns:
             Callable that can be used as llm_model_func
         """
+        binding = getattr(self.config, "binding", "openai")
+
+        # Use capabilities to determine if provider uses OpenAI-style messages
+        uses_openai_style = system_in_messages(binding, self.config.model)
+
+        # For non-OpenAI-compatible providers (e.g., Anthropic), use Factory
+        if not uses_openai_style:
+            from . import factory
+
+            def llm_model_func_via_factory(
+                prompt: str,
+                system_prompt: Optional[str] = None,
+                history_messages: Optional[List[Dict]] = None,
+                **kwargs: Any,
+            ):
+                return factory.complete(
+                    prompt=prompt,
+                    system_prompt=system_prompt or "You are a helpful assistant.",
+                    model=self.config.model,
+                    api_key=self.config.api_key,
+                    base_url=self.config.base_url,
+                    binding=binding,
+                    **kwargs,
+                )
+
+            return llm_model_func_via_factory
+
+        # OpenAI-compatible bindings use lightrag (has caching)
         from lightrag.llm.openai import openai_complete_if_cache
 
         def llm_model_func(
@@ -128,6 +162,38 @@ class LLMClient:
         Returns:
             Callable that can be used as vision_model_func
         """
+        binding = getattr(self.config, "binding", "openai")
+
+        # Use capabilities to determine if provider uses OpenAI-style messages
+        uses_openai_style = system_in_messages(binding, self.config.model)
+
+        # For non-OpenAI-compatible providers, use Factory
+        if not uses_openai_style:
+            from . import factory
+
+            def vision_model_func_via_factory(
+                prompt: str,
+                system_prompt: Optional[str] = None,
+                history_messages: Optional[List[Dict]] = None,
+                image_data: Optional[str] = None,
+                messages: Optional[List[Dict]] = None,
+                **kwargs: Any,
+            ):
+                # Use factory for unified handling
+                return factory.complete(
+                    prompt=prompt,
+                    system_prompt=system_prompt or "You are a helpful assistant.",
+                    model=self.config.model,
+                    api_key=self.config.api_key,
+                    base_url=self.config.base_url,
+                    binding=binding,
+                    messages=messages,
+                    **kwargs,
+                )
+
+            return vision_model_func_via_factory
+
+        # OpenAI-compatible bindings
         from lightrag.llm.openai import openai_complete_if_cache
 
         def vision_model_func(

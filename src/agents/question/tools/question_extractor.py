@@ -5,9 +5,15 @@ Extract question information from MinerU-parsed exam papers
 
 This script reads MinerU-parsed markdown files and content_list.json,
 uses LLM to analyze and extract all questions, including question content and related images.
+
+Uses the unified LLM Factory for all LLM calls, supporting:
+- Cloud providers (OpenAI, Anthropic, DeepSeek, etc.)
+- Local providers (Ollama, LM Studio, vLLM, etc.)
+- Automatic retry with exponential backoff
 """
 
 import argparse
+import asyncio
 from datetime import datetime
 import json
 from pathlib import Path
@@ -17,10 +23,10 @@ from typing import Any
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from openai import AzureOpenAI, OpenAI
-
 from src.services.config import get_agent_params
-from src.services.llm import get_llm_config
+from src.services.llm import complete as llm_complete
+from src.services.llm.capabilities import supports_response_format
+from src.services.llm.config import get_llm_config
 
 
 def load_parsed_paper(paper_dir: Path) -> tuple[str | None, list[dict] | None, Path]:
@@ -76,6 +82,7 @@ def extract_questions_with_llm(
     base_url: str,
     model: str,
     api_version: str | None = None,
+    binding: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Use LLM to analyze markdown content and extract questions
@@ -88,6 +95,7 @@ def extract_questions_with_llm(
         base_url: API endpoint URL
         model: Model name
         api_version: API version for Azure OpenAI (optional)
+        binding: Provider binding type (optional)
 
         Returns:
         Question list, each question contains:
@@ -99,15 +107,7 @@ def extract_questions_with_llm(
     """
     import os
 
-    binding = os.getenv("LLM_BINDING", "openai")
-    if binding == "azure_openai" or api_version:
-        client = AzureOpenAI(
-            api_key=api_key,
-            azure_endpoint=base_url,
-            api_version=api_version,
-        )
-    else:
-        client = OpenAI(api_key=api_key, base_url=base_url)
+    binding = binding or os.getenv("LLM_BINDING", "openai")
 
     image_list = []
     if images_dir.exists():
@@ -170,19 +170,31 @@ Please analyze the above exam paper content, extract all question information, a
     # Get agent parameters from unified config
     agent_params = get_agent_params("question")
 
+    # Build kwargs for LLM Factory
+    llm_kwargs = {
+        "temperature": agent_params["temperature"],
+        "max_tokens": agent_params["max_tokens"],
+    }
+
+    # Only add response_format if the provider supports it
+    if supports_response_format(binding, model):
+        llm_kwargs["response_format"] = {"type": "json_object"}
+
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=agent_params["temperature"],
-            max_tokens=agent_params["max_tokens"],
-            response_format={"type": "json_object"},
+        # Call LLM via unified Factory (async, so we need to run in event loop)
+        result_text = asyncio.run(
+            llm_complete(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                model=model,
+                api_key=api_key,
+                base_url=base_url,
+                api_version=api_version,
+                binding=binding,
+                **llm_kwargs,
+            )
         )
 
-        result_text = response.choices[0].message.content
         result = json.loads(result_text)
 
         questions = result.get("questions", [])
@@ -281,6 +293,7 @@ def extract_questions_from_paper(paper_dir: str, output_dir: str | None = None) 
         base_url=llm_config.base_url,
         model=llm_config.model,
         api_version=getattr(llm_config, "api_version", None),
+        binding=getattr(llm_config, "binding", None),
     )
 
     if not questions:
