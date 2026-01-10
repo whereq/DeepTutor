@@ -92,18 +92,61 @@ class TTSSettings(BaseSettings):
 
 
 class WebSearchSettings(BaseSettings):
-    # Environment var: PERPLEXITY_API_KEY
+    """Web search configuration with multiple provider support."""
+
     model_config = SettingsConfigDict(
-        env_prefix="PERPLEXITY_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    api_key: Optional[str] = Field(
+    # Default provider (from SEARCH_PROVIDER env var)
+    provider: str = Field(
+        default="perplexity",
+        description="Default search provider (perplexity, baidu, tavily, exa, serper, jina).",
+        validation_alias="SEARCH_PROVIDER",
+    )
+
+    # Perplexity
+    perplexity_api_key: Optional[str] = Field(
         default=None,
-        description="Perplexity API key for web search functionality.",
+        description="Perplexity API key for AI-powered search.",
         validation_alias="PERPLEXITY_API_KEY",
+    )
+
+    # Baidu
+    baidu_api_key: Optional[str] = Field(
+        default=None,
+        description="Baidu API key for AI search.",
+        validation_alias="BAIDU_API_KEY",
+    )
+
+    # Tavily
+    tavily_api_key: Optional[str] = Field(
+        default=None,
+        description="Tavily API key for research-focused search.",
+        validation_alias="TAVILY_API_KEY",
+    )
+
+    # Exa
+    exa_api_key: Optional[str] = Field(
+        default=None,
+        description="Exa API key for neural/embeddings search.",
+        validation_alias="EXA_API_KEY",
+    )
+
+    # Serper
+    serper_api_key: Optional[str] = Field(
+        default=None,
+        description="Serper API key for Google SERP results.",
+        validation_alias="SERPER_API_KEY",
+    )
+
+    # Jina
+    jina_api_key: Optional[str] = Field(
+        default=None,
+        description="Jina API key for SERP with content extraction (optional, has free tier).",
+        validation_alias="JINA_API_KEY",
     )
 
 
