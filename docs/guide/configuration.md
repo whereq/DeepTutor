@@ -45,6 +45,28 @@ TTS_URL=
 TTS_API_KEY=
 ```
 
+### ☁️ Azure OpenAI Configuration
+
+When using Azure OpenAI, you must set the `LLM_API_VERSION` and provide the correct endpoint URL including the deployment name.
+
+```bash
+LLM_BINDING=azure_openai
+LLM_MODEL=gpt-4o  # Your Azure deployment name
+LLM_HOST=https://{your-resource}.openai.azure.com/openai/deployments/{deployment-id}
+LLM_API_KEY=your_azure_api_key
+LLM_API_VERSION=2024-02-15-preview  # Required for Azure
+```
+
+Similarly for embeddings:
+
+```bash
+EMBEDDING_BINDING=azure_openai
+EMBEDDING_MODEL=text-embedding-3-large  # Your Azure deployment name
+EMBEDDING_HOST=https://{your-resource}.openai.azure.com/openai/deployments/{deployment-id}
+EMBEDDING_API_KEY=your_azure_api_key
+EMBEDDING_API_VERSION=2024-02-15-preview
+```
+
 ## Agent Parameters
 
 Edit `config/agents.yaml`:
