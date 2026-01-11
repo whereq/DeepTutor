@@ -1,5 +1,5 @@
 system:
-  language: en
+  language: zh
 paths:
   user_data_dir: ./data/user
   knowledge_bases_dir: ./data/knowledge_bases
