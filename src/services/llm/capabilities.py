@@ -19,7 +19,6 @@ Usage:
 
 from typing import Any, Optional
 
-
 # Provider capabilities configuration
 # Keys are binding names (lowercase), values are capability dictionaries
 PROVIDER_CAPABILITIES: dict[str, dict[str, Any]] = {
@@ -194,7 +193,8 @@ def get_capability(
     # 1. Check model-specific overrides first
     if model:
         model_lower = model.lower()
-        for pattern, overrides in MODEL_OVERRIDES.items():
+        # Sort by pattern length descending to match most specific first
+        for pattern, overrides in sorted(MODEL_OVERRIDES.items(), key=lambda x: -len(x[0])):
             if model_lower.startswith(pattern):
                 if capability in overrides:
                     return overrides[capability]

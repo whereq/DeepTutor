@@ -20,6 +20,12 @@ hero:
       link: /roadmap
 
 features:
+  - icon: 📚
+    title: Massive Document Q&A
+    details: Upload textbooks, papers, and manuals. Build AI-powered knowledge repositories with RAG and knowledge graph integration.
+  - icon: 🎨
+    title: Interactive Visualization
+    details: Transform complex concepts into visual aids with step-by-step breakdowns and engaging interactive demonstrations.
   - icon: 🧠
     title: Smart Problem Solving
     details: Dual-loop reasoning with step-by-step solutions and precise citations from your documents.
@@ -34,11 +40,31 @@ features:
     details: Systematic topic exploration with web search, paper retrieval, and literature synthesis.
   - icon: 💡
     title: Idea Generation
-    details: Brainstorm research ideas with automated concept synthesis and novelty evaluation.
-  - icon: ✏️
-    title: Co-Writer
-    details: AI-assisted writing with smart editing, auto-annotation, and TTS narration.
+    details: Automated and interactive concept development with multi-source insights and novelty evaluation.
 ---
+
+## Why DeepTutor?
+
+DeepTutor transforms how students interact with educational materials through a unified multi-agent architecture. Unlike traditional tools, it provides:
+
+- **Deep Understanding** - Not just answers, but guided learning journeys with visual explanations
+- **Multi-Modal Support** - PDF, LaTeX, images, code execution, and more
+- **Knowledge Graph** - Semantic connections powered by LightRAG for better comprehension
+- **All-in-One Platform** - Problem solving, question generation, research, and idea generation
+
+## Quick Demo
+
+```bash
+# Clone and setup
+git clone https://github.com/HKUDS/DeepTutor.git
+cd DeepTutor
+
+# Install dependencies
+bash scripts/install_all.sh
+
+# Start the application
+python scripts/start_web.py
+```
 
 <style>
 :root {
@@ -74,13 +100,13 @@ features:
 }
 
 /* Hero 区域 Roadmap 按钮特殊样式 */
-.VPButton.alt[href="/DeepTutor/roadmap"] {
+.VPButton.alt[href="/roadmap"] {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
   color: white !important;
   border: none !important;
 }
 
-.VPButton.alt[href="/DeepTutor/roadmap"]:hover {
+.VPButton.alt[href="/roadmap"]:hover {
   box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5);
   transform: translateY(-2px);
 }

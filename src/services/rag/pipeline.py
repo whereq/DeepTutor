@@ -97,7 +97,7 @@ class RAGPipeline:
         self.logger.info(f"Initializing KB '{kb_name}' with {len(file_paths)} files")
 
         if not self._parser:
-            raise ValueError("No parser configured. Use .parser() to set one.")
+            raise ValueError("No parser configured. Use .parser() to set one")
 
         # Stage 1: Parse documents
         self.logger.info("Stage 1: Parsing documents...")
@@ -143,7 +143,7 @@ class RAGPipeline:
             Search results dictionary
         """
         if not self._retriever:
-            raise ValueError("No retriever configured. Use .retriever() to set one.")
+            raise ValueError("No retriever configured. Use .retriever() to set one")
 
         return await self._retriever.process(query, kb_name=kb_name, **kwargs)
 
@@ -157,9 +157,19 @@ class RAGPipeline:
         Returns:
             True if successful
         """
+        # Validate kb_name to prevent path traversal
+        if not kb_name or kb_name in (".", "..") or "/" in kb_name or "\\" in kb_name:
+            raise ValueError(f"Invalid knowledge base name: {kb_name}")
+
         self.logger.info(f"Deleting KB '{kb_name}'")
 
         kb_dir = Path(self.kb_base_dir) / kb_name
+        # Ensure the resolved path is within the base directory
+        kb_dir = kb_dir.resolve()
+        base_dir = Path(self.kb_base_dir).resolve()
+        if not kb_dir.is_relative_to(base_dir):
+            raise ValueError(f"Knowledge base path outside allowed directory: {kb_name}")
+
         if kb_dir.exists():
             shutil.rmtree(kb_dir)
             self.logger.info(f"Deleted KB directory: {kb_dir}")

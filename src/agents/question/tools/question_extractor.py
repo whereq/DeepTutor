@@ -182,36 +182,80 @@ Please analyze the above exam paper content, extract all question information, a
 
     try:
         # Call LLM via unified Factory (async, so we need to run in event loop)
-        result_text = asyncio.run(
-            llm_complete(
-                prompt=user_prompt,
-                system_prompt=system_prompt,
-                model=model,
-                api_key=api_key,
-                base_url=base_url,
-                api_version=api_version,
-                binding=binding,
-                **llm_kwargs,
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # We're in an existing event loop, run in a thread
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    llm_complete(
+                        prompt=user_prompt,
+                        system_prompt=system_prompt,
+                        model=model,
+                        api_key=api_key,
+                        base_url=base_url,
+                        api_version=api_version,
+                        binding=binding,
+                        **llm_kwargs,
+                    ),
+                )
+                result_text = future.result()
+        else:
+            # No running loop, use run_until_complete
+            result_text = loop.run_until_complete(
+                llm_complete(
+                    prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    model=model,
+                    api_key=api_key,
+                    base_url=base_url,
+                    api_version=api_version,
+                    binding=binding,
+                    **llm_kwargs,
+                )
             )
-        )
+    except RuntimeError as e:
+        if "already running" in str(e):
+            # Fallback: use asyncio.run in a thread
+            import concurrent.futures
 
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    llm_complete(
+                        prompt=user_prompt,
+                        system_prompt=system_prompt,
+                        model=model,
+                        api_key=api_key,
+                        base_url=base_url,
+                        api_version=api_version,
+                        binding=binding,
+                        **llm_kwargs,
+                    ),
+                )
+                result_text = future.result()
+        else:
+            raise
+
+    # Parse JSON response
+    try:
+        if not result_text:
+            raise ValueError("LLM returned empty or None response")
         result = json.loads(result_text)
-
-        questions = result.get("questions", [])
-        print(f"✓ Successfully extracted {len(questions)} questions")
-
-        return questions
-
     except json.JSONDecodeError as e:
         print(f"✗ JSON parsing error: {e!s}")
         print(f"LLM response content: {result_text[:500]}...")
-        return []
-    except Exception as e:
-        print(f"✗ LLM call failed: {e!s}")
-        import traceback
+        raise ValueError(
+            f"Failed to parse LLM JSON response: {e}. "
+            f"Raw response (first 500 chars): {result_text[:500]!r}"
+        ) from e
 
-        traceback.print_exc()
-        return []
+    questions = result.get("questions", [])
+    print(f"✓ Successfully extracted {len(questions)} questions")
+
+    return questions
 
 
 def save_questions_json(questions: list[dict[str, Any]], output_dir: Path, paper_name: str) -> Path:

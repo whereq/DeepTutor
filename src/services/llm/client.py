@@ -82,22 +82,15 @@ class LLMClient:
         import asyncio
 
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If already in an async context, we need to use a different approach
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        asyncio.run, self.complete(prompt, system_prompt, history, **kwargs)
-                    )
-                    return future.result()
-            else:
-                return loop.run_until_complete(
-                    self.complete(prompt, system_prompt, history, **kwargs)
-                )
+            asyncio.get_running_loop()
         except RuntimeError:
+            # No running event loop -> safe to run synchronously.
             return asyncio.run(self.complete(prompt, system_prompt, history, **kwargs))
+
+        raise RuntimeError(
+            "LLMClient.complete_sync() cannot be called from a running event loop. "
+            "Use `await llm.complete(...)` instead."
+        )
 
     def get_model_func(self):
         """
@@ -128,6 +121,7 @@ class LLMClient:
                     api_key=self.config.api_key,
                     base_url=self.config.base_url,
                     binding=binding,
+                    history_messages=history_messages,
                     **kwargs,
                 )
 
@@ -194,6 +188,8 @@ class LLMClient:
                     base_url=self.config.base_url,
                     binding=binding,
                     messages=messages,
+                    history_messages=history_messages,
+                    image_data=image_data,
                     **kwargs,
                 )
 

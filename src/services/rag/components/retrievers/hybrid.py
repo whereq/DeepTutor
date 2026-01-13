@@ -20,7 +20,7 @@ class HybridRetriever(BaseComponent):
     """
 
     name = "hybrid_retriever"
-    _instances: Dict[str, any] = {}
+    _instances: Dict[str, Any] = {}
 
     def __init__(self, kb_base_dir: Optional[str] = None):
         """
@@ -59,7 +59,9 @@ class HybridRetriever(BaseComponent):
             llm_client = get_llm_client()
             embed_client = get_embedding_client()
 
-            def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
+            def llm_model_func(prompt, system_prompt=None, history_messages=None, **kwargs):
+                if history_messages is None:
+                    history_messages = []
                 return openai_complete_if_cache(
                     llm_client.config.model,
                     prompt,
