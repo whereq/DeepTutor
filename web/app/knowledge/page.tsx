@@ -845,7 +845,7 @@ export default function KnowledgePage() {
 
       {/* Create KB Modal */}
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 mt-40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 ">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
@@ -879,11 +879,10 @@ export default function KnowledgePage() {
                   Upload Documents
                 </label>
                 <div
-                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                    dragActive
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive
                       ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
                       : "border-slate-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 bg-slate-50 dark:bg-slate-700/50"
-                  }`}
+                    }`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
