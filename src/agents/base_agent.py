@@ -25,12 +25,12 @@ _project_root = Path(__file__).parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
+from src.config.settings import settings
 from src.logging import LLMStats, get_logger
 from src.services.config import get_agent_params
 from src.services.llm import complete as llm_complete
-from src.services.llm import get_llm_config, get_token_limit_kwargs
+from src.services.llm import get_llm_config, get_token_limit_kwargs, supports_response_format
 from src.services.llm import stream as llm_stream
-from src.services.llm import supports_response_format
 from src.services.prompt import get_prompt_manager
 
 
@@ -61,6 +61,7 @@ class BaseAgent(ABC):
         model: str | None = None,
         api_version: str | None = None,
         language: str = "zh",
+        binding: str = "openai",
         config: dict[str, Any] | None = None,
         token_tracker: Any | None = None,
         log_dir: str | None = None,
@@ -74,7 +75,9 @@ class BaseAgent(ABC):
             api_key: API key (optional, defaults to environment variable)
             base_url: API endpoint (optional, defaults to environment variable)
             model: Model name (optional, defaults to environment variable)
+            api_version: API version for Azure OpenAI (optional)
             language: Language setting ('zh' | 'en'), default 'zh'
+            binding: Provider binding type (optional, defaults to 'openai')
             config: Optional configuration dictionary
             token_tracker: Optional external TokenTracker instance
             log_dir: Optional log directory path
@@ -102,12 +105,14 @@ class BaseAgent(ABC):
             self.base_url = base_url or env_llm.base_url
             self.model = model or env_llm.model
             self.api_version = api_version or getattr(env_llm, "api_version", None)
+            self.binding = binding or getattr(env_llm, "binding", "openai")
         except ValueError:
             # Fallback if env config not available
             self.api_key = api_key or os.getenv("LLM_API_KEY")
             self.base_url = base_url or os.getenv("LLM_HOST")
             self.model = model or os.getenv("LLM_MODEL")
             self.api_version = api_version or os.getenv("LLM_API_VERSION")
+            self.binding = binding
 
         # Get Agent-specific configuration (if config provided)
         self.agent_config = self.config.get("agents", {}).get(agent_name, {})
@@ -206,7 +211,7 @@ class BaseAgent(ABC):
         Returns:
             Retry count
         """
-        return self.agent_config.get("max_retries", self.llm_config.get("max_retries", 3))
+        return self.agent_config.get("max_retries", settings.retry.max_retries)
 
     # -------------------------------------------------------------------------
     # Token Tracking
@@ -343,6 +348,7 @@ class BaseAgent(ABC):
         model = model or self.get_model()
         temperature = temperature if temperature is not None else self.get_temperature()
         max_tokens = max_tokens if max_tokens is not None else self.get_max_tokens()
+        max_retries = self.get_max_retries()
 
         # Record call start time
         start_time = time.time()
@@ -367,9 +373,7 @@ class BaseAgent(ABC):
             if supports_response_format(binding, model):
                 kwargs["response_format"] = response_format
             else:
-                self.logger.debug(
-                    f"response_format not supported for {binding}/{model}, skipping"
-                )
+                self.logger.debug(f"response_format not supported for {binding}/{model}, skipping")
 
         if messages:
             kwargs["messages"] = messages
@@ -395,6 +399,7 @@ class BaseAgent(ABC):
                 api_key=self.api_key,
                 base_url=self.base_url,
                 api_version=self.api_version,
+                max_retries=max_retries,
                 **kwargs,
             )
         except Exception as e:

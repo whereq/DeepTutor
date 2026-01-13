@@ -68,6 +68,7 @@ async def websocket_solve(websocket: WebSocket):
                     # Connection closed, stop pushing
                     logger.debug(f"WebSocket connection closed in log_pusher: {e}")
                     connection_closed.set()
+                    log_queue.task_done()
                     break
                 except Exception as e:
                     logger.debug(f"Error sending log entry: {e}")
@@ -104,10 +105,10 @@ async def websocket_solve(websocket: WebSocket):
             api_key = llm_config.api_key
             base_url = llm_config.base_url
             api_version = getattr(llm_config, "api_version", None)
-        except Exception:
-            api_key = None
-            base_url = None
-            api_version = None
+        except Exception as e:
+            logger.error(f"Failed to get LLM config: {e}", exc_info=True)
+            await websocket.send_json({"type": "error", "content": f"LLM configuration error: {e}"})
+            return
 
         solver = MainSolver(
             kb_name=kb_name,
@@ -116,6 +117,9 @@ async def websocket_solve(websocket: WebSocket):
             base_url=base_url,
             api_version=api_version,
         )
+
+        # Complete async initialization
+        await solver.ainit()
 
         logger.info(f"[{task_id}] Solving: {question[:50]}...")
 

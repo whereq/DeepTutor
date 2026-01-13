@@ -75,6 +75,7 @@ class QuestionValidationWorkflow:
 
         if not self.model:
             from src.services.llm.exceptions import LLMConfigError
+
             raise LLMConfigError(
                 "LLM_MODEL not configured. Please set it in .env or activate a provider."
             )
@@ -191,13 +192,14 @@ Output the retrieval query directly, no additional content.
 
         response_content = response_content.strip()
 
+        # Rough estimation: ~4 chars per token
+        input_tokens_est = (len(system_prompt) + len(prompt)) // 4
+        output_tokens_est = len(response_content) // 4
+
         # Update token statistics if callback is available
         if self.token_stats_callback:
-            # Rough estimation: ~4 chars per token
-            input_tokens = (len(system_prompt) + len(prompt)) // 4
-            output_tokens = len(response_content) // 4
             self.token_stats_callback(
-                input_tokens=input_tokens, output_tokens=output_tokens, model=self.model
+                input_tokens=input_tokens_est, output_tokens=output_tokens_est, model=self.model
             )
 
         # Log LLM call with detailed information
@@ -208,9 +210,9 @@ Output the retrieval query directly, no additional content.
             user_prompt=prompt,
             response=response_content,
             agent_name="QuestionValidationWorkflow",
-            input_tokens=0,
-            output_tokens=0,
-            cost=0.0,
+            input_tokens=input_tokens_est,
+            output_tokens=output_tokens_est,
+            cost=0.0,  # Cost estimation would require pricing info
             level="DEBUG",
         )
 
