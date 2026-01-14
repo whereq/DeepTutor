@@ -181,7 +181,9 @@ class AnswerConsolidator:
         self.custom_template = custom_template
         self.llm_config = llm_config or {}
         self.max_results = max_results
-        self.jinja_env = Environment(loader=BaseLoader(), autoescape=autoescape)
+        # Security: autoescape defaults to True (set in function signature above).
+        # When True, Jinja2 auto-escapes HTML to prevent XSS.
+        self.jinja_env = Environment(loader=BaseLoader(), autoescape=autoescape)  # nosec B701
 
         if self.custom_template is not None and autoescape:
             _logger.warning(
@@ -394,4 +396,3 @@ Consolidate these results into structured grounding context."""
 
 
 __all__ = ["AnswerConsolidator", "CONSOLIDATION_TYPES", "PROVIDER_TEMPLATES"]
-

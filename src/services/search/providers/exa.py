@@ -192,4 +192,3 @@ class ExaProvider(BaseSearchProvider):
         )
 
         return response_obj
-

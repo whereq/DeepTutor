@@ -169,7 +169,7 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
       {/* Drawer - matches the app styling */}
       <div
         className={`
-          fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white dark:bg-slate-800 
+          fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white dark:bg-slate-800
           border-l border-slate-200 dark:border-slate-700 z-50
           transform transition-transform duration-300 ease-out
           shadow-2xl
@@ -206,7 +206,10 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
                     : "Generating"}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {stage || "idle"}{progress?.current && progress?.total ? ` · ${progress.current}/${progress.total}` : ""}
+                {stage || "idle"}
+                {progress?.current && progress?.total
+                  ? ` · ${progress.current}/${progress.total}`
+                  : ""}
               </p>
             </div>
           </div>
@@ -231,13 +234,22 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
               </p>
               <div className="flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
                 <span>
-                  Difficulty: <strong className="capitalize text-slate-700 dark:text-slate-200">{difficulty}</strong>
+                  Difficulty:{" "}
+                  <strong className="capitalize text-slate-700 dark:text-slate-200">
+                    {difficulty}
+                  </strong>
                 </span>
                 <span>
-                  Type: <strong className="capitalize text-slate-700 dark:text-slate-200">{questionType}</strong>
+                  Type:{" "}
+                  <strong className="capitalize text-slate-700 dark:text-slate-200">
+                    {questionType}
+                  </strong>
                 </span>
                 <span>
-                  Count: <strong className="text-slate-700 dark:text-slate-200">{count}</strong>
+                  Count:{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">
+                    {count}
+                  </strong>
                 </span>
               </div>
             </div>

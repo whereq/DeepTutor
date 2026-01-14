@@ -13,4 +13,3 @@ __all__ = [
     "extract_questions_from_paper",
     "mimic_exam_questions",
 ]
-

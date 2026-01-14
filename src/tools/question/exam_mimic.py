@@ -27,9 +27,9 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Note: AgentCoordinator is imported inside functions to avoid circular import
+from src.services.llm.config import get_llm_config
 from src.tools.question.pdf_parser import parse_pdf_with_mineru
 from src.tools.question.question_extractor import extract_questions_from_paper
-from src.services.llm.config import get_llm_config
 
 # Type alias for WebSocket callback
 WsCallback = Callable[[str, dict[str, Any]], Any]
@@ -614,4 +614,3 @@ Examples:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

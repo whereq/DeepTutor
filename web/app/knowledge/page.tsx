@@ -984,10 +984,11 @@ export default function KnowledgePage() {
                   Upload Documents
                 </label>
                 <div
-                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                    dragActive
                       ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
                       : "border-slate-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 bg-slate-50 dark:bg-slate-700/50"
-                    }`}
+                  }`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}

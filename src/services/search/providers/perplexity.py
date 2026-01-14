@@ -151,4 +151,3 @@ class PerplexityProvider(BaseSearchProvider):
         )
 
         return response
-

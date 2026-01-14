@@ -6,7 +6,7 @@ interface LayoutWrapperProps {
 
 /**
  * LayoutWrapper - Simplified
- * 
+ *
  * Previously handled setup wizard display logic.
  * Now just a simple wrapper for children.
  */

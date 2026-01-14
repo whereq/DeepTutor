@@ -16,7 +16,7 @@ from src.agents.base_agent import BaseAgent
 class GenerateAgent(BaseAgent):
     """
     Agent responsible for generating questions from knowledge context.
-    
+
     Responsibilities:
     - Generate questions based on requirements and knowledge
     - Support both custom mode (from scratch) and mimic mode (from reference)
@@ -68,7 +68,7 @@ class GenerateAgent(BaseAgent):
 
         # Build requirements string
         requirements_str = json.dumps(requirement, ensure_ascii=False, indent=2)
-        
+
         # Build focus string
         if focus:
             focus_str = f"Focus: {focus.get('focus', '')}\nType: {focus.get('type', requirement.get('question_type', 'written'))}"
@@ -127,7 +127,9 @@ class GenerateAgent(BaseAgent):
         user_prompt = user_prompt_template.format(
             requirements=requirements_str,
             focus=focus_str,
-            knowledge=knowledge_context[:4000] if len(knowledge_context) > 4000 else knowledge_context,
+            knowledge=knowledge_context[:4000]
+            if len(knowledge_context) > 4000
+            else knowledge_context,
         )
 
         try:
@@ -188,7 +190,9 @@ class GenerateAgent(BaseAgent):
         user_prompt = user_prompt_template.format(
             reference_question=reference_question,
             requirements=requirements_str,
-            knowledge=knowledge_context[:4000] if len(knowledge_context) > 4000 else knowledge_context,
+            knowledge=knowledge_context[:4000]
+            if len(knowledge_context) > 4000
+            else knowledge_context,
         )
 
         try:
@@ -375,4 +379,3 @@ class GenerateAgent(BaseAgent):
 
         # If no code blocks found, return as-is (might already be valid JSON)
         return content.strip()
-

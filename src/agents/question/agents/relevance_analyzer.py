@@ -17,12 +17,12 @@ from src.agents.base_agent import BaseAgent
 class RelevanceAnalyzer(BaseAgent):
     """
     Agent responsible for analyzing question-knowledge relevance.
-    
+
     Key difference from old ValidationWorkflow:
     - NO rejection: all questions are accepted
     - NO iteration: single-pass analysis
     - Output: relevance level (high/partial) with explanations
-    
+
     Responsibilities:
     - Analyze how well a question aligns with knowledge base content
     - Identify what KB concepts the question tests
@@ -170,7 +170,9 @@ class RelevanceAnalyzer(BaseAgent):
         return {
             "relevance": relevance,
             "kb_coverage": result.get("kb_coverage", ""),
-            "extension_points": result.get("extension_points", "") if relevance == "partial" else "",
+            "extension_points": result.get("extension_points", "")
+            if relevance == "partial"
+            else "",
         }
 
     def _clean_json_string(self, json_str: str) -> str:
@@ -203,4 +205,3 @@ class RelevanceAnalyzer(BaseAgent):
             return matches[0].strip()
 
         return content.strip()
-

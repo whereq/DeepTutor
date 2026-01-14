@@ -69,4 +69,3 @@ __all__ = [
     "SearchProvider",
     "SEARCH_API_KEY_ENV",
 ]
-

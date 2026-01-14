@@ -15,8 +15,14 @@ import sys
 def check_mineru_installed():
     """Check if MinerU is installed"""
     try:
+        # Security: Using partial path is intentional here - we need to find
+        # the command in user's PATH. These are trusted CLI tools, not user input.
         result = subprocess.run(
-            ["magic-pdf", "--version"], check=False, capture_output=True, text=True, shell=False
+            ["magic-pdf", "--version"],  # nosec B607
+            check=False,
+            capture_output=True,
+            text=True,
+            shell=False,
         )
         if result.returncode == 0:
             return "magic-pdf"
@@ -24,8 +30,13 @@ def check_mineru_installed():
         pass
 
     try:
+        # Security: Same as above - intentionally using PATH lookup for CLI tool.
         result = subprocess.run(
-            ["mineru", "--version"], check=False, capture_output=True, text=True, shell=False
+            ["mineru", "--version"],  # nosec B607
+            check=False,
+            capture_output=True,
+            text=True,
+            shell=False,
         )
         if result.returncode == 0:
             return "mineru"
@@ -198,4 +209,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-

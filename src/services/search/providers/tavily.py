@@ -12,8 +12,8 @@ Features:
 - Domain include/exclude lists
 """
 
-import json
 from datetime import datetime
+import json
 from typing import Any
 
 import requests
@@ -159,4 +159,3 @@ class TavilyProvider(BaseSearchProvider):
         )
 
         return response_obj
-

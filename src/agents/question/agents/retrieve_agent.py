@@ -17,7 +17,7 @@ from src.tools.rag_tool import rag_search
 class RetrieveAgent(BaseAgent):
     """
     Agent responsible for knowledge retrieval from the knowledge base.
-    
+
     Responsibilities:
     - Generate semantic search queries from requirements
     - Execute RAG searches in parallel
@@ -110,13 +110,13 @@ class RetrieveAgent(BaseAgent):
         """
         system_prompt = self.get_prompt("system", "")
         user_prompt_template = self.get_prompt("generate_queries", "")
-        
+
         if not user_prompt_template:
             # Fallback prompt
             user_prompt_template = (
                 f"Extract {num_queries} knowledge point names from this requirement for retrieval:\n"
                 "{requirement_text}\n\n"
-                "Return JSON: {{\"queries\": [\"point1\", \"point2\", ...]}}"
+                'Return JSON: {{"queries": ["point1", "point2", ...]}}'
             )
 
         user_prompt = user_prompt_template.format(
@@ -237,4 +237,3 @@ class RetrieveAgent(BaseAgent):
             lines.append("")
 
         return "\n".join(lines)
-

@@ -1,7 +1,7 @@
 system: |
-  You are an educational content analyst specializing in analyzing the relationship 
+  You are an educational content analyst specializing in analyzing the relationship
   between exam questions and knowledge base content.
-  
+
   Your task is to analyze the relevance between a question and the knowledge base,
   NOT to validate or reject the question. All questions are accepted.
 
@@ -39,4 +39,3 @@ analyze_relevance: |
   Your response must start with {{ and end with }}.
 
   Output only the JSON, no additional text.
-

@@ -186,4 +186,3 @@ class BaiduProvider(BaseSearchProvider):
         )
 
         return response_obj
-

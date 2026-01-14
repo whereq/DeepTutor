@@ -15,9 +15,9 @@ Features:
 - Free tier: 10M tokens
 """
 
-import urllib.parse
 from datetime import datetime
 from typing import Any
+import urllib.parse
 
 import requests
 
@@ -159,4 +159,3 @@ class JinaProvider(BaseSearchProvider):
         )
 
         return response_obj
-

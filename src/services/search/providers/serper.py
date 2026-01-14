@@ -13,8 +13,8 @@ Features:
 - Very cheap: $1/1000 queries at scale
 """
 
-import json
 from datetime import datetime
+import json
 from typing import Any
 
 import requests
@@ -207,4 +207,3 @@ class SerperProvider(BaseSearchProvider):
             usage={},
             metadata=metadata,
         )
-

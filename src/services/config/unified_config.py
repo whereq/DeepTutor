@@ -6,13 +6,13 @@ Manages configurations for LLM, Embedding, TTS, and Search services.
 Supports both .env defaults and user-defined configurations.
 """
 
+from enum import Enum
 import json
 import logging
 import os
-import uuid
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import uuid
 
 from dotenv import load_dotenv
 
@@ -29,6 +29,7 @@ SETTINGS_DIR = PROJECT_ROOT / "data" / "user" / "settings"
 
 class ConfigType(str, Enum):
     """Configuration types."""
+
     LLM = "llm"
     EMBEDDING = "embedding"
     TTS = "tts"
@@ -37,7 +38,15 @@ class ConfigType(str, Enum):
 
 # Provider options for each service type
 PROVIDER_OPTIONS = {
-    ConfigType.LLM: ["openai", "anthropic", "azure_openai", "deepseek", "ollama", "lm_studio", "vllm"],
+    ConfigType.LLM: [
+        "openai",
+        "anthropic",
+        "azure_openai",
+        "deepseek",
+        "ollama",
+        "lm_studio",
+        "vllm",
+    ],
     ConfigType.EMBEDDING: ["openai", "azure_openai", "ollama", "jina", "cohere", "huggingface"],
     ConfigType.TTS: ["openai", "azure_openai"],
     ConfigType.SEARCH: ["perplexity", "tavily", "exa", "jina", "serper", "baidu"],
@@ -78,7 +87,7 @@ ENV_VAR_MAPPINGS = {
 def _resolve_env_value(value: Any) -> Any:
     """
     Resolve a value that may reference an environment variable.
-    
+
     If value is {"use_env": "VAR_NAME"}, returns os.environ.get("VAR_NAME").
     Otherwise, returns the value as-is.
     """
@@ -99,32 +108,32 @@ def _get_env_value(env_var: str) -> Optional[str]:
 class UnifiedConfigManager:
     """
     Manages configurations for all service types.
-    
+
     Each service type has:
     - A "default" configuration that comes from .env (cannot be deleted)
     - User-defined configurations that can be added/edited/deleted
     - An "active" configuration that is currently in use
     """
-    
+
     _instance: Optional["UnifiedConfigManager"] = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(UnifiedConfigManager, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-    
+
     def __init__(self):
         if getattr(self, "_initialized", False):
             return
-        
+
         SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
         self._initialized = True
-    
+
     def _get_storage_path(self, config_type: ConfigType) -> Path:
         """Get the storage file path for a config type."""
         return SETTINGS_DIR / f"{config_type.value}_configs.json"
-    
+
     def _load_configs(self, config_type: ConfigType) -> Dict[str, Any]:
         """Load configurations from storage."""
         path = self._get_storage_path(config_type)
@@ -135,7 +144,7 @@ class UnifiedConfigManager:
             except (json.JSONDecodeError, IOError) as e:
                 logger.warning(f"Failed to load {config_type.value} configs: {e}")
         return {"configs": [], "active_id": "default"}
-    
+
     def _save_configs(self, config_type: ConfigType, data: Dict[str, Any]) -> bool:
         """Save configurations to storage."""
         path = self._get_storage_path(config_type)
@@ -146,11 +155,11 @@ class UnifiedConfigManager:
         except IOError as e:
             logger.error(f"Failed to save {config_type.value} configs: {e}")
             return False
-    
+
     def _build_default_config(self, config_type: ConfigType) -> Dict[str, Any]:
         """Build the default configuration from environment variables."""
         env_mapping = ENV_VAR_MAPPINGS.get(config_type, {})
-        
+
         if config_type == ConfigType.LLM:
             return {
                 "id": "default",
@@ -162,7 +171,7 @@ class UnifiedConfigManager:
                 "model": _get_env_value(env_mapping.get("model")) or "",
                 "api_version": _get_env_value(env_mapping.get("api_version")),
             }
-        
+
         elif config_type == ConfigType.EMBEDDING:
             dim_str = _get_env_value(env_mapping.get("dimensions"))
             return {
@@ -176,7 +185,7 @@ class UnifiedConfigManager:
                 "dimensions": int(dim_str) if dim_str and dim_str.isdigit() else 3072,
                 "api_version": _get_env_value(env_mapping.get("api_version")),
             }
-        
+
         elif config_type == ConfigType.TTS:
             return {
                 "id": "default",
@@ -189,7 +198,7 @@ class UnifiedConfigManager:
                 "voice": _get_env_value(env_mapping.get("voice")) or "alloy",
                 "api_version": _get_env_value(env_mapping.get("api_version")),
             }
-        
+
         elif config_type == ConfigType.SEARCH:
             provider = _get_env_value(env_mapping.get("provider")) or "perplexity"
             return {
@@ -199,13 +208,13 @@ class UnifiedConfigManager:
                 "provider": provider,
                 "api_key": "***",
             }
-        
+
         return {"id": "default", "name": "Default (from .env)", "is_default": True}
-    
+
     def _get_default_config_resolved(self, config_type: ConfigType) -> Dict[str, Any]:
         """Get the default configuration with actual values resolved (for internal use)."""
         env_mapping = ENV_VAR_MAPPINGS.get(config_type, {})
-        
+
         if config_type == ConfigType.LLM:
             return {
                 "id": "default",
@@ -215,7 +224,7 @@ class UnifiedConfigManager:
                 "model": _get_env_value(env_mapping.get("model")) or "",
                 "api_version": _get_env_value(env_mapping.get("api_version")),
             }
-        
+
         elif config_type == ConfigType.EMBEDDING:
             dim_str = _get_env_value(env_mapping.get("dimensions"))
             return {
@@ -227,7 +236,7 @@ class UnifiedConfigManager:
                 "dimensions": int(dim_str) if dim_str and dim_str.isdigit() else 3072,
                 "api_version": _get_env_value(env_mapping.get("api_version")),
             }
-        
+
         elif config_type == ConfigType.TTS:
             return {
                 "id": "default",
@@ -238,7 +247,7 @@ class UnifiedConfigManager:
                 "voice": _get_env_value(env_mapping.get("voice")) or "alloy",
                 "api_version": _get_env_value(env_mapping.get("api_version")),
             }
-        
+
         elif config_type == ConfigType.SEARCH:
             provider = _get_env_value(env_mapping.get("provider")) or "perplexity"
             return {
@@ -246,60 +255,60 @@ class UnifiedConfigManager:
                 "provider": provider,
                 "api_key": _get_env_value(env_mapping.get("api_key")) or "",
             }
-        
+
         return {"id": "default"}
-    
+
     def _resolve_config(self, config: Dict[str, Any], config_type: ConfigType) -> Dict[str, Any]:
         """Resolve all {"use_env": ...} references in a configuration."""
         resolved = {}
         env_mapping = ENV_VAR_MAPPINGS.get(config_type, {})
-        
+
         for key, value in config.items():
             if isinstance(value, dict) and "use_env" in value:
                 env_var = value["use_env"]
                 resolved[key] = _get_env_value(env_var) or ""
             else:
                 resolved[key] = value
-        
+
         return resolved
-    
+
     def get_provider_options(self, config_type: ConfigType) -> List[str]:
         """Get available provider options for a config type."""
         return PROVIDER_OPTIONS.get(config_type, [])
-    
+
     def list_configs(self, config_type: ConfigType) -> List[Dict[str, Any]]:
         """
         List all configurations for a service type.
         Includes the default config (from .env) and user-defined configs.
         """
         data = self._load_configs(config_type)
-        
+
         # Build default config
         default_config = self._build_default_config(config_type)
-        
+
         # Get user configs
         user_configs = data.get("configs", [])
-        
+
         # Mark active config
         active_id = data.get("active_id", "default")
-        
+
         all_configs = [default_config] + user_configs
         for cfg in all_configs:
             cfg["is_active"] = cfg.get("id") == active_id
-        
+
         return all_configs
-    
+
     def get_config(self, config_type: ConfigType, config_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific configuration by ID."""
         if config_id == "default":
             return self._build_default_config(config_type)
-        
+
         data = self._load_configs(config_type)
         for cfg in data.get("configs", []):
             if cfg.get("id") == config_id:
                 return cfg
         return None
-    
+
     def get_active_config(self, config_type: ConfigType) -> Optional[Dict[str, Any]]:
         """
         Get the currently active configuration with all values resolved.
@@ -307,41 +316,43 @@ class UnifiedConfigManager:
         """
         data = self._load_configs(config_type)
         active_id = data.get("active_id", "default")
-        
+
         if active_id == "default":
             return self._get_default_config_resolved(config_type)
-        
+
         for cfg in data.get("configs", []):
             if cfg.get("id") == active_id:
                 return self._resolve_config(cfg, config_type)
-        
+
         # Fallback to default if active config not found
         return self._get_default_config_resolved(config_type)
-    
+
     def add_config(self, config_type: ConfigType, config: Dict[str, Any]) -> Dict[str, Any]:
         """Add a new configuration."""
         data = self._load_configs(config_type)
-        
+
         # Generate ID if not provided
         if "id" not in config:
             config["id"] = str(uuid.uuid4())[:8]
-        
+
         # Ensure required fields
         config["is_default"] = False
-        
+
         # Add to list
         data["configs"].append(config)
         self._save_configs(config_type, data)
-        
+
         return config
-    
-    def update_config(self, config_type: ConfigType, config_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+
+    def update_config(
+        self, config_type: ConfigType, config_id: str, updates: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Update an existing configuration."""
         if config_id == "default":
             return None  # Cannot update default config
-        
+
         data = self._load_configs(config_type)
-        
+
         for i, cfg in enumerate(data.get("configs", [])):
             if cfg.get("id") == config_id:
                 # Update fields
@@ -351,58 +362,58 @@ class UnifiedConfigManager:
                 data["configs"][i] = cfg
                 self._save_configs(config_type, data)
                 return cfg
-        
+
         return None
-    
+
     def delete_config(self, config_type: ConfigType, config_id: str) -> bool:
         """Delete a configuration."""
         if config_id == "default":
             return False  # Cannot delete default config
-        
+
         data = self._load_configs(config_type)
         original_len = len(data.get("configs", []))
         data["configs"] = [c for c in data.get("configs", []) if c.get("id") != config_id]
-        
+
         if len(data["configs"]) < original_len:
             # If deleted config was active, switch to default
             if data.get("active_id") == config_id:
                 data["active_id"] = "default"
             self._save_configs(config_type, data)
             return True
-        
+
         return False
-    
+
     def set_active_config(self, config_type: ConfigType, config_id: str) -> bool:
         """Set a configuration as active."""
         data = self._load_configs(config_type)
-        
+
         # Verify config exists
         if config_id != "default":
             found = any(c.get("id") == config_id for c in data.get("configs", []))
             if not found:
                 return False
-        
+
         data["active_id"] = config_id
         return self._save_configs(config_type, data)
-    
+
     def get_env_status(self, config_type: ConfigType) -> Dict[str, bool]:
         """Check which environment variables are configured for a service type."""
         env_mapping = ENV_VAR_MAPPINGS.get(config_type, {})
         status = {}
-        
+
         for field, env_var in env_mapping.items():
             if not env_var.endswith("_key"):  # Skip individual search provider keys
                 status[field] = bool(_get_env_value(env_var))
-        
+
         return status
-    
+
     def get_default_config(self, config_type: ConfigType) -> Dict[str, Any]:
         """
         Get the default configuration with actual values resolved.
         Used for testing the default configuration.
         """
         return self._get_default_config_resolved(config_type)
-    
+
     def resolve_config_env_values(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Resolve all {"use_env": "VAR_NAME"} references in a user configuration.
@@ -447,4 +458,3 @@ def get_active_tts_config() -> Optional[Dict[str, Any]]:
 def get_active_search_config() -> Optional[Dict[str, Any]]:
     """Get the active search configuration."""
     return get_config_manager().get_active_config(ConfigType.SEARCH)
-

@@ -5,14 +5,13 @@ This module defines the BaseSearchProvider class that all search providers must 
 All providers use a unified SEARCH_API_KEY environment variable.
 """
 
-import os
 from abc import ABC, abstractmethod
+import os
 from typing import Any
 
 from src.logging import get_logger
 
 from .types import WebSearchResponse
-
 
 # Unified API key environment variable
 SEARCH_API_KEY_ENV = "SEARCH_API_KEY"
@@ -86,4 +85,3 @@ class BaseSearchProvider(ABC):
 
 
 __all__ = ["BaseSearchProvider", "SEARCH_API_KEY_ENV"]
-

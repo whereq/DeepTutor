@@ -112,4 +112,3 @@ class WebSearchResponse:
 
 
 __all__ = ["Citation", "SearchResult", "WebSearchResponse"]
-
