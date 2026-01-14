@@ -27,6 +27,7 @@ from src.services.llm.capabilities import supports_response_format
 from src.services.llm.config import get_llm_config
 from src.services.prompt import get_prompt_manager
 from src.tools.rag_tool import rag_search
+from src.utils.json_parser import parse_json_response
 
 # Module logger
 logger = get_logger("QuestionValidation")
@@ -329,7 +330,7 @@ Output the retrieval query directly, no additional content.
                 level="DEBUG",
             )
 
-            result = json.loads(response_content)
+            result = parse_json_response(response_content, logger_instance=logger, fallback={})
 
             # Ensure issues and suggestions are lists (handle case where LLM returns dict)
             issues = result.get("issues", [])
@@ -465,7 +466,7 @@ Output only the JSON, no additional text."""
                     input_tokens=input_tokens, output_tokens=output_tokens, model=self.model
                 )
 
-            result = json.loads(response_content)
+            result = parse_json_response(response_content, logger_instance=logger, fallback={})
 
             logger.info("Extension analysis completed")
 
@@ -588,7 +589,7 @@ Output only the JSON, no additional text."""
                 level="DEBUG",
             )
 
-            result = json.loads(response_content)
+            result = parse_json_response(response_content, logger_instance=logger, fallback={})
 
             relevance = result.get("relevance", "partial")
             if relevance not in ["high", "partial"]:
