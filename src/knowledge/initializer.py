@@ -101,13 +101,13 @@ class KnowledgeBaseInitializer:
                     metadata = json.load(f)
             else:
                 metadata = {}
-            
+
             metadata["rag_provider"] = provider
             metadata["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
+
             with open(metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, indent=2, ensure_ascii=False, fp=f)
-            
+
             logger.info(f"  ✓ Updated metadata with RAG provider: {provider}")
         except Exception as e:
             logger.warning(f"Failed to update metadata with provider: {e}")
@@ -215,10 +215,10 @@ class KnowledgeBaseInitializer:
 
             if success:
                 logger.info("✓ Document processing completed!")
-                
+
                 # Update metadata with the RAG provider used
                 self._update_metadata_with_provider(provider)
-                
+
                 self.progress_tracker.update(
                     ProgressStage.PROCESSING_DOCUMENTS,
                     "Documents processed successfully",
@@ -444,7 +444,7 @@ class KnowledgeBaseInitializer:
 
         # Read provider from metadata instead of env var
         provider = self.rag_provider or os.getenv("RAG_PROVIDER", "raganything")
-        
+
         # Try to read from metadata.json if available
         metadata_file = self.kb_dir / "metadata.json"
         if metadata_file.exists():

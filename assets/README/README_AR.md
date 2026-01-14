@@ -237,7 +237,8 @@ cp .env.example .env
 | `BACKEND_PORT` | لا | منفذ الخلفية (افتراضي: `8001`) |
 | `FRONTEND_PORT` | لا | منفذ الواجهة الأمامية (افتراضي: `3782`) |
 | `TTS_*` | لا | إعدادات تحويل النص إلى كلام |
-| `PERPLEXITY_API_KEY` | لا | للبحث على الويب |
+| `SEARCH_PROVIDER` | لا | مزود البحث (الخيارات: `perplexity`, `tavily`, `serper`, `jina`, `exa`, `baidu`، الافتراضي: `perplexity`) |
+| `SEARCH_API_KEY` | لا | مفتاح API موحد للبحث |
 
 </details>
 

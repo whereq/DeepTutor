@@ -56,7 +56,7 @@ export default function KnowledgePage() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [newKbName, setNewKbName] = useState("");
   const [dragActive, setDragActive] = useState(false);
-  const [ragProvider, setRagProvider] = useState<string>("raganything");
+  const [ragProvider, setRagProvider] = useState<string>("llamaindex");
   const [ragProviders, setRagProviders] = useState<
     Array<{ id: string; name: string; description: string }>
   >([]);
@@ -471,7 +471,7 @@ export default function KnowledgePage() {
     Array.from(files).forEach((file) => {
       formData.append("files", file);
     });
-    
+
     // Add rag_provider to form data if user selected one different from KB's existing provider
     if (ragProvider) {
       formData.append("rag_provider", ragProvider);
@@ -560,7 +560,7 @@ export default function KnowledgePage() {
       setCreateModalOpen(false);
       setFiles(null);
       setNewKbName("");
-      setRagProvider("raganything"); // Reset to default
+      setRagProvider("llamaindex"); // Reset to default
 
       // Delay refresh to get full info (but user can already see the new KB)
       setTimeout(async () => {
@@ -626,7 +626,7 @@ export default function KnowledgePage() {
             onClick={() => {
               setFiles(null);
               setNewKbName("");
-              setRagProvider("raganything");
+              setRagProvider("llamaindex");
               setCreateModalOpen(true);
             }}
             className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors flex items-center gap-2 shadow-lg shadow-slate-900/20"
@@ -688,7 +688,9 @@ export default function KnowledgePage() {
                       setTargetKb(kb.name);
                       setFiles(null);
                       // Set RAG provider to KB's existing provider or default
-                      setRagProvider(kb.statistics.rag_provider || "raganything");
+                      setRagProvider(
+                        kb.statistics.rag_provider || "llamaindex",
+                      );
                       setUploadModalOpen(true);
                     }}
                     className="p-2 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -859,7 +861,10 @@ export default function KnowledgePage() {
                           </div>
                           {kb.statistics.rag_provider && (
                             <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                              Provider: <span className="font-semibold text-slate-600 dark:text-slate-300">{kb.statistics.rag_provider}</span>
+                              Provider:{" "}
+                              <span className="font-semibold text-slate-600 dark:text-slate-300">
+                                {kb.statistics.rag_provider}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -868,7 +873,10 @@ export default function KnowledgePage() {
                     if (kb.statistics.rag_provider) {
                       return (
                         <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
-                          Provider: <span className="font-semibold text-slate-600 dark:text-slate-300">{kb.statistics.rag_provider}</span>
+                          Provider:{" "}
+                          <span className="font-semibold text-slate-600 dark:text-slate-300">
+                            {kb.statistics.rag_provider}
+                          </span>
                         </div>
                       );
                     }
@@ -939,13 +947,36 @@ export default function KnowledgePage() {
                     <>
                       <option value="llamaindex">LlamaIndex</option>
                       <option value="lightrag">LightRAG</option>
-                      <option value="raganything">RAGAnything</option>
+                      <option value="raganything">RAG-Anything</option>
                     </>
                   )}
                 </select>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Choose the RAG pipeline for indexing and searching
-                </p>
+                {/* Provider description */}
+                <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-100 dark:border-slate-600">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    {(() => {
+                      const selectedProvider = ragProviders.find(
+                        (p) => p.id === ragProvider,
+                      );
+                      if (selectedProvider?.description) {
+                        return selectedProvider.description;
+                      }
+                      // Fallback descriptions
+                      const fallbackDescriptions: Record<string, string> = {
+                        llamaindex:
+                          "纯向量检索，处理速度最快，适合快速搭建和简单场景。",
+                        lightrag:
+                          "轻量级知识图谱检索，快速处理纯文本文档，适合通用文档。",
+                        raganything:
+                          "多模态文档处理，支持图表和公式提取，构建知识图谱。适合学术论文和教材。",
+                      };
+                      return (
+                        fallbackDescriptions[ragProvider] ||
+                        "选择适合您文档类型的 RAG 管道"
+                      );
+                    })()}
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -1060,10 +1091,35 @@ export default function KnowledgePage() {
                     <>
                       <option value="llamaindex">LlamaIndex</option>
                       <option value="lightrag">LightRAG</option>
-                      <option value="raganything">RAGAnything</option>
+                      <option value="raganything">RAG-Anything</option>
                     </>
                   )}
                 </select>
+                {/* Provider description */}
+                <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-100 dark:border-slate-600">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    {(() => {
+                      const selectedProvider = ragProviders.find(
+                        (p) => p.id === ragProvider,
+                      );
+                      if (selectedProvider?.description) {
+                        return selectedProvider.description;
+                      }
+                      const fallbackDescriptions: Record<string, string> = {
+                        llamaindex:
+                          "纯向量检索，处理速度最快，适合快速搭建和简单场景。",
+                        lightrag:
+                          "轻量级知识图谱检索，快速处理纯文本文档，适合通用文档。",
+                        raganything:
+                          "多模态文档处理，支持图表和公式提取，构建知识图谱。适合学术论文和教材。",
+                      };
+                      return (
+                        fallbackDescriptions[ragProvider] ||
+                        "选择适合您文档类型的 RAG 管道"
+                      );
+                    })()}
+                  </p>
+                </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Leave as-is to use the KB&apos;s existing provider
                 </p>

@@ -8,9 +8,7 @@ This is the single source of truth for agent base functionality across:
 - guide module
 - ideagen module
 - co_writer module
-
-Note: The question module uses a separate ReAct architecture and is intentionally
-not unified with this base class.
+- question module (unified in Jan 2026 refactor)
 """
 
 from abc import ABC, abstractmethod
