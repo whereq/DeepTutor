@@ -19,7 +19,9 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import Any, Optional
+from typing import Any, List, Optional, Union
+
+from src.config.constants import LOG_SYMBOLS, PROJECT_ROOT
 
 
 class LogLevel(Enum):
@@ -55,32 +57,39 @@ class ConsoleFormatter(logging.Formatter):
     DIM = "\033[2m"
 
     # Symbols for different log types
-    SYMBOLS = {
-        "DEBUG": "·",
-        "INFO": "●",
-        "SUCCESS": "✓",
-        "WARNING": "⚠",
-        "ERROR": "✗",
-        "CRITICAL": "✗",
-    }
+    SYMBOLS = LOG_SYMBOLS
+
+    def __init__(self):
+        super().__init__()
+        # Check TTY status once during initialization
+        stdout_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+        stderr_tty = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
+        self.use_colors = stdout_tty or stderr_tty
 
     def format(self, record: logging.LogRecord) -> str:
         # Get module name (padded to 12 chars for alignment)
         module = getattr(record, "module_name", record.name)
         module_padded = f"[{module}]".ljust(14)
-
-        # Get symbol (can be overridden via record.symbol)
         symbol = getattr(record, "symbol", self.SYMBOLS.get(record.levelname, "●"))
-
-        # Get color
-        level = getattr(record, "display_level", record.levelname)
-        color = self.COLORS.get(level, self.COLORS["INFO"])
+        # Use pre-computed TTY status
+        use_colors = self.use_colors
+        if use_colors:
+            # Get color
+            level = getattr(record, "display_level", record.levelname)
+            color = self.COLORS.get(level, self.COLORS["INFO"])
+            dim = self.DIM
+            reset = self.RESET
+        else:
+            # No colors for non-interactive output
+            color = ""
+            dim = ""
+            reset = ""
 
         # Format message
         message = record.getMessage()
 
         # Build output: [Module]    ● Message
-        return f"{self.DIM}{module_padded}{self.RESET} {color}{symbol}{self.RESET} {message}"
+        return f"{dim}{module_padded}{reset} {color}{symbol}{reset} {message}"
 
 
 class FileFormatter(logging.Formatter):
@@ -126,7 +135,7 @@ class Logger:
         level: str = "INFO",
         console_output: bool = True,
         file_output: bool = True,
-        log_dir: Optional[str] = None,
+        log_dir: Optional[Union[str, Path]] = None,
     ):
         """
         Initialize logger.
@@ -145,23 +154,18 @@ class Logger:
         self.logger = logging.getLogger(f"ai_tutor.{name}")
         self.logger.setLevel(logging.DEBUG)  # Capture all, filter at handlers
         self.logger.handlers.clear()
-        self.logger.propagate = False
-
         # Setup log directory
+        log_dir_path: Path
         if log_dir is None:
-            # Default: DeepTutor/data/user/logs/
-            # Use resolve() to get absolute path, ensuring correct project root regardless of working directory
-            project_root = Path(__file__).resolve().parent.parent.parent
-            log_dir = project_root / "data" / "user" / "logs"
+            log_dir_path = PROJECT_ROOT / "data" / "user" / "logs"
         else:
-            log_dir = Path(log_dir)
+            log_dir_path = Path(log_dir) if isinstance(log_dir, str) else log_dir
             # If relative path, resolve it relative to project root
-            if not log_dir.is_absolute():
-                project_root = Path(__file__).resolve().parent.parent.parent
-                log_dir = project_root / log_dir
+            if not log_dir_path.is_absolute():
+                log_dir_path = PROJECT_ROOT / log_dir_path
 
-        log_dir.mkdir(parents=True, exist_ok=True)
-        self.log_dir = log_dir
+        log_dir_path.mkdir(parents=True, exist_ok=True)
+        self.log_dir = log_dir_path
 
         # Console handler
         if console_output:
@@ -173,7 +177,7 @@ class Logger:
         # File handler
         if file_output:
             timestamp = datetime.now().strftime("%Y%m%d")
-            log_file = log_dir / f"ai_tutor_{timestamp}.log"
+            log_file = log_dir_path / f"ai_tutor_{timestamp}.log"
 
             file_handler = logging.FileHandler(log_file, encoding="utf-8")
             file_handler.setLevel(logging.DEBUG)  # Log everything to file
@@ -183,7 +187,7 @@ class Logger:
             self._log_file = log_file
 
         # For backwards compatibility with task-specific logging
-        self._task_handlers = []
+        self._task_handlers: List[logging.Handler] = []
 
         # Display manager for TUI (optional, used by solve_agents)
         self.display_manager = None
@@ -584,16 +588,29 @@ class Logger:
             self.debug(f"Token Stats: {total_tokens} tokens")
 
     def shutdown(self):
-        """Shutdown the logger and cleanup resources"""
-        self.remove_task_log_handlers()
+        """
+        Shut down this logger by cleaning up **all** attached handlers.
+
+        This method iterates over a copy of ``self.logger.handlers``, calls
+        ``close()`` on each handler to release any underlying resources
+        (such as open file streams or other I/O handles), and then removes
+        the handler from the underlying ``logging.Logger`` instance.
+
+        Note:
+            This closes and removes every handler currently attached to this
+            logger instance (including any task-specific handlers), not just a
+            subset of handlers. Callers that previously relied on only
+            task-specific handlers being removed should be aware that this
+            method now performs a full cleanup of all handlers.
+        """
         # Close all handlers
         for handler in self.logger.handlers[:]:
             handler.close()
             self.logger.removeHandler(handler)
 
 
-# Global logger registry
-_loggers: dict[str, Logger] = {}
+# Global logger registry - key is tuple of (name, level, console_output, file_output, log_dir)
+_loggers: dict[tuple[str, str, bool, bool, Optional[str]], "Logger"] = {}
 
 
 def get_logger(
@@ -624,9 +641,8 @@ def get_logger(
             from src.services.config import get_path_from_config, load_config_with_main
 
             # Use resolve() to get absolute path, ensuring correct project root regardless of working directory
-            project_root = Path(__file__).resolve().parent.parent.parent
             config = load_config_with_main(
-                "solve_config.yaml", project_root
+                "solve_config.yaml", PROJECT_ROOT
             )  # Use any config to get main.yaml
             log_dir = get_path_from_config(config, "user_log_dir") or config.get("paths", {}).get(
                 "user_log_dir"
@@ -637,15 +653,18 @@ def get_logger(
                 if not log_dir_path.is_absolute():
                     # Remove leading ./ if present
                     log_dir_str = str(log_dir_path).lstrip("./")
-                    log_dir = str(project_root / log_dir_str)
+                    log_dir = str(PROJECT_ROOT / log_dir_str)
                 else:
                     log_dir = str(log_dir_path)
         except Exception:
             # Fallback to default
             pass
+    log_dir_key = str(log_dir) if log_dir is not None else None
+    # Create a cache key that includes configuration, using a normalized log_dir
+    cache_key = (name, level, console_output, file_output, log_dir_key)
 
-    if name not in _loggers:
-        _loggers[name] = Logger(
+    if cache_key not in _loggers:
+        _loggers[cache_key] = Logger(
             name=name,
             level=level,
             console_output=console_output,
@@ -653,7 +672,7 @@ def get_logger(
             log_dir=log_dir,
         )
 
-    return _loggers[name]
+    return _loggers[cache_key]
 
 
 def reset_logger(name: Optional[str] = None):
@@ -666,6 +685,25 @@ def reset_logger(name: Optional[str] = None):
     global _loggers
 
     if name is None:
-        _loggers.clear()
-    elif name in _loggers:
-        del _loggers[name]
+        keys_to_remove = list(_loggers.keys())
+    else:
+        # Remove all loggers with the given name, supporting both tuple and string keys
+        keys_to_remove = [
+            key
+            for key in _loggers.keys()
+            if (isinstance(key, tuple) and len(key) > 0 and key[0] == name) or key == name
+        ]
+
+    for key in keys_to_remove:
+        _loggers.pop(key, None)
+
+
+def reload_loggers():
+    """
+    Reload configuration for all cached loggers.
+
+    This method clears the logger cache, forcing recreation with current config
+    on next get_logger() calls.
+    """
+    global _loggers
+    _loggers.clear()

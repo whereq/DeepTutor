@@ -28,7 +28,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.10", "3.11", "3.12"]
       fail-fast: false
 
     steps:
@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.10'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
@@ -87,7 +87,9 @@ jobs:
           python -c "from src.services.llm import complete, stream, fetch_models, sanitize_url; print('✅ LLM service imports OK')"
           python -c "from src.services.llm.config import get_llm_config; print('✅ LLM config imports OK')"
           python -c "from src.services.config.loader import load_config_with_main; print('✅ Config loader imports OK')"
+          python -c "from src.services.config.unified_config import UnifiedConfigManager; print('✅ Unified config imports OK')"
           python -c "from src.knowledge.kb import KnowledgeBase; print('✅ Knowledge imports OK')"
           python -c "from src.tools.rag_tool import rag_search; print('✅ Tools imports OK')"
+          python -c "from src.logging import get_logger; print('✅ Logging imports OK')"
         env:
           PYTHONPATH: ${{ github.workspace }}

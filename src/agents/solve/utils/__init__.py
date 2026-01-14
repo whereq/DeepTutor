@@ -15,21 +15,23 @@ if str(project_root) not in sys.path:
 
 from src.logging import Logger, LogLevel, get_logger, reset_logger
 
-# Backwards compatibility alias
-SolveAgentLogger = Logger
-
-# Performance monitoring
-# Config validation
+# Backwards compatibility aliases
+# These aliases maintain compatibility with code that imported these names before refactoring
+SolveAgentLogger = Logger  # Alias for Logger class
 from .config_validator import ConfigValidator
 from .error_handler import (
-    ParseError,
+    LLMParseError,
     retry_on_parse_error,
     validate_investigate_output,
+    validate_none_tool_constraint,
     validate_note_output,
     validate_output,
-    validate_plan_output,
     validate_reflect_output,
+    validate_solve_output,
 )
+
+# Backwards compatibility alias
+ParseError = LLMParseError
 from .performance_monitor import PerformanceMonitor
 
 # Token tracker
@@ -56,6 +58,7 @@ __all__ = [
     "validate_output",
     "validate_investigate_output",
     "validate_note_output",
+    "validate_none_tool_constraint",
     "validate_reflect_output",
-    "validate_plan_output",
+    "validate_solve_output",
 ]

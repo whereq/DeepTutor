@@ -37,7 +37,9 @@
 ---
 ### 📰 News
 
-> **[2026.1.1]** Join our [Discord Community](https://discord.gg/zpP9cssj) and [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
+> **[2026.1.15]** DeepTutor [v0.5.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.0) is out! Fixed multiple environment configuration and stability issues. We recommend everyone to pull the latest version! 🎉
+
+> **[2026.1.1]** Happy New Year! Join our [Discord Community](https://discord.gg/zpP9cssj), [Wechat Community](https://github.com/HKUDS/DeepTutor/issues/78), or [Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
 
 > **[2025.12.30]** Visit our [Official Website](https://hkuds.github.io/DeepTutor/) for more details!
 
@@ -45,9 +47,11 @@
 
 ### 📦 Releases
 
-> **[2026.1.9]** Release [v0.4.1](https://github.com/HKUDS/DeepTutor/releases/tag/v0.4.1) with LLM Provider system overhaul, Question Generation robustness improvements, and codebase cleanup - Thanks to all the contributors!
+> **[2026.1.15]** Release [v0.5.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.0) - Unified LLM & Embedding services, RAG pipeline selection, and major enhancements to Home, History, QuestionGen & Settings modules -- Thanks to all the contributors!
 <details>
 <summary>History releases</summary>
+
+> **[2026.1.9]** Release [v0.4.1](https://github.com/HKUDS/DeepTutor/releases/tag/v0.4.1) with LLM Provider system overhaul, Question Generation robustness improvements, and codebase cleanup - Thanks to all the contributors!
 
 > **[2026.1.9]** Release [v0.4.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.4.0) with new code structure, multiple llm & embeddings support - Thanks to all the contributors!
 
@@ -152,7 +156,7 @@
 </a>
 
 **Deep Research**  
-<sub>Knowledge Extention from Textbook with RAG, Web and Paper-search</sub>
+<sub>Knowledge Extension from Textbook with RAG, Web and Paper-search</sub>
 
 </td>
 <td width="33%" align="center">
@@ -239,9 +243,13 @@
 
 ## 📋 Todo
 > 🌟 Star to follow our future updates!
-- [ x ] Support More RAG Pipelines
-- [ x ] DataBase Robostness and Visualization
-- [   ] Personalized Interaction with Notebook
+- [ x ] Multi-linguistic support
+- [ x ] DeepTutor Community
+- [ x ] Incremental Knowledge-base Edit
+- [ x ] Personalized Workspace
+- [ - ] DataBase Visualization
+- [ - ] Atomic RAG pipeline customize
+- [ - ] Online Demo
 
 ## 🚀 Getting Started
 
@@ -267,18 +275,19 @@ cp .env.example .env
 | Variable | Required | Description |
 |:---|:---:|:---|
 | `LLM_MODEL` | **Yes** | Model name (e.g., `gpt-4o`) |
+| `LLM_API_VERSION` | No | API version for Azure OpenAI (e.g., `2024-02-15-preview`) |
 | `LLM_API_KEY` | **Yes** | Your LLM API key |
 | `LLM_HOST` | **Yes** | API endpoint URL |
 | `EMBEDDING_MODEL` | **Yes** | Embedding model name |
+| `EMBEDDING_API_VERSION` | No | API version for Azure OpenAI Embeddings |
 | `EMBEDDING_API_KEY` | **Yes** | Embedding API key |
 | `EMBEDDING_HOST` | **Yes** | Embedding API endpoint |
 | `BACKEND_PORT` | No | Backend port (default: `8001`) |
 | `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
 | `NEXT_PUBLIC_API_BASE` | No | **Frontend API URL** - Set this for remote/LAN access (e.g., `http://192.168.1.100:8001`) |
 | `TTS_*` | No | Text-to-Speech settings |
-| `SEARCH_PROVIDER` | No | Search provider (options: `perplexity`, `baidu`, default: `perplexity`) |
-| `PERPLEXITY_API_KEY` | No | For Perplexity web search |
-| `BAIDU_API_KEY` | No | For Baidu AI search |
+| `SEARCH_PROVIDER` | No | Search provider (options: `perplexity`, `tavily`, `serper`, `jina`, `exa`, `baidu`, default: `perplexity`) |
+| `SEARCH_API_KEY` | No | Unified API key for all search providers |
 
 > 💡 **Remote Access**: If accessing from another device (e.g., `192.168.31.66:3782`), add to `.env`:
 > ```bash
@@ -441,7 +450,7 @@ cd web && npm install && npm run dev -- -p 3782
 ```
 
 **Note**: Create `web/.env.local`:
-```
+```bash
 NEXT_PUBLIC_API_BASE=http://localhost:8001
 ```
 
@@ -1242,6 +1251,29 @@ npm --version   # Should show version number
 </details>
 
 <details>
+<summary><b>Long path names on Windows installation?</b></summary>
+
+**Problem**
+
+On Windows, you may encounter errors related to long file paths during installation, such as "The filename or extension is too long" or similar path length issues.
+
+**Cause**
+
+Windows has a default limitation on path lengths (260 characters), which can be exceeded by DeepTutor's nested directory structures and dependencies.
+
+**Solution**
+
+Enable long path support system-wide by running the following command in an Administrator Command Prompt:
+
+```cmd
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
+```
+
+After running this command, restart your terminal for the changes to take effect.
+
+</details>
+
+<details>
 <summary><b>Frontend cannot connect to backend?</b></summary>
 
 **Checklist**
@@ -1433,7 +1465,7 @@ This will extract numbered items (Definitions, Theorems, Equations, etc.) from y
 We hope DeepTutor could become a gift for the community. 🎁
 
 <a href="https://github.com/HKUDS/DeepTutor/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=HKUDS/DeepTutor&max=999" />
+  <img src="https://contrib.rocks/image?repo=HKUDS/DeepTutor&max=999" alt="Contributors to HKUDS/DeepTutor" />
 </a>
 
 </div>

@@ -7,6 +7,7 @@ Handles knowledge base CRUD operations, file uploads, and initialization.
 
 import asyncio
 from datetime import datetime
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -30,6 +31,8 @@ from src.knowledge.add_documents import DocumentAdder
 from src.knowledge.initializer import KnowledgeBaseInitializer
 from src.knowledge.manager import KnowledgeBaseManager
 from src.knowledge.progress_tracker import ProgressStage, ProgressTracker
+from src.utils.document_validator import DocumentValidator
+from src.utils.error_utils import format_exception_message
 
 _project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_project_root))
@@ -44,6 +47,21 @@ log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {
 logger = get_logger("Knowledge", level="INFO", log_dir=log_dir)
 
 router = APIRouter()
+
+# Constants for byte conversions
+BYTES_PER_GB = 1024**3
+BYTES_PER_MB = 1024**2
+
+
+def format_bytes_human_readable(size_bytes: int) -> str:
+    """Format bytes into human-readable string (GB, MB, or bytes)."""
+    if size_bytes >= BYTES_PER_GB:
+        return f"{size_bytes / BYTES_PER_GB:.1f} GB"
+    elif size_bytes >= BYTES_PER_MB:
+        return f"{size_bytes / BYTES_PER_MB:.1f} MB"
+    else:
+        return f"{size_bytes} bytes"
+
 
 _kb_base_dir = _project_root / "data" / "knowledge_bases"
 
@@ -103,7 +121,12 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer):
 
 
 async def run_upload_processing_task(
-    kb_name: str, base_dir: str, api_key: str, base_url: str, uploaded_file_paths: list[str]
+    kb_name: str,
+    base_dir: str,
+    api_key: str,
+    base_url: str,
+    uploaded_file_paths: list[str],
+    rag_provider: str = None,
 ):
     """Background task for processing uploaded files"""
     task_manager = TaskIDManager.get_instance()
@@ -128,6 +151,7 @@ async def run_upload_processing_task(
             api_key=api_key,
             base_url=base_url,
             progress_tracker=progress_tracker,
+            rag_provider=rag_provider,
         )
 
         new_files = [Path(path) for path in uploaded_file_paths]
@@ -181,6 +205,19 @@ async def health_check():
         }
     except Exception as e:
         return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+
+
+@router.get("/rag-providers")
+async def get_rag_providers():
+    """Get list of available RAG providers."""
+    try:
+        from src.services.rag.service import RAGService
+
+        providers = RAGService.list_providers()
+        return {"providers": providers}
+    except Exception as e:
+        logger.error(f"Error getting RAG providers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/list", response_model=list[KnowledgeBaseInfo])
@@ -283,7 +320,10 @@ async def delete_knowledge_base(kb_name: str):
 
 @router.post("/{kb_name}/upload")
 async def upload_files(
-    kb_name: str, background_tasks: BackgroundTasks, files: list[UploadFile] = File(...)
+    kb_name: str,
+    background_tasks: BackgroundTasks,
+    files: list[UploadFile] = File(...),
+    rag_provider: str = Form(None),
 ):
     """Upload files to a knowledge base and process them in background."""
     try:
@@ -301,12 +341,50 @@ async def upload_files(
 
         uploaded_files = []
         uploaded_file_paths = []
+
+        # 1. Save files and validate size during streaming
         for file in files:
-            file_path = raw_dir / file.filename
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            uploaded_files.append(file.filename)
-            uploaded_file_paths.append(str(file_path))
+            file_path = None
+            try:
+                # Sanitize filename first (without size validation)
+                sanitized_filename = DocumentValidator.validate_upload_safety(file.filename, None)
+                file.filename = sanitized_filename
+
+                # Save file to disk with size checking during streaming
+                file_path = raw_dir / file.filename
+                max_size = DocumentValidator.MAX_FILE_SIZE
+                written_bytes = 0
+                with open(file_path, "wb") as buffer:
+                    for chunk in iter(lambda: file.file.read(8192), b""):
+                        written_bytes += len(chunk)
+                        if written_bytes > max_size:
+                            # Format size in human-readable format
+                            size_str = format_bytes_human_readable(max_size)
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"File '{file.filename}' exceeds maximum size limit of {size_str}",
+                            )
+                        buffer.write(chunk)
+
+                # Validate with actual size (additional checks)
+                DocumentValidator.validate_upload_safety(file.filename, written_bytes)
+
+                uploaded_files.append(file.filename)
+                uploaded_file_paths.append(str(file_path))
+
+            except Exception as e:
+                # Clean up partially saved file
+                if file_path and file_path.exists():
+                    try:
+                        os.unlink(file_path)
+                    except OSError:
+                        pass
+
+                error_message = (
+                    f"Validation failed for file '{file.filename}': {format_exception_message(e)}"
+                )
+                logger.error(error_message, exc_info=True)
+                raise HTTPException(status_code=400, detail=error_message) from e
 
         logger.info(f"Uploading {len(uploaded_files)} files to KB '{kb_name}'")
 
@@ -317,6 +395,7 @@ async def upload_files(
             api_key=api_key,
             base_url=base_url,
             uploaded_file_paths=uploaded_file_paths,
+            rag_provider=rag_provider,
         )
 
         return {
@@ -326,12 +405,17 @@ async def upload_files(
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Knowledge base '{kb_name}' not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected failure (Server error)
+        formatted_error = format_exception_message(e)
+        raise HTTPException(status_code=500, detail=formatted_error) from e
 
 
 @router.post("/create")
 async def create_knowledge_base(
-    background_tasks: BackgroundTasks, name: str = Form(...), files: list[UploadFile] = File(...)
+    background_tasks: BackgroundTasks,
+    name: str = Form(...),
+    files: list[UploadFile] = File(...),
+    rag_provider: str = Form("raganything"),
 ):
     """Create a new knowledge base and initialize it with files."""
     try:
@@ -360,6 +444,7 @@ async def create_knowledge_base(
             api_key=api_key,
             base_url=base_url,
             progress_tracker=progress_tracker,
+            rag_provider=rag_provider,
         )
 
         initializer.create_directory_structure()

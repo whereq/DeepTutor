@@ -9,6 +9,8 @@ from pathlib import Path
 import sys
 from typing import Any, Dict, List, Optional
 
+from lightrag.llm.openai import openai_complete_if_cache
+
 from src.logging import get_logger
 from src.logging.adapters import LightRAGLogContext
 
@@ -69,7 +71,7 @@ class RAGAnythingPipeline:
 
         self._setup_raganything_path()
 
-        from lightrag.llm.openai import openai_complete_if_cache
+        from openai import AsyncOpenAI
         from raganything import RAGAnything, RAGAnythingConfig
 
         from src.services.embedding import get_embedding_client
@@ -78,16 +80,52 @@ class RAGAnythingPipeline:
         llm_client = get_llm_client()
         embed_client = get_embedding_client()
 
-        def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-            return openai_complete_if_cache(
-                llm_client.config.model,
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-                api_key=llm_client.config.api_key,
-                base_url=llm_client.config.base_url,
-                **kwargs,
+        # Create AsyncOpenAI client directly - bypasses LightRAG's response_format handling
+        openai_client = AsyncOpenAI(
+            api_key=llm_client.config.api_key,
+            base_url=llm_client.config.base_url,
+        )
+
+        async def llm_model_func(prompt, system_prompt=None, history_messages=None, **kwargs):
+            """Custom async LLM function that bypasses LightRAG's openai_complete_if_cache."""
+            if history_messages is None:
+                history_messages = []
+
+            # Build messages array
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+
+            # Add history
+            messages.extend(history_messages)
+
+            # Add current prompt
+            messages.append({"role": "user", "content": prompt})
+
+            # Whitelist only valid OpenAI parameters, filter out LightRAG-specific ones
+            valid_params = {
+                "temperature",
+                "top_p",
+                "n",
+                "stream",
+                "stop",
+                "max_tokens",
+                "presence_penalty",
+                "frequency_penalty",
+                "logit_bias",
+                "user",
+                "seed",
+            }
+            clean_kwargs = {k: v for k, v in kwargs.items() if k in valid_params}
+
+            # Call OpenAI API directly (async)
+            response = await openai_client.chat.completions.create(
+                model=llm_client.config.model,
+                messages=messages,
+                **clean_kwargs,
             )
+
+            return response.choices[0].message.content
 
         def vision_model_func(
             prompt,

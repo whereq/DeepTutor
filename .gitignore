@@ -10,7 +10,6 @@ data/user/
 data/knowledge_bases/
 run_code_workspace/
 src/agents/question/reference_papers/
-tests/
 
 # ============================================
 # Python Related
@@ -70,6 +69,9 @@ web/dist/
 build/
 web/build/
 
+# TypeScript build info
+*.tsbuildinfo
+
 # ============================================
 # Common Output and Cache Directories
 # ============================================
@@ -83,6 +85,7 @@ outputs/
 cache/
 **/cache/
 .cache/
+.ruff_cache
 
 # Log files
 *.log
