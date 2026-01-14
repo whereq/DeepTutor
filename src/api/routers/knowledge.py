@@ -121,7 +121,8 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer):
 
 
 async def run_upload_processing_task(
-    kb_name: str, base_dir: str, api_key: str, base_url: str, uploaded_file_paths: list[str]
+    kb_name: str, base_dir: str, api_key: str, base_url: str, uploaded_file_paths: list[str],
+    rag_provider: str = None
 ):
     """Background task for processing uploaded files"""
     task_manager = TaskIDManager.get_instance()
@@ -146,6 +147,7 @@ async def run_upload_processing_task(
             api_key=api_key,
             base_url=base_url,
             progress_tracker=progress_tracker,
+            rag_provider=rag_provider,
         )
 
         new_files = [Path(path) for path in uploaded_file_paths]
@@ -199,6 +201,19 @@ async def health_check():
         }
     except Exception as e:
         return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+
+
+@router.get("/rag-providers")
+async def get_rag_providers():
+    """Get list of available RAG providers."""
+    try:
+        from src.services.rag.service import RAGService
+        
+        providers = RAGService.list_providers()
+        return {"providers": providers}
+    except Exception as e:
+        logger.error(f"Error getting RAG providers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/list", response_model=list[KnowledgeBaseInfo])
@@ -301,7 +316,8 @@ async def delete_knowledge_base(kb_name: str):
 
 @router.post("/{kb_name}/upload")
 async def upload_files(
-    kb_name: str, background_tasks: BackgroundTasks, files: list[UploadFile] = File(...)
+    kb_name: str, background_tasks: BackgroundTasks, files: list[UploadFile] = File(...),
+    rag_provider: str = Form(None)
 ):
     """Upload files to a knowledge base and process them in background."""
     try:
@@ -373,6 +389,7 @@ async def upload_files(
             api_key=api_key,
             base_url=base_url,
             uploaded_file_paths=uploaded_file_paths,
+            rag_provider=rag_provider,
         )
 
         return {
@@ -389,7 +406,8 @@ async def upload_files(
 
 @router.post("/create")
 async def create_knowledge_base(
-    background_tasks: BackgroundTasks, name: str = Form(...), files: list[UploadFile] = File(...)
+    background_tasks: BackgroundTasks, name: str = Form(...), files: list[UploadFile] = File(...),
+    rag_provider: str = Form("raganything")
 ):
     """Create a new knowledge base and initialize it with files."""
     try:
@@ -418,6 +436,7 @@ async def create_knowledge_base(
             api_key=api_key,
             base_url=base_url,
             progress_tracker=progress_tracker,
+            rag_provider=rag_provider,
         )
 
         initializer.create_directory_structure()

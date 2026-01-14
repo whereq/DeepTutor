@@ -22,7 +22,7 @@ _PIPELINES: Dict[str, Callable] = {
 
 def get_pipeline(
     name: str = "raganything", kb_base_dir: Optional[str] = None, **kwargs
-) -> Union[RAGPipeline, RAGAnythingPipeline]:
+):
     """
     Get a pre-configured pipeline by name.
 
@@ -43,13 +43,19 @@ def get_pipeline(
 
     factory = _PIPELINES[name]
 
-    # All pipelines now accept kb_base_dir
-    if name == "raganything":
+    # Handle different pipeline types:
+    # - lightrag, academic: functions that return RAGPipeline
+    # - llamaindex, raganything: classes that need instantiation
+    if name in ("lightrag", "academic"):
+        # LightRAGPipeline and AcademicPipeline are factory functions
+        return factory(kb_base_dir=kb_base_dir)
+    elif name in ("llamaindex", "raganything"):
+        # LlamaIndexPipeline and RAGAnythingPipeline are classes
         if kb_base_dir:
             kwargs["kb_base_dir"] = kb_base_dir
-        return factory(**kwargs) if kwargs else factory()
+        return factory(**kwargs)
     else:
-        # Component-based pipelines - pass kb_base_dir
+        # Default: try calling with kb_base_dir
         return factory(kb_base_dir=kb_base_dir)
 
 

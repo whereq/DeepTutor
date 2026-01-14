@@ -26,6 +26,7 @@ interface KnowledgeBase {
     images: number;
     content_lists: number;
     rag_initialized: boolean;
+    rag_provider?: string;
     rag?: {
       chunks?: number;
       entities?: number;
@@ -55,6 +56,10 @@ export default function KnowledgePage() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [newKbName, setNewKbName] = useState("");
   const [dragActive, setDragActive] = useState(false);
+  const [ragProvider, setRagProvider] = useState<string>("raganything");
+  const [ragProviders, setRagProviders] = useState<
+    Array<{ id: string; name: string; description: string }>
+  >([]);
   const [progressMap, setProgressMap] = useState<Record<string, ProgressInfo>>(
     {},
   );
@@ -205,6 +210,22 @@ export default function KnowledgePage() {
   useEffect(() => {
     fetchKnowledgeBases();
   }, [fetchKnowledgeBases]);
+
+  // Fetch RAG providers
+  useEffect(() => {
+    const fetchRagProviders = async () => {
+      try {
+        const res = await fetch(apiUrl("/api/v1/knowledge/rag-providers"));
+        if (res.ok) {
+          const data = await res.json();
+          setRagProviders(data.providers || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch RAG providers:", err);
+      }
+    };
+    fetchRagProviders();
+  }, []);
 
   // Establish WebSocket connections for all KBs to receive progress updates (only when KB names change)
   useEffect(() => {
@@ -450,6 +471,11 @@ export default function KnowledgePage() {
     Array.from(files).forEach((file) => {
       formData.append("files", file);
     });
+    
+    // Add rag_provider to form data if user selected one different from KB's existing provider
+    if (ragProvider) {
+      formData.append("rag_provider", ragProvider);
+    }
 
     try {
       const res = await fetch(apiUrl(`/api/v1/knowledge/${targetKb}/upload`), {
@@ -478,6 +504,7 @@ export default function KnowledgePage() {
     setUploading(true);
     const formData = new FormData();
     formData.append("name", newKbName);
+    formData.append("rag_provider", ragProvider);
     Array.from(files).forEach((file) => {
       formData.append("files", file);
     });
@@ -503,6 +530,7 @@ export default function KnowledgePage() {
           images: 0,
           content_lists: 0,
           rag_initialized: false,
+          rag_provider: ragProvider,
         },
       };
 
@@ -532,6 +560,7 @@ export default function KnowledgePage() {
       setCreateModalOpen(false);
       setFiles(null);
       setNewKbName("");
+      setRagProvider("raganything"); // Reset to default
 
       // Delay refresh to get full info (but user can already see the new KB)
       setTimeout(async () => {
@@ -597,6 +626,7 @@ export default function KnowledgePage() {
             onClick={() => {
               setFiles(null);
               setNewKbName("");
+              setRagProvider("raganything");
               setCreateModalOpen(true);
             }}
             className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors flex items-center gap-2 shadow-lg shadow-slate-900/20"
@@ -657,6 +687,8 @@ export default function KnowledgePage() {
                     onClick={() => {
                       setTargetKb(kb.name);
                       setFiles(null);
+                      // Set RAG provider to KB's existing provider or default
+                      setRagProvider(kb.statistics.rag_provider || "raganything");
                       setUploadModalOpen(true);
                     }}
                     className="p-2 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -819,10 +851,24 @@ export default function KnowledgePage() {
                     }
                     if (kb.statistics.rag) {
                       return (
-                        <div className="mt-2 flex gap-3 text-[10px] text-slate-400 dark:text-slate-500">
-                          <span>{kb.statistics.rag.chunks} chunks</span>
-                          <span>•</span>
-                          <span>{kb.statistics.rag.entities} entities</span>
+                        <div className="mt-2 space-y-1">
+                          <div className="flex gap-3 text-[10px] text-slate-400 dark:text-slate-500">
+                            <span>{kb.statistics.rag.chunks} chunks</span>
+                            <span>•</span>
+                            <span>{kb.statistics.rag.entities} entities</span>
+                          </div>
+                          {kb.statistics.rag_provider && (
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                              Provider: <span className="font-semibold text-slate-600 dark:text-slate-300">{kb.statistics.rag_provider}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (kb.statistics.rag_provider) {
+                      return (
+                        <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
+                          Provider: <span className="font-semibold text-slate-600 dark:text-slate-300">{kb.statistics.rag_provider}</span>
                         </div>
                       );
                     }
@@ -872,6 +918,34 @@ export default function KnowledgePage() {
                   placeholder="e.g., Math101"
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  RAG Provider
+                </label>
+                <select
+                  value={ragProvider}
+                  onChange={(e) => setRagProvider(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                >
+                  {ragProviders.length > 0 ? (
+                    ragProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="llamaindex">LlamaIndex</option>
+                      <option value="lightrag">LightRAG</option>
+                      <option value="raganything">RAGAnything</option>
+                    </>
+                  )}
+                </select>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Choose the RAG pipeline for indexing and searching
+                </p>
               </div>
 
               <div>
@@ -967,6 +1041,34 @@ export default function KnowledgePage() {
             </p>
 
             <form onSubmit={handleUpload} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  RAG Provider (Optional)
+                </label>
+                <select
+                  value={ragProvider}
+                  onChange={(e) => setRagProvider(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                >
+                  {ragProviders.length > 0 ? (
+                    ragProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="llamaindex">LlamaIndex</option>
+                      <option value="lightrag">LightRAG</option>
+                      <option value="raganything">RAGAnything</option>
+                    </>
+                  )}
+                </select>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Leave as-is to use the KB&apos;s existing provider
+                </p>
+              </div>
+
               <div className="border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl p-8 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors bg-slate-50 dark:bg-slate-700/50">
                 <input
                   type="file"
