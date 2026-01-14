@@ -213,6 +213,7 @@ class KnowledgeBaseManager:
             "images": images_count,
             "content_lists": content_lists_count,
             "rag_initialized": rag_storage_dir.exists() and rag_storage_dir.is_dir(),
+            "rag_provider": info["metadata"].get("rag_provider"),  # Add RAG provider info
         }
 
         # Try to get RAG statistics

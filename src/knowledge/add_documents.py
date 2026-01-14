@@ -91,6 +91,7 @@ class DocumentAdder:
         api_key: str | None = None,
         base_url: str | None = None,
         progress_tracker=None,
+        rag_provider: str | None = None,
     ):
         self.kb_name = kb_name
         self.base_dir = Path(base_dir)
@@ -111,6 +112,7 @@ class DocumentAdder:
         self.api_key = api_key
         self.base_url = base_url
         self.progress_tracker = progress_tracker
+        self.rag_provider = rag_provider
         self._ensure_working_directories()
 
     def _ensure_working_directories(self):
@@ -465,6 +467,11 @@ class DocumentAdder:
                 metadata = json.load(f)
 
             metadata["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Update RAG provider if specified
+            if self.rag_provider:
+                metadata["rag_provider"] = self.rag_provider
+            
             history = metadata.get("update_history", [])
             history.append(
                 {
