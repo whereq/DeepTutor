@@ -66,17 +66,17 @@ def list_pipelines() -> List[Dict[str, str]]:
         {
             "id": "llamaindex",
             "name": "LlamaIndex",
-            "description": "纯向量检索，处理速度最快，适合快速搭建和简单场景。",
+            "description": "Pure vector retrieval, fastest processing speed.",
         },
         {
             "id": "lightrag",
             "name": "LightRAG",
-            "description": "轻量级知识图谱检索，快速处理纯文本文档，适合通用文档。",
+            "description": "Lightweight knowledge graph retrieval, fast processing of text documents.",
         },
         {
             "id": "raganything",
             "name": "RAG-Anything",
-            "description": "多模态文档处理，支持图表和公式提取，构建知识图谱。适合学术论文和教材。",
+            "description": "Multimodal document processing with chart and formula extraction, builds knowledge graphs.",
         },
     ]
 

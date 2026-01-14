@@ -964,15 +964,15 @@ export default function KnowledgePage() {
                       // Fallback descriptions
                       const fallbackDescriptions: Record<string, string> = {
                         llamaindex:
-                          "纯向量检索，处理速度最快，适合快速搭建和简单场景。",
+                          "Pure vector retrieval, fastest processing speed.",
                         lightrag:
-                          "轻量级知识图谱检索，快速处理纯文本文档，适合通用文档。",
+                          "Lightweight knowledge graph retrieval, fast processing of text documents.",
                         raganything:
-                          "多模态文档处理，支持图表和公式提取，构建知识图谱。适合学术论文和教材。",
+                          "Multimodal document processing with chart and formula extraction, builds knowledge graphs.",
                       };
                       return (
                         fallbackDescriptions[ragProvider] ||
-                        "选择适合您文档类型的 RAG 管道"
+                        "Select a RAG pipeline suitable for your document type"
                       );
                     })()}
                   </p>
@@ -1106,15 +1106,15 @@ export default function KnowledgePage() {
                       }
                       const fallbackDescriptions: Record<string, string> = {
                         llamaindex:
-                          "纯向量检索，处理速度最快，适合快速搭建和简单场景。",
+                          "Pure vector retrieval, fastest processing speed.",
                         lightrag:
-                          "轻量级知识图谱检索，快速处理纯文本文档，适合通用文档。",
+                          "Lightweight knowledge graph retrieval, fast processing of text documents.",
                         raganything:
-                          "多模态文档处理，支持图表和公式提取，构建知识图谱。适合学术论文和教材。",
+                          "Multimodal document processing with chart and formula extraction, builds knowledge graphs.",
                       };
                       return (
                         fallbackDescriptions[ragProvider] ||
-                        "选择适合您文档类型的 RAG 管道"
+                        "Select a RAG pipeline suitable for your document type"
                       );
                     })()}
                   </p>
