@@ -383,9 +383,11 @@ source venv/bin/activate
 **安装依赖**：
 
 ```bash
-bash scripts/install_all.sh
+# 一键安装（推荐）
+python scripts/install_all.py
+# 或: bash scripts/install_all.sh
 
-# 或手动：
+# 或手动安装
 pip install -r requirements.txt
 npm install --prefix web
 ```

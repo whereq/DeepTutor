@@ -423,6 +423,11 @@ python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activat
 **2. Install Dependencies**:
 
 ```bash
+# One-click installation (Recommended)
+python scripts/install_all.py
+# Or: bash scripts/install_all.sh
+
+# Or manual installation
 pip install -r requirements.txt
 npm install --prefix web
 ```

@@ -365,9 +365,11 @@ source venv/bin/activate
 **تثبيت المتطلبات**:
 
 ```bash
-bash scripts/install_all.sh
+# التثبيت بنقرة واحدة (موصى به)
+python scripts/install_all.py
+# أو: bash scripts/install_all.sh
 
-# أو يدوياً:
+# أو التثبيت اليدوي
 pip install -r requirements.txt
 npm install --prefix web
 ```

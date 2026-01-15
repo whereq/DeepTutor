@@ -365,9 +365,11 @@ source venv/bin/activate
 **निर्भरताएं स्थापित करें**:
 
 ```bash
-bash scripts/install_all.sh
+# एक-क्लिक इंस्टॉलेशन (अनुशंसित)
+python scripts/install_all.py
+# या: bash scripts/install_all.sh
 
-# या मैन्युअल रूप से:
+# या मैन्युअल इंस्टॉलेशन
 pip install -r requirements.txt
 npm install --prefix web
 ```

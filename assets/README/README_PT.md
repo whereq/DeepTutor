@@ -365,9 +365,11 @@ source venv/bin/activate
 **Instalar Dependências**:
 
 ```bash
-bash scripts/install_all.sh
+# Instalação com um clique (Recomendado)
+python scripts/install_all.py
+# Ou: bash scripts/install_all.sh
 
-# Ou manualmente:
+# Ou instalação manual
 pip install -r requirements.txt
 npm install --prefix web
 ```

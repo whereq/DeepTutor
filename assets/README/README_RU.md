@@ -383,9 +383,11 @@ source venv/bin/activate
 **Установить Зависимости**:
 
 ```bash
-bash scripts/install_all.sh
+# Установка в один клик (Рекомендуется)
+python scripts/install_all.py
+# Или: bash scripts/install_all.sh
 
-# Или вручную:
+# Или ручная установка
 pip install -r requirements.txt
 npm install --prefix web
 ```

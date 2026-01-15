@@ -383,9 +383,11 @@ source venv/bin/activate
 **依存関係をインストール**：
 
 ```bash
-bash scripts/install_all.sh
+# ワンクリックインストール（推奨）
+python scripts/install_all.py
+# または: bash scripts/install_all.sh
 
-# または手動：
+# または手動インストール
 pip install -r requirements.txt
 npm install --prefix web
 ```
