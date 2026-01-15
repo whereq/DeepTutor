@@ -25,6 +25,7 @@ sys.path.insert(0, str(project_root))
 from src.logging import Logger, get_logger
 from src.services.config import load_config_with_main
 from src.tools.rag_tool import rag_search
+from src.utils.json_parser import parse_json_response
 
 
 def ensure_list(value: Any, default: list | None = None) -> list:
@@ -411,7 +412,7 @@ class AgentCoordinator:
 
         try:
             content = await self._call_llm(system_prompt=system_prompt, user_prompt=user_prompt)
-            data = json.loads(content)
+            data = parse_json_response(content, logger_instance=self.logger, fallback={})
 
             # Ensure queries is a list
             queries_raw = data.get("queries", [])
@@ -592,7 +593,7 @@ class AgentCoordinator:
         )
         try:
             content = await self._call_llm(system_prompt=system_prompt, user_prompt=user_prompt)
-            parsed = json.loads(content)
+            parsed = parse_json_response(content, logger_instance=self.logger, fallback={"relevant": False})
             return bool(parsed.get("relevant"))
         except Exception as e:
             self.logger.warning(f"Failed to check retrieval relevance: {e}")
@@ -616,7 +617,7 @@ class AgentCoordinator:
         )
         try:
             content = await self._call_llm(system_prompt=system_prompt, user_prompt=user_prompt)
-            parsed = json.loads(content)
+            parsed = parse_json_response(content, logger_instance=self.logger, fallback={})
 
             # Ensure requirements is a list
             requirements_raw = parsed.get("requirements", [])
@@ -648,7 +649,7 @@ class AgentCoordinator:
         user_prompt = f"Requirement:\n{requirement_text}\n\nReturn JSON only."
         try:
             content = await self._call_llm(system_prompt=system_prompt, user_prompt=user_prompt)
-            parsed = json.loads(content)
+            parsed = parse_json_response(content, logger_instance=self.logger, fallback={})
         except Exception as e:
             self.logger.warning(f"Failed to interpret requirement text: {e}")
             parsed = {}
@@ -1206,7 +1207,7 @@ class AgentCoordinator:
             content = await self._call_llm(
                 system_prompt=system_prompt, user_prompt=user_prompt, stage="plan_sub_focuses"
             )
-            parsed = json.loads(content)
+            parsed = parse_json_response(content, logger_instance=self.logger, fallback={})
             focuses = parsed.get("focuses", [])
             if not isinstance(focuses, list):
                 focuses = []
@@ -1746,13 +1747,12 @@ class AgentCoordinator:
                 focuses = []
             else:
                 try:
-                    # Extract JSON from markdown code blocks if present
-                    json_content = self._extract_json_from_markdown(content)
-                    parsed = json.loads(json_content)
+                    # Use the new utility function for robust JSON parsing
+                    parsed = parse_json_response(content, logger_instance=self.logger, fallback={})
                     focuses = parsed.get("focuses", [])
                     if not isinstance(focuses, list):
                         focuses = []
-                except json.JSONDecodeError as json_err:
+                except Exception as json_err:
                     self.logger.error(f"JSON parsing failed for question plan: {json_err}")
                     self.logger.error(f"Response content (first 500 chars): {content[:500]}")
                     focuses = []
@@ -1966,15 +1966,19 @@ class AgentCoordinator:
                 }
 
             try:
-                # Extract JSON from markdown code blocks if present
-                json_content = self._extract_json_from_markdown(content)
-                question = json.loads(json_content)
+                # Use robust JSON parsing utility
+                question = parse_json_response(content, logger_instance=self.logger, fallback=None)
+                if question is None:
+                    return {
+                        "success": False,
+                        "error": "Failed to parse question JSON",
+                    }
                 question["knowledge_point"] = knowledge_point
                 return {
                     "success": True,
                     "question": question,
                 }
-            except json.JSONDecodeError as json_err:
+            except Exception as json_err:
                 self.logger.error(f"JSON parsing failed for question {question_id}: {json_err}")
                 self.logger.error(f"Response content (first 500 chars): {content[:500]}")
                 return {

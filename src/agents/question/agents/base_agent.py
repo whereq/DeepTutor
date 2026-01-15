@@ -32,6 +32,7 @@ from src.services.config import get_agent_params
 from src.services.llm import complete as llm_complete
 from src.services.llm.capabilities import supports_response_format
 from src.services.llm.config import get_llm_config
+from src.utils.json_parser import parse_json_response
 
 # Module logger
 _logger = get_logger("QuestionAgent")
@@ -385,7 +386,7 @@ Output JSON format:
             level="DEBUG",
         )
 
-        result = json.loads(response_content)
+        result = parse_json_response(response_content, logger_instance=_logger, fallback={})
 
         # Record thought
         thought = result.get("thought", "")

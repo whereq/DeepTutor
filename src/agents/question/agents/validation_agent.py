@@ -16,6 +16,7 @@ from src.logging import get_logger
 from src.services.config import load_config_with_main
 from src.services.prompt import get_prompt_manager
 from src.tools.rag_tool import rag_search
+from src.utils.json_parser import parse_json_response
 
 from .base_agent import Action, BaseAgent, Message, Observation
 
@@ -170,7 +171,7 @@ class QuestionValidationAgent(BaseAgent):
             response_format={"type": "json_object"},
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = parse_json_response(response.choices[0].message.content, logger_instance=_logger, fallback={})
         self.validation_result = result
 
         # Ensure issues and suggestions are lists

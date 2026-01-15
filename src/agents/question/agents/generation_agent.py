@@ -17,6 +17,7 @@ from src.logging import get_logger
 from src.services.config import load_config_with_main
 from src.services.prompt import get_prompt_manager
 from src.tools.rag_tool import rag_search
+from src.utils.json_parser import parse_json_response
 
 from .base_agent import Action, BaseAgent, Message, Observation
 
@@ -223,9 +224,13 @@ class QuestionGenerationAgent(BaseAgent):
 
         # Parse JSON with error handling
         try:
-            question = json.loads(response_content)
+            question = parse_json_response(response_content, logger_instance=_logger, fallback=None)
+            if question is None:
+                return Observation(
+                    success=False, result=None, message="Failed to parse question JSON"
+                )
             self.current_question = question
-        except json.JSONDecodeError as e:
+        except Exception as e:
             error_msg = (
                 f"[generate_question] Failed to parse JSON response: {e}\n"
                 f"Response content: {response_content[:500]}..."
@@ -360,9 +365,13 @@ class QuestionGenerationAgent(BaseAgent):
 
         # Parse JSON with error handling
         try:
-            question = json.loads(response_content)
+            question = parse_json_response(response_content, logger_instance=_logger, fallback=None)
+            if question is None:
+                return Observation(
+                    success=False, result=None, message="Failed to parse question JSON"
+                )
             self.current_question = question
-        except json.JSONDecodeError as e:
+        except Exception as e:
             error_msg = (
                 f"[refine_question] Failed to parse JSON response: {e}\n"
                 f"Response content: {response_content[:500]}..."

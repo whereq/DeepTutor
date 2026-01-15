@@ -27,6 +27,7 @@ from src.services.config import get_agent_params
 from src.services.llm import complete as llm_complete
 from src.services.llm.capabilities import supports_response_format
 from src.services.llm.config import get_llm_config
+from src.utils.json_parser import parse_json_response
 
 
 def load_parsed_paper(paper_dir: Path) -> tuple[str | None, list[dict] | None, Path]:
@@ -243,8 +244,10 @@ Please analyze the above exam paper content, extract all question information, a
     try:
         if not result_text:
             raise ValueError("LLM returned empty or None response")
-        result = json.loads(result_text)
-    except json.JSONDecodeError as e:
+        result = parse_json_response(result_text, logger_instance=None, fallback={})
+        if result is None:
+            raise ValueError("JSON parsing returned None")
+    except Exception as e:
         print(f"✗ JSON parsing error: {e!s}")
         print(f"LLM response content: {result_text[:500]}...")
         raise ValueError(
