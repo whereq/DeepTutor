@@ -17,6 +17,7 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
+  Star,
 } from "lucide-react";
 import { apiUrl, wsUrl } from "@/lib/api";
 
@@ -691,14 +692,51 @@ export default function KnowledgePage() {
                     <h3 className="font-bold text-slate-900 dark:text-slate-100">
                       {kb.name}
                     </h3>
-                    {kb.is_default && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wide border border-blue-100 dark:border-blue-800 mt-1">
-                        Default
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {kb.is_default && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wide border border-blue-100 dark:border-blue-800">
+                          Default
+                        </span>
+                      )}
+                      {kb.statistics.rag_provider && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                          kb.statistics.rag_provider === 'raganything'
+                            ? 'bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800'
+                            : kb.statistics.rag_provider === 'lightrag'
+                              ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800'
+                              : 'bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800'
+                        }`}>
+                          {kb.statistics.rag_provider === 'raganything' ? 'RAG-Anything'
+                            : kb.statistics.rag_provider === 'lightrag' ? 'LightRAG'
+                              : kb.statistics.rag_provider === 'llamaindex' ? 'LlamaIndex'
+                                : kb.statistics.rag_provider}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {!kb.is_default && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(apiUrl(`/api/v1/knowledge/default/${kb.name}`), {
+                            method: "PUT",
+                          });
+                          if (!res.ok) throw new Error("Failed to set default");
+                          showToast(`Set "${kb.name}" as default knowledge base`, "success");
+                          fetchKnowledgeBases();
+                        } catch (err) {
+                          console.error(err);
+                          showToast("Failed to set default knowledge base", "error");
+                        }
+                      }}
+                      className="p-2 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-lg text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                      title="Set as Default"
+                    >
+                      <Star className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setTargetKb(kb.name);

@@ -199,6 +199,10 @@ class RAGAnythingPipeline:
         """
         Initialize KB using RAG-Anything's process_document_complete().
 
+        Uses FileTypeRouter to classify files and route them appropriately:
+        - PDF files -> MinerU parser (full document analysis)
+        - Text files -> Direct read + LightRAG insert (fast)
+
         Args:
             kb_name: Knowledge base name
             file_paths: List of file paths to process
@@ -208,23 +212,56 @@ class RAGAnythingPipeline:
         Returns:
             True if successful
         """
+        from ..components.routing import FileTypeRouter
+
         self.logger.info(f"Initializing KB '{kb_name}' with {len(file_paths)} files")
 
         kb_dir = Path(self.kb_base_dir) / kb_name
         content_list_dir = kb_dir / "content_list"
         content_list_dir.mkdir(parents=True, exist_ok=True)
 
+        # Classify files by type
+        classification = FileTypeRouter.classify_files(file_paths)
+
+        self.logger.info(
+            f"File classification: {len(classification.needs_mineru)} need MinerU, "
+            f"{len(classification.text_files)} text files, "
+            f"{len(classification.unsupported)} unsupported"
+        )
+
         with LightRAGLogContext(scene="knowledge_init"):
             rag = self._get_rag_instance(kb_name)
             await rag._ensure_lightrag_initialized()
 
-            for idx, file_path in enumerate(file_paths, 1):
-                self.logger.info(f"Processing [{idx}/{len(file_paths)}]: {Path(file_path).name}")
+            total_files = len(classification.needs_mineru) + len(classification.text_files)
+            idx = 0
+
+            # Process files requiring MinerU (PDF, DOCX, images)
+            for file_path in classification.needs_mineru:
+                idx += 1
+                self.logger.info(
+                    f"Processing [{idx}/{total_files}] (MinerU): {Path(file_path).name}"
+                )
                 await rag.process_document_complete(
                     file_path=file_path,
                     output_dir=str(content_list_dir),
                     parse_method="auto",
                 )
+
+            # Process text files directly (fast path)
+            for file_path in classification.text_files:
+                idx += 1
+                self.logger.info(
+                    f"Processing [{idx}/{total_files}] (direct text): {Path(file_path).name}"
+                )
+                content = await FileTypeRouter.read_text_file(file_path)
+                if content.strip():
+                    # Insert directly into LightRAG, bypassing MinerU
+                    await rag.lightrag.ainsert(content)
+
+            # Log unsupported files
+            for file_path in classification.unsupported:
+                self.logger.warning(f"Skipped unsupported file: {Path(file_path).name}")
 
         if extract_numbered_items:
             await self._extract_numbered_items(kb_name)

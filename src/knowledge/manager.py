@@ -24,11 +24,21 @@ class KnowledgeBaseManager:
         self.config = self._load_config()
 
     def _load_config(self) -> dict:
-        """Load knowledge base configuration"""
+        """Load knowledge base configuration (kb_config.json only stores KB list)"""
         if self.config_file.exists():
             with open(self.config_file, encoding="utf-8") as f:
-                return json.load(f)
-        return {"knowledge_bases": {}, "default": None}
+                config = json.load(f)
+                # Migration: remove old "default" field if present
+                if "default" in config:
+                    del config["default"]
+                    # Save cleaned config
+                    try:
+                        with open(self.config_file, "w", encoding="utf-8") as wf:
+                            json.dump(config, wf, indent=2, ensure_ascii=False)
+                    except Exception:
+                        pass
+                return config
+        return {"knowledge_bases": {}}
 
     def _save_config(self):
         """Save knowledge base configuration"""
@@ -74,8 +84,9 @@ class KnowledgeBaseManager:
 
         self.config["knowledge_bases"][name] = {"path": name, "description": description}
 
-        if set_default or not self.config.get("default"):
-            self.config["default"] = name
+        # Only set default if explicitly requested
+        if set_default:
+            self.set_default(name)
 
         self._save_config()
 
@@ -116,16 +127,42 @@ class KnowledgeBaseManager:
         return kb_dir / "raw"
 
     def set_default(self, name: str):
-        """Set default knowledge base"""
+        """Set default knowledge base using centralized config service."""
         if name not in self.list_knowledge_bases():
             raise ValueError(f"Knowledge base not found: {name}")
 
-        self.config["default"] = name
-        self._save_config()
+        # Use centralized config service only (no longer stored in kb_config.json)
+        try:
+            from src.services.config import get_kb_config_service
+            kb_config_service = get_kb_config_service()
+            kb_config_service.set_default_kb(name)
+        except Exception as e:
+            print(f"Warning: Failed to save default to centralized config: {e}")
 
     def get_default(self) -> str | None:
-        """Get default knowledge base name"""
-        return self.config.get("default")
+        """
+        Get default knowledge base name.
+        
+        Priority:
+        1. Centralized config service (knowledge_base_configs.json)
+        2. First knowledge base in the list (auto-fallback)
+        """
+        # Try centralized config first
+        try:
+            from src.services.config import get_kb_config_service
+            kb_config_service = get_kb_config_service()
+            default_kb = kb_config_service.get_default_kb()
+            if default_kb and default_kb in self.list_knowledge_bases():
+                return default_kb
+        except Exception:
+            pass
+        
+        # Fallback to first knowledge base in sorted list
+        kb_list = self.list_knowledge_bases()
+        if kb_list:
+            return kb_list[0]
+        
+        return None
 
     def get_metadata(self, name: str | None = None) -> dict:
         """Get knowledge base metadata"""

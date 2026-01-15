@@ -59,7 +59,7 @@ class KnowledgeBaseInitializer:
         self.rag_provider = rag_provider
 
     def _register_to_config(self):
-        """Register KB to kb_config.json."""
+        """Register KB to kb_config.json (only knowledge_bases list, no default)."""
         config_file = self.base_dir / "kb_config.json"
         if config_file.exists():
             try:
@@ -67,21 +67,22 @@ class KnowledgeBaseInitializer:
                     config = json.load(f)
             except Exception as e:
                 logger.warning(f"Failed to read config: {e}, creating new")
-                config = {"knowledge_bases": {}, "default": None}
+                config = {"knowledge_bases": {}}
         else:
-            config = {"knowledge_bases": {}, "default": None}
+            config = {"knowledge_bases": {}}
 
         if "knowledge_bases" not in config:
             config["knowledge_bases"] = {}
+        
+        # Remove old "default" field if exists (migration)
+        if "default" in config:
+            del config["default"]
 
         if self.kb_name not in config.get("knowledge_bases", {}):
             config["knowledge_bases"][self.kb_name] = {
                 "path": self.kb_name,
                 "description": f"Knowledge base: {self.kb_name}",
             }
-
-            if not config.get("default"):
-                config["default"] = self.kb_name
 
             try:
                 with open(config_file, "w", encoding="utf-8") as f:
@@ -93,7 +94,7 @@ class KnowledgeBaseInitializer:
             logger.info("  ✓ Already registered in kb_config.json")
 
     def _update_metadata_with_provider(self, provider: str):
-        """Update metadata.json with the RAG provider used."""
+        """Update metadata.json and centralized config with the RAG provider used."""
         metadata_file = self.kb_dir / "metadata.json"
         try:
             if metadata_file.exists():
@@ -109,6 +110,16 @@ class KnowledgeBaseInitializer:
                 json.dump(metadata, indent=2, ensure_ascii=False, fp=f)
 
             logger.info(f"  ✓ Updated metadata with RAG provider: {provider}")
+            
+            # Also save to centralized config file
+            try:
+                from src.services.config import get_kb_config_service
+                kb_config_service = get_kb_config_service()
+                kb_config_service.set_rag_provider(self.kb_name, provider)
+                logger.info(f"  ✓ Saved RAG provider to centralized config")
+            except Exception as config_err:
+                logger.warning(f"Failed to save to centralized config: {config_err}")
+                
         except Exception as e:
             logger.warning(f"Failed to update metadata with provider: {e}")
 

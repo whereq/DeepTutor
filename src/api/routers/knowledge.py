@@ -235,6 +235,92 @@ async def get_rag_providers():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/configs")
+async def get_all_kb_configs():
+    """Get all knowledge base configurations from centralized config file."""
+    try:
+        from src.services.config import get_kb_config_service
+        
+        service = get_kb_config_service()
+        return service.get_all_configs()
+    except Exception as e:
+        logger.error(f"Error getting KB configs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{kb_name}/config")
+async def get_kb_config(kb_name: str):
+    """Get configuration for a specific knowledge base."""
+    try:
+        from src.services.config import get_kb_config_service
+        
+        service = get_kb_config_service()
+        config = service.get_kb_config(kb_name)
+        return {"kb_name": kb_name, "config": config}
+    except Exception as e:
+        logger.error(f"Error getting config for KB '{kb_name}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{kb_name}/config")
+async def update_kb_config(kb_name: str, config: dict):
+    """Update configuration for a specific knowledge base."""
+    try:
+        from src.services.config import get_kb_config_service
+        
+        service = get_kb_config_service()
+        service.set_kb_config(kb_name, config)
+        return {"status": "success", "kb_name": kb_name, "config": service.get_kb_config(kb_name)}
+    except Exception as e:
+        logger.error(f"Error updating config for KB '{kb_name}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/configs/sync")
+async def sync_configs_from_metadata():
+    """Sync all KB configurations from their metadata.json files to centralized config."""
+    try:
+        from src.services.config import get_kb_config_service
+        
+        service = get_kb_config_service()
+        service.sync_all_from_metadata(_kb_base_dir)
+        return {"status": "success", "message": "Configurations synced from metadata files"}
+    except Exception as e:
+        logger.error(f"Error syncing configs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/default")
+async def get_default_kb():
+    """Get the default knowledge base."""
+    try:
+        manager = get_kb_manager()
+        default_kb = manager.get_default()
+        return {"default_kb": default_kb}
+    except Exception as e:
+        logger.error(f"Error getting default KB: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/default/{kb_name}")
+async def set_default_kb(kb_name: str):
+    """Set the default knowledge base."""
+    try:
+        manager = get_kb_manager()
+        
+        # Verify KB exists
+        if kb_name not in manager.list_knowledge_bases():
+            raise HTTPException(status_code=404, detail=f"Knowledge base '{kb_name}' not found")
+        
+        manager.set_default(kb_name)
+        return {"status": "success", "default_kb": kb_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting default KB: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/list", response_model=list[KnowledgeBaseInfo])
 async def list_knowledge_bases():
     """List all available knowledge bases with their details."""
