@@ -506,7 +506,10 @@ export default function KnowledgePage() {
       setFiles(null);
       // Refresh immediately to establish WebSocket connection
       await fetchKnowledgeBases();
-      showToast("Files uploaded successfully! Processing started in background.", "success");
+      showToast(
+        "Files uploaded successfully! Processing started in background.",
+        "success",
+      );
     } catch (err) {
       console.error(err);
       showToast("Failed to upload files", "error");
@@ -584,7 +587,6 @@ export default function KnowledgePage() {
       setTimeout(async () => {
         await fetchKnowledgeBases();
       }, 1000);
-
 
       showToast("Knowledge base created successfully!", "success");
     } catch (err: any) {
@@ -699,16 +701,21 @@ export default function KnowledgePage() {
                         </span>
                       )}
                       {kb.statistics.rag_provider && (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
-                          kb.statistics.rag_provider === 'raganything'
-                            ? 'bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800'
-                            : kb.statistics.rag_provider === 'lightrag'
-                              ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800'
-                              : 'bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800'
-                        }`}>
-                          {kb.statistics.rag_provider === 'raganything' ? 'RAG-Anything'
-                            : kb.statistics.rag_provider === 'lightrag' ? 'LightRAG'
-                              : kb.statistics.rag_provider === 'llamaindex' ? 'LlamaIndex'
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                            kb.statistics.rag_provider === "raganything"
+                              ? "bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-800"
+                              : kb.statistics.rag_provider === "lightrag"
+                                ? "bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800"
+                                : "bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800"
+                          }`}
+                        >
+                          {kb.statistics.rag_provider === "raganything"
+                            ? "RAG-Anything"
+                            : kb.statistics.rag_provider === "lightrag"
+                              ? "LightRAG"
+                              : kb.statistics.rag_provider === "llamaindex"
+                                ? "LlamaIndex"
                                 : kb.statistics.rag_provider}
                         </span>
                       )}
@@ -720,15 +727,24 @@ export default function KnowledgePage() {
                     <button
                       onClick={async () => {
                         try {
-                          const res = await fetch(apiUrl(`/api/v1/knowledge/default/${kb.name}`), {
-                            method: "PUT",
-                          });
+                          const res = await fetch(
+                            apiUrl(`/api/v1/knowledge/default/${kb.name}`),
+                            {
+                              method: "PUT",
+                            },
+                          );
                           if (!res.ok) throw new Error("Failed to set default");
-                          showToast(`Set "${kb.name}" as default knowledge base`, "success");
+                          showToast(
+                            `Set "${kb.name}" as default knowledge base`,
+                            "success",
+                          );
                           fetchKnowledgeBases();
                         } catch (err) {
                           console.error(err);
-                          showToast("Failed to set default knowledge base", "error");
+                          showToast(
+                            "Failed to set default knowledge base",
+                            "error",
+                          );
                         }
                       }}
                       className="p-2 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-lg text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
@@ -1038,10 +1054,11 @@ export default function KnowledgePage() {
                   Upload Documents
                 </label>
                 <div
-                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                    : "border-slate-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 bg-slate-50 dark:bg-slate-700/50"
-                    }`}
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                    dragActive
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                      : "border-slate-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 bg-slate-50 dark:bg-slate-700/50"
+                  }`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
