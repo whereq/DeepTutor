@@ -237,7 +237,8 @@ cp .env.example .env
 | `BACKEND_PORT` | No | Puerto del backend (predeterminado: `8001`) |
 | `FRONTEND_PORT` | No | Puerto del frontend (predeterminado: `3782`) |
 | `TTS_*` | No | Configuración de texto a voz |
-| `PERPLEXITY_API_KEY` | No | Para búsqueda web |
+| `SEARCH_PROVIDER` | No | Proveedor de búsqueda (opciones: `perplexity`, `tavily`, `serper`, `jina`, `exa`, `baidu`, predeterminado: `perplexity`) |
+| `SEARCH_API_KEY` | No | Clave API unificada para búsqueda |
 
 </details>
 

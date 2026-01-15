@@ -19,6 +19,7 @@ import {
   Edit3,
   GraduationCap,
   PenTool,
+  Save,
 } from "lucide-react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
@@ -29,6 +30,7 @@ import { useGlobal } from "@/context/GlobalContext";
 import { apiUrl } from "@/lib/api";
 import { processLatexContent } from "@/lib/latex";
 import { getTranslation } from "@/lib/i18n";
+import AddToNotebookModal from "@/components/AddToNotebookModal";
 
 interface KnowledgeBase {
   name: string;
@@ -50,6 +52,41 @@ export default function HomePage() {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showNotebookModal, setShowNotebookModal] = useState(false);
+
+  // Format chat history for notebook
+  const formatChatForNotebook = () => {
+    if (chatState.messages.length === 0)
+      return { title: "", userQuery: "", output: "" };
+
+    // Use the first user message as title
+    const firstUserMsg = chatState.messages.find((m) => m.role === "user");
+    const title =
+      firstUserMsg?.content.slice(0, 50) +
+        (firstUserMsg && firstUserMsg.content.length > 50 ? "..." : "") ||
+      "Chat Session";
+
+    // Format all messages as markdown
+    const formattedMessages = chatState.messages
+      .map((msg, idx) => {
+        const roleLabel =
+          msg.role === "user" ? "👤 **User**" : "🤖 **Assistant**";
+        return `### ${roleLabel}\n\n${msg.content}`;
+      })
+      .join("\n\n---\n\n");
+
+    // User query is the concatenation of all user messages
+    const userQueries = chatState.messages
+      .filter((m) => m.role === "user")
+      .map((m) => m.content)
+      .join("\n\n");
+
+    return {
+      title: `Chat: ${title}`,
+      userQuery: userQueries,
+      output: formattedMessages,
+    };
+  };
 
   // Fetch knowledge bases
   useEffect(() => {
@@ -333,13 +370,23 @@ export default function HomePage() {
               )}
             </div>
 
-            <button
-              onClick={newChatSession}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              {t("New Chat")}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowNotebookModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                title={t("Save to Notebook")}
+              >
+                <Save className="w-3.5 h-3.5" />
+                {t("Save to Notebook")}
+              </button>
+              <button
+                onClick={newChatSession}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {t("New Chat")}
+              </button>
+            </div>
           </div>
 
           {/* Messages Area */}
@@ -478,6 +525,23 @@ export default function HomePage() {
           </div>
         </>
       )}
+
+      {/* Add to Notebook Modal */}
+      <AddToNotebookModal
+        isOpen={showNotebookModal}
+        onClose={() => setShowNotebookModal(false)}
+        recordType="chat"
+        title={formatChatForNotebook().title}
+        userQuery={formatChatForNotebook().userQuery}
+        output={formatChatForNotebook().output}
+        metadata={{
+          session_id: chatState.sessionId,
+          message_count: chatState.messages.length,
+          enable_rag: chatState.enableRag,
+          enable_web_search: chatState.enableWebSearch,
+        }}
+        kbName={chatState.enableRag ? chatState.selectedKb : undefined}
+      />
     </div>
   );
 }

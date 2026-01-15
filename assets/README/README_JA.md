@@ -255,7 +255,8 @@ cp .env.example .env
 | `BACKEND_PORT` | いいえ | バックエンドポート（デフォルト：`8001`） |
 | `FRONTEND_PORT` | いいえ | フロントエンドポート（デフォルト：`3782`） |
 | `TTS_*` | いいえ | テキスト読み上げ設定 |
-| `PERPLEXITY_API_KEY` | いいえ | ウェブ検索用 |
+| `SEARCH_PROVIDER` | いいえ | 検索プロバイダー（オプション：`perplexity`, `tavily`, `serper`, `jina`, `exa`, `baidu`、デフォルト：`perplexity`）|
+| `SEARCH_API_KEY` | いいえ | 統一検索APIキー |
 
 </details>
 

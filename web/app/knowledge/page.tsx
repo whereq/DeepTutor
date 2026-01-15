@@ -58,7 +58,7 @@ export default function KnowledgePage() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [newKbName, setNewKbName] = useState("");
   const [dragActive, setDragActive] = useState(false);
-  const [ragProvider, setRagProvider] = useState<string>("raganything");
+  const [ragProvider, setRagProvider] = useState<string>("llamaindex");
   const [ragProviders, setRagProviders] = useState<
     Array<{ id: string; name: string; description: string }>
   >([]);
@@ -488,7 +488,7 @@ export default function KnowledgePage() {
     Array.from(files).forEach((file) => {
       formData.append("files", file);
     });
-    
+
     // Add rag_provider to form data if user selected one different from KB's existing provider
     if (ragProvider) {
       formData.append("rag_provider", ragProvider);
@@ -577,7 +577,7 @@ export default function KnowledgePage() {
       setCreateModalOpen(false);
       setFiles(null);
       setNewKbName("");
-      setRagProvider("raganything"); // Reset to default
+      setRagProvider("llamaindex"); // Reset to default
 
       // Delay refresh to get full info (but user can already see the new KB)
       setTimeout(async () => {
@@ -642,7 +642,7 @@ export default function KnowledgePage() {
             onClick={() => {
               setFiles(null);
               setNewKbName("");
-              setRagProvider("raganything");
+              setRagProvider("llamaindex");
               setCreateModalOpen(true);
             }}
             className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors flex items-center gap-2 shadow-lg shadow-slate-900/20"
@@ -704,7 +704,9 @@ export default function KnowledgePage() {
                       setTargetKb(kb.name);
                       setFiles(null);
                       // Set RAG provider to KB's existing provider or default
-                      setRagProvider(kb.statistics.rag_provider || "raganything");
+                      setRagProvider(
+                        kb.statistics.rag_provider || "llamaindex",
+                      );
                       setUploadModalOpen(true);
                     }}
                     className="p-2 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -875,7 +877,10 @@ export default function KnowledgePage() {
                           </div>
                           {kb.statistics.rag_provider && (
                             <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                              Provider: <span className="font-semibold text-slate-600 dark:text-slate-300">{kb.statistics.rag_provider}</span>
+                              Provider:{" "}
+                              <span className="font-semibold text-slate-600 dark:text-slate-300">
+                                {kb.statistics.rag_provider}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -884,7 +889,10 @@ export default function KnowledgePage() {
                     if (kb.statistics.rag_provider) {
                       return (
                         <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
-                          Provider: <span className="font-semibold text-slate-600 dark:text-slate-300">{kb.statistics.rag_provider}</span>
+                          Provider:{" "}
+                          <span className="font-semibold text-slate-600 dark:text-slate-300">
+                            {kb.statistics.rag_provider}
+                          </span>
                         </div>
                       );
                     }
@@ -907,7 +915,7 @@ export default function KnowledgePage() {
 
       {/* Create KB Modal */}
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 mt-40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 ">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
@@ -955,13 +963,36 @@ export default function KnowledgePage() {
                     <>
                       <option value="llamaindex">LlamaIndex</option>
                       <option value="lightrag">LightRAG</option>
-                      <option value="raganything">RAGAnything</option>
+                      <option value="raganything">RAG-Anything</option>
                     </>
                   )}
                 </select>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Choose the RAG pipeline for indexing and searching
-                </p>
+                {/* Provider description */}
+                <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-100 dark:border-slate-600">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    {(() => {
+                      const selectedProvider = ragProviders.find(
+                        (p) => p.id === ragProvider,
+                      );
+                      if (selectedProvider?.description) {
+                        return selectedProvider.description;
+                      }
+                      // Fallback descriptions
+                      const fallbackDescriptions: Record<string, string> = {
+                        llamaindex:
+                          "Pure vector retrieval, fastest processing speed.",
+                        lightrag:
+                          "Lightweight knowledge graph retrieval, fast processing of text documents.",
+                        raganything:
+                          "Multimodal document processing with chart and formula extraction, builds knowledge graphs.",
+                      };
+                      return (
+                        fallbackDescriptions[ragProvider] ||
+                        "Select a RAG pipeline suitable for your document type"
+                      );
+                    })()}
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -1075,10 +1106,35 @@ export default function KnowledgePage() {
                     <>
                       <option value="llamaindex">LlamaIndex</option>
                       <option value="lightrag">LightRAG</option>
-                      <option value="raganything">RAGAnything</option>
+                      <option value="raganything">RAG-Anything</option>
                     </>
                   )}
                 </select>
+                {/* Provider description */}
+                <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-100 dark:border-slate-600">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    {(() => {
+                      const selectedProvider = ragProviders.find(
+                        (p) => p.id === ragProvider,
+                      );
+                      if (selectedProvider?.description) {
+                        return selectedProvider.description;
+                      }
+                      const fallbackDescriptions: Record<string, string> = {
+                        llamaindex:
+                          "Pure vector retrieval, fastest processing speed.",
+                        lightrag:
+                          "Lightweight knowledge graph retrieval, fast processing of text documents.",
+                        raganything:
+                          "Multimodal document processing with chart and formula extraction, builds knowledge graphs.",
+                      };
+                      return (
+                        fallbackDescriptions[ragProvider] ||
+                        "Select a RAG pipeline suitable for your document type"
+                      );
+                    })()}
+                  </p>
+                </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Leave as-is to use the KB&apos;s existing provider
                 </p>

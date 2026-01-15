@@ -207,7 +207,7 @@ class DocumentAdder:
             raise ImportError("RAGAnything module not found.")
 
         # Pre-import progress stage if needed to avoid overhead in loop
-        ProgressStage = None
+        ProgressStage: Any = None
         if self.progress_tracker:
             from src.knowledge.progress_tracker import ProgressStage
 
@@ -467,11 +467,11 @@ class DocumentAdder:
                 metadata = json.load(f)
 
             metadata["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
+
             # Update RAG provider if specified
             if self.rag_provider:
                 metadata["rag_provider"] = self.rag_provider
-            
+
             history = metadata.get("update_history", [])
             history.append(
                 {

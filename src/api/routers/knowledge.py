@@ -136,8 +136,12 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer):
 
 
 async def run_upload_processing_task(
-    kb_name: str, base_dir: str, api_key: str, base_url: str, uploaded_file_paths: list[str],
-    rag_provider: str = None
+    kb_name: str,
+    base_dir: str,
+    api_key: str,
+    base_url: str,
+    uploaded_file_paths: list[str],
+    rag_provider: str = None,
 ):
     """Background task for processing uploaded files"""
     task_manager = TaskIDManager.get_instance()
@@ -223,7 +227,7 @@ async def get_rag_providers():
     """Get list of available RAG providers."""
     try:
         from src.services.rag.service import RAGService
-        
+
         providers = RAGService.list_providers()
         return {"providers": providers}
     except Exception as e:
@@ -331,8 +335,10 @@ async def delete_knowledge_base(kb_name: str):
 
 @router.post("/{kb_name}/upload")
 async def upload_files(
-    kb_name: str, background_tasks: BackgroundTasks, files: list[UploadFile] = File(...),
-    rag_provider: str = Form(None)
+    kb_name: str,
+    background_tasks: BackgroundTasks,
+    files: list[UploadFile] = File(...),
+    rag_provider: str = Form(None),
 ):
     """Upload files to a knowledge base and process them in background."""
     try:
@@ -421,8 +427,10 @@ async def upload_files(
 
 @router.post("/create")
 async def create_knowledge_base(
-    background_tasks: BackgroundTasks, name: str = Form(...), files: list[UploadFile] = File(...),
-    rag_provider: str = Form("raganything")
+    background_tasks: BackgroundTasks,
+    name: str = Form(...),
+    files: list[UploadFile] = File(...),
+    rag_provider: str = Form("raganything"),
 ):
     """Create a new knowledge base and initialize it with files."""
     try:

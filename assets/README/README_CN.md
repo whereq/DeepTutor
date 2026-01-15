@@ -255,7 +255,8 @@ cp .env.example .env
 | `BACKEND_PORT` | 否 | 后端端口（默认：`8001`） |
 | `FRONTEND_PORT` | 否 | 前端端口（默认：`3782`） |
 | `TTS_*` | 否 | 文本转语音设置 |
-| `PERPLEXITY_API_KEY` | 否 | 用于网络搜索 |
+| `SEARCH_PROVIDER` | 否 | 搜索提供商（可选：`perplexity`, `tavily`, `serper`, `jina`, `exa`, `baidu`，默认：`perplexity`）|
+| `SEARCH_API_KEY` | 否 | 统一的搜索 API 密钥 |
 
 </details>
 
