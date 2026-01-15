@@ -15,6 +15,8 @@ import {
   Loader2,
   X,
   RefreshCw,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { apiUrl, wsUrl } from "@/lib/api";
 
@@ -63,6 +65,21 @@ export default function KnowledgePage() {
   const [progressMap, setProgressMap] = useState<Record<string, ProgressInfo>>(
     {},
   );
+
+  // Toast notification system
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "info" = "info",
+  ) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   // Use ref only for WebSocket connections (no need for state as it's not used in render)
   const wsConnectionsRef = useRef<Record<string, WebSocket>>({});
   const kbsNamesRef = useRef<string[]>([]);
@@ -414,7 +431,7 @@ export default function KnowledgePage() {
       fetchKnowledgeBases();
     } catch (err) {
       console.error(err);
-      alert("Failed to delete knowledge base");
+      showToast("Failed to delete knowledge base", "error");
     }
   };
 
@@ -488,10 +505,10 @@ export default function KnowledgePage() {
       setFiles(null);
       // Refresh immediately to establish WebSocket connection
       await fetchKnowledgeBases();
-      alert("Files uploaded successfully! Processing started in background.");
+      showToast("Files uploaded successfully! Processing started in background.", "success");
     } catch (err) {
       console.error(err);
-      alert("Failed to upload files");
+      showToast("Failed to upload files", "error");
     } finally {
       setUploading(false);
     }
@@ -567,12 +584,11 @@ export default function KnowledgePage() {
         await fetchKnowledgeBases();
       }, 1000);
 
-      alert(
-        "Knowledge base created successfully! Initialization started in background.",
-      );
+
+      showToast("Knowledge base created successfully!", "success");
     } catch (err: any) {
       console.error(err);
-      alert(`Failed to create knowledge base: ${err.message}`);
+      showToast(`Failed to create knowledge base: ${err.message}`, "error");
     } finally {
       setUploading(false);
     }
@@ -953,11 +969,10 @@ export default function KnowledgePage() {
                   Upload Documents
                 </label>
                 <div
-                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                    dragActive
-                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                      : "border-slate-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 bg-slate-50 dark:bg-slate-700/50"
-                  }`}
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                    : "border-slate-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 bg-slate-50 dark:bg-slate-700/50"
+                    }`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
