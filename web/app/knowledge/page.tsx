@@ -193,7 +193,10 @@ export default function KnowledgePage() {
 
   // Get supported extensions for current provider
   const getSupportedExtensions = (provider: string): string[] => {
-    return PROVIDER_SUPPORTED_EXTENSIONS[provider] || PROVIDER_SUPPORTED_EXTENSIONS.llamaindex;
+    return (
+      PROVIDER_SUPPORTED_EXTENSIONS[provider] ||
+      PROVIDER_SUPPORTED_EXTENSIONS.llamaindex
+    );
   };
 
   // Get file type hint for current provider
@@ -314,7 +317,9 @@ export default function KnowledgePage() {
           );
         });
       } else if (entry.isDirectory) {
-        return readDirectoryRecursively(entry as unknown as FileSystemDirectoryEntry);
+        return readDirectoryRecursively(
+          entry as unknown as FileSystemDirectoryEntry,
+        );
       }
       return [];
     };

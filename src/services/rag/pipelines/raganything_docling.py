@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 RAGAnything Docling Pipeline
 ============================
@@ -10,12 +11,12 @@ from pathlib import Path
 import sys
 from typing import Any, Dict, List, Optional
 
+from src.logging import get_logger
+from src.logging.adapters import LightRAGLogContext
+
 # Load LLM config early to ensure OPENAI_API_KEY env var is set before LightRAG imports
 # This is critical because LightRAG reads os.environ["OPENAI_API_KEY"] directly
 from src.services.llm.config import get_llm_config as _early_config_load  # noqa: F401
-
-from src.logging import get_logger
-from src.logging.adapters import LightRAGLogContext
 
 
 class RAGAnythingDoclingPipeline:
@@ -157,7 +158,9 @@ class RAGAnythingDoclingPipeline:
             migrate_images_and_update_paths,
         )
 
-        self.logger.info(f"Initializing KB '{kb_name}' with {len(file_paths)} files (Docling parser)")
+        self.logger.info(
+            f"Initializing KB '{kb_name}' with {len(file_paths)} files (Docling parser)"
+        )
 
         kb_dir = Path(self.kb_base_dir) / kb_name
         content_list_dir = kb_dir / "content_list"
@@ -186,12 +189,10 @@ class RAGAnythingDoclingPipeline:
             for file_path in classification.needs_mineru:
                 idx += 1
                 file_name = Path(file_path).name
-                self.logger.info(
-                    f"Processing [{idx}/{total_files}] (Docling): {file_name}"
-                )
+                self.logger.info(f"Processing [{idx}/{total_files}] (Docling): {file_name}")
 
                 # Step 1: Parse document (without RAG insertion)
-                self.logger.info(f"  Step 1/3: Parsing document...")
+                self.logger.info("  Step 1/3: Parsing document...")
                 content_list, doc_id = await rag.parse_document(
                     file_path=file_path,
                     output_dir=str(content_list_dir),
@@ -199,7 +200,7 @@ class RAGAnythingDoclingPipeline:
                 )
 
                 # Step 2: Migrate images and update paths
-                self.logger.info(f"  Step 2/3: Migrating images to canonical location...")
+                self.logger.info("  Step 2/3: Migrating images to canonical location...")
                 updated_content_list, num_migrated = await migrate_images_and_update_paths(
                     content_list=content_list,
                     source_base_dir=content_list_dir,
@@ -214,7 +215,7 @@ class RAGAnythingDoclingPipeline:
                     json.dump(updated_content_list, f, ensure_ascii=False, indent=2)
 
                 # Step 3: Insert into RAG with corrected paths
-                self.logger.info(f"  Step 3/3: Inserting into RAG knowledge graph...")
+                self.logger.info("  Step 3/3: Inserting into RAG knowledge graph...")
                 await rag.insert_content_list(
                     content_list=updated_content_list,
                     file_path=file_path,
@@ -365,4 +366,3 @@ class RAGAnythingDoclingPipeline:
             return True
 
         return False
-

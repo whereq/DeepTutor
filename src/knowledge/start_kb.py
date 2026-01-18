@@ -15,11 +15,11 @@ try:
     from .config import KNOWLEDGE_BASES_DIR, get_env_config, setup_paths
 
     setup_paths()
+    from src.services.rag.components.routing import FileTypeRouter
+
     from .extract_numbered_items import process_content_list
     from .initializer import KnowledgeBaseInitializer
     from .manager import KnowledgeBaseManager
-
-    from src.services.rag.components.routing import FileTypeRouter
 except ImportError:
     # If relative import fails, means this file is run directly
     # Add parent directory to path

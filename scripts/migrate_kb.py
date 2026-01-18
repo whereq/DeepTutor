@@ -21,11 +21,11 @@ Usage:
 
 import argparse
 import asyncio
+from datetime import datetime
 import json
+from pathlib import Path
 import shutil
 import sys
-from datetime import datetime
-from pathlib import Path
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -68,35 +68,31 @@ DEFAULT_KB_BASE_DIR = PROJECT_ROOT / "data" / "knowledge_bases"
 def detect_provider(kb_path: Path) -> str | None:
     """
     Detect the RAG provider type based on directory structure and valid files.
-    
+
     Args:
         kb_path: Path to the knowledge base directory
-        
+
     Returns:
         Provider name: "llamaindex", "lightrag", or None if not detected
     """
     llamaindex_dir = kb_path / "llamaindex_storage"
     lightrag_dir = kb_path / "rag_storage"
-    
+
     has_llamaindex = llamaindex_dir.exists() and llamaindex_dir.is_dir()
     has_lightrag = lightrag_dir.exists() and lightrag_dir.is_dir()
-    
+
     # Check which one has valid index files
     llamaindex_valid = False
     lightrag_valid = False
-    
+
     if has_llamaindex:
         # Check if LlamaIndex has required files
-        llamaindex_valid = all(
-            (llamaindex_dir / f).exists() for f in LLAMAINDEX_REQUIRED_FILES
-        )
-    
+        llamaindex_valid = all((llamaindex_dir / f).exists() for f in LLAMAINDEX_REQUIRED_FILES)
+
     if has_lightrag:
         # Check if LightRAG has required files
-        lightrag_valid = all(
-            (lightrag_dir / f).exists() for f in LIGHTRAG_REQUIRED_FILES
-        )
-    
+        lightrag_valid = all((lightrag_dir / f).exists() for f in LIGHTRAG_REQUIRED_FILES)
+
     # Return based on which has valid files
     if llamaindex_valid and lightrag_valid:
         # Both valid, prefer LightRAG (more feature-rich)
@@ -118,62 +114,62 @@ def detect_provider(kb_path: Path) -> str | None:
 def validate_llamaindex_files(storage_dir: Path) -> tuple[bool, list[str], list[str]]:
     """
     Validate LlamaIndex storage has required files.
-    
+
     Args:
         storage_dir: Path to llamaindex_storage directory
-        
+
     Returns:
         Tuple of (is_valid, missing_files, found_files)
     """
     missing = []
     found = []
-    
+
     for filename in LLAMAINDEX_REQUIRED_FILES:
         filepath = storage_dir / filename
         if filepath.exists():
             found.append(filename)
         else:
             missing.append(filename)
-    
+
     return len(missing) == 0, missing, found
 
 
 def validate_lightrag_files(storage_dir: Path) -> tuple[bool, list[str], list[str]]:
     """
     Validate LightRAG storage has required files.
-    
+
     Args:
         storage_dir: Path to rag_storage directory
-        
+
     Returns:
         Tuple of (is_valid, missing_files, found_files)
     """
     missing = []
     found = []
-    
+
     for filename in LIGHTRAG_REQUIRED_FILES:
         filepath = storage_dir / filename
         if filepath.exists():
             found.append(filename)
         else:
             missing.append(filename)
-    
+
     # Also check optional files
     optional_found = []
     for filename in LIGHTRAG_OPTIONAL_FILES:
         if (storage_dir / filename).exists():
             optional_found.append(filename)
-    
+
     return len(missing) == 0, missing, found + optional_found
 
 
 def validate_kb(kb_path: Path) -> dict:
     """
     Validate a knowledge base directory.
-    
+
     Args:
         kb_path: Path to the knowledge base directory
-        
+
     Returns:
         Validation result dictionary
     """
@@ -190,18 +186,20 @@ def validate_kb(kb_path: Path) -> dict:
         "has_metadata": False,
         "has_numbered_items": False,
     }
-    
+
     if not kb_path.exists():
         return result
-    
+
     # Detect provider
     provider = detect_provider(kb_path)
     result["provider"] = provider
-    
+
     if provider is None:
-        result["error"] = "No valid RAG storage found (neither llamaindex_storage/ nor rag_storage/)"
+        result["error"] = (
+            "No valid RAG storage found (neither llamaindex_storage/ nor rag_storage/)"
+        )
         return result
-    
+
     # Validate based on provider
     if provider == "llamaindex":
         storage_dir = kb_path / "llamaindex_storage"
@@ -209,27 +207,24 @@ def validate_kb(kb_path: Path) -> dict:
     else:  # lightrag
         storage_dir = kb_path / "rag_storage"
         is_valid, missing, found = validate_lightrag_files(storage_dir)
-    
+
     result["is_valid"] = is_valid
     result["missing_files"] = missing
     result["found_files"] = found
-    
+
     # Check optional directories
     content_list_dir = kb_path / "content_list"
-    result["has_content_list"] = (
-        content_list_dir.exists() 
-        and any(content_list_dir.glob("*.json"))
-    )
-    
+    result["has_content_list"] = content_list_dir.exists() and any(content_list_dir.glob("*.json"))
+
     raw_dir = kb_path / "raw"
     result["has_raw_docs"] = raw_dir.exists() and any(raw_dir.iterdir())
-    
+
     images_dir = kb_path / "images"
     result["has_images"] = images_dir.exists() and any(images_dir.iterdir())
-    
+
     result["has_metadata"] = (kb_path / "metadata.json").exists()
     result["has_numbered_items"] = (kb_path / "numbered_items.json").exists()
-    
+
     return result
 
 
@@ -238,19 +233,15 @@ def validate_kb(kb_path: Path) -> dict:
 # =============================================================================
 
 
-def copy_kb_directory(
-    source_path: Path, 
-    target_path: Path,
-    verbose: bool = True
-) -> bool:
+def copy_kb_directory(source_path: Path, target_path: Path, verbose: bool = True) -> bool:
     """
     Copy knowledge base directory to target location.
-    
+
     Args:
         source_path: Source KB directory
         target_path: Target KB directory
         verbose: Print progress messages
-        
+
     Returns:
         True if successful
     """
@@ -258,69 +249,66 @@ def copy_kb_directory(
         if verbose:
             print(f"  ⚠️  Target directory already exists: {target_path}")
         return False
-    
+
     if verbose:
         print(f"  Copying {source_path} -> {target_path}")
-    
+
     shutil.copytree(source_path, target_path)
-    
+
     if verbose:
-        print(f"  ✓ Copied successfully")
-    
+        print("  ✓ Copied successfully")
+
     return True
 
 
 def register_kb(
-    kb_name: str,
-    kb_base_dir: Path,
-    description: str = "",
-    provider: str | None = None
+    kb_name: str, kb_base_dir: Path, description: str = "", provider: str | None = None
 ) -> bool:
     """
     Register knowledge base in kb_config.json.
-    
+
     Args:
         kb_name: Knowledge base name
         kb_base_dir: Base directory containing kb_config.json
         description: Optional description
         provider: RAG provider name
-        
+
     Returns:
         True if successful
     """
     config_file = kb_base_dir / "kb_config.json"
-    
+
     # Load existing config
     if config_file.exists():
         with open(config_file, encoding="utf-8") as f:
             config = json.load(f)
     else:
         config = {"knowledge_bases": {}}
-    
+
     if "knowledge_bases" not in config:
         config["knowledge_bases"] = {}
-    
+
     # Check if already registered
     if kb_name in config["knowledge_bases"]:
         print(f"  ⚠️  KB '{kb_name}' is already registered in kb_config.json")
         return True
-    
+
     # Add to config
     config["knowledge_bases"][kb_name] = {
         "path": kb_name,
         "description": description or f"Knowledge base: {kb_name}",
     }
-    
+
     # Save config
     with open(config_file, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
-    
+
     print(f"  ✓ Registered '{kb_name}' in kb_config.json")
-    
+
     # Also create/update metadata.json if needed
     kb_dir = kb_base_dir / kb_name
     metadata_file = kb_dir / "metadata.json"
-    
+
     if not metadata_file.exists():
         metadata = {
             "name": kb_name,
@@ -332,31 +320,31 @@ def register_kb(
         }
         with open(metadata_file, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
-        print(f"  ✓ Created metadata.json")
+        print("  ✓ Created metadata.json")
     else:
         # Update existing metadata with migration info
         with open(metadata_file, encoding="utf-8") as f:
             metadata = json.load(f)
-        
+
         if provider and not metadata.get("rag_provider"):
             metadata["rag_provider"] = provider
         metadata["migrated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         with open(metadata_file, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
-        print(f"  ✓ Updated metadata.json")
-    
+        print("  ✓ Updated metadata.json")
+
     return True
 
 
 async def extract_numbered_items(kb_name: str, kb_base_dir: Path) -> bool:
     """
     Extract numbered items from content_list files.
-    
+
     Args:
         kb_name: Knowledge base name
         kb_base_dir: Base directory for knowledge bases
-        
+
     Returns:
         True if successful
     """
@@ -368,24 +356,24 @@ async def extract_numbered_items(kb_name: str, kb_base_dir: Path) -> bool:
     except ImportError as e:
         print(f"  ⚠️  Could not import extraction module: {e}")
         return False
-    
+
     kb_dir = kb_base_dir / kb_name
     content_list_dir = kb_dir / "content_list"
-    
+
     if not content_list_dir.exists():
-        print(f"  ⚠️  No content_list directory found")
+        print("  ⚠️  No content_list directory found")
         return False
-    
+
     # Load all content list files
     all_content_items = []
     json_files = list(content_list_dir.glob("*.json"))
-    
+
     if not json_files:
-        print(f"  ⚠️  No JSON files found in content_list/")
+        print("  ⚠️  No JSON files found in content_list/")
         return False
-    
+
     print(f"  Loading {len(json_files)} content list files...")
-    
+
     for json_file in json_files:
         try:
             with open(json_file, encoding="utf-8") as f:
@@ -394,13 +382,13 @@ async def extract_numbered_items(kb_name: str, kb_base_dir: Path) -> bool:
                     all_content_items.extend(content_items)
         except Exception as e:
             print(f"  ⚠️  Error loading {json_file.name}: {e}")
-    
+
     if not all_content_items:
-        print(f"  ⚠️  No content items found")
+        print("  ⚠️  No content items found")
         return False
-    
+
     print(f"  Extracting numbered items from {len(all_content_items)} content items...")
-    
+
     try:
         llm_client = get_llm_client()
         items = await extract_numbered_items_with_llm_async(
@@ -408,7 +396,7 @@ async def extract_numbered_items(kb_name: str, kb_base_dir: Path) -> bool:
             api_key=llm_client.config.api_key,
             base_url=llm_client.config.base_url,
         )
-        
+
         if items:
             output_file = kb_dir / "numbered_items.json"
             with open(output_file, "w", encoding="utf-8") as f:
@@ -416,9 +404,9 @@ async def extract_numbered_items(kb_name: str, kb_base_dir: Path) -> bool:
             print(f"  ✓ Extracted {len(items)} numbered items")
             return True
         else:
-            print(f"  ⚠️  No numbered items extracted")
+            print("  ⚠️  No numbered items extracted")
             return False
-            
+
     except Exception as e:
         print(f"  ✗ Extraction failed: {e}")
         return False
@@ -427,11 +415,11 @@ async def extract_numbered_items(kb_name: str, kb_base_dir: Path) -> bool:
 async def test_kb_search(kb_name: str, query: str = "What is this knowledge base about?") -> bool:
     """
     Test knowledge base with a simple search query.
-    
+
     Args:
         kb_name: Knowledge base name
         query: Test query
-        
+
     Returns:
         True if search succeeded
     """
@@ -440,26 +428,26 @@ async def test_kb_search(kb_name: str, query: str = "What is this knowledge base
     except ImportError as e:
         print(f"  ⚠️  Could not import rag_tool: {e}")
         return False
-    
+
     print(f"  Running test query: '{query[:50]}...'")
-    
+
     try:
         result = await rag_search(
             query=query,
             kb_name=kb_name,
             mode="naive",  # Use simplest mode for testing
         )
-        
+
         if result and result.get("answer"):
             answer_preview = result["answer"][:200]
-            print(f"  ✓ Search successful!")
+            print("  ✓ Search successful!")
             print(f"    Provider: {result.get('provider', 'unknown')}")
             print(f"    Answer preview: {answer_preview}...")
             return True
         else:
-            print(f"  ⚠️  Search returned empty result")
+            print("  ⚠️  Search returned empty result")
             return False
-            
+
     except Exception as e:
         print(f"  ✗ Search failed: {e}")
         return False
@@ -476,7 +464,7 @@ async def migrate_kb(
 ) -> bool:
     """
     Migrate a knowledge base to DeepTutor.
-    
+
     Args:
         source_path: Path to source knowledge base
         target_base_dir: Target base directory (default: data/knowledge_bases)
@@ -485,74 +473,74 @@ async def migrate_kb(
         extract_items: Extract numbered items if content_list exists
         validate_only: Only validate, don't migrate
         force: Overwrite existing KB if exists
-        
+
     Returns:
         True if successful
     """
     source = Path(source_path).resolve()
     target_base = Path(target_base_dir) if target_base_dir else DEFAULT_KB_BASE_DIR
     target_base = target_base.resolve()
-    
+
     # Determine KB name
     if kb_name is None:
         kb_name = source.name
-    
+
     print("=" * 60)
-    print(f"Knowledge Base Migration")
+    print("Knowledge Base Migration")
     print("=" * 60)
     print(f"Source: {source}")
     print(f"Target: {target_base / kb_name}")
     print()
-    
+
     # Step 1: Validate source KB
     print("Step 1: Validating source knowledge base...")
     validation = validate_kb(source)
-    
+
     if not validation["exists"]:
         print(f"  ✗ Source directory does not exist: {source}")
         return False
-    
+
     if not validation["is_valid"]:
-        print(f"  ✗ Validation failed!")
+        print("  ✗ Validation failed!")
         if validation.get("error"):
             print(f"    Error: {validation['error']}")
         if validation["missing_files"]:
             print(f"    Missing files: {', '.join(validation['missing_files'])}")
         return False
-    
-    print(f"  ✓ Validation passed")
+
+    print("  ✓ Validation passed")
     print(f"    Provider: {validation['provider']}")
     print(f"    Found files: {', '.join(validation['found_files'][:5])}...")
     print(f"    Has content_list: {'Yes' if validation['has_content_list'] else 'No'}")
     print(f"    Has raw docs: {'Yes' if validation['has_raw_docs'] else 'No'}")
     print(f"    Has images: {'Yes' if validation['has_images'] else 'No'}")
     print()
-    
+
     if validate_only:
         print("Validation-only mode. Exiting.")
         return True
-    
+
     # Step 2: Copy to target
     print("Step 2: Copying knowledge base...")
     target_path = target_base / kb_name
-    
+
     if target_path.exists():
         if force:
-            print(f"  Removing existing directory (--force)...")
+            print("  Removing existing directory (--force)...")
             shutil.rmtree(target_path)
         elif source.resolve() == target_path.resolve():
-            print(f"  Source and target are the same. Skipping copy.")
+            print("  Source and target are the same. Skipping copy.")
         else:
             print(f"  ✗ Target directory already exists: {target_path}")
-            print(f"    Use --force to overwrite or --name to specify a different name")
+            print("    Use --force to overwrite or --name to specify a different name")
             return False
-    
+
     if source.resolve() != target_path.resolve():
         success = copy_kb_directory(source, target_path)
         if not success:
             return False
     print()
-    
+
     # Step 3: Register in kb_config.json
     print("Step 3: Registering knowledge base...")
     register_kb(
@@ -562,7 +550,7 @@ async def migrate_kb(
         provider=validation["provider"],
     )
     print()
-    
+
     # Step 4: Extract numbered items (optional)
     if extract_items and validation["has_content_list"]:
         print("Step 4: Extracting numbered items...")
@@ -571,18 +559,18 @@ async def migrate_kb(
     elif extract_items:
         print("Step 4: Skipping numbered items extraction (no content_list)")
         print()
-    
+
     # Step 5: Test search (optional)
     if run_test:
         print("Step 5: Testing knowledge base...")
         await test_kb_search(kb_name)
         print()
-    
+
     print("=" * 60)
-    print(f"✓ Migration complete!")
+    print("✓ Migration complete!")
     print(f"  Knowledge base '{kb_name}' is now available in DeepTutor.")
     print("=" * 60)
-    
+
     return True
 
 
@@ -599,65 +587,54 @@ def main():
 Examples:
   # Migrate a knowledge base
   python scripts/migrate_kb.py /path/to/my_kb
-  
+
   # Migrate with custom name
   python scripts/migrate_kb.py /path/to/kb --name my_textbook
-  
+
   # Migrate and run test query
   python scripts/migrate_kb.py /path/to/kb --test
-  
+
   # Migrate and extract numbered items
   python scripts/migrate_kb.py /path/to/kb --extract-items
-  
+
   # Validate only (don't migrate)
   python scripts/migrate_kb.py /path/to/kb --validate-only
-  
+
   # Force overwrite existing KB
   python scripts/migrate_kb.py /path/to/kb --force
-"""
+""",
     )
-    
+
+    parser.add_argument("source", help="Path to source knowledge base directory")
+
     parser.add_argument(
-        "source",
-        help="Path to source knowledge base directory"
+        "--name", help="Name for the migrated knowledge base (default: source directory name)"
     )
-    
+
     parser.add_argument(
-        "--name",
-        help="Name for the migrated knowledge base (default: source directory name)"
+        "--target-dir", help=f"Target base directory (default: {DEFAULT_KB_BASE_DIR})"
     )
-    
-    parser.add_argument(
-        "--target-dir",
-        help=f"Target base directory (default: {DEFAULT_KB_BASE_DIR})"
-    )
-    
-    parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Run a test query after migration"
-    )
-    
+
+    parser.add_argument("--test", action="store_true", help="Run a test query after migration")
+
     parser.add_argument(
         "--extract-items",
         action="store_true",
-        help="Extract numbered items from content_list (requires LLM API)"
+        help="Extract numbered items from content_list (requires LLM API)",
     )
-    
+
     parser.add_argument(
         "--validate-only",
         action="store_true",
-        help="Only validate the knowledge base, don't migrate"
+        help="Only validate the knowledge base, don't migrate",
     )
-    
+
     parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite existing knowledge base if exists"
+        "--force", action="store_true", help="Overwrite existing knowledge base if exists"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Run migration
     success = asyncio.run(
         migrate_kb(
@@ -670,10 +647,9 @@ Examples:
             force=args.force,
         )
     )
-    
+
     sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":
     main()
-

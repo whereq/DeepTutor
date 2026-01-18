@@ -31,11 +31,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -78,6 +78,8 @@ jobs:
           python -c "from src.services.config.loader import load_config_with_main; print('✅ Config loader imports OK')"
           python -c "from src.services.config.unified_config import UnifiedConfigManager; print('✅ Unified config imports OK')"
           python -c "from src.logging import get_logger; print('✅ Logging imports OK')"
+          python -c "from src.services.prompt import get_prompt_manager; print('✅ Prompt service imports OK')"
+          python -c "from src.services.search import web_search; print('✅ Search service imports OK')"
         env:
           PYTHONPATH: ${{ github.workspace }}
 
@@ -91,11 +93,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -155,6 +157,7 @@ jobs:
           echo "|----------------|--------------|------------|" >> $GITHUB_STEP_SUMMARY
           echo "| 3.10 | ${{ needs.import-check.result == 'success' && '✅' || '❌' }} | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 3.11 | ${{ needs.import-check.result == 'success' && '✅' || '❌' }} | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3.12 | ${{ needs.import-check.result == 'success' && '✅' || '❌' }} | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Fail if tests failed
         if: needs.import-check.result == 'failure' || needs.unit-tests.result == 'failure'

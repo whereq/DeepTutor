@@ -688,7 +688,14 @@ def get_logger(
         effective_level = "DEBUG"
 
     log_dir_key = str(log_dir) if log_dir is not None else None
-    cache_key = (name, effective_level, console_output, file_output, log_dir_key, effective_service_prefix)
+    cache_key = (
+        name,
+        effective_level,
+        console_output,
+        file_output,
+        log_dir_key,
+        effective_service_prefix,
+    )
 
     if cache_key not in _loggers:
         _loggers[cache_key] = Logger(

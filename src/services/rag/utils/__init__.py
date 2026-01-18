@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 RAG Utilities
 =============
@@ -14,4 +15,3 @@ __all__ = [
     "migrate_images_and_update_paths",
     "cleanup_parser_output_dirs",
 ]
-

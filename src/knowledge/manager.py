@@ -415,8 +415,8 @@ class KnowledgeBaseManager:
         if metadata_file.exists():
             try:
                 with open(metadata_file, encoding="utf-8") as f:
-                    metadata = json.load(f)
-                    provider = metadata.get("rag_provider") or "raganything"
+                    kb_meta = json.load(f)
+                    provider = kb_meta.get("rag_provider") or "raganything"
             except Exception:
                 pass
 

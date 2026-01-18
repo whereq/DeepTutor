@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Pipeline Factory
 ================
@@ -6,6 +7,7 @@ Factory for creating and managing RAG pipelines.
 """
 
 from typing import Callable, Dict, List, Optional
+import warnings
 
 from .pipelines import lightrag, llamaindex
 from .pipelines.raganything import RAGAnythingPipeline
@@ -119,8 +121,6 @@ def get_plugin(name: str) -> Dict[str, Callable]:
 
     Get a plugin by name (maps to pipeline API).
     """
-    import warnings
-
     warnings.warn(
         "get_plugin() is deprecated, use get_pipeline() instead",
         DeprecationWarning,
@@ -139,8 +139,6 @@ def list_plugins() -> List[Dict[str, str]]:
     """
     DEPRECATED: Use list_pipelines() instead.
     """
-    import warnings
-
     warnings.warn(
         "list_plugins() is deprecated, use list_pipelines() instead",
         DeprecationWarning,
@@ -153,8 +151,6 @@ def has_plugin(name: str) -> bool:
     """
     DEPRECATED: Use has_pipeline() instead.
     """
-    import warnings
-
     warnings.warn(
         "has_plugin() is deprecated, use has_pipeline() instead",
         DeprecationWarning,
