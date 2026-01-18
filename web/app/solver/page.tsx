@@ -253,7 +253,8 @@ export default function SolverPage() {
                           resolveArtifactUrl(url, msg.outputDir)
                         }
                         components={{
-                          img: ({ node, src, ...props }) => (
+                          img: ({ node, src, alt, ...props }) => (
+                            // eslint-disable-next-line @next/next/no-img-element -- Dynamic images from markdown content
                             <img
                               {...props}
                               src={
@@ -262,6 +263,7 @@ export default function SolverPage() {
                                   msg.outputDir,
                                 ) || undefined
                               }
+                              alt={alt || "Solution image"}
                               loading="lazy"
                               className="max-w-full h-auto"
                             />
@@ -323,7 +325,8 @@ export default function SolverPage() {
                           resolveArtifactUrl(url, msg.outputDir)
                         }
                         components={{
-                          img: ({ node, src, ...props }) => (
+                          img: ({ node, src, alt, ...props }) => (
+                            // eslint-disable-next-line @next/next/no-img-element -- Dynamic images from markdown content
                             <img
                               {...props}
                               src={
@@ -332,6 +335,7 @@ export default function SolverPage() {
                                   msg.outputDir,
                                 ) || undefined
                               }
+                              alt={alt || "Solution image"}
                               loading="lazy"
                               className="max-w-full h-auto"
                             />

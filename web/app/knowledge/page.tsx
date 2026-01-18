@@ -744,7 +744,7 @@ export default function KnowledgePage() {
     });
 
     kbsNamesRef.current = kbs.map((kb) => kb.name);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [kbs, loading]);
 
   // Cleanup all connections on component unmount
@@ -943,6 +943,7 @@ export default function KnowledgePage() {
         addFiles(validFiles);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Helper functions are stable
   }, []);
 
   return (
