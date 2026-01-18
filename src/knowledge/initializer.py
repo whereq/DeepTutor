@@ -60,39 +60,33 @@ class KnowledgeBaseInitializer:
         self.rag_provider = rag_provider
 
     def _register_to_config(self):
-        """Register KB to kb_config.json (only knowledge_bases list, no default)."""
-        config_file = self.base_dir / "kb_config.json"
-        if config_file.exists():
-            try:
-                with open(config_file, encoding="utf-8") as f:
-                    config = json.load(f)
-            except Exception as e:
-                logger.warning(f"Failed to read config: {e}, creating new")
-                config = {"knowledge_bases": {}}
-        else:
-            config = {"knowledge_bases": {}}
+        """Register KB to kb_config.json using KnowledgeBaseManager for consistency."""
+        try:
+            from src.knowledge.manager import KnowledgeBaseManager
 
-        if "knowledge_bases" not in config:
-            config["knowledge_bases"] = {}
+            manager = KnowledgeBaseManager(base_dir=str(self.base_dir))
 
-        # Remove old "default" field if exists (migration)
-        if "default" in config:
-            del config["default"]
+            # Check if already registered (reload config to get latest)
+            manager.config = manager._load_config()
+            if self.kb_name in manager.config.get("knowledge_bases", {}):
+                logger.info("  ✓ Already registered in kb_config.json")
+                return
 
-        if self.kb_name not in config.get("knowledge_bases", {}):
-            config["knowledge_bases"][self.kb_name] = {
-                "path": self.kb_name,
-                "description": f"Knowledge base: {self.kb_name}",
-            }
-
-            try:
-                with open(config_file, "w", encoding="utf-8") as f:
-                    json.dump(config, indent=2, ensure_ascii=False, fp=f)
-                logger.info("  ✓ Registered to kb_config.json")
-            except Exception as e:
-                logger.warning(f"Failed to update config: {e}")
-        else:
-            logger.info("  ✓ Already registered in kb_config.json")
+            # Register with initializing status
+            manager.update_kb_status(
+                name=self.kb_name,
+                status="initializing",
+                progress={
+                    "stage": "initializing",
+                    "message": "Creating directory structure...",
+                    "percent": 0,
+                    "current": 0,
+                    "total": 0,
+                },
+            )
+            logger.info("  ✓ Registered to kb_config.json")
+        except Exception as e:
+            logger.warning(f"Failed to register to config: {e}")
 
     def _update_metadata_with_provider(self, provider: str):
         """Update metadata.json and centralized config with the RAG provider used."""

@@ -90,7 +90,8 @@ jobs:
         working-directory: ./web
         run: |
           echo "🔍 Running ESLint on frontend code..."
-          npm run lint 2>&1 || {
+          # Use npx next lint with explicit directory to avoid path issues
+          npx next lint --dir . 2>&1 || {
             echo ""
             echo "╔═══════════════════════════════════════════════════════════════════════════╗"
             echo "║                     ❌ ESLint checks failed!                              ║"

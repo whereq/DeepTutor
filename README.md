@@ -338,8 +338,8 @@ cp .env.example .env
 **Quick Start** — Build from source:
 
 ```bash
-docker compose up --build -d    # Build and start (~5-10 min first run)
-docker compose logs -f          # View logs
+docker compose up                  # Build and start (~11 min first run on mac mini M4)
+docker compose build --no-cache    # Clear cache and rebuild after pull the newest repo
 ```
 
 **Or use pre-built image** (faster):

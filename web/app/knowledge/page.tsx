@@ -47,31 +47,37 @@ import {
 } from "lucide-react";
 import { apiUrl, wsUrl } from "@/lib/api";
 
+interface ProgressInfo {
+  stage: string;
+  message: string;
+  percent?: number;
+  progress_percent?: number; // Legacy field from WebSocket
+  current: number;
+  total: number;
+  file_name?: string;
+  error?: string;
+  timestamp?: string;
+}
+
 interface KnowledgeBase {
   name: string;
   is_default: boolean;
+  status?: string; // "initializing", "processing", "ready", "error"
+  progress?: ProgressInfo;
   statistics: {
     raw_documents: number;
     images: number;
     content_lists: number;
     rag_initialized: boolean;
     rag_provider?: string;
+    status?: string;
+    progress?: ProgressInfo;
     rag?: {
       chunks?: number;
       entities?: number;
       relations?: number;
     };
   };
-}
-
-interface ProgressInfo {
-  stage: string;
-  message: string;
-  current: number;
-  total: number;
-  file_name?: string;
-  progress_percent: number;
-  error?: string;
 }
 
 interface UploadFile {
@@ -554,6 +560,26 @@ export default function KnowledgePage() {
     fetchKnowledgeBases();
   }, [fetchKnowledgeBases]);
 
+  // Auto-poll when any KB is processing/initializing
+  useEffect(() => {
+    // Check if any KB is in processing/initializing state
+    const hasProcessingKb = kbs.some((kb) => {
+      const status = kb.statistics.status || kb.status;
+      return status === "initializing" || status === "processing";
+    });
+
+    if (!hasProcessingKb) {
+      return;
+    }
+
+    // Poll every 3 seconds while processing
+    const intervalId = setInterval(() => {
+      fetchKnowledgeBases();
+    }, 3000);
+
+    return () => clearInterval(intervalId);
+  }, [kbs, fetchKnowledgeBases]);
+
   // Fetch RAG providers
   useEffect(() => {
     const fetchRagProviders = async () => {
@@ -869,51 +895,14 @@ export default function KnowledgePage() {
 
       const result = await res.json();
 
-      // Immediately display new KB in frontend (optimistic update)
-      const newKb: KnowledgeBase = {
-        name: result.name,
-        is_default: false,
-        statistics: {
-          raw_documents: result.files?.length || 0,
-          images: 0,
-          content_lists: 0,
-          rag_initialized: false,
-          rag_provider: ragProvider,
-        },
-      };
-
-      // Add to list (if not exists)
-      setKbs((prev) => {
-        const exists = prev.some((kb) => kb.name === newKb.name);
-        if (exists) {
-          return prev;
-        }
-        return [newKb, ...prev];
-      });
-
-      // Initialize progress state
-      setProgressMap((prev) => ({
-        ...prev,
-        [newKb.name]: {
-          stage: "initializing",
-          message: "Initializing knowledge base...",
-          current: 0,
-          total: 0,
-          file_name: "",
-          progress_percent: 0,
-          timestamp: new Date().toISOString(),
-        },
-      }));
-
       setCreateModalOpen(false);
       clearAllFiles();
       setNewKbName("");
       setRagProvider("llamaindex"); // Reset to default
 
-      // Delay refresh to get full info (but user can already see the new KB)
-      setTimeout(async () => {
-        await fetchKnowledgeBases();
-      }, 1000);
+      // Immediately refresh to get the new KB from backend
+      // (Backend now registers KB to kb_config.json immediately with status)
+      await fetchKnowledgeBases();
 
       showToast("Knowledge base created successfully!", "success");
     } catch (err: any) {
@@ -1145,37 +1134,53 @@ export default function KnowledgePage() {
                       <Layers className="w-3 h-3" /> Status
                     </span>
                     {(() => {
-                      const progress = progressMap[kb.name];
-                      if (progress) {
-                        if (progress.stage === "completed") {
-                          return (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                              Ready
-                            </span>
-                          );
-                        } else if (progress.stage === "error") {
-                          return (
-                            <span className="text-red-600 dark:text-red-400 font-bold">
-                              Error
-                            </span>
-                          );
-                        } else {
-                          // Display current stage and progress
-                          const stageLabels: Record<string, string> = {
-                            initializing: "Initializing",
-                            processing_documents: "Processing",
-                            processing_file: "Processing File",
-                            extracting_items: "Extracting Items",
-                          };
-                          const stageLabel =
-                            stageLabels[progress.stage] || progress.stage;
-                          return (
-                            <span className="text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              {stageLabel} {progress.progress_percent}%
-                            </span>
-                          );
-                        }
+                      // Priority: API progress > WebSocket progressMap > rag_initialized
+                      const apiProgress = kb.statistics.progress || kb.progress;
+                      const wsProgress = progressMap[kb.name];
+                      const progress = apiProgress || wsProgress;
+                      const status = kb.statistics.status || kb.status;
+
+                      if (
+                        status === "ready" ||
+                        progress?.stage === "completed"
+                      ) {
+                        return (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                            Ready
+                          </span>
+                        );
+                      } else if (
+                        status === "error" ||
+                        progress?.stage === "error"
+                      ) {
+                        return (
+                          <span className="text-red-600 dark:text-red-400 font-bold">
+                            Error
+                          </span>
+                        );
+                      } else if (
+                        status === "initializing" ||
+                        status === "processing" ||
+                        progress
+                      ) {
+                        // Display current stage and progress
+                        const stageLabels: Record<string, string> = {
+                          initializing: "Initializing",
+                          processing_documents: "Processing",
+                          processing_file: "Processing File",
+                          extracting_items: "Extracting Items",
+                        };
+                        const stage =
+                          progress?.stage || status || "initializing";
+                        const stageLabel = stageLabels[stage] || stage;
+                        const percent =
+                          progress?.percent ?? progress?.progress_percent ?? 0;
+                        return (
+                          <span className="text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            {stageLabel} {percent}%
+                          </span>
+                        );
                       }
                       return (
                         <span
@@ -1194,19 +1199,36 @@ export default function KnowledgePage() {
                   </div>
                   <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
                     {(() => {
-                      const progress = progressMap[kb.name];
-                      if (progress) {
-                        const percent = progress.progress_percent;
+                      const apiProgress = kb.statistics.progress || kb.progress;
+                      const wsProgress = progressMap[kb.name];
+                      const progress = apiProgress || wsProgress;
+                      const status = kb.statistics.status || kb.status;
+
+                      if (
+                        progress ||
+                        status === "initializing" ||
+                        status === "processing"
+                      ) {
+                        const percent =
+                          progress?.percent ?? progress?.progress_percent ?? 0;
                         let bgColor = "bg-blue-500";
-                        if (progress.stage === "completed") {
+                        if (
+                          status === "ready" ||
+                          progress?.stage === "completed"
+                        ) {
                           bgColor = "bg-emerald-500";
-                        } else if (progress.stage === "error") {
+                        } else if (
+                          status === "error" ||
+                          progress?.stage === "error"
+                        ) {
                           bgColor = "bg-red-500";
                         }
                         return (
                           <div
                             className={`h-full rounded-full ${bgColor} transition-all duration-300`}
-                            style={{ width: `${percent}%` }}
+                            style={{
+                              width: `${Math.max(percent, status === "initializing" ? 5 : 0)}%`,
+                            }}
                           />
                         );
                       }
@@ -1218,29 +1240,39 @@ export default function KnowledgePage() {
                     })()}
                   </div>
                   {(() => {
-                    const progress = progressMap[kb.name];
-                    if (progress && progress.message) {
+                    const apiProgress = kb.statistics.progress || kb.progress;
+                    const wsProgress = progressMap[kb.name];
+                    const progress = apiProgress || wsProgress;
+                    const status = kb.statistics.status || kb.status;
+
+                    if (
+                      progress?.message ||
+                      (status && status !== "ready" && status !== "unknown")
+                    ) {
                       return (
                         <div className="mt-2 space-y-1">
                           <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium flex items-center justify-between">
-                            <span>{progress.message}</span>
+                            <span>
+                              {progress?.message || `Status: ${status}`}
+                            </span>
                             {/* Clear button for stuck states */}
-                            {progress.stage !== "completed" && (
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await clearProgress(kb.name);
-                                  // Refresh KB list to show correct status
-                                  fetchKnowledgeBases();
-                                }}
-                                className="text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                                title="Clear progress status"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
+                            {progress?.stage !== "completed" &&
+                              status !== "ready" && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    await clearProgress(kb.name);
+                                    // Refresh KB list to show correct status
+                                    fetchKnowledgeBases();
+                                  }}
+                                  className="text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                  title="Clear progress status"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
                           </div>
-                          {progress.file_name && (
+                          {progress?.file_name && (
                             <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
                               <FileText className="w-3 h-3" />
                               <span className="truncate">
@@ -1248,12 +1280,14 @@ export default function KnowledgePage() {
                               </span>
                             </div>
                           )}
-                          {progress.current > 0 && progress.total > 0 && (
-                            <div className="text-[10px] text-slate-400 dark:text-slate-500">
-                              File {progress.current} of {progress.total}
-                            </div>
-                          )}
-                          {progress.error && (
+                          {progress &&
+                            progress.current > 0 &&
+                            progress.total > 0 && (
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500">
+                                File {progress.current} of {progress.total}
+                              </div>
+                            )}
+                          {progress?.error && (
                             <div className="text-[10px] text-red-600 dark:text-red-400 mt-1">
                               Error: {progress.error}
                             </div>
