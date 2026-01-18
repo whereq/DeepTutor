@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 import shutil
 
+from src.services.rag.components.routing import FileTypeRouter
+
 
 class KnowledgeBaseManager:
     """Manager for knowledge bases"""
@@ -406,8 +408,20 @@ class KnowledgeBaseManager:
         if not folder.is_dir():
             raise ValueError(f"Path is not a directory: {folder}")
 
-        # Get supported files in folder
-        supported_extensions = {".pdf", ".docx", ".doc", ".txt", ".md", ".markdown"}
+        # Get RAG provider from KB metadata to determine supported extensions
+        kb_dir = self.base_dir / kb_name
+        metadata_file = kb_dir / "metadata.json"
+        provider = "raganything"  # default to most comprehensive
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, encoding="utf-8") as f:
+                    metadata = json.load(f)
+                    provider = metadata.get("rag_provider") or "raganything"
+            except Exception:
+                pass
+
+        # Get supported files in folder based on provider
+        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
         files: list[Path] = []
         for ext in supported_extensions:
             files.extend(folder.glob(f"**/*{ext}"))
@@ -522,12 +536,13 @@ class KnowledgeBaseManager:
 
         return True
 
-    def scan_linked_folder(self, folder_path: str) -> list[str]:
+    def scan_linked_folder(self, folder_path: str, provider: str = "raganything") -> list[str]:
         """
         Scan a linked folder and return list of supported file paths.
 
         Args:
             folder_path: Path to folder
+            provider: RAG provider to determine supported extensions (default: raganything)
 
         Returns:
             List of file paths (as strings)
@@ -537,7 +552,7 @@ class KnowledgeBaseManager:
         if not folder.exists() or not folder.is_dir():
             return []
 
-        supported_extensions = {".pdf", ".docx", ".doc", ".txt", ".md", ".markdown"}
+        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
         files = []
 
         for ext in supported_extensions:
@@ -582,8 +597,20 @@ class KnowledgeBaseManager:
             except Exception:
                 pass
 
-        # Scan current files
-        supported_extensions = {".pdf", ".docx", ".doc", ".txt", ".md", ".markdown"}
+        # Get RAG provider from KB metadata to determine supported extensions
+        kb_dir = self.base_dir / kb_name
+        metadata_file = kb_dir / "metadata.json"
+        provider = "raganything"  # default to most comprehensive
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, encoding="utf-8") as f:
+                    metadata = json.load(f)
+                    provider = metadata.get("rag_provider") or "raganything"
+            except Exception:
+                pass
+
+        # Scan current files based on provider's supported extensions
+        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
         new_files = []
         modified_files = []
 

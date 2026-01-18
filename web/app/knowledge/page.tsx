@@ -29,7 +29,7 @@ interface FileSystemDirectoryReader {
 
 declare global {
   interface DataTransferItem {
-    webkitGetAsEntry(): FileSystemEntry | null;
+    webkitGetAsEntry?(): FileSystemEntry | null;
   }
 }
 import {
@@ -121,28 +121,101 @@ export default function KnowledgePage() {
     return parts.length > 1 ? parts.pop()?.toLowerCase() || "" : "";
   };
 
-  // Supported file extensions (matching backend DocumentValidator.ALLOWED_EXTENSIONS)
-  const SUPPORTED_EXTENSIONS = [
-    "pdf",
-    "txt",
-    "md", // Documents
-    "doc",
-    "docx",
-    "rtf", // Word documents
-    "html",
-    "htm",
-    "xml",
-    "json", // Web/Data formats
-    "csv",
-    "xlsx",
-    "xls", // Spreadsheets
-    "pptx",
-    "ppt", // Presentations
-  ];
+  // Supported file extensions per RAG provider (based on actual backend capabilities)
+  const PROVIDER_SUPPORTED_EXTENSIONS: Record<string, string[]> = {
+    // LlamaIndex: PDF + plain text files only (uses PyMuPDF for PDF, direct read for text)
+    llamaindex: [
+      "pdf",
+      "txt",
+      "md",
+      "markdown",
+      "json",
+      "csv",
+      "html",
+      "htm",
+      "xml",
+      "yaml",
+      "yml",
+      "toml",
+      "tex",
+      "rst",
+      "log",
+    ],
+    // LightRAG: Same as LlamaIndex - PDF + plain text files (uses FileTypeRouter + PDFParser)
+    lightrag: [
+      "pdf",
+      "txt",
+      "md",
+      "markdown",
+      "json",
+      "csv",
+      "html",
+      "htm",
+      "xml",
+      "yaml",
+      "yml",
+      "toml",
+      "tex",
+      "rst",
+      "log",
+    ],
+    // RAGAnything: Full multimodal support - PDF, Word, Images, and plain text (uses MinerU)
+    raganything: [
+      "pdf",
+      "doc",
+      "docx",
+      "txt",
+      "md",
+      "markdown",
+      "json",
+      "csv",
+      "html",
+      "htm",
+      "xml",
+      "yaml",
+      "yml",
+      "toml",
+      "tex",
+      "rst",
+      "log",
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "webp",
+      "bmp",
+      "tiff",
+      "tif",
+    ],
+  };
+
+  // Human-readable file type hints for each provider
+  const PROVIDER_FILE_HINTS: Record<string, string> = {
+    llamaindex: "PDF, TXT, MD, JSON, CSV, HTML, XML...",
+    lightrag: "PDF, TXT, MD, JSON, CSV, HTML, XML...",
+    raganything: "PDF, Word, 图片, TXT, MD, JSON, CSV, HTML...",
+  };
+
+  // Get supported extensions for current provider
+  const getSupportedExtensions = (provider: string): string[] => {
+    return PROVIDER_SUPPORTED_EXTENSIONS[provider] || PROVIDER_SUPPORTED_EXTENSIONS.llamaindex;
+  };
+
+  // Get file type hint for current provider
+  const getFileTypeHint = (provider: string): string => {
+    return PROVIDER_FILE_HINTS[provider] || PROVIDER_FILE_HINTS.llamaindex;
+  };
+
+  // Get accept attribute for file input based on provider
+  const getAcceptAttribute = (provider: string): string => {
+    const extensions = getSupportedExtensions(provider);
+    return extensions.map((ext) => `.${ext}`).join(",");
+  };
 
   const isSupportedFile = (filename: string): boolean => {
     const ext = getFileExtension(filename);
-    return SUPPORTED_EXTENSIONS.includes(ext);
+    const supportedExtensions = getSupportedExtensions(ragProvider);
+    return supportedExtensions.includes(ext);
   };
 
   // Helper function to convert File to UploadFile
@@ -789,7 +862,9 @@ export default function KnowledgePage() {
       });
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.detail || "Creation failed");
+        showToast(errorData.detail || "Creation failed", "error");
+        setUploading(false);
+        return;
       }
 
       const result = await res.json();
@@ -1343,7 +1418,7 @@ export default function KnowledgePage() {
                       }
                       e.target.value = ""; // Reset input to allow re-selecting same files
                     }}
-                    accept=".pdf,.txt,.md,.doc,.docx,.rtf,.html,.htm,.xml,.json,.csv,.xlsx,.xls,.pptx,.ppt"
+                    accept={getAcceptAttribute(ragProvider)}
                   />
 
                   {/* Drop zone / Click to upload area */}
@@ -1360,7 +1435,7 @@ export default function KnowledgePage() {
                         : "Drag & drop files or folders here"}
                     </span>
                     <span className="text-xs text-slate-400 dark:text-slate-500">
-                      PDF, Word, Excel, PPT, TXT, MD, HTML, CSV, JSON...
+                      {getFileTypeHint(ragProvider)}
                     </span>
                   </label>
 
@@ -1549,7 +1624,7 @@ export default function KnowledgePage() {
                     }
                     e.target.value = ""; // Reset input to allow re-selecting same files
                   }}
-                  accept=".pdf,.txt,.md,.doc,.docx,.rtf,.html,.htm,.xml,.json,.csv,.xlsx,.xls,.pptx,.ppt"
+                  accept={getAcceptAttribute(ragProvider)}
                 />
 
                 {/* Drop zone / Click to upload area */}
@@ -1566,7 +1641,7 @@ export default function KnowledgePage() {
                       : "Drag & drop files or folders here"}
                   </span>
                   <span className="text-xs text-slate-400 dark:text-slate-500">
-                    PDF, Word, Excel, PPT, TXT, MD, HTML, CSV, JSON...
+                    {getFileTypeHint(ragProvider)}
                   </span>
                 </label>
 
