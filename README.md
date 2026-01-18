@@ -1555,6 +1555,4 @@ This project is licensed under the ***[AGPL-3.0 License](LICENSE)***.
 
 *✨ Thanks for visiting **DeepTutor**!*
 
-<img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.DeepTutor&style=for-the-badge&color=00d4ff" alt="Views">
-
 </div>
