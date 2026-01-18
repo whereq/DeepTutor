@@ -73,13 +73,14 @@ jobs:
       - name: Check module imports
         run: |
           echo "🐍 Testing with Python ${{ matrix.python-version }}"
-          python -c "from src.services.llm import complete, stream, fetch_models, sanitize_url; print('✅ LLM service imports OK')"
+          # Core service imports (no heavy RAG dependencies)
           python -c "from src.services.llm.config import get_llm_config; print('✅ LLM config imports OK')"
+          python -c "from src.services.llm.factory import complete, stream; print('✅ LLM factory imports OK')"
+          python -c "from src.services.llm.utils import sanitize_url; print('✅ LLM utils imports OK')"
           python -c "from src.services.config.loader import load_config_with_main; print('✅ Config loader imports OK')"
           python -c "from src.services.config.unified_config import UnifiedConfigManager; print('✅ Unified config imports OK')"
           python -c "from src.logging import get_logger; print('✅ Logging imports OK')"
-          python -c "from src.services.prompt import get_prompt_manager; print('✅ Prompt service imports OK')"
-          python -c "from src.services.search import web_search; print('✅ Search service imports OK')"
+          python -c "from src.services.prompt.manager import PromptManager; print('✅ Prompt manager imports OK')"
         env:
           PYTHONPATH: ${{ github.workspace }}
 

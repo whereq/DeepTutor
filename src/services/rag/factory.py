@@ -4,22 +4,38 @@ Pipeline Factory
 ================
 
 Factory for creating and managing RAG pipelines.
+
+Note: Pipeline imports are lazy to avoid importing heavy dependencies (lightrag, llama_index, etc.)
+at module load time. This allows the core services to be imported without RAG dependencies.
 """
 
 from typing import Callable, Dict, List, Optional
 import warnings
 
-from .pipelines import lightrag, llamaindex
-from .pipelines.raganything import RAGAnythingPipeline
-from .pipelines.raganything_docling import RAGAnythingDoclingPipeline
+# Pipeline registry - populated lazily
+_PIPELINES: Dict[str, Callable] = {}
+_PIPELINES_INITIALIZED = False
 
-# Pipeline registry
-_PIPELINES: Dict[str, Callable] = {
-    "raganything": RAGAnythingPipeline,  # Full multimodal: MinerU parser, deep analysis (slow, thorough)
-    "raganything_docling": RAGAnythingDoclingPipeline,  # Docling parser: Office/HTML friendly, easier setup
-    "lightrag": lightrag.LightRAGPipeline,  # Knowledge graph: PDFParser, fast text-only (medium speed)
-    "llamaindex": llamaindex.LlamaIndexPipeline,  # Vector-only: Simple chunking, fast (fastest)
-}
+
+def _init_pipelines():
+    """Lazily initialize pipeline registry to avoid import errors when RAG deps not installed."""
+    global _PIPELINES, _PIPELINES_INITIALIZED
+    if _PIPELINES_INITIALIZED:
+        return
+
+    from .pipelines import lightrag, llamaindex
+    from .pipelines.raganything import RAGAnythingPipeline
+    from .pipelines.raganything_docling import RAGAnythingDoclingPipeline
+
+    _PIPELINES.update(
+        {
+            "raganything": RAGAnythingPipeline,  # Full multimodal: MinerU parser, deep analysis (slow, thorough)
+            "raganything_docling": RAGAnythingDoclingPipeline,  # Docling parser: Office/HTML friendly, easier setup
+            "lightrag": lightrag.LightRAGPipeline,  # Knowledge graph: PDFParser, fast text-only (medium speed)
+            "llamaindex": llamaindex.LlamaIndexPipeline,  # Vector-only: Simple chunking, fast (fastest)
+        }
+    )
+    _PIPELINES_INITIALIZED = True
 
 
 def get_pipeline(name: str = "raganything", kb_base_dir: Optional[str] = None, **kwargs):
@@ -37,6 +53,7 @@ def get_pipeline(name: str = "raganything", kb_base_dir: Optional[str] = None, *
     Raises:
         ValueError: If pipeline name is not found
     """
+    _init_pipelines()
     if name not in _PIPELINES:
         available = list(_PIPELINES.keys())
         raise ValueError(f"Unknown pipeline: {name}. Available: {available}")
@@ -98,6 +115,7 @@ def register_pipeline(name: str, factory: Callable):
         name: Pipeline name
         factory: Factory function or class that creates the pipeline
     """
+    _init_pipelines()
     _PIPELINES[name] = factory
 
 
@@ -111,6 +129,7 @@ def has_pipeline(name: str) -> bool:
     Returns:
         True if pipeline exists
     """
+    _init_pipelines()
     return name in _PIPELINES
 
 

@@ -87,6 +87,7 @@ repos:
       - id: bandit
         args: [-c, pyproject.toml, -q]
         exclude: ^tests/
+        additional_dependencies: ["bandit[toml]"]
 
   # ============================================
   # Type checking

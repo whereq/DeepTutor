@@ -45,7 +45,7 @@
 
 ### 📦 Releases
 
-> **[2026.1.18]** Release [v0.5.1](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.1) - Enhance RAG pipeline with Docling support and improve CI/CD workflows with several minor bugs fixed -- Thanks to all the feedbacks!
+> **[2026.1.18]** Release [v0.5.2](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.1) - Enhance RAG pipeline with Docling support and improve CI/CD workflows with several minor bugs fixed -- Thanks to all the feedbacks!
 
 <details>
 <summary>History releases</summary>
