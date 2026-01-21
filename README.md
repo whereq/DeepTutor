@@ -1553,6 +1553,9 @@ We hope DeepTutor could become a gift for the community. 🎁
 
 This project is licensed under the ***[AGPL-3.0 License](LICENSE)***.
 
-*✨ Thanks for visiting **DeepTutor**!*
+<p align="center">
+  <em> Thanks for visiting ✨ DeepTutor!</em><br><br>
+  <img src="https://visitor-badge.laobi.icu/badge?page_id=HKUDS.DeepTutor&style=for-the-badge&color=00d4ff" alt="Views">
+</p>
 
 </div>
