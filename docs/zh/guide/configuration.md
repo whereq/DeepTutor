@@ -45,6 +45,24 @@ TTS_URL=
 TTS_API_KEY=
 ```
 
+## 🤗 HuggingFace / MinerU（可选：离线/镜像网络）
+
+如果你的环境无法直接访问 `huggingface.co`（比如内网/校园网/离线环境），MinerU 在尝试从 HuggingFace Hub 下载模型时可能会失败。DeepTutor 会读取根目录 `.env`（并且 `docker-compose.yml` 通过 `env_file: .env` 注入到容器），因此你可以在 `.env` 里**按需添加**下面这些变量：
+
+```bash
+# ============================================================================
+# HuggingFace Hub / MinerU - 可选
+# ============================================================================
+# 使用 HuggingFace 镜像站点（如果你有可用的镜像域名）
+# HF_ENDPOINT=https://your-hf-mirror.example.com
+
+# 缓存目录（容器内路径）。Docker 建议把该目录挂载出来以便复用缓存。
+# HF_HOME=/app/data/hf
+
+# 强制离线模式（前提：模型已在本地缓存中）
+# HF_HUB_OFFLINE=1
+```
+
 ## Agent 参数
 
 编辑 `config/agents.yaml`:

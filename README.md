@@ -345,7 +345,7 @@ docker compose build --no-cache    # Clear cache and rebuild after pull the newe
 **Or use pre-built image** (faster):
 
 ```bash
-# Linux/macOS (AMD64)
+# Works on all platforms - Docker auto-detects your architecture
 docker run -d --name deeptutor \
   -p 8001:8001 -p 3782:3782 \
   --env-file .env \
@@ -353,7 +353,6 @@ docker run -d --name deeptutor \
   -v $(pwd)/config:/app/config:ro \
   ghcr.io/hkuds/deeptutor:latest
 
-# Apple Silicon (ARM64): use ghcr.io/hkuds/deeptutor:latest-arm64
 # Windows PowerShell: use ${PWD} instead of $(pwd)
 ```
 
@@ -369,14 +368,16 @@ docker compose up --build # Rebuild after changes
 <details>
 <summary>📋 <b>More Docker Options</b> (Pre-built images, Cloud deployment, Custom ports)</summary>
 
-**Pre-built Image Architecture Reference:**
+**Pre-built Image Tags:**
 
-| Architecture | Image Tag | Use Case |
-|:-------------|:----------|:---------|
-| **AMD64** | `ghcr.io/hkuds/deeptutor:latest` | Intel/AMD (most servers, Windows/Linux PCs) |
-| **ARM64** | `ghcr.io/hkuds/deeptutor:latest-arm64` | Apple Silicon, AWS Graviton, Raspberry Pi |
+| Tag | Architectures | Description |
+|:----|:--------------|:------------|
+| `:latest` | AMD64 + ARM64 | Latest stable release (auto-detects your architecture) |
+| `:v0.5.x` | AMD64 + ARM64 | Specific version (auto-detects your architecture) |
+| `:v0.5.x-amd64` | AMD64 only | Explicit AMD64 image |
+| `:v0.5.x-arm64` | ARM64 only | Explicit ARM64 image |
 
-> 💡 Run `uname -m` to check: `x86_64` = AMD64, `arm64`/`aarch64` = ARM64
+> 💡 The `:latest` tag is a **multi-architecture image** — Docker automatically pulls the correct version for your system (Intel/AMD or Apple Silicon/ARM)
 
 **Cloud Deployment** — Must set external API URL:
 

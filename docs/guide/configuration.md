@@ -144,6 +144,24 @@ TTS_URL=
 TTS_API_KEY=
 ```
 
+## 🤗 HuggingFace / MinerU (Optional, for offline or mirrored networks)
+
+If your environment cannot access `huggingface.co` directly (common in restricted networks), MinerU may fail when it tries to download models from the HuggingFace Hub. DeepTutor reads your root `.env` (Docker Compose uses `env_file: .env`), so you can **optionally** add the following variables:
+
+```bash
+# ============================================================================
+# HuggingFace Hub / MinerU - Optional
+# ============================================================================
+# Use a HuggingFace mirror endpoint (if you have one)
+# HF_ENDPOINT=https://your-hf-mirror.example.com
+
+# Persist/cache directory (inside container). For Docker, consider mounting this path.
+# HF_HOME=/app/data/hf
+
+# Force offline mode (requires models already cached locally)
+# HF_HUB_OFFLINE=1
+```
+
 ## 🔌 Supported Providers
 
 ### LLM Providers
