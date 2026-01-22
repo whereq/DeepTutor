@@ -686,7 +686,9 @@ export default function NotebookPage() {
                     {t("No records yet")}
                   </p>
                   <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">
-                    {t("Add records from Solver, Question, Research, or Co-Writer")}
+                    {t(
+                      "Add records from Solver, Question, Research, or Co-Writer",
+                    )}
                   </p>
                 </div>
               ) : (
@@ -873,9 +875,9 @@ export default function NotebookPage() {
 
               {/* Output */}
               <div>
-              <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                {t("Output")}
-              </h3>
+                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                  {t("Output")}
+                </h3>
                 <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
                   <div className="prose prose-slate dark:prose-invert max-w-none prose-sm">
                     <ReactMarkdown

@@ -85,7 +85,9 @@ export default function ChatSessionDetail({
         setSession(data);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
-        setError(msg === "Failed to load session" ? t("Failed to load session") : msg);
+        setError(
+          msg === "Failed to load session" ? t("Failed to load session") : msg,
+        );
       } finally {
         setLoading(false);
       }

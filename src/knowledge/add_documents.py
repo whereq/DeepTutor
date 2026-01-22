@@ -27,13 +27,13 @@ from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 
-# Load LLM config early to ensure OPENAI_API_KEY env var is set before LightRAG imports
-# This is critical because LightRAG reads os.environ["OPENAI_API_KEY"] directly
-from src.services.llm.config import get_llm_config as _early_config_load  # noqa: F401
-
 from src.knowledge.extract_numbered_items import process_content_list
 from src.logging import LightRAGLogContext, get_logger
 from src.services.llm import get_llm_config
+
+# Load LLM config early to ensure OPENAI_API_KEY env var is set before LightRAG imports
+# This is critical because LightRAG reads os.environ["OPENAI_API_KEY"] directly
+from src.services.llm.config import get_llm_config as _early_config_load  # noqa: F401
 
 logger = get_logger("KnowledgeInit")
 
@@ -43,7 +43,7 @@ DEFAULT_BASE_DIR = "./data/knowledge_bases"
 
 class DocumentAdder:
     """Add documents to existing knowledge base with Hash-validation.
-    
+
     Supports multiple RAG providers with lazy loading to avoid unnecessary imports:
     - llamaindex: Only imports llama_index modules
     - lightrag: Only imports lightrag modules (no raganything)
@@ -86,7 +86,7 @@ class DocumentAdder:
         self.api_key = api_key
         self.base_url = base_url
         self.progress_tracker = progress_tracker
-        
+
         # IMPORTANT: rag_provider parameter is IGNORED for incremental add
         # We always use the provider from KB metadata to ensure consistency
         # This prevents mixing different index formats in the same KB
@@ -98,15 +98,15 @@ class DocumentAdder:
             )
         logger.info(f"Incremental add will use provider: {provider} (from KB metadata)")
         self._ensure_working_directories()
-    
+
     def _get_provider_from_metadata(self) -> str:
         """
         Get the RAG provider from KB metadata.
-        
+
         This is the ONLY source of truth for incremental adds - we must use
         the same provider that was used during initialization to ensure
         data consistency and correct storage format.
-        
+
         Returns:
             Provider name (llamaindex, lightrag, raganything, raganything_docling)
         """
@@ -119,12 +119,12 @@ class DocumentAdder:
                         return provider
             except Exception as e:
                 logger.warning(f"Failed to read provider from metadata: {e}")
-        
+
         # Fallback: detect from storage structure
         llamaindex_storage = self.kb_dir / "llamaindex_storage"
         if llamaindex_storage.exists():
             return "llamaindex"
-        
+
         # Default to raganything for backward compatibility
         return "raganything"
 
@@ -214,7 +214,7 @@ class DocumentAdder:
     async def process_new_documents(self, new_files: List[Path]):
         """
         Async phase: Ingests files into the RAG system.
-        
+
         Uses lazy loading to only import dependencies for the actual provider:
         - llamaindex: Only imports llama_index
         - lightrag: Only imports lightrag (no raganything)
@@ -245,7 +245,7 @@ class DocumentAdder:
         Lazy imports llama_index only when needed.
         """
         logger.info("Using LlamaIndex incremental add...")
-        
+
         # Lazy import llama_index
         try:
             from src.services.rag.pipelines.llamaindex import LlamaIndexPipeline
@@ -262,11 +262,11 @@ class DocumentAdder:
 
         pipeline = LlamaIndexPipeline(kb_base_dir=str(self.base_dir))
         file_paths = [str(f) for f in new_files]
-        
+
         # Use the new add_documents method for incremental add
         processed_files = []
         total_files = len(file_paths)
-        
+
         for idx, file_path in enumerate(file_paths, 1):
             doc_file = Path(file_path)
             try:
@@ -277,7 +277,7 @@ class DocumentAdder:
                         current=idx,
                         total=total_files,
                     )
-                
+
                 # Use add_documents for incremental add
                 success = await pipeline.add_documents(self.kb_name, [file_path])
                 if success:
@@ -288,7 +288,7 @@ class DocumentAdder:
                     logger.error(f"  ✗ Failed to index: {doc_file.name}")
             except Exception as e:
                 logger.exception(f"  ✗ Failed {doc_file.name}: {e}")
-        
+
         return processed_files
 
     async def _process_lightrag(self, new_files: List[Path]) -> List[Path]:
@@ -297,7 +297,7 @@ class DocumentAdder:
         Lazy imports lightrag only when needed - does NOT require raganything.
         """
         logger.info("Using LightRAG incremental add (text-only)...")
-        
+
         # Lazy import lightrag
         try:
             from lightrag import LightRAG
@@ -308,9 +308,13 @@ class DocumentAdder:
                 f"Install with: pip install lightrag. Error: {e}"
             ) from e
 
-        from src.services.rag.components.routing import FileTypeRouter
-        from src.services.embedding import get_embedding_client, get_embedding_config, reset_embedding_client
+        from src.services.embedding import (
+            get_embedding_client,
+            get_embedding_config,
+            reset_embedding_client,
+        )
         from src.services.llm import get_llm_client
+        from src.services.rag.components.routing import FileTypeRouter
 
         # Pre-import progress stage if needed
         ProgressStage: Any = None
@@ -343,8 +347,9 @@ class DocumentAdder:
                 embedding_func=embedding_func,
             )
             await rag.initialize_storages()
-            
+
             from lightrag.kg.shared_storage import initialize_pipeline_status
+
             await initialize_pipeline_status()
 
         # Classify files
@@ -423,17 +428,19 @@ class DocumentAdder:
 
         return processed_files
 
-    async def _process_raganything(self, new_files: List[Path], parser: str = "mineru") -> List[Path]:
+    async def _process_raganything(
+        self, new_files: List[Path], parser: str = "mineru"
+    ) -> List[Path]:
         """
         Incremental add for RAGAnything pipeline (multimodal).
         Lazy imports raganything only when needed.
-        
+
         Args:
             parser: "mineru" for RAGAnything, "docling" for RAGAnything Docling
         """
         parser_name = "MinerU" if parser == "mineru" else "Docling"
         logger.info(f"Using RAGAnything incremental add with {parser_name} parser...")
-        
+
         # Lazy import raganything
         try:
             # Add RAG-Anything to path if needed
@@ -441,22 +448,26 @@ class DocumentAdder:
             raganything_path = project_root.parent / "raganything" / "RAG-Anything"
             if raganything_path.exists() and str(raganything_path) not in sys.path:
                 sys.path.insert(0, str(raganything_path))
-            
-            from raganything import RAGAnything, RAGAnythingConfig
+
             from lightrag.utils import EmbeddingFunc
+            from raganything import RAGAnything, RAGAnythingConfig
         except ImportError as e:
             raise ImportError(
                 f"RAGAnything dependencies not installed. "
                 f"Please install raganything package. Error: {e}"
             ) from e
 
+        from src.services.embedding import (
+            get_embedding_client,
+            get_embedding_config,
+            reset_embedding_client,
+        )
+        from src.services.llm import get_llm_client
         from src.services.rag.components.routing import FileTypeRouter
         from src.services.rag.utils.image_migration import (
             cleanup_parser_output_dirs,
             migrate_images_and_update_paths,
         )
-        from src.services.embedding import get_embedding_client, get_embedding_config, reset_embedding_client
-        from src.services.llm import get_llm_client
 
         # Pre-import progress stage if needed
         ProgressStage: Any = None
@@ -542,7 +553,7 @@ class DocumentAdder:
                 )
 
                 # Step 2: Migrate images
-                logger.info(f"  Step 2/3: Migrating images...")
+                logger.info("  Step 2/3: Migrating images...")
                 updated_content_list, num_migrated = await migrate_images_and_update_paths(
                     content_list=content_list,
                     source_base_dir=self.content_list_dir,
@@ -557,7 +568,7 @@ class DocumentAdder:
                     json.dump(updated_content_list, f, ensure_ascii=False, indent=2)
 
                 # Step 3: Insert into RAG
-                logger.info(f"  Step 3/3: Inserting into knowledge graph...")
+                logger.info("  Step 3/3: Inserting into knowledge graph...")
                 await rag.insert_content_list(
                     content_list=updated_content_list,
                     file_path=str(doc_file),
@@ -612,10 +623,11 @@ class DocumentAdder:
     async def _extract_text_basic(self, file_path: Path) -> str:
         """Basic text extraction for LightRAG (text-only pipeline)."""
         suffix = file_path.suffix.lower()
-        
+
         if suffix == ".pdf":
             try:
                 import fitz  # PyMuPDF
+
                 doc = fitz.open(file_path)
                 texts = []
                 for page in doc:
@@ -745,7 +757,7 @@ class DocumentAdder:
 
     def update_metadata(self, added_count: int):
         """Update metadata after incremental add.
-        
+
         Note: We do NOT update rag_provider here - incremental adds must use
         the same provider as the original initialization for consistency.
         """

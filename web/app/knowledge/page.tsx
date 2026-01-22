@@ -747,7 +747,6 @@ export default function KnowledgePage() {
     });
 
     kbsNamesRef.current = kbs.map((kb) => kb.name);
-     
   }, [kbs, loading]);
 
   // Cleanup all connections on component unmount
@@ -1411,20 +1410,21 @@ export default function KnowledgePage() {
                       }
                       // Fallback descriptions
                       const fallbackDescriptions: Record<string, string> = {
-                        llamaindex:
-                          t("Pure vector retrieval, fastest processing speed."),
-                        lightrag:
-                          t(
-                            "Lightweight knowledge graph retrieval, fast processing of text documents.",
-                          ),
-                        raganything:
-                          t(
-                            "Multimodal document processing with chart and formula extraction, builds knowledge graphs.",
-                          ),
+                        llamaindex: t(
+                          "Pure vector retrieval, fastest processing speed.",
+                        ),
+                        lightrag: t(
+                          "Lightweight knowledge graph retrieval, fast processing of text documents.",
+                        ),
+                        raganything: t(
+                          "Multimodal document processing with chart and formula extraction, builds knowledge graphs.",
+                        ),
                       };
                       return (
                         fallbackDescriptions[ragProvider] ||
-                        t("Select a RAG pipeline suitable for your document type")
+                        t(
+                          "Select a RAG pipeline suitable for your document type",
+                        )
                       );
                     })()}
                   </p>
@@ -1604,8 +1604,14 @@ export default function KnowledgePage() {
                   {ragProvider === "llamaindex" && t("LlamaIndex")}
                   {ragProvider === "lightrag" && t("LightRAG")}
                   {ragProvider === "raganything" && t("RAG-Anything")}
-                  {ragProvider === "raganything_docling" && t("RAG-Anything (Docling)")}
-                  {!["llamaindex", "lightrag", "raganything", "raganything_docling"].includes(ragProvider) && ragProvider}
+                  {ragProvider === "raganything_docling" &&
+                    t("RAG-Anything (Docling)")}
+                  {![
+                    "llamaindex",
+                    "lightrag",
+                    "raganything",
+                    "raganything_docling",
+                  ].includes(ragProvider) && ragProvider}
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   {t("Keep unchanged to use this KB's existing provider")}
@@ -1674,7 +1680,7 @@ export default function KnowledgePage() {
                         }}
                         className="text-xs text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 font-medium"
                       >
-                          {t("Clear all")}
+                        {t("Clear all")}
                       </button>
                     </div>
                     <div className="space-y-1">

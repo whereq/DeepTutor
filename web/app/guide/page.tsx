@@ -141,7 +141,9 @@ export default function GuidePage() {
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-            title={sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")}
+            title={
+              sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")
+            }
           >
             {sidebarCollapsed ? (
               <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-300" />

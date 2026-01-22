@@ -1399,7 +1399,9 @@ export default function CoWriterEditor({
                 ) : (
                   <>
                     <WifiOff className="w-3 h-3" />
-                    <span className="hidden sm:inline">{t("Disconnected")}</span>
+                    <span className="hidden sm:inline">
+                      {t("Disconnected")}
+                    </span>
                   </>
                 )}
               </div>
@@ -1836,7 +1838,8 @@ export default function CoWriterEditor({
                             </span>
                           </div>
                           <div className="text-xs text-slate-600 truncate mb-1">
-                            &quot;{op.input?.original_text?.substring(0, 35)}...&quot;
+                            &quot;{op.input?.original_text?.substring(0, 35)}
+                            ...&quot;
                           </div>
                           <div className="flex items-center gap-2 text-[10px] text-slate-400">
                             {op.source && (
@@ -1992,7 +1995,9 @@ export default function CoWriterEditor({
                       </p>
                     ) : (
                       <span className="text-slate-400">
-                        {t("After generation, the narration script will appear here.")}
+                        {t(
+                          "After generation, the narration script will appear here.",
+                        )}
                       </span>
                     )}
                   </div>
@@ -2014,7 +2019,9 @@ export default function CoWriterEditor({
                       </ul>
                     ) : (
                       <div className="text-[11px] text-slate-400">
-                        {t("After generation, 3-5 key points will be listed here.")}
+                        {t(
+                          "After generation, 3-5 key points will be listed here.",
+                        )}
                       </div>
                     )}
                   </div>
@@ -2041,7 +2048,9 @@ export default function CoWriterEditor({
                           }}
                         >
                           <source src={audioInfo.audioUrl} type="audio/mpeg" />
-                          {t("Your browser does not support the audio element.")}
+                          {t(
+                            "Your browser does not support the audio element.",
+                          )}
                         </audio>
                       </div>
                     ) : (
@@ -2064,7 +2073,9 @@ export default function CoWriterEditor({
         <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 border">
             <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
-            <span className="font-medium text-slate-700">{t("Exporting...")}</span>
+            <span className="font-medium text-slate-700">
+              {t("Exporting...")}
+            </span>
           </div>
         </div>
       )}

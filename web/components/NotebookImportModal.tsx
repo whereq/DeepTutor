@@ -328,7 +328,10 @@ export default function NotebookImportModal({
         {/* Footer */}
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
           <div className="text-sm text-slate-500">
-            {t("Selected {n} items").replace("{n}", String(selectedRecords.size))}
+            {t("Selected {n} items").replace(
+              "{n}",
+              String(selectedRecords.size),
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button

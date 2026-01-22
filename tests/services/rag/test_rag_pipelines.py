@@ -172,6 +172,7 @@ class TestPipelineFactory(unittest.IsolatedAsyncioTestCase):
     async def test_get_pipeline_llamaindex(self):
         """Test getting LlamaIndex pipeline"""
         from src.services.rag.factory import get_pipeline
+
         try:
             pipeline = get_pipeline("llamaindex")
         except ValueError as e:
@@ -183,7 +184,6 @@ class TestPipelineFactory(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(hasattr(pipeline, "search"))
         self.assertTrue(hasattr(pipeline, "delete"))
         print(f"\n✓ LlamaIndex pipeline created: {type(pipeline).__name__}")
-
 
     async def test_get_pipeline_invalid(self):
         """Test getting invalid pipeline raises error"""
@@ -367,8 +367,6 @@ class TestLightRAGPipeline(unittest.IsolatedAsyncioTestCase, RAGPipelineTestBase
 
         # Note: This pipeline requires RAG-Anything for full functionality
         print("\n⚠ Note: LightRAG pipeline requires RAG-Anything for search/indexing")
-
-
 
 
 class TestRAGToolWithProviders(unittest.IsolatedAsyncioTestCase, RAGPipelineTestBase):

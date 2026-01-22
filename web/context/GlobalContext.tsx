@@ -679,7 +679,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   const isHydrated = useRef(false);
 
   // --- Solver Logic ---
-  const [solverState, setSolverState] = useState<SolverState>(DEFAULT_SOLVER_STATE);
+  const [solverState, setSolverState] =
+    useState<SolverState>(DEFAULT_SOLVER_STATE);
   const solverWs = useRef<WebSocket | null>(null);
 
   // Debounced save for solver state
@@ -688,11 +689,11 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       if (!isHydrated.current) return;
       const toSave = persistState(
         state,
-        EXCLUDE_FIELDS.SOLVER as unknown as (keyof SolverState)[]
+        EXCLUDE_FIELDS.SOLVER as unknown as (keyof SolverState)[],
       );
       saveToStorage(STORAGE_KEYS.SOLVER_STATE, toSave);
     }, 500),
-    []
+    [],
   );
 
   // Auto-save solver state on change (only after hydration)
@@ -743,11 +744,13 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
 
     ws.onopen = () => {
       // Send question with current session_id (if any)
-      ws.send(JSON.stringify({
-        question,
-        kb_name: kb,
-        session_id: solverSessionIdRef.current,
-      }));
+      ws.send(
+        JSON.stringify({
+          question,
+          kb_name: kb,
+          session_id: solverSessionIdRef.current,
+        }),
+      );
       addSolverLog({ type: "system", content: "Initializing connection..." });
     };
 
@@ -875,7 +878,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   // Load a solver session from history
   const loadSolverSession = async (sessionId: string) => {
     try {
-      const response = await fetch(apiUrl(`/api/v1/solve/sessions/${sessionId}`));
+      const response = await fetch(
+        apiUrl(`/api/v1/solve/sessions/${sessionId}`),
+      );
       if (!response.ok) {
         throw new Error("Session not found");
       }
@@ -896,7 +901,10 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         messages,
         selectedKb: session.kb_name || prev.selectedKb,
         tokenStats: session.token_stats || prev.tokenStats,
-        question: messages.length > 0 && messages[0].role === "user" ? messages[0].content : "",
+        question:
+          messages.length > 0 && messages[0].role === "user"
+            ? messages[0].content
+            : "",
         isSolving: false,
         logs: [],
         progress: { stage: null, progress: {} },
@@ -912,7 +920,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   };
 
   // --- Question Logic ---
-  const [questionState, setQuestionState] = useState<QuestionState>(DEFAULT_QUESTION_STATE);
+  const [questionState, setQuestionState] = useState<QuestionState>(
+    DEFAULT_QUESTION_STATE,
+  );
   const questionWs = useRef<WebSocket | null>(null);
 
   // Debounced save for question state
@@ -921,11 +931,11 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       if (!isHydrated.current) return;
       const toSave = persistState(
         state,
-        EXCLUDE_FIELDS.QUESTION as unknown as (keyof QuestionState)[]
+        EXCLUDE_FIELDS.QUESTION as unknown as (keyof QuestionState)[],
       );
       saveToStorage(STORAGE_KEYS.QUESTION_STATE, toSave);
     }, 500),
-    []
+    [],
   );
 
   // Auto-save question state on change (only after hydration)
@@ -1547,7 +1557,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   };
 
   // --- Research Logic ---
-  const [researchState, setResearchState] = useState<ResearchState>(DEFAULT_RESEARCH_STATE);
+  const [researchState, setResearchState] = useState<ResearchState>(
+    DEFAULT_RESEARCH_STATE,
+  );
   const researchWs = useRef<WebSocket | null>(null);
 
   // Debounced save for research state
@@ -1556,11 +1568,11 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       if (!isHydrated.current) return;
       const toSave = persistState(
         state,
-        EXCLUDE_FIELDS.RESEARCH as unknown as (keyof ResearchState)[]
+        EXCLUDE_FIELDS.RESEARCH as unknown as (keyof ResearchState)[],
       );
       saveToStorage(STORAGE_KEYS.RESEARCH_STATE, toSave);
     }, 500),
-    []
+    [],
   );
 
   // Auto-save research state on change (only after hydration)
@@ -1738,7 +1750,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   };
 
   // --- IdeaGen Logic ---
-  const [ideaGenState, setIdeaGenState] = useState<IdeaGenState>(DEFAULT_IDEAGEN_STATE);
+  const [ideaGenState, setIdeaGenState] = useState<IdeaGenState>(
+    DEFAULT_IDEAGEN_STATE,
+  );
 
   // Debounced save for ideagen state
   const saveIdeaGenState = useCallback(
@@ -1746,11 +1760,11 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       if (!isHydrated.current) return;
       const toSave = persistState(
         state,
-        EXCLUDE_FIELDS.IDEAGEN as unknown as (keyof IdeaGenState)[]
+        EXCLUDE_FIELDS.IDEAGEN as unknown as (keyof IdeaGenState)[],
       );
       saveToStorage(STORAGE_KEYS.IDEAGEN_STATE, toSave);
     }, 500),
-    []
+    [],
   );
 
   // Auto-save ideagen state on change (only after hydration)
@@ -1772,11 +1786,11 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       if (!isHydrated.current) return;
       const toSave = persistState(
         state,
-        EXCLUDE_FIELDS.CHAT as unknown as (keyof ChatState)[]
+        EXCLUDE_FIELDS.CHAT as unknown as (keyof ChatState)[],
       );
       saveToStorage(STORAGE_KEYS.CHAT_STATE, toSave);
     }, 500),
-    []
+    [],
   );
 
   // Auto-save chat state on change (only after hydration)
@@ -1794,23 +1808,23 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
     // Load persisted states
     const persistedSolver = loadFromStorage<Partial<SolverState>>(
       STORAGE_KEYS.SOLVER_STATE,
-      {}
+      {},
     );
     const persistedQuestion = loadFromStorage<Partial<QuestionState>>(
       STORAGE_KEYS.QUESTION_STATE,
-      {}
+      {},
     );
     const persistedResearch = loadFromStorage<Partial<ResearchState>>(
       STORAGE_KEYS.RESEARCH_STATE,
-      {}
+      {},
     );
     const persistedIdeaGen = loadFromStorage<Partial<IdeaGenState>>(
       STORAGE_KEYS.IDEAGEN_STATE,
-      {}
+      {},
     );
     const persistedChat = loadFromStorage<Partial<ChatState>>(
       STORAGE_KEYS.CHAT_STATE,
-      {}
+      {},
     );
 
     // Restore solver state
@@ -1819,8 +1833,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         mergeWithDefaults(
           persistedSolver,
           prev,
-          EXCLUDE_FIELDS.SOLVER as unknown as (keyof SolverState)[]
-        )
+          EXCLUDE_FIELDS.SOLVER as unknown as (keyof SolverState)[],
+        ),
       );
     }
 
@@ -1830,8 +1844,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         mergeWithDefaults(
           persistedQuestion,
           prev,
-          EXCLUDE_FIELDS.QUESTION as unknown as (keyof QuestionState)[]
-        )
+          EXCLUDE_FIELDS.QUESTION as unknown as (keyof QuestionState)[],
+        ),
       );
     }
 
@@ -1841,7 +1855,7 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         const merged = mergeWithDefaults(
           persistedResearch,
           prev,
-          EXCLUDE_FIELDS.RESEARCH as unknown as (keyof ResearchState)[]
+          EXCLUDE_FIELDS.RESEARCH as unknown as (keyof ResearchState)[],
         );
         if (merged.status === "running") {
           merged.status = "idle";
@@ -1856,8 +1870,8 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         mergeWithDefaults(
           persistedIdeaGen,
           prev,
-          EXCLUDE_FIELDS.IDEAGEN as unknown as (keyof IdeaGenState)[]
-        )
+          EXCLUDE_FIELDS.IDEAGEN as unknown as (keyof IdeaGenState)[],
+        ),
       );
     }
 
@@ -1867,7 +1881,7 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         const merged = mergeWithDefaults(
           persistedChat,
           prev,
-          EXCLUDE_FIELDS.CHAT as unknown as (keyof ChatState)[]
+          EXCLUDE_FIELDS.CHAT as unknown as (keyof ChatState)[],
         );
         // Also update sessionIdRef
         if (merged.sessionId) {

@@ -23,8 +23,8 @@ from src.agents.co_writer.edit_agent import (
 from src.agents.co_writer.narrator_agent import NarratorAgent
 from src.logging import get_logger
 from src.services.config import load_config_with_main
-from src.services.tts import get_tts_config
 from src.services.settings.interface_settings import get_ui_language
+from src.services.tts import get_tts_config
 
 router = APIRouter()
 

@@ -39,7 +39,7 @@ interface PersistentStateOptions<T> {
 export function usePersistentState<T extends Record<string, any>>(
   key: string,
   initialValue: T,
-  options: PersistentStateOptions<T> = {}
+  options: PersistentStateOptions<T> = {},
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
   const { exclude = [], debounceMs = 500, enabled = true } = options;
 
@@ -86,7 +86,7 @@ export function usePersistentState<T extends Record<string, any>>(
     (action) => {
       setStateInternal(action);
     },
-    []
+    [],
   );
 
   return [state, setState];
@@ -103,7 +103,7 @@ export function usePersistentState<T extends Record<string, any>>(
 export function usePersistentValue<T>(
   key: string,
   initialValue: T,
-  debounceMs: number = 300
+  debounceMs: number = 300,
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
   const isInitialized = useRef(false);
 
@@ -147,7 +147,7 @@ export function useStatePersistence<T extends Record<string, any>>(
   state: T,
   defaultState: T,
   excludeFields: readonly (keyof T)[],
-  debounceMs: number = 500
+  debounceMs: number = 500,
 ): {
   loadPersistedState: () => T;
   saveState: (state: T) => void;
@@ -171,7 +171,7 @@ export function useStatePersistence<T extends Record<string, any>>(
     return mergeWithDefaults(
       persisted,
       defaultState,
-      excludeFields as (keyof T)[]
+      excludeFields as (keyof T)[],
     );
   }, [key, defaultState, excludeFields]);
 

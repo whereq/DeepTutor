@@ -348,4 +348,5 @@ __all__ = [
     "has_thinking_tags",
     "supports_tools",
     "requires_api_version",
-    "get_effective_temperature",]
+    "get_effective_temperature",
+]

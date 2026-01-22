@@ -7,4 +7,3 @@ export function I18nClientBridge({ children }: { children: React.ReactNode }) {
   const { uiSettings } = useGlobal();
   return <I18nProvider language={uiSettings.language}>{children}</I18nProvider>;
 }
-

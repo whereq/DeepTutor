@@ -145,7 +145,7 @@ async def run_upload_processing_task(
     folder_id: str = None,
 ):
     """Background task for processing uploaded files.
-    
+
     Args:
         kb_name: Knowledge base name
         base_dir: Base directory for knowledge bases
@@ -182,7 +182,7 @@ async def run_upload_processing_task(
 
         # Stage files and check for duplicates
         staged_files = adder.add_documents(uploaded_file_paths, allow_duplicates=False)
-        
+
         if not staged_files:
             logger.info(f"[{task_id}] No new files to process (all duplicates or invalid)")
             progress_tracker.update(

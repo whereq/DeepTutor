@@ -31,7 +31,9 @@ export function useGuideSession() {
   const isHydrated = useRef(false);
 
   // Initialize with defaults (same on server and client)
-  const [sessionState, setSessionState] = useState<SessionState>(INITIAL_SESSION_STATE);
+  const [sessionState, setSessionState] = useState<SessionState>(
+    INITIAL_SESSION_STATE,
+  );
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
@@ -40,8 +42,8 @@ export function useGuideSession() {
   const saveSessionState = useMemo(
     () =>
       debounce((state: SessionState) => {
-      const toSave = persistState(state, GUIDE_SESSION_EXCLUDE);
-      saveToStorage(STORAGE_KEYS.GUIDE_SESSION, toSave);
+        const toSave = persistState(state, GUIDE_SESSION_EXCLUDE);
+        saveToStorage(STORAGE_KEYS.GUIDE_SESSION, toSave);
       }, 500),
     [],
   );
@@ -60,14 +62,14 @@ export function useGuideSession() {
 
     const persistedSession = loadFromStorage<Partial<SessionState>>(
       STORAGE_KEYS.GUIDE_SESSION,
-      {}
+      {},
     );
     const persistedChat = loadFromStorage<ChatMessage[]>(GUIDE_CHAT_KEY, []);
 
     if (Object.keys(persistedSession).length > 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration restore
       setSessionState((prev) =>
-        mergeWithDefaults(persistedSession, prev, GUIDE_SESSION_EXCLUDE)
+        mergeWithDefaults(persistedSession, prev, GUIDE_SESSION_EXCLUDE),
       );
     }
 

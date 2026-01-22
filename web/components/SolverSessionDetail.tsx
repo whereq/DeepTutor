@@ -112,7 +112,9 @@ export default function SolverSessionDetail({
         setSession(data);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
-        setError(msg === "Failed to load session" ? t("Failed to load session") : msg);
+        setError(
+          msg === "Failed to load session" ? t("Failed to load session") : msg,
+        );
       } finally {
         setLoading(false);
       }
@@ -207,7 +209,8 @@ export default function SolverSessionDetail({
                     )}
                     {session.token_stats.tokens > 0 && (
                       <span className="px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full">
-                        {session.token_stats.tokens.toLocaleString()} {t("tokens")}
+                        {session.token_stats.tokens.toLocaleString()}{" "}
+                        {t("tokens")}
                       </span>
                     )}
                     {session.token_stats.cost > 0 && (

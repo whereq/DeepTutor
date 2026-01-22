@@ -42,4 +42,3 @@ export function initI18n(language?: unknown) {
   _initialized = true;
   return i18n;
 }
-

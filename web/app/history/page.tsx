@@ -99,14 +99,16 @@ export default function HistoryPage() {
   const [solverSessions, setSolverSessions] = useState<SolverSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
-  const [loadingSolverSessionId, setLoadingSolverSessionId] = useState<string | null>(null);
+  const [loadingSolverSessionId, setLoadingSolverSessionId] = useState<
+    string | null
+  >(null);
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
   const [selectedChatSession, setSelectedChatSession] = useState<string | null>(
     null,
   );
-  const [selectedSolverSession, setSelectedSolverSession] = useState<string | null>(
-    null,
-  );
+  const [selectedSolverSession, setSelectedSolverSession] = useState<
+    string | null
+  >(null);
   const [filterType, setFilterType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -114,7 +116,10 @@ export default function HistoryPage() {
     setLoading(true);
     try {
       // Fetch regular activity history
-      if (filterType === "all" || (filterType !== "chat" && filterType !== "solve")) {
+      if (
+        filterType === "all" ||
+        (filterType !== "chat" && filterType !== "solve")
+      ) {
         const typeParam = filterType !== "all" ? `&type=${filterType}` : "";
         const res = await fetch(
           apiUrl(`/api/v1/dashboard/recent?limit=50${typeParam}`),
@@ -221,7 +226,8 @@ export default function HistoryPage() {
         dateKey = formatDate(date, uiSettings.language, {
           month: "long",
           day: "numeric",
-          year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+          year:
+            date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
         });
       }
 
@@ -311,7 +317,9 @@ export default function HistoryPage() {
               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
               {t("Loading")}...
             </div>
-          ) : filteredEntries.length === 0 && chatSessions.length === 0 && solverSessions.length === 0 ? (
+          ) : filteredEntries.length === 0 &&
+            chatSessions.length === 0 &&
+            solverSessions.length === 0 ? (
             <div className="p-12 text-center">
               <div className="w-16 h-16 bg-slate-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
                 <History className="w-8 h-8 text-slate-300 dark:text-slate-500" />
@@ -521,7 +529,9 @@ export default function HistoryPage() {
                   .map((session) => (
                     <div
                       key={session.session_id}
-                      onClick={() => setSelectedSolverSession(session.session_id)}
+                      onClick={() =>
+                        setSelectedSolverSession(session.session_id)
+                      }
                       className="px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer"
                     >
                       <div className="flex gap-4">
@@ -555,11 +565,12 @@ export default function HistoryPage() {
                                 KB: {session.kb_name}
                               </span>
                             )}
-                            {session.token_stats?.cost !== undefined && session.token_stats.cost > 0 && (
-                              <span className="text-xs text-amber-500">
-                                ${session.token_stats.cost.toFixed(4)}
-                              </span>
-                            )}
+                            {session.token_stats?.cost !== undefined &&
+                              session.token_stats.cost > 0 && (
+                                <span className="text-xs text-amber-500">
+                                  ${session.token_stats.cost.toFixed(4)}
+                                </span>
+                              )}
                           </div>
                           {session.last_message && (
                             <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-1">
@@ -583,7 +594,9 @@ export default function HistoryPage() {
                               e.stopPropagation();
                               handleLoadSolverSession(session.session_id);
                             }}
-                            disabled={loadingSolverSessionId === session.session_id}
+                            disabled={
+                              loadingSolverSessionId === session.session_id
+                            }
                             className="px-3 py-1.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                           >
                             {loadingSolverSessionId === session.session_id ? (

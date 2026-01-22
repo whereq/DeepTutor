@@ -91,6 +91,7 @@ class KnowledgeBaseInitializer:
     def _get_file_hash(self, file_path: Path) -> str:
         """Calculate SHA-256 hash of a file."""
         import hashlib
+
         sha256_hash = hashlib.sha256()
         chunk_size = 65536  # 64KB
         with open(file_path, "rb") as f:

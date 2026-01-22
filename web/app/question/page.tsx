@@ -219,7 +219,8 @@ export default function QuestionPage() {
                   <div className="flex items-center gap-2 px-3 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>
-                      {t("Generating")} {totalQuestions}/{questionState.count}...
+                      {t("Generating")} {totalQuestions}/{questionState.count}
+                      ...
                     </span>
                   </div>
                 ) : isComplete ? (
@@ -320,8 +321,12 @@ export default function QuestionPage() {
                       </h3>
                       <p className="text-sm text-slate-600 dark:text-slate-400">
                         {questionState.mode === "knowledge"
-                          ? t("Generate questions based on knowledge base content")
-                          : t("Generate similar questions based on an exam paper")}
+                          ? t(
+                              "Generate questions based on knowledge base content",
+                            )
+                          : t(
+                              "Generate similar questions based on an exam paper",
+                            )}
                       </p>
                     </div>
                   </div>
@@ -469,9 +474,13 @@ export default function QuestionPage() {
                           ) : (
                             <div className="text-center text-slate-500 dark:text-slate-400">
                               <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-                              <p className="font-medium">{t("Click to upload PDF")}</p>
+                              <p className="font-medium">
+                                {t("Click to upload PDF")}
+                              </p>
                               <p className="text-xs">
-                                {t("The system will parse and generate questions")}
+                                {t(
+                                  "The system will parse and generate questions",
+                                )}
                               </p>
                             </div>
                           )}
@@ -781,7 +790,9 @@ export default function QuestionPage() {
                                   </span>
                                   <span className="text-xs px-1.5 py-0.5 bg-slate-200 dark:bg-slate-600 text-slate-500 rounded">
                                     {currentQuestion.rounds || 1} {t("round")}
-                                    {(currentQuestion.rounds || 1) > 1 ? t("s") : ""}
+                                    {(currentQuestion.rounds || 1) > 1
+                                      ? t("s")
+                                      : ""}
                                   </span>
                                 </div>
                                 {showAnalysis ? (

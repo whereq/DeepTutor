@@ -399,7 +399,10 @@ export default function HomePage() {
           </div>
 
           {/* Messages Area */}
-          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto px-6 py-6 space-y-6"
+          >
             {chatState.messages.map((msg, idx) => (
               <div
                 key={idx}

@@ -73,7 +73,8 @@ export default function ConfigTab({
   };
 
   const deleteConfig = async (configId: string) => {
-    if (!confirm(t("Are you sure you want to delete this configuration?"))) return;
+    if (!confirm(t("Are you sure you want to delete this configuration?")))
+      return;
 
     try {
       const res = await fetch(

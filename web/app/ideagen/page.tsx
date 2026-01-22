@@ -339,10 +339,9 @@ export default function IdeaGenPage() {
       const combinedIdea: ResearchIdea = {
         id: "combined",
         knowledge_point: t("Collection of Research Ideas"),
-        description: t("Research ideas containing {n} knowledge points").replace(
-          "{n}",
-          String(selected.length),
-        ),
+        description: t(
+          "Research ideas containing {n} knowledge points",
+        ).replace("{n}", String(selected.length)),
         research_ideas: selected.flatMap((i) => i.research_ideas),
         statement: selected.map((i) => i.statement).join("\n\n---\n\n"),
         expanded: false,
@@ -534,7 +533,9 @@ export default function IdeaGenPage() {
           <div className="p-3 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">
               {t("Your Thoughts")}{" "}
-              {selectedRecords.size > 0 ? `(${t("Optional")})` : `(${t("Required")})`}
+              {selectedRecords.size > 0
+                ? `(${t("Optional")})`
+                : `(${t("Required")})`}
             </label>
             <textarea
               value={userThoughts}

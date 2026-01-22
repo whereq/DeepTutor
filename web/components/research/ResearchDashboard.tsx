@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo, startTransition } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  startTransition,
+} from "react";
 import { ResearchState } from "../../types/research";
 import { TaskGrid } from "./TaskGrid";
 import { ActiveTaskDetail } from "./ActiveTaskDetail";
@@ -68,36 +74,40 @@ export const ResearchDashboard: React.FC<ResearchDashboardProps> = ({
 }) => {
   const { t } = useTranslation();
   const { global, tasks, activeTaskIds, planning, reporting } = state;
-  
+
   // Track previous stage to detect changes and reset user selection
   const [prevStage, setPrevStage] = useState(global.stage);
-  
+
   // Ref to track previous stage for useEffect (needed because state updates synchronously)
   const prevStageRef = useRef(global.stage);
-  
+
   // User can override the auto-selected tab
-  const [userSelectedTab, setUserSelectedTab] = useState<ProcessTab | null>(null);
-  
+  const [userSelectedTab, setUserSelectedTab] = useState<ProcessTab | null>(
+    null,
+  );
+
   // Compute derived tab based on current stage
-  const derivedProcessTab: ProcessTab = 
-    global.stage === "planning" || global.stage === "researching" || global.stage === "reporting"
+  const derivedProcessTab: ProcessTab =
+    global.stage === "planning" ||
+    global.stage === "researching" ||
+    global.stage === "reporting"
       ? global.stage
       : "reporting";
-  
+
   // Detect stage changes and reset user selection
   if (prevStage !== global.stage) {
     setPrevStage(global.stage);
     setUserSelectedTab(null);
   }
-  
+
   // Active tab is user selection or derived
   const activeProcessTab = userSelectedTab ?? derivedProcessTab;
-  
+
   // Handler for user tab selection
   const setActiveProcessTab = (tab: ProcessTab) => {
     setUserSelectedTab(tab);
   };
-  
+
   // View state
   const [activeView, setActiveView] = useState<"process" | "report">("process");
 
@@ -131,7 +141,7 @@ export const ResearchDashboard: React.FC<ResearchDashboardProps> = ({
     }
   }, [global.stage, reporting.generatedReport, activeView]);
 
-  // Reset to process view when a new research starts  
+  // Reset to process view when a new research starts
   useEffect(() => {
     if (global.stage === "planning" && prevStageRef.current !== "planning") {
       startTransition(() => {
@@ -222,7 +232,9 @@ export const ResearchDashboard: React.FC<ResearchDashboardProps> = ({
         )}
 
         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">
-          {isPlanningActive ? t("Planning Research Strategy") : t("Research Plan")}
+          {isPlanningActive
+            ? t("Planning Research Strategy")
+            : t("Research Plan")}
         </h3>
 
         {isPlanningActive && (

@@ -319,7 +319,10 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
           {subFocuses.length > 0 && (
             <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800">
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                {t("Question Focuses ({n})").replace("{n}", String(subFocuses.length))}
+                {t("Question Focuses ({n})").replace(
+                  "{n}",
+                  String(subFocuses.length),
+                )}
               </p>
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
                 {subFocuses.map((focus) => (
