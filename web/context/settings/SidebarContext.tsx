@@ -23,7 +23,11 @@ function getInitialSidebarWidth(): number {
   const storedWidth = localStorage.getItem("sidebarWidth");
   if (storedWidth) {
     const width = parseInt(storedWidth, 10);
-    if (!isNaN(width) && width >= SIDEBAR_MIN_WIDTH && width <= SIDEBAR_MAX_WIDTH) {
+    if (
+      !isNaN(width) &&
+      width >= SIDEBAR_MIN_WIDTH &&
+      width <= SIDEBAR_MAX_WIDTH
+    ) {
       return width;
     }
   }
@@ -55,8 +59,11 @@ const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   // Sidebar dimensions state - use lazy initialization
-  const [sidebarWidth, setSidebarWidthState] = useState<number>(getInitialSidebarWidth);
-  const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(getInitialCollapsed);
+  const [sidebarWidth, setSidebarWidthState] = useState<number>(
+    getInitialSidebarWidth,
+  );
+  const [sidebarCollapsed, setSidebarCollapsedState] =
+    useState<boolean>(getInitialCollapsed);
 
   // Sidebar customization state
   const [sidebarDescription, setSidebarDescriptionState] = useState<string>(

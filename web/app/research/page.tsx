@@ -115,10 +115,9 @@ export default function ResearchPage() {
         {
           id: "welcome",
           role: "assistant",
-          content:
-            t(
-              "Welcome to Deep Research Lab. \n\nPlease configure your settings above, then enter a research topic below.",
-            ),
+          content: t(
+            "Welcome to Deep Research Lab. \n\nPlease configure your settings above, then enter a research topic below.",
+          ),
         },
       ]);
     }
@@ -354,7 +353,9 @@ export default function ResearchPage() {
                 onChange={(e) => setSelectedKb(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
-                {kbs.length === 0 && <option value="">{t("Loading...")}</option>}
+                {kbs.length === 0 && (
+                  <option value="">{t("Loading...")}</option>
+                )}
                 {kbs.map((kb) => (
                   <option key={kb} value={kb}>
                     {kb}

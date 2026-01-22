@@ -50,7 +50,7 @@ export default function HomePage() {
 
   const [inputMessage, setInputMessage] = useState("");
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [showNotebookModal, setShowNotebookModal] = useState(false);
 
@@ -113,8 +113,13 @@ export default function HomePage() {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      // Use scrollTop instead of scrollIntoView to prevent page-level scrolling
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
     }
   }, [chatState.messages]);
 
@@ -394,7 +399,10 @@ export default function HomePage() {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto px-6 py-6 space-y-6"
+          >
             {chatState.messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -497,8 +505,6 @@ export default function HomePage() {
                 </div>
               </div>
             )}
-
-            <div ref={chatEndRef} />
           </div>
 
           {/* Input Area - Fixed at bottom */}

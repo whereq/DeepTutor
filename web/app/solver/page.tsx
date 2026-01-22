@@ -552,7 +552,9 @@ export default function SolverPage() {
             </div>
           </div>
           <div className="text-center text-[10px] text-slate-400 dark:text-slate-500 mt-2">
-            {t("DeepTutor can make mistakes. Please verify important information.")}
+            {t(
+              "DeepTutor can make mistakes. Please verify important information.",
+            )}
           </div>
         </div>
       </div>

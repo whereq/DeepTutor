@@ -23,10 +23,14 @@ import { LANGUAGE_OPTIONS } from "./constants";
 import { getStorageStats } from "@/lib/persistence";
 
 export default function SettingsPage() {
-  const { uiSettings, updateTheme, updateLanguage, clearAllPersistence } = useGlobal();
+  const { uiSettings, updateTheme, updateLanguage, clearAllPersistence } =
+    useGlobal();
   const { t } = useTranslation();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [storageStats, setStorageStats] = useState<{ totalSize: number; items: { key: string; size: number }[] } | null>(null);
+  const [storageStats, setStorageStats] = useState<{
+    totalSize: number;
+    items: { key: string; size: number }[];
+  } | null>(null);
 
   // Load storage stats
   useEffect(() => {
@@ -266,7 +270,12 @@ export default function SettingsPage() {
         {/* Content */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
           {activeTab === "overview" && (
-            <OverviewTab status={status} ports={ports} onRefresh={loadStatus} t={t} />
+            <OverviewTab
+              status={status}
+              ports={ports}
+              onRefresh={loadStatus}
+              t={t}
+            />
           )}
           {activeTab === "llm" && (
             <ConfigTab

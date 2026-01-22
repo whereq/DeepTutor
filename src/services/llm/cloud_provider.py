@@ -296,9 +296,7 @@ async def _openai_stream(
     data = {
         "model": model,
         "messages": msg_list,
-        "temperature": get_effective_temperature(
-            binding, model, kwargs.get("temperature", 0.7)
-        ),
+        "temperature": get_effective_temperature(binding, model, kwargs.get("temperature", 0.7)),
         "stream": True,
     }
 

@@ -91,7 +91,9 @@ export default function FolderSyncManager({
               <span className="font-semibold text-slate-700 dark:text-slate-200">
                 {kbName}
               </span>
-              {t(". Documents in the folder will be processed and added to this knowledge base.")}
+              {t(
+                ". Documents in the folder will be processed and added to this knowledge base.",
+              )}
             </p>
 
             <form onSubmit={handleLinkFolder} className="space-y-4">
@@ -127,14 +129,18 @@ export default function FolderSyncManager({
                   {t("📄 Supported files: PDF, DOCX, TXT, MD")}
                 </p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                  {t("New and modified files will be automatically detected when you sync.")}
+                  {t(
+                    "New and modified files will be automatically detected when you sync.",
+                  )}
                 </p>
               </div>
 
               <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 border border-emerald-100 dark:border-emerald-800">
                 <p className="text-xs text-emerald-700 dark:text-emerald-400">
                   <strong>{t("💡 Tip:")}</strong>{" "}
-                  {t("Use folders synced with Google Drive, OneDrive, SharePoint, or Dropbox for automatic cloud integration.")}
+                  {t(
+                    "Use folders synced with Google Drive, OneDrive, SharePoint, or Dropbox for automatic cloud integration.",
+                  )}
                 </p>
               </div>
 

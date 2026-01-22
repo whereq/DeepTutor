@@ -88,6 +88,17 @@ class KnowledgeBaseInitializer:
         except Exception as e:
             logger.warning(f"Failed to register to config: {e}")
 
+    def _get_file_hash(self, file_path: Path) -> str:
+        """Calculate SHA-256 hash of a file."""
+        import hashlib
+
+        sha256_hash = hashlib.sha256()
+        chunk_size = 65536  # 64KB
+        with open(file_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(chunk_size), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+
     def _update_metadata_with_provider(self, provider: str):
         """Update metadata.json and centralized config with the RAG provider used."""
         metadata_file = self.kb_dir / "metadata.json"
@@ -101,10 +112,22 @@ class KnowledgeBaseInitializer:
             metadata["rag_provider"] = provider
             metadata["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+            # Record file hashes for all successfully processed files in raw/
+            # This enables incremental add to detect duplicates
+            file_hashes = metadata.get("file_hashes", {})
+            for raw_file in self.raw_dir.glob("*"):
+                if raw_file.is_file():
+                    try:
+                        file_hashes[raw_file.name] = self._get_file_hash(raw_file)
+                    except Exception as hash_err:
+                        logger.warning(f"Failed to hash {raw_file.name}: {hash_err}")
+            metadata["file_hashes"] = file_hashes
+
             with open(metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, indent=2, ensure_ascii=False, fp=f)
 
             logger.info(f"  ✓ Updated metadata with RAG provider: {provider}")
+            logger.info(f"  ✓ Recorded {len(file_hashes)} file hashes for incremental add")
 
             # Also save to centralized config file
             try:

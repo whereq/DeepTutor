@@ -29,4 +29,3 @@ export function I18nProvider({
 
   return children;
 }
-

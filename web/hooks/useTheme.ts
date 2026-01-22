@@ -15,7 +15,7 @@ function useIsClient() {
   return useSyncExternalStore(
     emptySubscribe,
     () => true,
-    () => false
+    () => false,
   );
 }
 

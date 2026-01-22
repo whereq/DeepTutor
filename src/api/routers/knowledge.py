@@ -142,8 +142,19 @@ async def run_upload_processing_task(
     base_url: str,
     uploaded_file_paths: list[str],
     rag_provider: str = None,
+    folder_id: str = None,
 ):
-    """Background task for processing uploaded files"""
+    """Background task for processing uploaded files.
+
+    Args:
+        kb_name: Knowledge base name
+        base_dir: Base directory for knowledge bases
+        api_key: LLM API key
+        base_url: LLM API base URL
+        uploaded_file_paths: List of file paths to process
+        rag_provider: RAG provider (ignored - we use the one from KB metadata)
+        folder_id: Optional folder ID for sync state update
+    """
     task_manager = TaskIDManager.get_instance()
     task_key = f"{kb_name}_upload_{len(uploaded_file_paths)}"
     task_id = task_manager.generate_task_id("kb_upload", task_key)
@@ -169,8 +180,22 @@ async def run_upload_processing_task(
             rag_provider=rag_provider,
         )
 
-        new_files = [Path(path) for path in uploaded_file_paths]
-        processed_files = await adder.process_new_documents(new_files)
+        # Stage files and check for duplicates
+        staged_files = adder.add_documents(uploaded_file_paths, allow_duplicates=False)
+
+        if not staged_files:
+            logger.info(f"[{task_id}] No new files to process (all duplicates or invalid)")
+            progress_tracker.update(
+                ProgressStage.COMPLETED,
+                "No new files to process (all duplicates or invalid)",
+                current=0,
+                total=0,
+            )
+            task_manager.update_task_status(task_id, "completed")
+            return
+
+        # Process staged files
+        processed_files = await adder.process_new_documents(staged_files)
 
         if processed_files:
             progress_tracker.update(
@@ -181,16 +206,28 @@ async def run_upload_processing_task(
             )
             adder.extract_numbered_items_for_new_docs(processed_files, batch_size=20)
 
-        adder.update_metadata(len(new_files))
+        adder.update_metadata(len(processed_files) if processed_files else 0)
 
+        # Update folder sync state if this was a folder sync
+        if folder_id and processed_files:
+            try:
+                manager = get_kb_manager()
+                manager.update_folder_sync_state(
+                    kb_name, folder_id, [str(f) for f in processed_files]
+                )
+                logger.info(f"[{task_id}] Updated folder sync state for folder '{folder_id}'")
+            except Exception as sync_err:
+                logger.warning(f"[{task_id}] Failed to update folder sync state: {sync_err}")
+
+        num_processed = len(processed_files) if processed_files else 0
         progress_tracker.update(
             ProgressStage.COMPLETED,
-            f"Successfully processed {len(processed_files)} files!",
-            current=len(processed_files),
-            total=len(processed_files),
+            f"Successfully processed {num_processed} files!",
+            current=num_processed,
+            total=num_processed,
         )
 
-        logger.success(f"[{task_id}] Processed {len(processed_files)} files to KB '{kb_name}'")
+        logger.success(f"[{task_id}] Processed {num_processed} files to KB '{kb_name}'")
         task_manager.update_task_status(task_id, "completed")
     except Exception as e:
         error_msg = f"Upload processing failed (KB '{kb_name}'): {e}"

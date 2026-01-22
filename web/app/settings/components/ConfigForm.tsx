@@ -228,7 +228,9 @@ export default function ConfigForm({
       }
     } catch (e) {
       setError(
-        isEditMode ? t("Failed to update configuration") : t("Failed to add configuration"),
+        isEditMode
+          ? t("Failed to update configuration")
+          : t("Failed to add configuration"),
       );
     } finally {
       setSaving(false);

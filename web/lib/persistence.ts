@@ -45,7 +45,7 @@ export function loadFromStorage<T>(key: string, defaultValue: T): T {
     // Version check - if version mismatch, return default (can add migration logic here)
     if (wrapper.version !== STORAGE_VERSION) {
       console.warn(
-        `Storage version mismatch for ${key}. Expected ${STORAGE_VERSION}, got ${wrapper.version}. Using default value.`
+        `Storage version mismatch for ${key}. Expected ${STORAGE_VERSION}, got ${wrapper.version}. Using default value.`,
       );
       return defaultValue;
     }
@@ -81,7 +81,7 @@ export function saveToStorage<T>(key: string, value: T): void {
     // Handle quota exceeded or other storage errors
     if (error instanceof Error && error.name === "QuotaExceededError") {
       console.error(
-        `localStorage quota exceeded when saving ${key}. Consider clearing old data.`
+        `localStorage quota exceeded when saving ${key}. Consider clearing old data.`,
       );
     } else {
       console.warn(`Failed to save ${key} to localStorage:`, error);
@@ -140,7 +140,7 @@ export function clearAllStorage(): void {
  */
 export function persistState<T extends Record<string, any>>(
   state: T,
-  exclude: (keyof T)[]
+  exclude: (keyof T)[],
 ): Partial<T> {
   const result: Partial<T> = {};
 
@@ -164,7 +164,7 @@ export function persistState<T extends Record<string, any>>(
 export function mergeWithDefaults<T extends Record<string, any>>(
   persistedState: Partial<T> | null | undefined,
   defaultState: T,
-  exclude: (keyof T)[] = []
+  exclude: (keyof T)[] = [],
 ): T {
   if (!persistedState) {
     return defaultState;

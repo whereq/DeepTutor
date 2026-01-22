@@ -58,7 +58,9 @@ export const ActiveTaskDetail: React.FC<ActiveTaskDetailProps> = ({ task }) => {
     return (
       <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
         <Terminal className="w-12 h-12 mb-3 opacity-20" />
-        <p className="text-sm">{t("Select a task to view execution details")}</p>
+        <p className="text-sm">
+          {t("Select a task to view execution details")}
+        </p>
       </div>
     );
   }

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
+import re
 from typing import Any, Iterable
 
 import yaml
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = PROJECT_ROOT / "src" / "agents"
@@ -84,9 +83,7 @@ def test_prompts_key_and_placeholder_parity():
 
             for lang_name, target_file in candidates:
                 if not target_file.exists():
-                    failures.append(
-                        f"[MISSING {lang_name}] {module_dir.name}: {rel.as_posix()}"
-                    )
+                    failures.append(f"[MISSING {lang_name}] {module_dir.name}: {rel.as_posix()}")
                     continue
 
                 target_obj = _load_yaml(target_file)
@@ -114,4 +111,3 @@ def test_prompts_key_and_placeholder_parity():
                     failures.append("\n".join(msg))
 
     assert not failures, "Prompt parity failures:\n" + "\n\n".join(failures)
-
