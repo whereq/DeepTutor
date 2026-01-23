@@ -37,7 +37,7 @@
 ---
 ### 📰 News
 
-> **[2026.1.1]** Happy New Year! Join our [Discord Community](https://discord.gg/zpP9cssj), [Wechat Community](https://github.com/HKUDS/DeepTutor/issues/78), or [Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
+> **[2026.1.1]** Happy New Year! Join our [Discord Community](https://discord.gg/eRsjPgMU4t), [Wechat Community](https://github.com/HKUDS/DeepTutor/issues/78), or [Discussions](https://github.com/HKUDS/DeepTutor/discussions) - shape the future of DeepTutor! 💬
 
 > **[2025.12.30]** Visit our [Official Website](https://hkuds.github.io/DeepTutor/) for more details!
 
