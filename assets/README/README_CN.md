@@ -5,12 +5,14 @@
 # DeepTutor: 您的个人学习助手
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=flat&logo=discord&logoColor=white)](https://discord.gg/aka9p9EW)
-[![Feishu](https://img.shields.io/badge/Feishu-Group-blue?style=flat)](./Communication.md)
-[![WeChat](https://img.shields.io/badge/WeChat-Group-green?style=flat&logo=wechat)](./Communication.md)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TailwindCSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](../../LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=flat&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
+[![Feishu](https://img.shields.io/badge/Feishu-Group-blue?style=flat)](../../Communication.md)
+[![WeChat](https://img.shields.io/badge/WeChat-Group-green?style=flat&logo=wechat)](https://github.com/HKUDS/DeepTutor/issues/78)
 
 
 
@@ -28,11 +30,30 @@
 </div>
 
 ---
-> **[2026.1.1]** 新年快乐！加入我们的 [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) — 一起塑造 DeepTutor 的未来！💬
+> **[2026.1.1]** 新年快乐！加入我们的 [Discord 社区](https://discord.gg/zpP9cssj)、[WeChat 社区](https://github.com/HKUDS/DeepTutor/issues/78) 或 [Discussions](https://github.com/HKUDS/DeepTutor/discussions) — 一起塑造 DeepTutor 的未来！💬
 
 > **[2025.12.30]** 访问我们的 [官方网站](https://hkuds.github.io/DeepTutor/) 获取更多详情！
 
-> **[2025.12.29]** DeepTutor v0.1 正式发布！✨
+> **[2025.12.29]** DeepTutor 正式发布！✨
+
+### 📦 Releases
+
+> **[2026.1.18]** 发布 [v0.5.2](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.1) - RAG 流水线新增 Docling 支持，并改进 CI/CD 工作流、修复若干小问题 —— 感谢大家的反馈！
+
+<details>
+<summary>历史版本</summary>
+
+> **[2026.1.15]** 发布 [v0.5.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.0) - 统一 LLM & Embedding 服务、RAG 流水线选择，并对 Home、History、QuestionGen、Settings 模块做了重大增强 —— 感谢所有贡献者！
+
+> **[2026.1.9]** 发布 [v0.4.1](https://github.com/HKUDS/DeepTutor/releases/tag/v0.4.1) - LLM Provider 系统重构、题目生成鲁棒性提升与代码清理 —— 感谢所有贡献者！
+
+> **[2026.1.9]** 发布 [v0.4.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.4.0) - 全新代码结构、多 LLM & Embeddings 支持 —— 感谢所有贡献者！
+
+> **[2026.1.5]** 发布 [v0.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.3.0) - 统一 PromptManager 架构、CI/CD 自动化与 GHCR 预构建 Docker 镜像
+
+> **[2026.1.2]** 发布 [v0.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.2.0) - Docker 部署、Next.js 16 & React 19 升级、WebSocket 安全与关键漏洞修复
+
+</details>
 ---
 
 ## DeepTutor 的核心功能
@@ -247,23 +268,32 @@ cp .env.example .env
 | 变量 | 必需 | 描述 |
 |:---|:---:|:---|
 | `LLM_MODEL` | **是** | 模型名称（例如：`gpt-4o`） |
+| `LLM_API_VERSION` | 否 | Azure OpenAI 的 API 版本（例如：`2024-02-15-preview`） |
 | `LLM_API_KEY` | **是** | 您的 LLM API 密钥 |
 | `LLM_HOST` | **是** | API 端点 URL |
 | `EMBEDDING_MODEL` | **是** | 嵌入模型名称 |
+| `EMBEDDING_API_VERSION` | 否 | Azure OpenAI Embeddings 的 API 版本 |
 | `EMBEDDING_API_KEY` | **是** | 嵌入 API 密钥 |
 | `EMBEDDING_HOST` | **是** | 嵌入 API 端点 |
 | `BACKEND_PORT` | 否 | 后端端口（默认：`8001`） |
 | `FRONTEND_PORT` | 否 | 前端端口（默认：`3782`） |
+| `NEXT_PUBLIC_API_BASE` | 否 | **前端 API URL** —— 远程/LAN 访问时设置（例如：`http://192.168.1.100:8001`） |
 | `TTS_*` | 否 | 文本转语音设置 |
-| `PERPLEXITY_API_KEY` | 否 | 用于网络搜索 |
+| `SEARCH_PROVIDER` | 否 | 搜索提供商（可选：`perplexity`, `tavily`, `serper`, `jina`, `exa`, `baidu`，默认：`perplexity`）|
+| `SEARCH_API_KEY` | 否 | 统一的搜索 API 密钥 |
+
+> 💡 **远程访问**：如需从其他设备访问（例如：`192.168.31.66:3782`），请在 `.env` 中添加：
+> ```bash
+> NEXT_PUBLIC_API_BASE=http://192.168.31.66:8001
+> ```
 
 </details>
 
 **③ 配置端口和 LLM** *(可选)*
 
-- **端口**：编辑 `config/main.yaml` → `server.backend_port` / `server.frontend_port`
+- **端口**：在 `.env` 中设置 → `BACKEND_PORT` / `FRONTEND_PORT`（默认：8001/3782）
 - **LLM**：编辑 `config/agents.yaml` → 每个模块的 `temperature` / `max_tokens`
-- 详细信息请参阅[配置文档](config/README.md)
+- 详细信息请参阅[配置文档](../../config/README.md)
 
 **④ 试用演示知识库** *(可选)*
 
@@ -305,18 +335,15 @@ cp .env.example .env
 <summary><b>🚀 方式 A：预构建镜像（最快）</b></summary>
 
 ```bash
-# 拉取并运行预构建镜像（约 30 秒）
+# 支持所有平台：Docker 会自动识别你的架构
 docker run -d --name deeptutor \
   -p 8001:8001 -p 3782:3782 \
-  -e LLM_MODEL=gpt-4o \
-  -e LLM_API_KEY=your-api-key \
-  -e LLM_HOST=https://api.openai.com/v1 \
-  -e EMBEDDING_MODEL=text-embedding-3-large \
-  -e EMBEDDING_API_KEY=your-api-key \
-  -e EMBEDDING_HOST=https://api.openai.com/v1 \
+  --env-file .env \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/config:/app/config:ro \
   ghcr.io/hkuds/deeptutor:latest
+
+# Windows PowerShell：使用 ${PWD} 替代 $(pwd)
 ```
 
 或使用 `.env` 文件：
@@ -382,9 +409,11 @@ source venv/bin/activate
 **安装依赖**：
 
 ```bash
-bash scripts/install_all.sh
+# 一键安装（推荐）
+python scripts/install_all.py
+# 或: bash scripts/install_all.sh
 
-# 或手动：
+# 或手动安装
 pip install -r requirements.txt
 npm install --prefix web
 ```
@@ -1129,11 +1158,11 @@ asyncio.run(main())
 **检查清单**
 - 确认 Python 版本 >= 3.10
 - 确认已安装所有依赖：`pip install -r requirements.txt`
-- 检查端口 8001 是否被占用（可在 `config/main.yaml` 中配置）
+- 检查端口 8001 是否被占用
 - 检查 `.env` 文件配置
 
 **解决方案**
-- **更改端口**：编辑 `config/main.yaml` 中的 server.backend_port
+- **更改端口**：在 `.env` 文件中设置 `BACKEND_PORT=9001`
 - **检查日志**：查看终端错误消息
 
 </details>
@@ -1310,7 +1339,7 @@ python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/
 
 ## 📄 许可证
 
-本项目采用 **[AGPL-3.0 许可证](LICENSE)**。
+本项目采用 **[AGPL-3.0 许可证](../../LICENSE)**。
 
 
 ## ⭐ Star 历史

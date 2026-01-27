@@ -1,262 +1,337 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Incrementally add documents to existing knowledge base
+Incrementally add documents to existing knowledge base.
+Improved version with Hash-based duplicate checking, robust error handling,
+and architectural improvements for data integrity and vision support.
 
-This script allows adding new documents to an existing knowledge base,
-rather than recreating the entire knowledge base.
-Only newly added documents will be processed, without affecting the existing knowledge graph.
+Supports multiple RAG providers with lazy loading:
+- llamaindex: Pure vector retrieval (load_index + insert + persist)
+- lightrag: Knowledge graph (LightRAG.ainsert, text-only)
+- raganything: Multimodal with MinerU parser
+- raganything_docling: Multimodal with Docling parser
 """
 
 import argparse
 import asyncio
 from datetime import datetime
+from functools import partial
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
 import sys
-
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-# Add raganything module path
-raganything_path = project_root.parent / "raganything" / "RAG-Anything"
-if raganything_path.exists():
-    sys.path.insert(0, str(raganything_path))
+import tempfile
+from typing import Any, Dict, List
 
 from dotenv import load_dotenv
-from lightrag.llm.openai import openai_complete_if_cache
-from lightrag.utils import EmbeddingFunc
-from raganything import RAGAnything, RAGAnythingConfig
 
-from src.services.embedding import get_embedding_client, get_embedding_config
+from src.knowledge.extract_numbered_items import process_content_list
+from src.logging import LightRAGLogContext, get_logger
 from src.services.llm import get_llm_config
 
-load_dotenv(dotenv_path=".env", override=False)
-
-from src.logging import LightRAGLogContext, get_logger
+# Load LLM config early to ensure OPENAI_API_KEY env var is set before LightRAG imports
+# This is critical because LightRAG reads os.environ["OPENAI_API_KEY"] directly
+from src.services.llm.config import get_llm_config as _early_config_load  # noqa: F401
 
 logger = get_logger("KnowledgeInit")
 
-# Import numbered items extraction functionality
-from src.knowledge.extract_numbered_items import process_content_list
+# Default base directory for knowledge bases
+DEFAULT_BASE_DIR = "./data/knowledge_bases"
 
 
 class DocumentAdder:
-    """Add documents to existing knowledge base"""
+    """Add documents to existing knowledge base with Hash-validation.
+
+    Supports multiple RAG providers with lazy loading to avoid unnecessary imports:
+    - llamaindex: Only imports llama_index modules
+    - lightrag: Only imports lightrag modules (no raganything)
+    - raganything: Imports raganything with MinerU parser
+    - raganything_docling: Imports raganything with Docling parser
+    """
 
     def __init__(
         self,
         kb_name: str,
-        base_dir="./data/knowledge_bases",
-        api_key: str = None,
-        base_url: str = None,
+        base_dir=DEFAULT_BASE_DIR,
+        api_key: str | None = None,
+        base_url: str | None = None,
         progress_tracker=None,
+        rag_provider: str | None = None,
     ):
         self.kb_name = kb_name
         self.base_dir = Path(base_dir)
         self.kb_dir = self.base_dir / kb_name
 
-        # Check if knowledge base exists
         if not self.kb_dir.exists():
             raise ValueError(f"Knowledge base does not exist: {kb_name}")
 
-        # Directory structure
         self.raw_dir = self.kb_dir / "raw"
         self.images_dir = self.kb_dir / "images"
         self.rag_storage_dir = self.kb_dir / "rag_storage"
         self.content_list_dir = self.kb_dir / "content_list"
+        self.metadata_file = self.kb_dir / "metadata.json"
 
-        # Check directory structure
-        if not self.rag_storage_dir.exists():
-            raise ValueError(
-                f"Knowledge base not initialized: {kb_name}, please create knowledge base first"
-            )
+        # For llamaindex, check llamaindex_storage instead of rag_storage
+        provider = self._get_provider_from_metadata()
+        if provider == "llamaindex":
+            llamaindex_storage = self.kb_dir / "llamaindex_storage"
+            if not llamaindex_storage.exists():
+                raise ValueError(f"Knowledge base not initialized (llamaindex): {kb_name}")
+        else:
+            if not self.rag_storage_dir.exists():
+                raise ValueError(f"Knowledge base not initialized: {kb_name}")
 
         self.api_key = api_key
         self.base_url = base_url
-        self.embedding_cfg = get_embedding_config()
-        self.llm_cfg = get_llm_config()
         self.progress_tracker = progress_tracker
 
-    def get_existing_files(self) -> set:
-        """Get list of existing documents"""
-        existing_files = set()
-        if self.raw_dir.exists():
-            for file_path in self.raw_dir.glob("*"):
-                if file_path.is_file():
-                    existing_files.add(file_path.name)
-        return existing_files
+        # IMPORTANT: rag_provider parameter is IGNORED for incremental add
+        # We always use the provider from KB metadata to ensure consistency
+        # This prevents mixing different index formats in the same KB
+        self._resolved_provider = provider
+        if rag_provider and rag_provider != provider:
+            logger.warning(
+                f"Requested provider '{rag_provider}' ignored. "
+                f"Using KB's existing provider '{provider}' for consistency."
+            )
+        logger.info(f"Incremental add will use provider: {provider} (from KB metadata)")
+        self._ensure_working_directories()
 
-    def add_documents(self, source_files: list[str], skip_duplicates: bool = True) -> list[Path]:
+    def _get_provider_from_metadata(self) -> str:
         """
-        Add documents to knowledge base
+        Get the RAG provider from KB metadata.
 
-        Args:
-            source_files: List of document files to add
-            skip_duplicates: Whether to skip duplicate files (files with same name)
+        This is the ONLY source of truth for incremental adds - we must use
+        the same provider that was used during initialization to ensure
+        data consistency and correct storage format.
 
         Returns:
-            List of successfully added new file paths
+            Provider name (llamaindex, lightrag, raganything, raganything_docling)
         """
-        logger.info(f"Adding documents to knowledge base '{self.kb_name}'...")
+        if self.metadata_file.exists():
+            try:
+                with open(self.metadata_file, "r", encoding="utf-8") as f:
+                    metadata = json.load(f)
+                    provider = metadata.get("rag_provider")
+                    if provider:
+                        return provider
+            except Exception as e:
+                logger.warning(f"Failed to read provider from metadata: {e}")
 
-        existing_files = self.get_existing_files()
-        new_files = []
-        skipped_files = []
+        # Fallback: detect from storage structure
+        llamaindex_storage = self.kb_dir / "llamaindex_storage"
+        if llamaindex_storage.exists():
+            return "llamaindex"
 
+        # Default to raganything for backward compatibility
+        return "raganything"
+
+    def _ensure_working_directories(self):
+        for directory in [self.raw_dir, self.images_dir, self.content_list_dir]:
+            directory.mkdir(parents=True, exist_ok=True)
+
+    def _get_file_hash(self, file_path: Path) -> str:
+        """
+        Calculate SHA-256 hash of a file.
+        Uses 64KB chunks for better throughput on SSDs.
+        """
+        sha256_hash = hashlib.sha256()
+        chunk_size = 65536  # 64KB
+        with open(file_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(chunk_size), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+
+    def get_ingested_hashes(self) -> Dict[str, str]:
+        """Get map of filename -> hash from metadata."""
+        if self.metadata_file.exists():
+            try:
+                with open(self.metadata_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return data.get("file_hashes", {})
+            except Exception:
+                return {}
+        return {}
+
+    async def _run_in_executor(self, func, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, partial(func, *args, **kwargs))
+
+    def add_documents(self, source_files: List[str], allow_duplicates: bool = False) -> List[Path]:
+        """
+        Synchronous phase: Validates hashes and prepares files.
+        Treats 'raw/' as a Write-Ahead Log: files exist there before being canonized in metadata.
+        """
+        logger.info(f"Validating documents for '{self.kb_name}'...")
+
+        ingested_hashes = self.get_ingested_hashes()
+
+        files_to_process = []
         for source in source_files:
             source_path = Path(source)
             if not source_path.exists():
-                logger.warning(f"  ⚠ Source file does not exist: {source}")
+                logger.warning(f"  ⚠ Missing: {source}")
                 continue
 
-            # Check if already exists
-            if source_path.name in existing_files:
-                if skip_duplicates:
-                    logger.info(f"  → Skipped (already exists): {source_path.name}")
-                    skipped_files.append(source_path.name)
-                    continue
-                logger.warning(f"  ⚠ Overwriting existing file: {source_path.name}")
+            current_hash = self._get_file_hash(source_path)
 
-            # Copy to raw directory
+            # 1. Check if content is already fully ingested (Canon Check)
+            # We look for value matches in the metadata hash map
+            if current_hash in ingested_hashes.values() and not allow_duplicates:
+                logger.info(f"  → Skipped (content already indexed): {source_path.name}")
+                continue
+
+            # 2. Prepare file in raw/ (Write-Ahead Log)
             dest_path = self.raw_dir / source_path.name
-            shutil.copy2(source_path, dest_path)
-            new_files.append(dest_path)
-            logger.info(f"  ✓ Added: {source_path.name}")
 
-        if skipped_files:
-            logger.info(f"\nSkipped {len(skipped_files)} existing files")
+            should_copy = True
+            if dest_path.exists():
+                # If file exists in raw, check if it's the same content
+                dest_hash = self._get_file_hash(dest_path)
+                if dest_hash == current_hash:
+                    should_copy = False
+                    logger.info(f"  ⚠ Recovering staged file (interrupted run): {source_path.name}")
+                else:
+                    if not allow_duplicates:
+                        # Name collision with different content
+                        logger.info(
+                            f"  → Skipped (filename collision with different content): {source_path.name}"
+                        )
+                        continue
+                    else:
+                        logger.info(f"  → Overwriting existing raw file: {source_path.name}")
 
-        logger.info(f"Successfully added {len(new_files)} new files")
-        return new_files
+            if should_copy:
+                shutil.copy2(source_path, dest_path)
+                logger.info(f"  ✓ Staged to raw: {source_path.name}")
 
-    async def process_new_documents(self, new_files: list[Path]):
-        """Process newly added documents. Re-reads config to catch .env changes."""
+            files_to_process.append(dest_path)
+
+        return files_to_process
+
+    async def process_new_documents(self, new_files: List[Path]):
+        """
+        Async phase: Ingests files into the RAG system.
+
+        Uses lazy loading to only import dependencies for the actual provider:
+        - llamaindex: Only imports llama_index
+        - lightrag: Only imports lightrag (no raganything)
+        - raganything: Imports raganything with MinerU
+        - raganything_docling: Imports raganything with Docling
+        """
         if not new_files:
-            logger.warning("No new files to process")
             return None
 
-        logger.info(f"\nProcessing {len(new_files)} new documents...")
+        provider = self._resolved_provider
+        logger.info(f"Processing {len(new_files)} files with provider: {provider}")
 
-        self.embedding_cfg = get_embedding_config()
-        self.llm_cfg = get_llm_config()
+        # Dispatch to provider-specific implementation
+        if provider == "llamaindex":
+            return await self._process_llamaindex(new_files)
+        elif provider == "lightrag":
+            return await self._process_lightrag(new_files)
+        elif provider == "raganything":
+            return await self._process_raganything(new_files, parser="mineru")
+        elif provider == "raganything_docling":
+            return await self._process_raganything(new_files, parser="docling")
+        else:
+            raise ValueError(f"Unknown RAG provider: {provider}")
 
-        logger.info(
-            f"Using: {self.embedding_cfg.model} "
-            f"({self.embedding_cfg.dim}D, {self.embedding_cfg.binding})"
+    async def _process_llamaindex(self, new_files: List[Path]) -> List[Path]:
+        """
+        Incremental add for LlamaIndex pipeline.
+        Lazy imports llama_index only when needed.
+        """
+        logger.info("Using LlamaIndex incremental add...")
+
+        # Lazy import llama_index
+        try:
+            from src.services.rag.pipelines.llamaindex import LlamaIndexPipeline
+        except ImportError as e:
+            raise ImportError(
+                f"LlamaIndex dependencies not installed. "
+                f"Install with: pip install llama-index llama-index-core. Error: {e}"
+            ) from e
+
+        # Pre-import progress stage if needed
+        ProgressStage: Any = None
+        if self.progress_tracker:
+            from src.knowledge.progress_tracker import ProgressStage
+
+        pipeline = LlamaIndexPipeline(kb_base_dir=str(self.base_dir))
+        file_paths = [str(f) for f in new_files]
+
+        # Use the new add_documents method for incremental add
+        processed_files = []
+        total_files = len(file_paths)
+
+        for idx, file_path in enumerate(file_paths, 1):
+            doc_file = Path(file_path)
+            try:
+                if self.progress_tracker and ProgressStage:
+                    self.progress_tracker.update(
+                        ProgressStage.PROCESSING_FILE,
+                        f"Indexing (LlamaIndex) {doc_file.name}",
+                        current=idx,
+                        total=total_files,
+                    )
+
+                # Use add_documents for incremental add
+                success = await pipeline.add_documents(self.kb_name, [file_path])
+                if success:
+                    processed_files.append(doc_file)
+                    self._record_successful_hash(doc_file)
+                    logger.info(f"  ✓ Processed (LlamaIndex): {doc_file.name}")
+                else:
+                    logger.error(f"  ✗ Failed to index: {doc_file.name}")
+            except Exception as e:
+                logger.exception(f"  ✗ Failed {doc_file.name}: {e}")
+
+        return processed_files
+
+    async def _process_lightrag(self, new_files: List[Path]) -> List[Path]:
+        """
+        Incremental add for LightRAG pipeline (text-only).
+        Lazy imports lightrag only when needed - does NOT require raganything.
+        """
+        logger.info("Using LightRAG incremental add (text-only)...")
+
+        # Lazy import lightrag
+        try:
+            from lightrag import LightRAG
+            from lightrag.utils import EmbeddingFunc
+        except ImportError as e:
+            raise ImportError(
+                f"LightRAG dependencies not installed. "
+                f"Install with: pip install lightrag. Error: {e}"
+            ) from e
+
+        from src.services.embedding import (
+            get_embedding_client,
+            get_embedding_config,
+            reset_embedding_client,
         )
+        from src.services.llm import get_llm_client
+        from src.services.rag.components.routing import FileTypeRouter
 
-        config = RAGAnythingConfig(
-            working_dir=str(self.rag_storage_dir),
-            parser="mineru",
-            enable_image_processing=True,
-            enable_table_processing=True,
-            enable_equation_processing=True,
-        )
+        # Pre-import progress stage if needed
+        ProgressStage: Any = None
+        if self.progress_tracker:
+            from src.knowledge.progress_tracker import ProgressStage
 
-        model = self.llm_cfg.model
-        api_key = self.api_key or self.llm_cfg.api_key
-        base_url = self.base_url or self.llm_cfg.base_url
-
-        def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-            return openai_complete_if_cache(
-                model,
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-                api_key=api_key,
-                base_url=base_url,
-                **kwargs,
-            )
-
-        def vision_model_func(
-            prompt,
-            system_prompt=None,
-            history_messages=[],
-            image_data=None,
-            messages=None,
-            **kwargs,
-        ):
-            if messages:
-                clean_kwargs = {
-                    k: v
-                    for k, v in kwargs.items()
-                    if k not in ["messages", "prompt", "system_prompt", "history_messages"]
-                }
-                return openai_complete_if_cache(
-                    model,
-                    prompt="",
-                    system_prompt=None,
-                    history_messages=[],
-                    messages=messages,
-                    api_key=api_key,
-                    base_url=base_url,
-                    **clean_kwargs,
-                )
-            # Traditional single image format
-            if image_data:
-                clean_kwargs = {
-                    k: v
-                    for k, v in kwargs.items()
-                    if k not in ["messages", "prompt", "system_prompt", "history_messages"]
-                }
-                return openai_complete_if_cache(
-                    model,
-                    prompt="",
-                    system_prompt=None,
-                    history_messages=[],
-                    messages=[
-                        {"role": "system", "content": system_prompt} if system_prompt else None,
-                        (
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": prompt},
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {
-                                            "url": f"data:image/jpeg;base64,{image_data}"
-                                        },
-                                    },
-                                ],
-                            }
-                            if image_data
-                            else {"role": "user", "content": prompt}
-                        ),
-                    ],
-                    api_key=api_key,
-                    base_url=base_url,
-                    **clean_kwargs,
-                )
-            return llm_model_func(prompt, system_prompt, history_messages, **kwargs)
-
-        # Define embedding function using unified EmbeddingClient
-        # Reset client to pick up latest config (including active provider from UI)
-        from src.services.embedding import reset_embedding_client
+        # Setup LLM and embedding
+        llm_client = get_llm_client()
+        self.llm_cfg = llm_client.config
+        llm_model_func = llm_client.get_model_func()
 
         reset_embedding_client()
+        embedding_cfg = get_embedding_config()
+        embedding_client = get_embedding_client()
 
-        embedding_cfg = get_embedding_config()  # Reload config
-        embedding_client = get_embedding_client()  # Get fresh client with new config
-
-        logger.info(
-            f"Using embedding: {embedding_cfg.model} "
-            f"({embedding_cfg.dim}D, {embedding_cfg.binding})"
-        )
-
-        # Create async wrapper compatible with LightRAG's expected signature
         async def unified_embed_func(texts):
-            """
-            Unified embedding function using EmbeddingClient.
-            Supports multiple providers: OpenAI, Cohere, Jina, Ollama, etc.
-            """
-            try:
-                embeddings = await embedding_client.embed(texts)
-                return embeddings
-            except Exception as e:
-                logger.error(f"Embedding failed: {e}")
-                raise
+            return await embedding_client.embed(texts)
 
         embedding_func = EmbeddingFunc(
             embedding_dim=embedding_cfg.dim,
@@ -264,405 +339,508 @@ class DocumentAdder:
             func=unified_embed_func,
         )
 
-        # Initialize RAGAnything with existing storage and log forwarding
-        with LightRAGLogContext(scene="knowledge_init"):
+        # Create LightRAG instance (text-only, no raganything)
+        with LightRAGLogContext(scene="knowledge_incremental"):
+            rag = LightRAG(
+                working_dir=str(self.rag_storage_dir),
+                llm_model_func=llm_model_func,
+                embedding_func=embedding_func,
+            )
+            await rag.initialize_storages()
+
+            from lightrag.kg.shared_storage import initialize_pipeline_status
+
+            await initialize_pipeline_status()
+
+        # Classify files
+        file_paths_str = [str(f) for f in new_files]
+        classification = FileTypeRouter.classify_files(file_paths_str)
+
+        logger.info(
+            f"File classification: {len(classification.needs_mineru)} need parsing, "
+            f"{len(classification.text_files)} text files, "
+            f"{len(classification.unsupported)} unsupported"
+        )
+
+        processed_files = []
+        total_files = len(classification.needs_mineru) + len(classification.text_files)
+        idx = 0
+
+        # For LightRAG (text-only), use basic PDF text extraction for PDFs
+        for doc_file_str in classification.needs_mineru:
+            doc_file = Path(doc_file_str)
+            idx += 1
+            try:
+                if self.progress_tracker and ProgressStage:
+                    self.progress_tracker.update(
+                        ProgressStage.PROCESSING_FILE,
+                        f"Extracting text from {doc_file.name}",
+                        current=idx,
+                        total=total_files,
+                    )
+
+                if not doc_file.exists():
+                    logger.error(f"  ✗ Failed: File missing {doc_file.name}")
+                    continue
+
+                # Basic text extraction
+                content = await self._extract_text_basic(doc_file)
+                if content.strip():
+                    await rag.ainsert(content)
+                    processed_files.append(doc_file)
+                    self._record_successful_hash(doc_file)
+                    logger.info(f"  ✓ Processed (LightRAG): {doc_file.name}")
+                else:
+                    logger.warning(f"  ⚠ No text extracted: {doc_file.name}")
+            except Exception as e:
+                logger.exception(f"  ✗ Failed {doc_file.name}: {e}")
+
+        # Process text files directly
+        for doc_file_str in classification.text_files:
+            doc_file = Path(doc_file_str)
+            idx += 1
+            try:
+                if self.progress_tracker and ProgressStage:
+                    self.progress_tracker.update(
+                        ProgressStage.PROCESSING_FILE,
+                        f"Ingesting (text) {doc_file.name}",
+                        current=idx,
+                        total=total_files,
+                    )
+
+                if not doc_file.exists():
+                    logger.error(f"  ✗ Failed: File missing {doc_file.name}")
+                    continue
+
+                content = await FileTypeRouter.read_text_file(str(doc_file))
+                if content.strip():
+                    await rag.ainsert(content)
+                    processed_files.append(doc_file)
+                    self._record_successful_hash(doc_file)
+                    logger.info(f"  ✓ Processed (text): {doc_file.name}")
+                else:
+                    logger.warning(f"  ⚠ Skipped empty file: {doc_file.name}")
+            except Exception as e:
+                logger.exception(f"  ✗ Failed {doc_file.name}: {e}")
+
+        for doc_file_str in classification.unsupported:
+            logger.warning(f"  ⚠ Skipped unsupported file: {Path(doc_file_str).name}")
+
+        return processed_files
+
+    async def _process_raganything(
+        self, new_files: List[Path], parser: str = "mineru"
+    ) -> List[Path]:
+        """
+        Incremental add for RAGAnything pipeline (multimodal).
+        Lazy imports raganything only when needed.
+
+        Args:
+            parser: "mineru" for RAGAnything, "docling" for RAGAnything Docling
+        """
+        parser_name = "MinerU" if parser == "mineru" else "Docling"
+        logger.info(f"Using RAGAnything incremental add with {parser_name} parser...")
+
+        # Lazy import raganything
+        try:
+            # Add RAG-Anything to path if needed
+            project_root = Path(__file__).resolve().parent.parent.parent
+            raganything_path = project_root.parent / "raganything" / "RAG-Anything"
+            if raganything_path.exists() and str(raganything_path) not in sys.path:
+                sys.path.insert(0, str(raganything_path))
+
+            from lightrag.utils import EmbeddingFunc
+            from raganything import RAGAnything, RAGAnythingConfig
+        except ImportError as e:
+            raise ImportError(
+                f"RAGAnything dependencies not installed. "
+                f"Please install raganything package. Error: {e}"
+            ) from e
+
+        from src.services.embedding import (
+            get_embedding_client,
+            get_embedding_config,
+            reset_embedding_client,
+        )
+        from src.services.llm import get_llm_client
+        from src.services.rag.components.routing import FileTypeRouter
+        from src.services.rag.utils.image_migration import (
+            cleanup_parser_output_dirs,
+            migrate_images_and_update_paths,
+        )
+
+        # Pre-import progress stage if needed
+        ProgressStage: Any = None
+        if self.progress_tracker:
+            from src.knowledge.progress_tracker import ProgressStage
+
+        # Setup LLM and embedding
+        llm_client = get_llm_client()
+        self.llm_cfg = llm_client.config
+        llm_model_func = llm_client.get_model_func()
+        vision_model_func = llm_client.get_vision_model_func()
+
+        reset_embedding_client()
+        embedding_cfg = get_embedding_config()
+        embedding_client = get_embedding_client()
+
+        async def unified_embed_func(texts):
+            return await embedding_client.embed(texts)
+
+        embedding_func = EmbeddingFunc(
+            embedding_dim=embedding_cfg.dim,
+            max_token_size=embedding_cfg.max_tokens,
+            func=unified_embed_func,
+        )
+
+        # Configure RAGAnything with the appropriate parser
+        config = RAGAnythingConfig(
+            working_dir=str(self.rag_storage_dir),
+            parser=parser,
+            enable_image_processing=True,
+            enable_table_processing=True,
+            enable_equation_processing=True,
+        )
+
+        with LightRAGLogContext(scene="knowledge_incremental"):
             rag = RAGAnything(
                 config=config,
                 llm_model_func=llm_model_func,
                 vision_model_func=vision_model_func,
                 embedding_func=embedding_func,
             )
+            if hasattr(rag, "_ensure_lightrag_initialized"):
+                await rag._ensure_lightrag_initialized()
 
-            # Ensure LightRAG is initialized (will load existing knowledge base)
-            await rag._ensure_lightrag_initialized()
-            logger.info("✓ Loaded existing knowledge base")
+        # Classify files
+        file_paths_str = [str(f) for f in new_files]
+        classification = FileTypeRouter.classify_files(file_paths_str)
 
-        # Process each new document
+        logger.info(
+            f"File classification: {len(classification.needs_mineru)} need {parser_name}, "
+            f"{len(classification.text_files)} text files, "
+            f"{len(classification.unsupported)} unsupported"
+        )
+
         processed_files = []
-        total_files = len(new_files)
-        for idx, doc_file in enumerate(new_files, 1):
-            logger.info(f"\nProcessing: {doc_file.name}")
+        total_files = len(classification.needs_mineru) + len(classification.text_files)
+        idx = 0
+        total_images_migrated = 0
 
-            # Update progress
-            if self.progress_tracker:
-                from src.knowledge.progress_tracker import ProgressStage
-
-                self.progress_tracker.update(
-                    ProgressStage.PROCESSING_FILE,
-                    f"Processing: {doc_file.name}",
-                    current=idx,
-                    total=total_files,
-                    file_name=doc_file.name,
-                )
-
+        # Process files requiring parser (PDF, DOCX, images)
+        for doc_file_str in classification.needs_mineru:
+            doc_file = Path(doc_file_str)
+            idx += 1
             try:
-                # Use RAGAnything's process_document_complete method with timeout
-                logger.info("  → Starting document processing...")
-                await asyncio.wait_for(
-                    rag.process_document_complete(
-                        file_path=str(doc_file),
-                        output_dir=str(self.content_list_dir),
-                        parse_method="auto",
-                    ),
-                    timeout=600.0,  # 10 minute timeout
-                )
-                logger.info(f"  ✓ Successfully processed: {doc_file.name}")
-                processed_files.append(doc_file)
-
-                # Content list should be automatically saved
-                doc_name = doc_file.stem
-                content_list_file = self.content_list_dir / f"{doc_name}.json"
-                if content_list_file.exists():
-                    logger.info(f"  ✓ Content list saved: {content_list_file.name}")
-
-            except asyncio.TimeoutError:
-                logger.error(f"  ✗ Processing timeout for {doc_file.name} (>10 minutes)")
-                logger.error("  Possible causes: Large PDF, slow embedding API, network issues")
-                if self.progress_tracker:
-                    from src.knowledge.progress_tracker import ProgressStage
-
+                if self.progress_tracker and ProgressStage:
                     self.progress_tracker.update(
-                        ProgressStage.ERROR,
-                        f"Timeout processing: {doc_file.name}",
+                        ProgressStage.PROCESSING_FILE,
+                        f"Ingesting ({parser_name}) {doc_file.name}",
                         current=idx,
                         total=total_files,
-                        error="Processing timeout (>10 minutes)",
-                    )
-            except Exception as e:
-                logger.error(f"  ✗ Processing failed {doc_file.name}: {e!s}")
-                import traceback
-
-                logger.error(traceback.format_exc())
-                if self.progress_tracker:
-                    from src.knowledge.progress_tracker import ProgressStage
-
-                    self.progress_tracker.update(
-                        ProgressStage.ERROR,
-                        f"Error processing: {doc_file.name}",
-                        current=idx,
-                        total=total_files,
-                        error=str(e),
                     )
 
-        # Copy extracted images
-        rag_images_dir = self.rag_storage_dir / "images"
-        if rag_images_dir.exists():
-            logger.info("\nCopying extracted images...")
-            image_count = 0
-            for img_file in rag_images_dir.glob("*"):
-                if img_file.is_file():
-                    dest = self.images_dir / img_file.name
-                    if not dest.exists():
-                        shutil.copy2(img_file, dest)
-                        image_count += 1
-            if image_count > 0:
-                logger.info(f"  ✓ Copied {image_count} images")
-
-        # Fix structure
-        await self.fix_structure()
-
-        logger.info("\n✓ Document processing completed!")
-
-        return processed_files
-
-    async def fix_structure(self):
-        """Fix nested directory structure"""
-        logger.info("\nFixing directory structure...")
-
-        # Find nested content lists
-        content_list_moves = []
-        for doc_dir in self.content_list_dir.glob("*"):
-            if not doc_dir.is_dir():
-                continue
-
-            auto_dir = doc_dir / "auto"
-            if not auto_dir.exists():
-                continue
-
-            # Find the _content_list.json file
-            for json_file in auto_dir.glob("*_content_list.json"):
-                target_file = self.content_list_dir / f"{doc_dir.name}.json"
-                content_list_moves.append((json_file, target_file))
-
-        # Move content list files
-        for source, target in content_list_moves:
-            try:
-                shutil.copy2(source, target)
-                logger.info(f"  ✓ Moved: {source.name} -> {target.name}")
-            except Exception as e:
-                logger.error(f"  ✗ Move failed {source.name}: {e!s}")
-
-        # Find and move nested images
-        for doc_dir in self.content_list_dir.glob("*"):
-            if not doc_dir.is_dir():
-                continue
-
-            auto_dir = doc_dir / "auto"
-            if not auto_dir.exists():
-                continue
-
-            images_dir = auto_dir / "images"
-            if images_dir.exists() and images_dir.is_dir():
-                image_count = 0
-                # Ensure target directory exists
-                self.images_dir.mkdir(parents=True, exist_ok=True)
-
-                for img_file in images_dir.glob("*"):
-                    if img_file.is_file() and img_file.exists():
-                        target_img = self.images_dir / img_file.name
-                        if not target_img.exists():
-                            try:
-                                # Ensure source file exists
-                                if not img_file.exists():
-                                    logger.warning(f"  ⚠ Source image does not exist: {img_file}")
-                                    continue
-                                shutil.copy2(img_file, target_img)
-                                image_count += 1
-                            except FileNotFoundError:
-                                logger.error(
-                                    f"  ✗ Failed to move image {img_file.name}: Source file does not exist: {img_file}"
-                                )
-                            except Exception as e:
-                                logger.error(f"  ✗ Failed to move image {img_file.name}: {e!s}")
-
-                if image_count > 0:
-                    logger.info(f"  ✓ Moved {image_count} images from {doc_dir.name}/auto/images/")
-
-        # Clean up nested directories
-        for doc_dir in self.content_list_dir.glob("*"):
-            if doc_dir.is_dir():
-                try:
-                    shutil.rmtree(doc_dir)
-                    logger.info(f"  ✓ Cleaned: {doc_dir.name}/")
-                except Exception as e:
-                    logger.error(f"  ✗ Cleanup failed {doc_dir.name}: {e!s}")
-
-        logger.info("✓ Directory structure fixed!")
-
-    def extract_numbered_items_for_new_docs(
-        self, processed_files: list[Path], batch_size: int = 20
-    ):
-        """
-        Extract numbered items for newly added documents
-
-        Args:
-            processed_files: List of newly processed files
-            batch_size: Number of items to process per batch
-        """
-        if not processed_files:
-            logger.info("No new files need numbered items extraction")
-            return
-
-        logger.info("\n" + "=" * 60)
-        logger.info("🔍 Extracting numbered items for new documents...")
-        logger.info("=" * 60 + "\n")
-
-        # Use credentials from config as fallback
-        api_key = self.api_key or self.llm_cfg.api_key
-        base_url = self.base_url or self.llm_cfg.base_url
-
-        output_file = self.kb_dir / "numbered_items.json"
-
-        try:
-            for idx, doc_file in enumerate(processed_files, 1):
-                doc_name = doc_file.stem
-                content_list_file = self.content_list_dir / f"{doc_name}.json"
-
-                if not content_list_file.exists():
-                    logger.warning(f"Content list file not found: {content_list_file.name}")
+                if not doc_file.exists():
+                    logger.error(f"  ✗ Failed: File missing {doc_file.name}")
                     continue
 
-                logger.info(
-                    f"\nProcessing file [{idx}/{len(processed_files)}]: {content_list_file.name}"
+                # Step 1: Parse document
+                logger.info(f"  Step 1/3: Parsing {doc_file.name}...")
+                content_list, doc_id = await rag.parse_document(
+                    file_path=str(doc_file),
+                    output_dir=str(self.content_list_dir),
+                    parse_method="auto",
                 )
 
-                # Always merge to existing file (if exists)
-                merge = output_file.exists()
+                # Step 2: Migrate images
+                logger.info("  Step 2/3: Migrating images...")
+                updated_content_list, num_migrated = await migrate_images_and_update_paths(
+                    content_list=content_list,
+                    source_base_dir=self.content_list_dir,
+                    target_images_dir=self.images_dir,
+                    batch_size=50,
+                )
+                total_images_migrated += num_migrated
 
+                # Save content_list
+                content_list_file = self.content_list_dir / f"{doc_file.stem}.json"
+                with open(content_list_file, "w", encoding="utf-8") as f:
+                    json.dump(updated_content_list, f, ensure_ascii=False, indent=2)
+
+                # Step 3: Insert into RAG
+                logger.info("  Step 3/3: Inserting into knowledge graph...")
+                await rag.insert_content_list(
+                    content_list=updated_content_list,
+                    file_path=str(doc_file),
+                    doc_id=doc_id,
+                )
+
+                processed_files.append(doc_file)
+                self._record_successful_hash(doc_file)
+                logger.info(f"  ✓ Processed ({parser_name}): {doc_file.name}")
+            except Exception as e:
+                logger.exception(f"  ✗ Failed {doc_file.name}: {e}")
+
+        # Process text files directly
+        for doc_file_str in classification.text_files:
+            doc_file = Path(doc_file_str)
+            idx += 1
+            try:
+                if self.progress_tracker and ProgressStage:
+                    self.progress_tracker.update(
+                        ProgressStage.PROCESSING_FILE,
+                        f"Ingesting (text) {doc_file.name}",
+                        current=idx,
+                        total=total_files,
+                    )
+
+                if not doc_file.exists():
+                    logger.error(f"  ✗ Failed: File missing {doc_file.name}")
+                    continue
+
+                content = await FileTypeRouter.read_text_file(str(doc_file))
+                if content.strip():
+                    await rag.lightrag.ainsert(content)
+                    processed_files.append(doc_file)
+                    self._record_successful_hash(doc_file)
+                    logger.info(f"  ✓ Processed (text): {doc_file.name}")
+                else:
+                    logger.warning(f"  ⚠ Skipped empty file: {doc_file.name}")
+            except Exception as e:
+                logger.exception(f"  ✗ Failed {doc_file.name}: {e}")
+
+        for doc_file_str in classification.unsupported:
+            logger.warning(f"  ⚠ Skipped unsupported file: {Path(doc_file_str).name}")
+
+        # Cleanup parser output directories
+        if total_images_migrated > 0:
+            logger.info("Cleaning up temporary parser output directories...")
+            await cleanup_parser_output_dirs(self.content_list_dir)
+
+        await self.fix_structure()
+        return processed_files
+
+    async def _extract_text_basic(self, file_path: Path) -> str:
+        """Basic text extraction for LightRAG (text-only pipeline)."""
+        suffix = file_path.suffix.lower()
+
+        if suffix == ".pdf":
+            try:
+                import fitz  # PyMuPDF
+
+                doc = fitz.open(file_path)
+                texts = []
+                for page in doc:
+                    texts.append(page.get_text())
+                doc.close()
+                return "\n\n".join(texts)
+            except ImportError:
+                logger.warning("PyMuPDF not installed. Cannot extract PDF text.")
+                return ""
+            except Exception as e:
+                logger.error(f"Failed to extract PDF text: {e}")
+                return ""
+        else:
+            # Try to read as text
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception:
+                try:
+                    with open(file_path, "r", encoding="latin-1") as f:
+                        return f.read()
+                except Exception as e:
+                    logger.error(f"Failed to read file as text: {e}")
+                    return ""
+
+    def _record_successful_hash(self, file_path: Path):
+        """Update metadata with the hash of a successfully processed file."""
+        file_hash = self._get_file_hash(file_path)
+        try:
+            metadata = {}
+            if self.metadata_file.exists():
+                with open(self.metadata_file, "r", encoding="utf-8") as f:
+                    metadata = json.load(f)
+
+            if "file_hashes" not in metadata:
+                metadata["file_hashes"] = {}
+
+            metadata["file_hashes"][file_path.name] = file_hash
+            # Atomic write: write to temp file, then rename
+            fd, tmp_path = tempfile.mkstemp(dir=self.kb_dir, suffix=".json")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(metadata, f, indent=2, ensure_ascii=False)
+                os.replace(tmp_path, self.metadata_file)
+            except Exception:
+                os.unlink(tmp_path)
+                raise
+        except Exception as e:
+            logger.warning(f"Could not update hash metadata: {e}")
+
+    @staticmethod
+    def _filter_valid_messages(messages):
+        return [
+            m
+            for m in messages
+            if isinstance(m, dict) and m.get("role") is not None and m.get("content") is not None
+        ]
+
+    async def fix_structure(self):
+        """
+        Clean up parser output directories after image migration.
+
+        NOTE: Image migration and path updates are now handled by the RAG pipeline
+        (raganything.py / raganything_docling.py) BEFORE RAG insertion. This ensures
+        RAG stores the correct canonical image paths (kb/images/) from the start.
+
+        This method now only cleans up empty temporary parser output directories.
+        """
+        logger.info("Checking for leftover parser output directories...")
+
+        # Support both 'auto' (MinerU) and 'docling' parser output directories
+        parser_subdirs = ["auto", "docling"]
+        cleaned_count = 0
+
+        for doc_dir in list(self.content_list_dir.glob("*")):
+            if not doc_dir.is_dir():
+                continue
+
+            for parser_subdir in parser_subdirs:
+                subdir = doc_dir / parser_subdir
+                if subdir.exists():
+                    try:
+                        # Check if directory is empty or only contains empty subdirs
+                        has_content = any(
+                            f.is_file() or (f.is_dir() and any(f.iterdir()))
+                            for f in subdir.iterdir()
+                        )
+
+                        if not has_content:
+                            await self._run_in_executor(shutil.rmtree, subdir)
+                            cleaned_count += 1
+                    except Exception as e:
+                        logger.debug(f"Could not clean up {subdir}: {e}")
+
+            # Remove doc_dir if it's now empty
+            try:
+                if doc_dir.exists() and not any(doc_dir.iterdir()):
+                    doc_dir.rmdir()
+            except Exception:
+                pass
+
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} empty parser directories")
+
+    def extract_numbered_items_for_new_docs(self, processed_files, batch_size=20):
+        if not processed_files:
+            return
+
+        llm_cfg = getattr(self, "llm_cfg", None)
+        if llm_cfg is None:
+            llm_cfg = get_llm_config()
+        api_key = self.api_key or llm_cfg.api_key
+        base_url = self.base_url or llm_cfg.base_url
+        output_file = self.kb_dir / "numbered_items.json"
+
+        for doc_file in processed_files:
+            content_list_file = self.content_list_dir / f"{doc_file.stem}.json"
+            if content_list_file.exists():
                 process_content_list(
                     content_list_file=content_list_file,
                     output_file=output_file,
                     api_key=api_key,
                     base_url=base_url,
                     batch_size=batch_size,
-                    merge=merge,
+                    merge=output_file.exists(),
                 )
 
-            logger.info(f"\n{'=' * 60}")
-            logger.info("✓ Numbered items extraction complete!")
-            logger.info(f"Output file: {output_file}")
-            logger.info(f"{'=' * 60}\n")
-
-        except Exception as e:
-            logger.error(f"\n✗ Numbered items extraction failed: {e}")
-            import traceback
-
-            traceback.print_exc()
-
     def update_metadata(self, added_count: int):
-        """Update knowledge base metadata"""
-        metadata_file = self.kb_dir / "metadata.json"
+        """Update metadata after incremental add.
 
+        Note: We do NOT update rag_provider here - incremental adds must use
+        the same provider as the original initialization for consistency.
+        """
+        if not self.metadata_file.exists():
+            return
         try:
-            if metadata_file.exists():
-                with open(metadata_file, encoding="utf-8") as f:
-                    metadata = json.load(f)
-            else:
-                metadata = {}
+            with open(self.metadata_file, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
 
-            # Update modification time
             metadata["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # Record add operation
-            if "update_history" not in metadata:
-                metadata["update_history"] = []
+            # Record the provider used (should match what's already in metadata)
+            if "rag_provider" not in metadata and self._resolved_provider:
+                metadata["rag_provider"] = self._resolved_provider
 
-            metadata["update_history"].append(
+            history = metadata.get("update_history", [])
+            history.append(
                 {
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "action": "add_documents",
-                    "files_added": added_count,
+                    "timestamp": metadata["last_updated"],
+                    "action": "incremental_add",
+                    "count": added_count,
+                    "provider": self._resolved_provider,
                 }
             )
+            metadata["update_history"] = history
 
-            with open(metadata_file, "w", encoding="utf-8") as f:
+            with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2, ensure_ascii=False)
-
-            logger.info("✓ Metadata updated")
-
         except Exception as e:
-            logger.warning(f"Failed to update metadata: {e!s}")
+            logger.warning(f"Metadata update failed: {e}")
 
 
 async def main():
-    """Main function"""
     parser = argparse.ArgumentParser(
-        description="Incrementally add documents to existing knowledge base",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Incrementally add documents to RAG KB",
         epilog="""
-Usage examples:
-  # Add a single document to knowledge base
-  python add_documents.py ai_textbook --docs new_chapter.pdf
+Example usage:
+  # Add documents to existing KB (uses provider from KB metadata)
+  python -m src.knowledge.add_documents my_kb --docs doc1.pdf doc2.txt
 
-  # Add multiple documents to knowledge base
-  python add_documents.py math2211 --docs chapter1.pdf chapter2.pdf
-
-  # Add documents from directory
-  python add_documents.py ai_textbook --docs-dir ./new_materials/
-
-  # Allow overwriting files with same name
-  python add_documents.py ai_textbook --docs document.pdf --allow-duplicates
-
-  # Only add files, skip processing (process manually later)
-  python add_documents.py ai_textbook --docs file.pdf --skip-processing
-
-  # Skip numbered items extraction
-  python add_documents.py ai_textbook --docs file.pdf --skip-extract
+  # Add all documents from a directory
+  python -m src.knowledge.add_documents my_kb --docs-dir ./documents/
         """,
     )
-
-    parser.add_argument("kb_name", help="Knowledge base name")
-    parser.add_argument("--docs", nargs="+", help="Document files to add")
-    parser.add_argument("--docs-dir", help="Directory containing documents to add")
-    parser.add_argument(
-        "--base-dir",
-        default="./knowledge_bases",
-        help="Knowledge base base directory (default: ./knowledge_bases)",
-    )
-    parser.add_argument("--api-key", default=os.getenv("LLM_API_KEY"), help="OpenAI API key")
-    parser.add_argument("--base-url", default=os.getenv("LLM_HOST"), help="API base URL")
-    parser.add_argument(
-        "--allow-duplicates",
-        action="store_true",
-        help="Allow overwriting files with same name (default: skip)",
-    )
-    parser.add_argument(
-        "--skip-processing", action="store_true", help="Only add files, skip document processing"
-    )
-    parser.add_argument(
-        "--skip-extract", action="store_true", help="Skip numbered items extraction"
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=20,
-        help="Batch size for numbered items extraction (default: 20)",
-    )
+    parser.add_argument("kb_name", help="KB Name")
+    parser.add_argument("--docs", nargs="+", help="Files")
+    parser.add_argument("--docs-dir", help="Directory")
+    parser.add_argument("--base-dir", default=DEFAULT_BASE_DIR)
+    parser.add_argument("--api-key", default=os.getenv("LLM_API_KEY"))
+    parser.add_argument("--base-url", default=os.getenv("LLM_HOST"))
+    parser.add_argument("--allow-duplicates", action="store_true")
 
     args = parser.parse_args()
 
-    # Check API key
-    if not args.skip_processing and not args.api_key:
-        logger.error("Error: OpenAI API key required")
-        logger.error("Please set LLM_API_KEY environment variable or use --api-key option")
-        return
+    load_dotenv()
 
-    # Collect document files
     doc_files = []
     if args.docs:
         doc_files.extend(args.docs)
-
     if args.docs_dir:
-        docs_dir = Path(args.docs_dir)
-        if docs_dir.exists() and docs_dir.is_dir():
-            for ext in ["*.pdf", "*.docx", "*.doc", "*.txt", "*.md"]:
-                doc_files.extend([str(f) for f in docs_dir.glob(ext)])
-        else:
-            logger.error(f"Error: Document directory does not exist: {args.docs_dir}")
-            return
+        p = Path(args.docs_dir)
+        for ext in ["*.pdf", "*.docx", "*.txt", "*.md"]:
+            doc_files.extend([str(f) for f in p.glob(ext)])
 
     if not doc_files:
-        logger.error("Error: No documents specified")
-        logger.error("Use --docs or --docs-dir to specify documents to add")
+        logger.error("No documents provided.")
         return
 
-    # Initialize document adder
-    try:
-        adder = DocumentAdder(
-            kb_name=args.kb_name,
-            base_dir=args.base_dir,
-            api_key=args.api_key,
-            base_url=args.base_url,
-        )
-    except ValueError as e:
-        logger.error(f"Error: {e!s}")
-        return
+    adder = DocumentAdder(args.kb_name, args.base_dir, args.api_key, args.base_url)
 
-    logger.info(f"\n{'=' * 60}")
-    logger.info(f"Adding documents to knowledge base: {args.kb_name}")
-    logger.info(f"{'=' * 60}\n")
+    # 1. Sync Phase (Validate and Stage)
+    new_files = adder.add_documents(doc_files, allow_duplicates=args.allow_duplicates)
 
-    # Add documents to raw directory
-    new_files = adder.add_documents(doc_files, skip_duplicates=not args.allow_duplicates)
-
-    if not new_files:
-        logger.info("\nNo new files need processing")
-        return
-
-    # Process new documents
-    processed_files = []
-    if not args.skip_processing:
-        processed_files = await adder.process_new_documents(new_files)
+    # 2. Async Ingestion (Process and Canonize)
+    if new_files:
+        processed = await adder.process_new_documents(new_files)
+        if processed:
+            adder.extract_numbered_items_for_new_docs(processed)
+            adder.update_metadata(len(processed))
+            logger.info(f"Done! Successfully added {len(processed)} documents.")
     else:
-        logger.info("\nSkipping document processing (--skip-processing specified)")
-        processed_files = new_files
-
-    # Extract numbered items for new documents
-    if not args.skip_processing and not args.skip_extract and processed_files:
-        adder.extract_numbered_items_for_new_docs(processed_files, batch_size=args.batch_size)
-    elif args.skip_extract:
-        logger.info("\nSkipping numbered items extraction (--skip-extract specified)")
-
-    # Update metadata
-    adder.update_metadata(len(new_files))
-
-    logger.info(f"\n{'=' * 60}")
-    logger.info(
-        f"✓ Successfully added {len(new_files)} documents to knowledge base '{args.kb_name}'!"
-    )
-    logger.info(f"{'=' * 60}\n")
+        logger.info("No new unique documents to add.")
 
 
 if __name__ == "__main__":
-    # Logging configuration is done during module import, no need to configure again here
     asyncio.run(main())

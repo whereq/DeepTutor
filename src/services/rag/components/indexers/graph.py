@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Graph Indexer
 =============
@@ -51,26 +52,18 @@ class GraphIndexer(BaseComponent):
             sys.path.insert(0, str(raganything_path))
 
         try:
-            from lightrag.llm.openai import openai_complete_if_cache
             from raganything import RAGAnything, RAGAnythingConfig
 
             from src.services.embedding import get_embedding_client
             from src.services.llm import get_llm_client
 
+            # Use unified LLM client from src/services/llm
             llm_client = get_llm_client()
             embed_client = get_embedding_client()
 
-            # LLM function using services
-            def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-                return openai_complete_if_cache(
-                    llm_client.config.model,
-                    prompt,
-                    system_prompt=system_prompt,
-                    history_messages=history_messages,
-                    api_key=llm_client.config.api_key,
-                    base_url=llm_client.config.base_url,
-                    **kwargs,
-                )
+            # Get model function from unified LLM client
+            # This handles all provider differences and env var setup for LightRAG
+            llm_model_func = llm_client.get_model_func()
 
             config = RAGAnythingConfig(
                 working_dir=working_dir,
@@ -115,7 +108,26 @@ class GraphIndexer(BaseComponent):
 
             for doc in documents:
                 if doc.content:
-                    await rag.ainsert(doc.content)
+                    # Write content to temporary file
+                    import os
+                    import tempfile
+
+                    tmp_path = None
+                    try:
+                        with tempfile.NamedTemporaryFile(
+                            mode="w", encoding="utf-8", suffix=".txt", delete=False
+                        ) as tmp_file:
+                            tmp_file.write(doc.content)
+                            tmp_path = tmp_file.name
+
+                        # Use RAGAnything API
+                        working_dir = str(Path(self.kb_base_dir) / kb_name / "rag_storage")
+                        output_dir = os.path.join(working_dir, "output")
+                        os.makedirs(output_dir, exist_ok=True)
+                        await rag.process_document_complete(tmp_path, output_dir)
+                    finally:
+                        if tmp_path and os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
 
         self.logger.info("Knowledge graph built successfully")
         return True

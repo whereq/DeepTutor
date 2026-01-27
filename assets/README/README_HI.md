@@ -5,12 +5,12 @@
 # DeepTutor: आपका व्यक्तिगत सीखने का सहायक
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=flat&logo=discord&logoColor=white)](https://discord.gg/aka9p9EW)
-[![Feishu](https://img.shields.io/badge/Feishu-Group-blue?style=flat)](./Communication.md)
-[![WeChat](https://img.shields.io/badge/WeChat-Group-green?style=flat&logo=wechat)](./Communication.md)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](../../LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=flat&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
+[![Feishu](https://img.shields.io/badge/Feishu-Group-blue?style=flat)](../../Communication.md)
+[![WeChat](https://img.shields.io/badge/WeChat-Group-green?style=flat&logo=wechat)](https://github.com/HKUDS/DeepTutor/issues/78)
 
 
 
@@ -28,11 +28,11 @@
 </div>
 
 ---
-> **[2026.1.1]** नया साल मुबारक हो! हमारे [GitHub Discussions](https://github.com/HKUDS/DeepTutor/discussions) में शामिल हों — DeepTutor के भविष्य को आकार दें! 💬
+> **[2026.1.1]** नया साल मुबारक हो! हमारे [Discord समुदाय](https://discord.gg/zpP9cssj), [WeChat समुदाय](https://github.com/HKUDS/DeepTutor/issues/78), या [Discussions](https://github.com/HKUDS/DeepTutor/discussions) से जुड़ें — DeepTutor के भविष्य को आकार दें! 💬
 
 > **[2025.12.30]** अधिक विवरण के लिए हमारी [आधिकारिक वेबसाइट](https://hkuds.github.io/DeepTutor/) पर जाएं!
 
-> **[2025.12.29]** DeepTutor v0.1 अब उपलब्ध है! ✨
+> **[2025.12.29]** DeepTutor अब उपलब्ध है! ✨
 ---
 
 ## DeepTutor की मुख्य विशेषताएं
@@ -229,23 +229,32 @@ cp .env.example .env
 | चर | आवश्यक | विवरण |
 |:---|:---:|:---|
 | `LLM_MODEL` | **हाँ** | मॉडल नाम (उदा: `gpt-4o`) |
+| `LLM_API_VERSION` | नहीं | Azure OpenAI के लिए API संस्करण (उदा: `2024-02-15-preview`) |
 | `LLM_API_KEY` | **हाँ** | आपकी LLM API कुंजी |
 | `LLM_HOST` | **हाँ** | API एंडपॉइंट URL |
 | `EMBEDDING_MODEL` | **हाँ** | एम्बेडिंग मॉडल नाम |
+| `EMBEDDING_API_VERSION` | नहीं | Azure OpenAI Embeddings के लिए API संस्करण |
 | `EMBEDDING_API_KEY` | **हाँ** | एम्बेडिंग API कुंजी |
 | `EMBEDDING_HOST` | **हाँ** | एम्बेडिंग API एंडपॉइंट |
 | `BACKEND_PORT` | नहीं | बैकएंड पोर्ट (डिफ़ॉल्ट: `8001`) |
 | `FRONTEND_PORT` | नहीं | फ्रंटएंड पोर्ट (डिफ़ॉल्ट: `3782`) |
+| `NEXT_PUBLIC_API_BASE` | नहीं | **फ्रंटएंड API URL** — रिमोट/LAN एक्सेस के लिए सेट करें (उदा: `http://192.168.1.100:8001`) |
 | `TTS_*` | नहीं | टेक्स्ट-टू-स्पीच सेटिंग्स |
-| `PERPLEXITY_API_KEY` | नहीं | वेब खोज के लिए |
+| `SEARCH_PROVIDER` | नहीं | खोज प्रदाता (विकल्प: `perplexity`, `tavily`, `serper`, `jina`, `exa`, `baidu`, डिफ़ॉल्ट: `perplexity`) |
+| `SEARCH_API_KEY` | नहीं | खोज के लिए एकीकृत API कुंजी |
+
+> 💡 **रिमोट एक्सेस**: यदि आप दूसरे डिवाइस से एक्सेस कर रहे हैं (उदा: `192.168.31.66:3782`), तो `.env` में जोड़ें:
+> ```bash
+> NEXT_PUBLIC_API_BASE=http://192.168.31.66:8001
+> ```
 
 </details>
 
 **③ पोर्ट और LLM कॉन्फ़िगर करें** *(वैकल्पिक)*
 
-- **पोर्ट**: `config/main.yaml` संपादित करें → `server.backend_port` / `server.frontend_port`
+- **पोर्ट**: `.env` में सेट करें → `BACKEND_PORT` / `FRONTEND_PORT` (डिफ़ॉल्ट: 8001/3782)
 - **LLM**: `config/agents.yaml` संपादित करें → प्रति मॉड्यूल `temperature` / `max_tokens`
-- विवरण के लिए [कॉन्फ़िगरेशन दस्तावेज़](config/README.md) देखें
+- विवरण के लिए [कॉन्फ़िगरेशन दस्तावेज़](../../config/README.md) देखें
 
 **④ डेमो ज्ञान आधार आज़माएं** *(वैकल्पिक)*
 
@@ -287,18 +296,15 @@ cp .env.example .env
 <summary><b>🚀 विकल्प A: पूर्व-निर्मित छवि (सबसे तेज़)</b></summary>
 
 ```bash
-# पूर्व-निर्मित छवि को खींचें और चलाएं (~30 सेकंड)
+# सभी प्लेटफॉर्म पर काम करता है — Docker आपकी आर्किटेक्चर को ऑटो-डिटेक्ट करता है
 docker run -d --name deeptutor \
   -p 8001:8001 -p 3782:3782 \
-  -e LLM_MODEL=gpt-4o \
-  -e LLM_API_KEY=your-api-key \
-  -e LLM_HOST=https://api.openai.com/v1 \
-  -e EMBEDDING_MODEL=text-embedding-3-large \
-  -e EMBEDDING_API_KEY=your-api-key \
-  -e EMBEDDING_HOST=https://api.openai.com/v1 \
+  --env-file .env \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/config:/app/config:ro \
   ghcr.io/hkuds/deeptutor:latest
+
+# Windows PowerShell: $(pwd) के बजाय ${PWD} का उपयोग करें
 ```
 
 या `.env` फ़ाइल का उपयोग करें:
@@ -364,9 +370,11 @@ source venv/bin/activate
 **निर्भरताएं स्थापित करें**:
 
 ```bash
-bash scripts/install_all.sh
+# एक-क्लिक इंस्टॉलेशन (अनुशंसित)
+python scripts/install_all.py
+# या: bash scripts/install_all.sh
 
-# या मैन्युअल रूप से:
+# या मैन्युअल इंस्टॉलेशन
 pip install -r requirements.txt
 npm install --prefix web
 ```
@@ -454,11 +462,11 @@ data/
 **चेकलिस्ट**
 - पुष्टि करें कि Python संस्करण >= 3.10
 - पुष्टि करें कि सभी निर्भरताएं स्थापित हैं: `pip install -r requirements.txt`
-- जांचें कि पोर्ट 8001 उपयोग में है (`config/main.yaml` में कॉन्फ़िगर करने योग्य)
+- जांचें कि पोर्ट 8001 उपयोग में है
 - `.env` फ़ाइल कॉन्फ़िगरेशन जांचें
 
 **समाधान**
-- **पोर्ट बदलें**: `config/main.yaml` server.backend_port संपादित करें
+- **पोर्ट बदलें**: `.env` फ़ाइल में `BACKEND_PORT=9001` सेट करें
 - **लॉग जांचें**: टर्मिनल त्रुटि संदेशों की समीक्षा करें
 
 </details>
@@ -635,7 +643,7 @@ python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/
 
 ## 📄 लाइसेंस
 
-यह प्रोजेक्ट **[AGPL-3.0](LICENSE)** लाइसेंस के तहत लाइसेंस प्राप्त है।
+यह प्रोजेक्ट **[AGPL-3.0](../../LICENSE)** लाइसेंस के तहत लाइसेंस प्राप्त है।
 
 
 ## ⭐ स्टार इतिहास

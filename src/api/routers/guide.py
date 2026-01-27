@@ -22,6 +22,7 @@ from src.api.utils.task_id_manager import TaskIDManager
 from src.logging import get_logger
 from src.services.config import load_config_with_main
 from src.services.llm import get_llm_config
+from src.services.settings.interface_settings import get_ui_language
 
 router = APIRouter()
 
@@ -71,12 +72,18 @@ def get_guide_manager():
         llm_config = get_llm_config()
         api_key = llm_config.api_key
         base_url = llm_config.base_url
+        api_version = getattr(llm_config, "api_version", None)
         binding = llm_config.binding
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
 
+    ui_language = get_ui_language(default=config.get("system", {}).get("language", "en"))
     return GuideManager(
-        api_key=api_key, base_url=base_url, language=None, binding=binding
+        api_key=api_key,
+        base_url=base_url,
+        api_version=api_version,
+        language=ui_language,
+        binding=binding,
     )  # Read from config file
 
 

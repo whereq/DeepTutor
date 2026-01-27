@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Hybrid Retriever
 ================
@@ -20,7 +21,7 @@ class HybridRetriever(BaseComponent):
     """
 
     name = "hybrid_retriever"
-    _instances: Dict[str, any] = {}
+    _instances: Dict[str, Any] = {}
 
     def __init__(self, kb_base_dir: Optional[str] = None):
         """
@@ -50,25 +51,18 @@ class HybridRetriever(BaseComponent):
             sys.path.insert(0, str(raganything_path))
 
         try:
-            from lightrag.llm.openai import openai_complete_if_cache
             from raganything import RAGAnything, RAGAnythingConfig
 
             from src.services.embedding import get_embedding_client
             from src.services.llm import get_llm_client
 
+            # Use unified LLM client from src/services/llm
             llm_client = get_llm_client()
             embed_client = get_embedding_client()
 
-            def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-                return openai_complete_if_cache(
-                    llm_client.config.model,
-                    prompt,
-                    system_prompt=system_prompt,
-                    history_messages=history_messages,
-                    api_key=llm_client.config.api_key,
-                    base_url=llm_client.config.base_url,
-                    **kwargs,
-                )
+            # Get model function from unified LLM client
+            # This handles all provider differences and env var setup for LightRAG
+            llm_model_func = llm_client.get_model_func()
 
             config = RAGAnythingConfig(
                 working_dir=working_dir,

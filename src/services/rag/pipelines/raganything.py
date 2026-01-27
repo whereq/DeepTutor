@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 RAGAnything Pipeline
 ====================
@@ -11,6 +12,10 @@ from typing import Any, Dict, List, Optional
 
 from src.logging import get_logger
 from src.logging.adapters import LightRAGLogContext
+
+# Load LLM config early to ensure OPENAI_API_KEY env var is set before LightRAG imports
+# This is critical because LightRAG reads os.environ["OPENAI_API_KEY"] directly
+from src.services.llm.config import get_llm_config as _early_config_load  # noqa: F401
 
 
 class RAGAnythingPipeline:
@@ -69,70 +74,19 @@ class RAGAnythingPipeline:
 
         self._setup_raganything_path()
 
-        from lightrag.llm.openai import openai_complete_if_cache
         from raganything import RAGAnything, RAGAnythingConfig
 
         from src.services.embedding import get_embedding_client
         from src.services.llm import get_llm_client
 
+        # Use unified LLM client from src/services/llm
         llm_client = get_llm_client()
         embed_client = get_embedding_client()
 
-        def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
-            return openai_complete_if_cache(
-                llm_client.config.model,
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-                api_key=llm_client.config.api_key,
-                base_url=llm_client.config.base_url,
-                **kwargs,
-            )
-
-        def vision_model_func(
-            prompt,
-            system_prompt=None,
-            history_messages=[],
-            image_data=None,
-            messages=None,
-            **kwargs,
-        ):
-            # Handle multimodal messages
-            if messages:
-                clean_kwargs = {
-                    k: v
-                    for k, v in kwargs.items()
-                    if k not in ["messages", "prompt", "system_prompt", "history_messages"]
-                }
-                return openai_complete_if_cache(
-                    llm_client.config.model,
-                    prompt="",
-                    messages=messages,
-                    api_key=llm_client.config.api_key,
-                    base_url=llm_client.config.base_url,
-                    **clean_kwargs,
-                )
-            if image_data:
-                # Build image message
-                image_message = {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
-                        },
-                    ],
-                }
-                return openai_complete_if_cache(
-                    llm_client.config.model,
-                    prompt="",
-                    messages=[image_message],
-                    api_key=llm_client.config.api_key,
-                    base_url=llm_client.config.base_url,
-                    **kwargs,
-                )
-            return llm_model_func(prompt, system_prompt, history_messages, **kwargs)
+        # Get model functions from unified LLM client
+        # These handle all provider differences (OpenAI, Anthropic, Azure, local, etc.)
+        llm_model_func = llm_client.get_model_func()
+        vision_model_func = llm_client.get_vision_model_func()
 
         config = RAGAnythingConfig(
             working_dir=working_dir,
@@ -159,7 +113,19 @@ class RAGAnythingPipeline:
         **kwargs,
     ) -> bool:
         """
-        Initialize KB using RAG-Anything's process_document_complete().
+        Initialize KB using RAG-Anything with MinerU parser.
+
+        Processing flow:
+        1. Parse documents using MinerU (generates content_list with nested image paths)
+        2. Migrate images to canonical location (kb/images/) and update paths in content_list
+        3. Insert updated content_list into RAG (now with correct image paths)
+        4. Clean up temporary parser output directories
+
+        This ensures RAG stores the final image paths, avoiding path mismatches during retrieval.
+
+        Uses FileTypeRouter to classify files and route them appropriately:
+        - PDF files -> MinerU parser (full document analysis)
+        - Text files -> Direct read + LightRAG insert (fast)
 
         Args:
             kb_name: Knowledge base name
@@ -170,28 +136,104 @@ class RAGAnythingPipeline:
         Returns:
             True if successful
         """
+        import json
+
+        from ..components.routing import FileTypeRouter
+        from ..utils.image_migration import (
+            cleanup_parser_output_dirs,
+            migrate_images_and_update_paths,
+        )
+
         self.logger.info(f"Initializing KB '{kb_name}' with {len(file_paths)} files")
 
         kb_dir = Path(self.kb_base_dir) / kb_name
         content_list_dir = kb_dir / "content_list"
+        images_dir = kb_dir / "images"
         content_list_dir.mkdir(parents=True, exist_ok=True)
+        images_dir.mkdir(parents=True, exist_ok=True)
+
+        # Classify files by type
+        classification = FileTypeRouter.classify_files(file_paths)
+
+        self.logger.info(
+            f"File classification: {len(classification.needs_mineru)} need MinerU, "
+            f"{len(classification.text_files)} text files, "
+            f"{len(classification.unsupported)} unsupported"
+        )
 
         with LightRAGLogContext(scene="knowledge_init"):
             rag = self._get_rag_instance(kb_name)
             await rag._ensure_lightrag_initialized()
 
-            for idx, file_path in enumerate(file_paths, 1):
-                self.logger.info(f"Processing [{idx}/{len(file_paths)}]: {Path(file_path).name}")
-                await rag.process_document_complete(
+            total_files = len(classification.needs_mineru) + len(classification.text_files)
+            idx = 0
+            total_images_migrated = 0
+
+            # Process files requiring MinerU (PDF, DOCX, images)
+            for file_path in classification.needs_mineru:
+                idx += 1
+                file_name = Path(file_path).name
+                self.logger.info(f"Processing [{idx}/{total_files}] (MinerU): {file_name}")
+
+                # Step 1: Parse document (without RAG insertion)
+                self.logger.info("  Step 1/3: Parsing document...")
+                content_list, doc_id = await rag.parse_document(
                     file_path=file_path,
                     output_dir=str(content_list_dir),
                     parse_method="auto",
                 )
 
+                # Step 2: Migrate images and update paths
+                self.logger.info("  Step 2/3: Migrating images to canonical location...")
+                updated_content_list, num_migrated = await migrate_images_and_update_paths(
+                    content_list=content_list,
+                    source_base_dir=content_list_dir,
+                    target_images_dir=images_dir,
+                    batch_size=50,
+                )
+                total_images_migrated += num_migrated
+
+                # Save updated content_list for future reference
+                content_list_file = content_list_dir / f"{Path(file_path).stem}.json"
+                with open(content_list_file, "w", encoding="utf-8") as f:
+                    json.dump(updated_content_list, f, ensure_ascii=False, indent=2)
+
+                # Step 3: Insert into RAG with corrected paths
+                self.logger.info("  Step 3/3: Inserting into RAG knowledge graph...")
+                await rag.insert_content_list(
+                    content_list=updated_content_list,
+                    file_path=file_path,
+                    doc_id=doc_id,
+                )
+
+                self.logger.info(f"  ✓ Completed: {file_name}")
+
+            # Process text files directly (fast path)
+            for file_path in classification.text_files:
+                idx += 1
+                self.logger.info(
+                    f"Processing [{idx}/{total_files}] (direct text): {Path(file_path).name}"
+                )
+                content = await FileTypeRouter.read_text_file(file_path)
+                if content.strip():
+                    # Insert directly into LightRAG, bypassing MinerU
+                    await rag.lightrag.ainsert(content)
+
+            # Log unsupported files
+            for file_path in classification.unsupported:
+                self.logger.warning(f"Skipped unsupported file: {Path(file_path).name}")
+
+            # Clean up temporary parser output directories
+            if total_images_migrated > 0:
+                self.logger.info("Cleaning up temporary parser output directories...")
+                await cleanup_parser_output_dirs(content_list_dir)
+
         if extract_numbered_items:
             await self._extract_numbered_items(kb_name)
 
-        self.logger.info(f"KB '{kb_name}' initialized successfully")
+        self.logger.info(
+            f"KB '{kb_name}' initialized successfully ({total_images_migrated} images migrated)"
+        )
         return True
 
     async def _extract_numbered_items(self, kb_name: str):

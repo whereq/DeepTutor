@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """OpenAI-compatible embedding adapter for OpenAI, Azure, HuggingFace, LM Studio, etc."""
 
 import logging
@@ -19,9 +20,12 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        if self.api_version:
+            headers["api-key"] = self.api_key
+        else:
+            headers["Authorization"] = f"Bearer {self.api_key}"
 
         payload = {
             "input": request.texts,
@@ -32,7 +36,12 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         if request.dimensions or self.dimensions:
             payload["dimensions"] = request.dimensions or self.dimensions
 
-        url = f"{self.base_url}/embeddings"
+        url = f"{self.base_url.rstrip('/')}/embeddings"
+        if self.api_version:
+            if "?" not in url:
+                url += f"?api-version={self.api_version}"
+            else:
+                url += f"&api-version={self.api_version}"
 
         logger.debug(f"Sending embedding request to {url} with {len(request.texts)} texts")
 
