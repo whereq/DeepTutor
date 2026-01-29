@@ -1555,7 +1555,7 @@ python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/
 
 ---
 
-Этот проект распространяется под лицензией ***[AGPL-3.0](LICENSE)***.
+Этот проект распространяется под лицензией ***[AGPL-3.0](../../LICENSE)***.
 
 <p align="center">
   <em> Спасибо, что посетили ✨ DeepTutor!</em><br><br>
