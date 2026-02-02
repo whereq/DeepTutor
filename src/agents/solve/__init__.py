@@ -39,6 +39,8 @@ from .memory import (
     Reflections,
     SolveChainStep,
     SolveMemory,
+    SolveOutput,
+    TodoItem,
     ToolCallRecord,
 )
 
@@ -51,6 +53,7 @@ from .solve_loop import (
     PrecisionAnswerAgent,
     ResponseAgent,
     SolveAgent,
+    SolveNoteAgent,
     ToolAgent,
 )
 
@@ -67,14 +70,17 @@ __all__ = [
     "KnowledgeItem",
     "Reflections",
     "SolveMemory",
-    "SolveChainStep",
+    "TodoItem",
+    "SolveOutput",
     "ToolCallRecord",
+    "SolveChainStep",  # Backward compatibility
     # Analysis Loop
     "InvestigateAgent",
     "NoteAgent",
     # Solve Loop
     "ManagerAgent",
     "SolveAgent",
+    "SolveNoteAgent",
     "ResponseAgent",
     "PrecisionAnswerAgent",
     "ToolAgent",

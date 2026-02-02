@@ -1,6 +1,6 @@
 """
 Notebook Manager - Manages user notebooks and records
-All notebook data is stored in user/notebook/ directory
+All notebook data is stored in workspace/notebook/ directory
 """
 
 from enum import Enum
@@ -10,6 +10,8 @@ import time
 import uuid
 
 from pydantic import BaseModel
+
+from src.services.path_service import get_path_service
 
 
 class RecordType(str, Enum):
@@ -55,13 +57,12 @@ class NotebookManager:
         Initialize notebook manager
 
         Args:
-            base_dir: Notebook storage directory, defaults to project root/user/notebook
+            base_dir: Notebook storage directory, defaults to workspace/notebook
         """
         if base_dir is None:
-            # Current file: DeepTutor/src/api/utils/notebook_manager.py
-            # Project root should be three levels up: DeepTutor/
-            project_root = Path(__file__).resolve().parents[3]
-            base_dir_path = project_root / "data" / "user" / "notebook"
+            # Use PathService for workspace/notebook path
+            path_service = get_path_service()
+            base_dir_path = path_service.get_notebook_dir()
         else:
             base_dir_path = Path(base_dir)
 

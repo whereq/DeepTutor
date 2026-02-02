@@ -79,7 +79,7 @@ research:
   researching:
     max_iterations: 5
     new_topic_min_score: 0.85
-    execution_mode: series
+    execution_mode: series 
     max_parallel_topics: 1
     enable_rag_naive: true
     enable_rag_hybrid: true

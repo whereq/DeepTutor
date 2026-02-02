@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 """
-SolveAgent - Tool planner
-Responsible for evaluating existing materials based on step_target and generating tool call trajectories to execute
+SolveAgent - Iterative information collector
+
+For a given todo item, iteratively decides which tool to call to gather information.
+Outputs {tool_type, query} per iteration until tool_type == "none" signals completion.
 """
 
 from pathlib import Path
-import re
 import sys
-from typing import Any
+from typing import Any, List, Optional
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -16,20 +17,31 @@ if str(project_root) not in sys.path:
 
 from src.agents.base_agent import BaseAgent
 
-from ..memory import CitationMemory, InvestigateMemory, SolveChainStep, SolveMemory
+from ..memory import (
+    InvestigateMemory,
+    IterationRecord,
+    SolveMemory,
+    TodoItem,
+    ToolCallRecord,
+)
 from ..utils.json_utils import extract_json_from_text
 
 
 class SolveAgent(BaseAgent):
-    """Solver Agent - Plans and records tool calls"""
+    """
+    Solve Agent - Information collector for solving todos.
+    
+    For each todo, this agent iteratively decides what information to gather.
+    Each call returns a single {tool_type, query} decision.
+    When tool_type == "none", the iteration ends.
+    """
 
     SUPPORTED_TOOL_TYPES = {
-        "none",
-        "rag_naive",
-        "rag_hybrid",
-        "web_search",
-        "code_execution",
-        "finish",
+        "none",       # End iteration - information is sufficient
+        "rag_naive",  # Precise formula/definition lookup
+        "rag_hybrid", # Conceptual understanding/comparison
+        "web_search", # External/latest information
+        "code_execution",  # Calculations, plotting, derivations
     }
 
     def __init__(
@@ -51,26 +63,54 @@ class SolveAgent(BaseAgent):
             config=config,
             token_tracker=token_tracker,
         )
+        # Max iterations per todo to prevent infinite loops
+        self.max_iterations = config.get("solve", {}).get("max_inner_iterations", 5)
 
     async def process(
         self,
+        current_todo: TodoItem,
+        iteration_history: List[ToolCallRecord],
+        knowledge_chain: List[Any],
         question: str,
-        current_step: SolveChainStep,
-        solve_memory: SolveMemory,
-        investigate_memory: InvestigateMemory,
-        citation_memory: CitationMemory,
-        kb_name: str = "ai_textbook",
-        output_dir: str | None = None,
         verbose: bool = True,
     ) -> dict[str, Any]:
-        if not current_step:
-            raise ValueError("No pending solve-chain step to execute")
+        """
+        Process a single iteration step for the current todo.
 
+        Decides whether to call a tool or end the iteration.
+
+        Args:
+            current_todo: The todo item being worked on
+            iteration_history: Previous tool calls in this iteration
+            knowledge_chain: Knowledge from investigate phase
+            question: Original user question
+            verbose: Whether to print detailed information
+
+        Returns:
+            dict: {
+                "tool_type": str,  # "none" to end iteration
+                "query": str,      # Query/intent for the tool
+                "should_stop": bool  # True if tool_type is "none"
+            }
+        """
+        # Check iteration limit
+        if len(iteration_history) >= self.max_iterations:
+            self.logger.warning(
+                f"[SolveAgent] Max iterations ({self.max_iterations}) reached for {current_todo.todo_id}"
+            )
+            return {
+                "tool_type": "none",
+                "query": "",
+                "should_stop": True,
+                "reason": "max_iterations_reached",
+            }
+
+        # Build context
         context = self._build_context(
+            current_todo=current_todo,
+            iteration_history=iteration_history,
+            knowledge_chain=knowledge_chain,
             question=question,
-            current_step=current_step,
-            solve_memory=solve_memory,
-            investigate_memory=investigate_memory,
         )
 
         system_prompt = self._build_system_prompt()
@@ -80,246 +120,225 @@ class SolveAgent(BaseAgent):
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             verbose=verbose,
-            response_format={"type": "json_object"},  # Force JSON
+            response_format={"type": "json_object"},
         )
 
-        tool_plan = self._parse_tool_plan(response)
-        if not tool_plan:
-            # Try to be compatible with old logic, or raise error
-            # For robustness, if JSON parsing fails, raise more specific error
+        # Parse the decision
+        decision = self._parse_decision(response)
+        if not decision:
             self.logger.warning(
-                f"SolveAgent JSON parsing failed or empty, Raw: {response[:200]}..."
+                f"SolveAgent JSON parsing failed, defaulting to none. Raw: {response[:200]}..."
             )
-            # If empty list, also treat as exception, because SolveAgent should output at least none or finish
-            raise ValueError(
-                "SolveAgent did not parse any valid tool_calls structure from LLM output"
-            )
-
-        finish_requested = any(item["type"] == "finish" for item in tool_plan)
-        newly_created: list[dict[str, Any]] = []
-        existing_calls = len(current_step.tool_calls)
-
-        for order, item in enumerate(tool_plan, start=1):
-            tool_type = item["type"]
-            query = item["query"]
-
-            if tool_type == "finish":
-                continue
-
-            normalized_query = self._prepare_query(tool_type, query, current_step)
-
-            cite_id = None
-            if tool_type != "none":
-                cite_id = citation_memory.add_citation(
-                    tool_type=tool_type,
-                    query=normalized_query,
-                    raw_result="",
-                    content="",
-                    stage="solve",
-                    step_id=current_step.step_id,
-                )
-
-            record = solve_memory.append_tool_call(
-                step_id=current_step.step_id,
-                tool_type=tool_type,
-                query=normalized_query,
-                cite_id=cite_id,
-                metadata={
-                    "plan_order": existing_calls + order,
-                    "kb_name": kb_name,
-                },
-            )
-
-            request_info = {
-                "call_id": record.call_id,
-                "tool_type": tool_type,
-                "query": normalized_query,
-                "cite_id": cite_id,
-                "status": record.status,
+            return {
+                "tool_type": "none",
+                "query": "",
+                "should_stop": True,
+                "reason": "parse_error",
             }
 
-            if tool_type == "none":
-                summary = self._summarize_none_answer(normalized_query)
-                solve_memory.update_tool_call_result(
-                    step_id=current_step.step_id,
-                    call_id=record.call_id,
-                    raw_answer=normalized_query,
-                    summary=summary,
-                    status="none",
-                )
-                # none calls are not counted in citation system
-                request_info["status"] = "none"
-                request_info["summary"] = summary
-                # none type indicates tool call phase is finished, but step_response must be generated by ResponseAgent
-                finish_requested = True
-                newly_created.append(request_info)
-                # none type indicates no need to append additional tools, but won't directly write to step_response
-                break
-
-            newly_created.append(request_info)
-
-        solve_memory.save()
-        citation_memory.save()
+        tool_type = decision["tool_type"]
+        query = decision["query"]
+        should_stop = tool_type == "none"
 
         return {
-            "step_id": current_step.step_id,
-            "requested_calls": newly_created,
-            "finish_requested": finish_requested,
-            "raw_llm_response": response,
-            "status": (
-                "waiting_tools"
-                if newly_created
-                else ("ready_for_response" if finish_requested else "idle")
-            ),
+            "tool_type": tool_type,
+            "query": query,
+            "should_stop": should_stop,
+            "raw_response": response,
         }
+
+    # ------------------------------------------------------------------ #
+    # Context Building
+    # ------------------------------------------------------------------ #
+    def _build_context(
+        self,
+        current_todo: TodoItem,
+        iteration_history: List[ToolCallRecord],
+        knowledge_chain: List[Any],
+        question: str,
+    ) -> dict[str, Any]:
+        """Build context for LLM call"""
+        # Format current todo
+        todo_text = f"{current_todo.todo_id}: {current_todo.description}"
+
+        # Format iteration history
+        history_text = self._format_iteration_history(iteration_history)
+
+        # Format knowledge chain from investigate phase
+        knowledge_text = self._format_knowledge_chain(knowledge_chain)
+
+        return {
+            "question": question,
+            "current_todo": todo_text,
+            "iteration_history": history_text,
+            "knowledge_chain": knowledge_text,
+            "iteration_count": len(iteration_history),
+            "max_iterations": self.max_iterations,
+        }
+
+    def _format_iteration_history(self, history: List[ToolCallRecord]) -> str:
+        """Format the iteration history for context"""
+        if not history:
+            return "(No previous tool calls in this iteration)"
+
+        lines = []
+        for idx, record in enumerate(history, 1):
+            summary = record.summary or "(pending)"
+            if record.raw_answer and not record.summary:
+                summary = record.raw_answer[:300] + "..."
+            
+            lines.append(
+                f"[{idx}] {record.tool_type}\n"
+                f"    Query: {record.query}\n"
+                f"    cite_id: {record.cite_id or 'N/A'}\n"
+                f"    Summary: {summary}"
+            )
+        return "\n\n".join(lines)
+
+    def _format_knowledge_chain(self, knowledge_chain: List[Any]) -> str:
+        """Format knowledge chain from investigate phase"""
+        if not knowledge_chain:
+            return "(No prior knowledge from investigation)"
+
+        lines = []
+        for knowledge in knowledge_chain:
+            cite_id = getattr(knowledge, "cite_id", "")
+            tool_type = getattr(knowledge, "tool_type", "")
+            query = getattr(knowledge, "query", "")
+            summary = getattr(knowledge, "summary", "") or getattr(knowledge, "raw_result", "")[:300]
+            
+            lines.append(
+                f"{cite_id} [{tool_type}]\n"
+                f"  Query: {query}\n"
+                f"  Summary: {summary}"
+            )
+        return "\n\n".join(lines) if lines else "(No prior knowledge)"
 
     # ------------------------------------------------------------------ #
     # Prompt Building
     # ------------------------------------------------------------------ #
-    def _build_context(
-        self,
-        question: str,
-        current_step: SolveChainStep,
-        solve_memory: SolveMemory,
-        investigate_memory: InvestigateMemory,
-    ) -> dict[str, Any]:
-        return {
-            "question": question,
-            "current_step_id": current_step.step_id,
-            "step_target": current_step.step_target,
-            "available_cite_text": self._format_available_cite(current_step, investigate_memory),
-            "previous_steps": self._format_previous_steps(current_step, solve_memory),
-            "current_tool_history": self._format_tool_history(current_step),
-        }
-
     def _build_system_prompt(self) -> str:
         prompt = self.get_prompt("system") if self.has_prompts() else None
         if not prompt:
-            raise ValueError(
-                "SolveAgent missing system prompt, please configure system in prompts/zh/solve_loop/solve_agent.yaml."
-            )
+            # Fallback prompt
+            prompt = """# Role Definition
+You are the **Solve Agent**, responsible for gathering information to complete the current todo.
+
+## Task
+Decide what tool to call next to collect information for the current todo.
+Output ONE tool call decision per response.
+
+## Output Format (STRICT JSON)
+{
+  "tool_type": "rag_naive | rag_hybrid | web_search | code_execution | none",
+  "query": "Your query or intent description"
+}
+
+## Tool Types
+- `rag_naive`: Precise definition/formula lookup from knowledge base
+- `rag_hybrid`: Conceptual understanding, comparison, or broader search
+- `web_search`: External information, latest news, or resources not in KB
+- `code_execution`: Calculations, derivations, plotting, data processing
+- `none`: No more information needed, end this iteration
+
+## Rules
+1. Output exactly ONE tool call per response
+2. Use `none` when you have sufficient information to complete the todo
+3. Do NOT generate answer content - only decide what information to gather
+4. Consider what's already been collected in iteration_history
+"""
         return prompt
 
     def _build_user_prompt(self, context: dict[str, Any]) -> str:
         template = self.get_prompt("user_template") if self.has_prompts() else None
         if not template:
-            raise ValueError(
-                "SolveAgent missing user_template prompt, please configure user_template in prompts/zh/solve_loop/solve_agent.yaml."
-            )
+            # Fallback template
+            template = """## User Question
+{question}
+
+## Current Todo
+{current_todo}
+
+## Prior Knowledge (from investigation phase)
+{knowledge_chain}
+
+## This Iteration's Tool Calls ({iteration_count}/{max_iterations})
+{iteration_history}
+
+## Task
+Decide the next tool call to gather information for the current todo.
+Output "none" as tool_type if information is sufficient.
+Output valid JSON only."""
         return template.format(**context)
 
     # ------------------------------------------------------------------ #
-    # Parsing and Formatting
+    # Response Parsing
     # ------------------------------------------------------------------ #
-    def _format_available_cite(
-        self, current_step: SolveChainStep, investigate_memory: InvestigateMemory
-    ) -> str:
-        if not current_step.available_cite:
-            return "(No available knowledge chain)"
-
-        lines: list[str] = []
-        for cite_id in current_step.available_cite:
-            knowledge = next(
-                (k for k in investigate_memory.knowledge_chain if k.cite_id == cite_id), None
-            )
-            if not knowledge:
-                continue
-            summary = knowledge.summary or knowledge.raw_result[:300]
-            raw_preview = (
-                knowledge.raw_result[:300].replace("\n", " ") if knowledge.raw_result else ""
-            )
-            lines.append(
-                f"{cite_id} | {knowledge.tool_type}\n"
-                f"  Query: {knowledge.query}\n"
-                f"  Summary: {summary}\n"
-                f"  Raw: {raw_preview}"
-            )
-        return "\n".join(lines) if lines else "(No matching knowledge)"
-
-    def _format_previous_steps(
-        self, current_step: SolveChainStep, solve_memory: SolveMemory
-    ) -> str:
-        snippets: list[str] = []
-        for step in solve_memory.solve_chains:
-            if step.step_id == current_step.step_id:
-                break
-            if step.step_response:
-                snippets.append(
-                    f"[{step.step_id}] {step.step_target}\n{step.step_response[:300]}..."
-                )
-        return "\n\n".join(snippets[-3:]) if snippets else "(No completed steps yet)"
-
-    def _format_tool_history(self, current_step: SolveChainStep) -> str:
-        if not current_step.tool_calls:
-            return "(No tool calls have been made yet)"
-        lines: list[str] = []
-        for call in current_step.tool_calls:
-            summary = call.summary or "(Pending)"
-            lines.append(
-                f"{call.tool_type} | cite_id={call.cite_id or 'N/A'} | Status={call.status}\n"
-                f"Query: {call.query}\n"
-                f"Summary: {summary[:200]}"
-            )
-        return "\n\n".join(lines)
-
-    def _parse_tool_plan(self, response: str) -> list[dict[str, str]]:
-        """
-        Parse JSON plan returned by LLM
-        """
+    def _parse_decision(self, response: str) -> Optional[dict[str, Any]]:
+        """Parse the LLM decision - simplified output format"""
         parsed_data = extract_json_from_text(response)
 
         if not parsed_data or not isinstance(parsed_data, dict):
-            return []
+            return None
 
-        tool_calls = parsed_data.get("tool_calls", [])
-        if not isinstance(tool_calls, list):
-            return []
+        tool_type = str(parsed_data.get("tool_type", "none")).strip().lower()
+        query = str(parsed_data.get("query", "")).strip()
 
-        actions: list[dict[str, str]] = []
-        for item in tool_calls:
-            if not isinstance(item, dict):
-                continue
+        # Normalize tool_type
+        if tool_type not in self.SUPPORTED_TOOL_TYPES:
+            # Try to map common variations
+            if tool_type in {"finish", "stop", "end", "done"}:
+                tool_type = "none"
+            elif tool_type in {"rag", "search", "kb"}:
+                tool_type = "rag_hybrid"
+            elif tool_type in {"web", "internet"}:
+                tool_type = "web_search"
+            elif tool_type in {"code", "python", "execute"}:
+                tool_type = "code_execution"
+            else:
+                self.logger.warning(f"[SolveAgent] Unknown tool_type '{tool_type}', defaulting to none")
+                tool_type = "none"
 
-            tool_type = str(item.get("type", "")).strip().lower()
-            # query = str(item.get("query", "")).strip()
-            query = str(item.get("intent", "")).strip()
+        return {
+            "tool_type": tool_type,
+            "query": query,
+        }
 
-            if not tool_type:
-                continue
 
-            if tool_type not in self.SUPPORTED_TOOL_TYPES:
-                self.logger.warning(f"[SolveAgent] Ignoring unknown tool type: {tool_type}")
-                continue
+# Legacy compatibility - keep old process signature as alternative
+class SolveAgentLegacy(SolveAgent):
+    """Legacy wrapper for backward compatibility with old API"""
 
-            actions.append({"type": tool_type, "query": query})
+    async def process_legacy(
+        self,
+        question: str,
+        solve_memory: SolveMemory,
+        investigate_memory: InvestigateMemory,
+        citation_memory: Any,
+        kb_name: str = "ai_textbook",
+        output_dir: str | None = None,
+        verbose: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Legacy process method - wraps new API for backward compatibility.
+        """
+        current_todo = solve_memory.get_next_pending_todo()
+        if not current_todo:
+            return {
+                "tool_type": "none",
+                "query": "",
+                "should_stop": True,
+                "reason": "no_pending_todo",
+            }
 
-        return actions
+        # Get current iteration or empty history
+        current_iter = solve_memory.get_current_iteration()
+        iteration_history = current_iter.tool_calls if current_iter else []
 
-    # ------------------------------------------------------------------ #
-    # Query preprocessing & helper
-    # ------------------------------------------------------------------ #
-    def _prepare_query(self, tool_type: str, query: str, current_step: SolveChainStep) -> str:
-        return query.strip()
-
-    def _summarize_none_answer(self, text: str) -> str:
-        return text.strip()
-
-    def _normalize_latex_sequences(self, text: str) -> str:
-        if not text or not text.strip():
-            return ""
-        cleaned = text.strip()
-        cleaned = cleaned.replace("\\{", "{").replace("\\}", "}").replace("$", "")
-        pattern = re.compile(r"(?P<var>[A-Za-z_][A-Za-z0-9_\[\]]*)\s*=\s*\{(?P<values>[^\}]+)\}")
-
-        def replacer(match: re.Match) -> str:
-            var = match.group("var")
-            values = match.group("values")
-            base_var = re.sub(r"\[.*?\]", "", var).strip()
-            values = values.replace(";", ",")
-            items = [v.strip() for v in values.split(",") if v.strip()]
-            formatted_values = ", ".join(items)
-            return f"{base_var} = [{formatted_values}]"
-
-        normalized = re.sub(pattern, replacer, cleaned)
-        normalized = re.sub(r"\s+", " ", normalized).strip()
-        return normalized
+        return await self.process(
+            current_todo=current_todo,
+            iteration_history=iteration_history,
+            knowledge_chain=investigate_memory.knowledge_chain,
+            question=question,
+            verbose=verbose,
+        )

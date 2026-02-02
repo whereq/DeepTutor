@@ -8,20 +8,20 @@ This module handles:
 - Retrieving session history
 - Listing recent sessions
 - Deleting sessions
+
+Now inherits from BaseSessionManager for consistent behavior across all modules.
 """
 
-import json
-from pathlib import Path
-import time
 from typing import Any
-import uuid
+
+from src.services.session import BaseSessionManager
 
 
-class SessionManager:
+class SessionManager(BaseSessionManager):
     """
     Manages persistent storage of chat sessions.
 
-    Sessions are stored in a JSON file at data/user/chat_sessions.json.
+    Sessions are stored in a JSON file at data/user/agent/chat/sessions.json.
     Each session contains:
     - session_id: Unique identifier
     - title: Session title (usually first user message)
@@ -31,156 +31,87 @@ class SessionManager:
     - updated_at: Last update timestamp
     """
 
-    def __init__(self, base_dir: str | None = None):
+    def __init__(self):
+        """Initialize SessionManager."""
+        super().__init__("chat")
+
+    # =========================================================================
+    # BaseSessionManager Abstract Method Implementations
+    # =========================================================================
+
+    def _get_session_id_prefix(self) -> str:
+        """Return the prefix for session IDs."""
+        return "chat_"
+
+    def _get_default_title(self) -> str:
+        """Return the default title for new sessions."""
+        return "New Chat"
+
+    def _create_session_data(
+        self,
+        settings: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> dict[str, Any]:
         """
-        Initialize SessionManager.
+        Create chat-specific session data.
 
         Args:
-            base_dir: Base directory for session storage.
-                     Defaults to project_root/data/user
+            settings: Chat settings (kb_name, enable_rag, enable_web_search)
+
+        Returns:
+            Dict with settings
         """
-        if base_dir is None:
-            # Current file: src/agents/chat/session_manager.py
-            # Project root: 4 levels up
-            project_root = Path(__file__).resolve().parents[3]
-            base_dir_path = project_root / "data" / "user"
-        else:
-            base_dir_path = Path(base_dir)
+        return {
+            "settings": settings or {},
+        }
 
-        self.base_dir = base_dir_path
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+    def _get_session_summary(self, session: dict[str, Any]) -> dict[str, Any]:
+        """
+        Create a summary of a chat session for listing.
 
-        self.sessions_file = self.base_dir / "chat_sessions.json"
-        self._ensure_file()
+        Args:
+            session: The full session data
 
-    def _ensure_file(self):
-        """Ensure the sessions file exists with correct format."""
-        if not self.sessions_file.exists():
-            initial_data = {
-                "version": "1.0",
-                "sessions": [],
-            }
-            self._save_data(initial_data)
+        Returns:
+            Dict containing summary fields
+        """
+        messages = session.get("messages", [])
+        return {
+            "session_id": session.get("session_id"),
+            "title": session.get("title"),
+            "message_count": len(messages),
+            "settings": session.get("settings"),
+            "created_at": session.get("created_at"),
+            "updated_at": session.get("updated_at"),
+            # Include preview of last message
+            "last_message": (
+                messages[-1].get("content", "")[:100] if messages else ""
+            ),
+        }
 
-    def _load_data(self) -> dict[str, Any]:
-        """Load sessions data from file."""
-        try:
-            with open(self.sessions_file, encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
-            return {"version": "1.0", "sessions": []}
-
-    def _save_data(self, data: dict[str, Any]):
-        """Save sessions data to file."""
-        with open(self.sessions_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
-    def _get_sessions(self) -> list[dict[str, Any]]:
-        """Get list of all sessions."""
-        data = self._load_data()
-        return data.get("sessions", [])
-
-    def _save_sessions(self, sessions: list[dict[str, Any]]):
-        """Save sessions list."""
-        data = self._load_data()
-        data["sessions"] = sessions
-        self._save_data(data)
+    # =========================================================================
+    # Chat-Specific Methods
+    # =========================================================================
 
     def create_session(
         self,
-        title: str = "New Chat",
+        title: str | None = None,
         settings: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Create a new chat session.
 
         Args:
-            title: Session title
+            title: Session title (uses default if None)
             settings: Optional settings (kb_name, enable_rag, enable_web_search)
 
         Returns:
             New session dict with session_id
         """
-        session_id = f"chat_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
-        now = time.time()
-
-        session = {
-            "session_id": session_id,
-            "title": title[:100],  # Limit title length
-            "messages": [],
-            "settings": settings or {},
-            "created_at": now,
-            "updated_at": now,
-        }
-
-        sessions = self._get_sessions()
-        sessions.insert(0, session)  # Add to front (newest first)
-
-        # Limit total sessions to prevent file bloat
-        max_sessions = 100
-        if len(sessions) > max_sessions:
-            sessions = sessions[:max_sessions]
-
-        self._save_sessions(sessions)
-
-        return session
-
-    def get_session(self, session_id: str) -> dict[str, Any] | None:
-        """
-        Get a session by ID.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            Session dict or None if not found
-        """
-        sessions = self._get_sessions()
-        for session in sessions:
-            if session.get("session_id") == session_id:
-                return session
-        return None
-
-    def update_session(
-        self,
-        session_id: str,
-        messages: list[dict[str, Any]] | None = None,
-        title: str | None = None,
-        settings: dict[str, Any] | None = None,
-    ) -> dict[str, Any] | None:
-        """
-        Update a session with new data.
-
-        Args:
-            session_id: Session identifier
-            messages: New messages list (replaces existing)
-            title: New title (optional)
-            settings: New settings (optional)
-
-        Returns:
-            Updated session or None if not found
-        """
-        sessions = self._get_sessions()
-
-        for i, session in enumerate(sessions):
-            if session.get("session_id") == session_id:
-                if messages is not None:
-                    session["messages"] = messages
-                if title is not None:
-                    session["title"] = title[:100]
-                if settings is not None:
-                    session["settings"] = settings
-
-                session["updated_at"] = time.time()
-
-                # Move to front (most recently updated)
-                sessions.pop(i)
-                sessions.insert(0, session)
-
-                self._save_sessions(sessions)
-                return session
-
-        return None
+        return super().create_session(
+            title=title,
+            settings=settings,
+        )
 
     def add_message(
         self,
@@ -201,99 +132,38 @@ class SessionManager:
         Returns:
             Updated session or None if not found
         """
-        session = self.get_session(session_id)
-        if not session:
-            return None
+        return super().add_message(
+            session_id=session_id,
+            role=role,
+            content=content,
+            sources=sources,
+        )
 
-        message = {
-            "role": role,
-            "content": content,
-            "timestamp": time.time(),
-        }
-        if sources:
-            message["sources"] = sources
-
-        messages = session.get("messages", [])
-        messages.append(message)
-
-        # Update title from first user message if still default
-        if session.get("title") == "New Chat" and role == "user":
-            new_title = content[:50] + ("..." if len(content) > 50 else "")
-            return self.update_session(session_id, messages=messages, title=new_title)
-
-        return self.update_session(session_id, messages=messages)
-
-    def list_sessions(
+    def update_session(
         self,
-        limit: int = 20,
-        include_messages: bool = False,
-    ) -> list[dict[str, Any]]:
+        session_id: str,
+        messages: list[dict[str, Any]] | None = None,
+        title: str | None = None,
+        settings: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         """
-        List recent sessions.
-
-        Args:
-            limit: Maximum number of sessions to return
-            include_messages: Whether to include full message history
-
-        Returns:
-            List of session dicts (newest first)
-        """
-        sessions = self._get_sessions()[:limit]
-
-        if not include_messages:
-            # Return summary only (without full messages)
-            return [
-                {
-                    "session_id": s.get("session_id"),
-                    "title": s.get("title"),
-                    "message_count": len(s.get("messages", [])),
-                    "settings": s.get("settings"),
-                    "created_at": s.get("created_at"),
-                    "updated_at": s.get("updated_at"),
-                    # Include preview of last message
-                    "last_message": (
-                        s.get("messages", [])[-1].get("content", "")[:100]
-                        if s.get("messages")
-                        else ""
-                    ),
-                }
-                for s in sessions
-            ]
-
-        return sessions
-
-    def delete_session(self, session_id: str) -> bool:
-        """
-        Delete a session.
+        Update a session with new data.
 
         Args:
             session_id: Session identifier
+            messages: New messages list (replaces existing)
+            title: New title (optional)
+            settings: New settings (optional)
 
         Returns:
-            True if deleted, False if not found
+            Updated session or None if not found
         """
-        sessions = self._get_sessions()
-        original_count = len(sessions)
-
-        sessions = [s for s in sessions if s.get("session_id") != session_id]
-
-        if len(sessions) < original_count:
-            self._save_sessions(sessions)
-            return True
-
-        return False
-
-    def clear_all_sessions(self) -> int:
-        """
-        Delete all sessions.
-
-        Returns:
-            Number of sessions deleted
-        """
-        sessions = self._get_sessions()
-        count = len(sessions)
-        self._save_sessions([])
-        return count
+        return super().update_session(
+            session_id=session_id,
+            messages=messages,
+            title=title,
+            settings=settings,
+        )
 
 
 # Singleton instance for convenience

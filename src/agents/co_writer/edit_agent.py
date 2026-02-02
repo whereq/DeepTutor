@@ -10,12 +10,15 @@ from typing import Any, Literal
 import uuid
 
 from src.agents.base_agent import BaseAgent
+from src.services.path_service import get_path_service
 from src.tools.rag_tool import rag_search
 from src.tools.web_search import web_search
 
-USER_DIR = Path(__file__).parent.parent.parent.parent / "data" / "user" / "co-writer"
-HISTORY_FILE = USER_DIR / "history.json"
-TOOL_CALLS_DIR = USER_DIR / "tool_calls"
+# Use PathService for directory paths
+_path_service = get_path_service()
+USER_DIR = _path_service.get_co_writer_dir()
+HISTORY_FILE = _path_service.get_co_writer_history_file()
+TOOL_CALLS_DIR = _path_service.get_co_writer_tool_calls_dir()
 
 
 def ensure_dirs():

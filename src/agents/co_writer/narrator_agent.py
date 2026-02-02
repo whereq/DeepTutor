@@ -17,12 +17,12 @@ import uuid
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from src.agents.base_agent import BaseAgent
+from src.services.path_service import get_path_service
 from src.services.tts import get_tts_config
 
-# Import shared stats from edit_agent for legacy compatibility
-
-# Define storage path (unified under user/co-writer/ directory)
-USER_DIR = Path(__file__).parent.parent.parent.parent / "data" / "user" / "co-writer" / "audio"
+# Use PathService for storage path
+_path_service = get_path_service()
+USER_DIR = _path_service.get_co_writer_audio_dir()
 
 
 def ensure_dirs():

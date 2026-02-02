@@ -11,8 +11,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-INTERFACE_SETTINGS_FILE = PROJECT_ROOT / "data" / "user" / "settings" / "interface.json"
+from src.services.path_service import get_path_service
+
+_path_service = get_path_service()
+INTERFACE_SETTINGS_FILE = _path_service.get_settings_file("interface")
 
 DEFAULT_UI_SETTINGS: dict[str, Any] = {
     "theme": "light",

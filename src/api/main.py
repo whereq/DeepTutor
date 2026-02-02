@@ -22,6 +22,7 @@ from src.api.routers import (
     system,
 )
 from src.logging import get_logger
+from src.services.path_service import get_path_service
 
 # Note: Don't set service_prefix here - start_web.py already adds [Backend] prefix
 logger = get_logger("API")
@@ -142,9 +143,50 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to initialize LLM client at startup: {e}")
 
+    # Start EventBus for personalization
+    try:
+        from src.core.event_bus import get_event_bus
+
+        event_bus = get_event_bus()
+        await event_bus.start()
+        logger.info("EventBus started")
+    except Exception as e:
+        logger.warning(f"Failed to start EventBus: {e}")
+
+    # Start PersonalizationService for memory management
+    try:
+        from src.personalization.service import get_personalization_service
+
+        personalization_service = get_personalization_service()
+        await personalization_service.start()
+        logger.info("PersonalizationService started")
+    except Exception as e:
+        logger.warning(f"Failed to start PersonalizationService: {e}")
+
     yield
+
     # Execute on shutdown
     logger.info("Application shutdown")
+
+    # Stop PersonalizationService
+    try:
+        from src.personalization.service import get_personalization_service
+
+        personalization_service = get_personalization_service()
+        await personalization_service.stop()
+        logger.info("PersonalizationService stopped")
+    except Exception as e:
+        logger.warning(f"Failed to stop PersonalizationService: {e}")
+
+    # Stop EventBus
+    try:
+        from src.core.event_bus import get_event_bus
+
+        event_bus = get_event_bus()
+        await event_bus.stop()
+        logger.info("EventBus stopped")
+    except Exception as e:
+        logger.warning(f"Failed to stop EventBus: {e}")
 
 
 app = FastAPI(
@@ -169,16 +211,16 @@ app.add_middleware(
 
 # Mount user directory as static root for generated artifacts
 # This allows frontend to access generated artifacts (images, PDFs, etc.)
-# URL: /api/outputs/solve/solve_xxx/artifacts/image.png
-# Physical Path: DeepTutor/data/user/solve/solve_xxx/artifacts/image.png
-project_root = Path(__file__).parent.parent.parent
-user_dir = project_root / "data" / "user"
+# URL: /api/outputs/agent/solve/solve_xxx/artifacts/image.png
+# Physical Path: DeepTutor/data/user/agent/solve/solve_xxx/artifacts/image.png
+path_service = get_path_service()
+user_dir = path_service.user_data_dir
 
 # Initialize user directories on startup
 try:
     from src.services.setup import init_user_directories
 
-    init_user_directories(project_root)
+    init_user_directories()
 except Exception:
     # Fallback: just create the main directory if it doesn't exist
     if not user_dir.exists():

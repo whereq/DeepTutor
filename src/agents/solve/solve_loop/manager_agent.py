@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-ManagerAgent - Manager (Refactored: directly plans step-level solution steps)
-Based on user question and knowledge chain, plans solution steps
+ManagerAgent - Milestone Planner
+
+Based on user question and knowledge chain, generates a coarse-grained todo-list
+for the solve phase to iterate over.
 """
 
 from pathlib import Path
@@ -15,12 +17,12 @@ sys.path.insert(0, str(project_root))
 
 from src.agents.base_agent import BaseAgent
 
-from ..memory import InvestigateMemory, SolveChainStep, SolveMemory
+from ..memory import InvestigateMemory, SolveMemory, TodoItem
 from ..utils.json_utils import extract_json_from_text
 
 
 class ManagerAgent(BaseAgent):
-    """Manager Agent - Plans solution steps"""
+    """Manager Agent - Generates todo-list milestones for solving"""
 
     def __init__(
         self,
@@ -50,7 +52,7 @@ class ManagerAgent(BaseAgent):
         verbose: bool = True,
     ) -> dict[str, Any]:
         """
-        Process management workflow - plan solution steps
+        Process management workflow - generate todo-list milestones
 
         Args:
             question: User question
@@ -59,22 +61,22 @@ class ManagerAgent(BaseAgent):
             verbose: Whether to print detailed information
 
         Returns:
-            dict: Management result
+            dict: Management result with todo-list info
         """
         stage_label = "Plan"
         self.logger.log_stage_progress(
             stage_label, "start", f"question={question[:60]}{'...' if len(question) > 60 else ''}"
         )
 
-        # 1. Check if steps already exist
-        if solve_memory.solve_chains:
-            steps_count = len(solve_memory.solve_chains)
-            self.logger.log_stage_progress(stage_label, "skip", f"Already has {steps_count} steps")
+        # 1. Check if todo-list already exists
+        if solve_memory.todo_list:
+            todos_count = len(solve_memory.todo_list)
+            self.logger.log_stage_progress(stage_label, "skip", f"Already has {todos_count} todos")
             return {
-                "has_steps": True,
-                "steps_count": steps_count,
-                "num_steps": steps_count,  # Maintain compatibility
-                "message": "Steps already exist, skipping planning",
+                "has_todos": True,
+                "todos_count": todos_count,
+                "num_todos": todos_count,
+                "message": "Todo-list already exists, skipping planning",
             }
 
         # 2. Build context
@@ -93,26 +95,31 @@ class ManagerAgent(BaseAgent):
             response_format={"type": "json_object"},  # Force JSON
         )
 
-        # 5. Parse output and create StepItem
-        steps = self._parse_response(response, investigate_memory)
+        # 5. Parse output and create TodoItems
+        todos = self._parse_todo_response(response)
 
-        # 6. Add steps to solve_memory
-        solve_memory.create_chains(steps)
+        # 6. Add todos to solve_memory
+        solve_memory.create_todo_list(todos)
         solve_memory.save()
 
-        steps_count = len(steps)
-        self.logger.log_stage_progress(stage_label, "complete", f"Generated {steps_count} steps")
+        # 7. Log todo-list details
+        todo_list_log = solve_memory.format_todo_list_for_log()
+        for line in todo_list_log.split("\n"):
+            self.logger.info(line)
+
+        todos_count = len(todos)
+        self.logger.log_stage_progress(stage_label, "complete", f"Generated {todos_count} todos")
         return {
-            "has_steps": True,
-            "steps_count": steps_count,
-            "num_steps": steps_count,  # Maintain compatibility
-            "message": f"Generated {steps_count} steps",
+            "has_todos": True,
+            "todos_count": todos_count,
+            "num_todos": todos_count,
+            "message": f"Generated {todos_count} todos",
         }
 
     def _build_context(
         self, question: str, investigate_memory: InvestigateMemory
     ) -> dict[str, Any]:
-        """Build context"""
+        """Build context for LLM call"""
         # Get knowledge chain information (cite_id + summary)
         knowledge_info = []
         for knowledge in investigate_memory.knowledge_chain:
@@ -170,12 +177,9 @@ class ManagerAgent(BaseAgent):
             )
         return template.format(**context)
 
-    def _parse_response(
-        self, response: str, investigate_memory: InvestigateMemory
-    ) -> list[SolveChainStep]:
-        """Parse LLM output (JSON format), create solve-chain steps"""
-        steps: list[SolveChainStep] = []
-        knowledge_ids = {k.cite_id for k in investigate_memory.knowledge_chain}
+    def _parse_todo_response(self, response: str) -> list[TodoItem]:
+        """Parse LLM output (JSON format), create todo-list items"""
+        todos: list[TodoItem] = []
 
         # Use json_utils to extract JSON
         parsed_data = extract_json_from_text(response)
@@ -185,90 +189,50 @@ class ManagerAgent(BaseAgent):
                 f"Failed to parse valid JSON object from LLM output. Original output: {response[:200]}..."
             )
 
-        steps_data = parsed_data.get("steps", [])
-        if not isinstance(steps_data, list):
-            raise ValueError(f"'steps' field in JSON is not an array. Parsed result: {parsed_data}")
+        todos_data = parsed_data.get("todos", [])
+        if not isinstance(todos_data, list):
+            raise ValueError(f"'todos' field in JSON is not an array. Parsed result: {parsed_data}")
 
-        if not steps_data:
-            raise ValueError("'steps' array in JSON is empty, please check LLM output")
+        if not todos_data:
+            raise ValueError("'todos' array in JSON is empty, please check LLM output")
 
-        # Parse each step
-        for idx, step_data in enumerate(steps_data, 1):
-            if not isinstance(step_data, dict):
+        # Parse each todo
+        for idx, todo_data in enumerate(todos_data, 1):
+            if not isinstance(todo_data, dict):
                 self.logger.warning(
-                    f"[ManagerAgent] Skipping invalid step data (index {idx}): {step_data}"
+                    f"[ManagerAgent] Skipping invalid todo data (index {idx}): {todo_data}"
                 )
                 continue
 
-            # Get step_id
-            step_id = step_data.get("step_id", "").strip()
-            if not step_id:
-                step_id = f"S{idx}"
-            elif not step_id.upper().startswith("S"):
-                step_id = f"S{step_id}"
+            # Get todo_id
+            todo_id = todo_data.get("todo_id", "").strip()
+            if not todo_id:
+                todo_id = f"T{idx}"
+            elif not todo_id.upper().startswith("T"):
+                todo_id = f"T{todo_id}"
 
-            # Get role and target
-            role = step_data.get("role", "").strip()
-            target = step_data.get("target", "").strip()
+            # Get description
+            description = todo_data.get("description", "").strip()
+            if not description:
+                self.logger.warning(f"[ManagerAgent] Skipping todo {todo_id} with empty description")
+                continue
 
-            # If target already contains role, use directly; otherwise combine
-            if target:
-                if "：" in target or ":" in target:
-                    step_target = target
-                elif role:
-                    step_target = f"{role}：{target}"
-                else:
-                    step_target = target
-            else:
-                raise ValueError(f"Step {step_id} missing 'target' field")
-
-            # Get cite_ids
-            cite_ids_raw = step_data.get("cite_ids", [])
-            if not isinstance(cite_ids_raw, list):
-                # Compatible with string format
-                if isinstance(cite_ids_raw, str):
-                    cite_ids_raw = [cite_ids_raw] if cite_ids_raw and cite_ids_raw != "none" else []
-                else:
-                    cite_ids_raw = []
-
-            # Clean and normalize cite_ids
-            filtered_cites = []
-            for cite in cite_ids_raw:
-                if not cite or cite == "none":
-                    continue
-                # Ensure format is [xxx]
-                cleaned = str(cite).strip()
-                if not cleaned.startswith("["):
-                    cleaned = f"[{cleaned.strip('[] ')}]"
-
-                # Filter invalid cite
-                if cleaned in knowledge_ids:
-                    filtered_cites.append(cleaned)
-                else:
-                    self.logger.warning(
-                        f"[ManagerAgent] Skipping unknown cite_id {cleaned} (not in knowledge chain)"
-                    )
-
-            # Create step
-            steps.append(
-                SolveChainStep(
-                    step_id=step_id,
-                    step_target=step_target,
-                    available_cite=list(dict.fromkeys(filtered_cites)),  # Remove duplicates
-                    status="undone",
+            # Create todo item
+            todos.append(
+                TodoItem(
+                    todo_id=todo_id,
+                    description=description,
+                    status="pending",
                 )
             )
 
-        if not steps:
-            raise ValueError("Failed to parse any valid steps, please check LLM output format")
+        if not todos:
+            raise ValueError("Failed to parse any valid todos, please check LLM output format")
 
         logger = getattr(self, "logger", None)
         if logger is not None:
-            logger.info(f"[ManagerAgent._parse_response] Parsed {len(steps)} solve-chain steps")
-            for step in steps:
-                logger.info(f"  - {step.step_id}: {step.step_target}")
-                logger.info(
-                    f"    Available citations: {', '.join(step.available_cite) or '(none)'}"
-                )
+            logger.info(f"[ManagerAgent._parse_todo_response] Parsed {len(todos)} todo items")
+            for todo in todos:
+                logger.info(f"  - {todo.todo_id}: {todo.description}")
 
-        return steps
+        return todos

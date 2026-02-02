@@ -15,6 +15,9 @@ system: |
 generate: |
   Generate a question based on the following information:
 
+  ## User Preference
+  {preference}
+
   Requirements:
   {requirements}
 
@@ -42,6 +45,9 @@ generate: |
 
 generate_with_reference: |
   Generate a new question that draws inspiration from the following reference but is clearly distinct in scenario and reasoning:
+
+  ## User Preference
+  {preference}
 
   Reference question:
   {reference_question}

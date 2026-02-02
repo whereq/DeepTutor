@@ -45,7 +45,9 @@ Usage:
 
 # Note: rag and embedding modules are lazy-loaded via __getattr__
 # to avoid importing heavy dependencies (lightrag, llama_index) at module load time
-from . import config, llm, prompt, search, setup, tts
+from . import config, llm, prompt, search, session, setup, tts
+from .path_service import PathService, get_path_service
+from .session import BaseSessionManager
 
 __all__ = [
     "llm",
@@ -55,7 +57,11 @@ __all__ = [
     "tts",
     "search",
     "setup",
+    "session",
     "config",
+    "PathService",
+    "get_path_service",
+    "BaseSessionManager",
 ]
 
 

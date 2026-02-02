@@ -15,6 +15,9 @@ system: |
 generate: |
   根据以下信息生成题目：
 
+  ## 用户偏好
+  {preference}
+
   要求：
   {requirements}
 
@@ -42,6 +45,9 @@ generate: |
 
 generate_with_reference: |
   生成一道新题目，从以下参考题目获取灵感，但在场景和推理上明显不同：
+
+  ## 用户偏好
+  {preference}
 
   参考题目：
   {reference_question}

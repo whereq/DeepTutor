@@ -14,9 +14,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from src.agents.solve import MainSolver, SolverSessionManager
-from src.api.utils.history import ActivityType, history_manager
 from src.api.utils.log_interceptor import LogInterceptor
 from src.api.utils.task_id_manager import TaskIDManager
+from src.services.path_service import get_path_service
 
 _project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(_project_root))
@@ -189,8 +189,8 @@ async def websocket_solve(websocket: WebSocket):
         await websocket.send_json({"type": "task_id", "task_id": task_id})
 
         # 2. Initialize Solver
-        root_dir = Path(__file__).parent.parent.parent.parent
-        output_base = root_dir / "data" / "user" / "solve"
+        path_service = get_path_service()
+        output_base = path_service.get_solve_dir()
 
         try:
             llm_config = get_llm_config()
@@ -371,21 +371,6 @@ async def websocket_solve(websocket: WebSocket):
                         session_id=session_id,
                         token_stats=display_manager.stats.copy(),
                     )
-
-            # Save to history
-            history_manager.add_entry(
-                activity_type=ActivityType.SOLVE,
-                title=question[:50] + "..." if len(question) > 50 else question,
-                content={
-                    "question": question,
-                    "answer": result.get("final_answer"),
-                    "kb_name": kb_name,
-                    "session_id": session_id,
-                },
-                summary=(
-                    result.get("final_answer")[:100] + "..." if result.get("final_answer") else ""
-                ),
-            )
 
     except Exception as e:
         # Mark connection as closed before sending error (to prevent log_pusher from interfering)
