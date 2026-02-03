@@ -10,6 +10,7 @@ paths:
   research_output_dir: ./data/user/research/cache
   research_reports_dir: ./data/user/research/reports
   solve_output_dir: ./data/user/solve
+  vision_solver_output_dir: ./data/user/vision_solver
 tools:
   rag_tool:
     kb_base_dir: ./data/knowledge_bases
@@ -66,6 +67,23 @@ solve:
       max_iterations: 3
     precision_answer_agent:
       enabled: true
+vision_solver:
+  enabled: true
+  max_image_size: 10MB
+  geogebra:
+    xmin: -10
+    xmax: 10
+    ymin: -8
+    ymax: 8
+  stages:
+    bbox:
+      temperature: 0.3
+    analysis:
+      temperature: 0.3
+    ggbscript:
+      temperature: 0.3
+    reflection:
+      temperature: 0.3
 research:
   planning:
     rephrase:

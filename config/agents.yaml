@@ -55,3 +55,16 @@ co_writer:
 narrator:
   temperature: 0.7
   max_tokens: 4000
+
+# =============================================================================
+# Vision Solver Module - Image analysis and GeoGebra visualization
+# =============================================================================
+# Agents: vision_solver_agent (with bbox, analysis, ggbscript, reflection stages)
+# This module handles:
+# - BBox: Visual element detection with pixel coordinates
+# - Analysis: Geometric semantic analysis
+# - GGBScript: GeoGebra command generation
+# - Reflection: Command validation and correction
+vision_solver:
+  temperature: 0.3
+  max_tokens: 12000
