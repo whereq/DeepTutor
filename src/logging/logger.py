@@ -24,6 +24,9 @@ from typing import Any, List, Optional, Union
 
 from src.config.constants import PROJECT_ROOT
 
+# Note: path_service is imported lazily inside Logger.__init__ to avoid
+# circular import: logging -> services -> services/config -> logging
+
 
 class LogLevel(Enum):
     """Log levels with standard tags"""
@@ -177,7 +180,10 @@ class Logger:
         # Setup log directory
         log_dir_path: Path
         if log_dir is None:
-            log_dir_path = PROJECT_ROOT / "data" / "user" / "logs"
+            # Lazy import to avoid circular import
+            from src.services.path_service import get_path_service
+            path_svc = get_path_service()
+            log_dir_path = path_svc.get_logs_dir()
         else:
             log_dir_path = Path(log_dir) if isinstance(log_dir, str) else log_dir
             # If relative path, resolve it relative to project root

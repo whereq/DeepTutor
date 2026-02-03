@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 """
-Memory System - Memory file system
-Provides implementations of InvestigateMemory and SolveMemory
+Memory System - Memory storage for solving process
+
+Provides implementations of InvestigateMemory and SolveMemory.
 """
 
 from .citation_memory import (
@@ -14,8 +15,13 @@ from .investigate_memory import (
     Reflections,
 )
 from .solve_memory import (
+    # Core data structures
+    IterationRecord,
+    NoteAction,
     SolveChainStep,
     SolveMemory,
+    SolveOutput,
+    TodoItem,
     ToolCallRecord,
 )
 
@@ -24,10 +30,16 @@ __all__ = [
     "InvestigateMemory",
     "KnowledgeItem",
     "Reflections",
-    # Solve Memory
+    # Solve Memory - Core
     "SolveMemory",
-    "SolveChainStep",
+    "TodoItem",
     "ToolCallRecord",
+    # Solve Memory - New iteration architecture
+    "IterationRecord",
+    "NoteAction",
+    # Solve Memory - Legacy/Backward compatibility
+    "SolveOutput",
+    "SolveChainStep",
     # Citation Memory
     "CitationMemory",
     "CitationItem",

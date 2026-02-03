@@ -9,9 +9,9 @@ import traceback
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.agents.question import AgentCoordinator
-from src.api.utils.history import ActivityType, history_manager
 from src.api.utils.log_interceptor import LogInterceptor
 from src.api.utils.task_id_manager import TaskIDManager
+from src.services.path_service import get_path_service
 from src.tools.question import mimic_exam_questions
 from src.utils.document_validator import DocumentValidator
 from src.utils.error_utils import format_exception_message
@@ -33,9 +33,9 @@ logger = get_logger("QuestionAPI", log_dir=log_dir)
 
 router = APIRouter()
 
-# Output directory for mimic mode - use data/user/question
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-MIMIC_OUTPUT_DIR = PROJECT_ROOT / "data" / "user" / "question" / "mimic_papers"
+# Output directory for mimic mode - use agent/question/mimic_papers
+_path_service = get_path_service()
+MIMIC_OUTPUT_DIR = _path_service.get_question_dir() / "mimic_papers"
 
 
 @router.websocket("/mimic")
@@ -364,9 +364,8 @@ async def websocket_question_generate(websocket: WebSocket):
         )
 
         # 2. Initialize Coordinator
-        # Define unified output directory (DeepTutor/data/user/question)
-        root_dir = Path(__file__).parent.parent.parent.parent
-        output_base = root_dir / "data" / "user" / "question"
+        path_service = get_path_service()
+        output_base = path_service.get_question_dir()
 
         try:
             llm_config = get_llm_config()
@@ -436,20 +435,6 @@ async def websocket_question_generate(websocket: WebSocket):
                 )
 
                 # Results are already sent via WebSocket callbacks in the coordinator
-                # Just need to save to history for successful results
-                for result in batch_result.get("results", []):
-                    # Save to history
-                    history_manager.add_entry(
-                        activity_type=ActivityType.QUESTION,
-                        title=f"{requirement.get('knowledge_point', 'Question')} ({requirement.get('question_type')})",
-                        content={
-                            "requirement": requirement,
-                            "question": result.get("question", {}),
-                            "validation": result.get("validation", {}),
-                            "kb_name": kb_name,
-                        },
-                        summary=result.get("question", {}).get("question", "")[:100],
-                    )
 
                 # Send final token stats
                 try:

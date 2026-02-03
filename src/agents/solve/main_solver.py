@@ -18,15 +18,22 @@ from typing import Any
 import yaml
 
 from ...services.config import parse_language
+from ...services.path_service import get_path_service
 from .analysis_loop import InvestigateAgent, NoteAgent
 
 # Dual-Loop Architecture
-from .memory import CitationMemory, InvestigateMemory, SolveChainStep, SolveMemory
+from .memory import (
+    CitationMemory,
+    InvestigateMemory,
+    SolveMemory,
+    SolveOutput,
+)
 from .solve_loop import (
     ManagerAgent,
     PrecisionAnswerAgent,
     ResponseAgent,
     SolveAgent,
+    SolveNoteAgent,
     ToolAgent,
 )
 from .utils import ConfigValidator, PerformanceMonitor, SolveAgentLogger
@@ -126,9 +133,11 @@ class MainSolver:
             paths_config = full_config.get("paths", {})
 
             # Build config structure expected by ConfigValidator
+            path_service = get_path_service()
+            default_solve_dir = str(path_service.get_solve_dir())
             self.config = {
                 "system": {
-                    "output_base_dir": paths_config.get("solve_output_dir", "./data/user/solve"),
+                    "output_base_dir": paths_config.get("solve_output_dir", default_solve_dir),
                     "save_intermediate_results": solve_config.get(
                         "save_intermediate_results", True
                     ),
@@ -308,6 +317,7 @@ class MainSolver:
         self.solve_agent = None
         self.tool_agent = None
         self.response_agent = None
+        self.solve_note_agent = None
         self.precision_answer_agent = None
         self.logger.info("  Solve Loop agents (lazy init)")
 
@@ -324,7 +334,8 @@ class MainSolver:
         """
         # Create output directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_base_dir = self.config.get("system", {}).get("output_base_dir", "./user/solve")
+        path_service = get_path_service()
+        output_base_dir = self.config.get("system", {}).get("output_base_dir", str(path_service.get_solve_dir()))
         output_dir = os.path.join(output_base_dir, f"solve_{timestamp}")
         os.makedirs(output_dir, exist_ok=True)
 
@@ -387,7 +398,7 @@ class MainSolver:
         """
         Dual-Loop Pipeline:
         1) Analysis Loop: Investigate → Note
-        2) Solve Loop: Plan → Manager → Solve → Check → Format
+        2) Solve Loop: Plan → Solve → Note → Format
         """
 
         self.logger.info("Pipeline: Analysis Loop → Solve Loop")
@@ -510,7 +521,10 @@ class MainSolver:
         # ========== Solve Loop ==========
         self.logger.stage("Solve Loop", "start", "Generating solution")
 
-        solve_memory = SolveMemory.load_or_create(output_dir=output_dir, user_question=question)
+        solve_memory = SolveMemory.load_or_create(
+            output_dir=output_dir,
+            user_question=question,
+        )
 
         # Initialize Solve Loop Agents (if not yet initialized)
         if self.manager_agent is None:
@@ -543,6 +557,13 @@ class MainSolver:
                 api_version=self.api_version,
                 token_tracker=self.token_tracker,
             )
+            self.solve_note_agent = SolveNoteAgent(
+                self.config,
+                self.api_key,
+                self.base_url,
+                api_version=self.api_version,
+                token_tracker=self.token_tracker,
+            )
 
             precision_enabled = (
                 self.config.get("agents", {})
@@ -558,8 +579,8 @@ class MainSolver:
                     token_tracker=self.token_tracker,
                 )
 
-        # 1. Plan: Generate solving plan
-        self.logger.info("Plan: Generating solution strategy...")
+        # 1. Plan: Generate todo-list
+        self.logger.info("Plan: Generating todo-list...")
 
         plan_result = None
         for attempt in range(2):
@@ -571,8 +592,8 @@ class MainSolver:
                         solve_memory=solve_memory,
                         verbose=(attempt > 0),
                     )
-                num_steps = plan_result.get("num_steps") or plan_result.get("steps_count", 0)
-                self.logger.log_stage_progress("Plan", "complete", f"steps={num_steps}")
+                num_items = plan_result.get("num_todos") or plan_result.get("todos_count", 0)
+                self.logger.log_stage_progress("Plan", "complete", f"todos={num_items}")
                 self.logger.update_token_stats(self.token_tracker.get_summary())
                 break
             except Exception as e:
@@ -580,7 +601,8 @@ class MainSolver:
                     self.logger.error(f"ManagerAgent attempt {attempt + 1} failed: {e!s}")
                     self.logger.warning("Retrying plan generation...")
                     solve_memory = SolveMemory.load_or_create(
-                        output_dir=output_dir, user_question=question
+                        output_dir=output_dir,
+                        user_question=question,
                     )
                 else:
                     self.logger.error(f"ManagerAgent attempt {attempt + 1} also failed")
@@ -589,225 +611,251 @@ class MainSolver:
         if plan_result is None:
             raise ValueError("ManagerAgent failed to generate plan")
 
-        # 2. Solve Loop - Execute steps
-        self.logger.info("Solve: Executing solution steps...")
-        max_correction_iterations = self.config.get("system", {}).get(
-            "max_solve_correction_iterations", 3
+        # 2. Solve-Note Loop
+        return await self._run_solve_loop(
+            question=question,
+            solve_memory=solve_memory,
+            investigate_memory=investigate_memory,
+            citation_memory=citation_memory,
+            output_dir=output_dir,
         )
-        total_planned_steps = len(solve_memory.solve_chains)
+
+    async def _run_solve_loop(
+        self,
+        question: str,
+        solve_memory: SolveMemory,
+        investigate_memory: InvestigateMemory,
+        citation_memory: CitationMemory,
+        output_dir: str,
+    ) -> dict[str, Any]:
+        """
+        Execute the solve loop with the new architecture:
+        
+        Outer Loop (per todo):
+            Inner Loop (solve_agent iterates until tool_type == "none")
+            -> note_agent (update todo-list)
+            -> response_agent (generate step_response)
+        """
+        from .memory import IterationRecord, ToolCallRecord
+
+        self.logger.info("Solve: Executing new iteration-based solve loop...")
+        max_outer_iterations = self.config.get("solve", {}).get("max_solve_iterations", 10)
+        max_inner_iterations = self.config.get("solve", {}).get("max_inner_iterations", 5)
+        total_todos = len(solve_memory.todo_list)
+        
         self.logger.log_stage_progress(
             "SolveLoop",
             "start",
-            f"planned_steps={total_planned_steps}, max_corrections={max_correction_iterations}",
+            f"todos={total_todos}, max_outer={max_outer_iterations}",
         )
 
-        for step_index, step in enumerate(solve_memory.solve_chains, 1):
-            if step.status in ("waiting_response", "done"):
-                continue
+        step_responses = []
+        accumulated_response = ""
 
-            self.logger.info(f"  Step {step_index}: {step.step_id}")
-            self.logger.debug(f"  Target: {step.step_target[:80]}")
-
-            if hasattr(self, "_send_progress_update"):
-                self._send_progress_update(
-                    "solve",
-                    {
-                        "step_index": step_index,
-                        "step_id": step.step_id,
-                        "step_target": step.step_target,
-                    },
+        for outer_iter in range(max_outer_iterations):
+            # Check if all todos are completed
+            if solve_memory.is_all_completed():
+                self.logger.log_stage_progress(
+                    "SolveLoop",
+                    "complete",
+                    f"All todos completed after {outer_iter} outer iterations",
                 )
+                break
 
-            self.logger.log_stage_progress("SolveLoop", "running", f"step={step.step_id}")
+            # Get next pending todo
+            current_todo = solve_memory.get_next_pending_todo()
+            if not current_todo:
+                self.logger.warning("No pending todo found, but not all completed")
+                break
 
-            if self._has_pending_tool_calls(step):
-                await self._execute_tool_calls(step, solve_memory, citation_memory, output_dir)
+            self.logger.info(f"  Outer Iteration {outer_iter + 1}: {current_todo.todo_id}")
+            self.logger.log_stage_progress(
+                "SolveLoop", "running", f"outer={outer_iter + 1}, todo={current_todo.todo_id}"
+            )
 
-            iteration = 0
-            while iteration < max_correction_iterations:
-                iteration += 1
-                current_step = solve_memory.get_step(step.step_id) or step
+            # Mark todo as in progress
+            solve_memory.mark_todo_in_progress(current_todo.todo_id)
 
-                with self.monitor.track(f"solve_execute_{step.step_id}_iter_{iteration}"):
+            # Create iteration record
+            iteration_record = solve_memory.create_iteration(current_todo.todo_id)
+
+            # ================================================================
+            # Inner Loop: solve_agent iterates until tool_type == "none"
+            # ================================================================
+            tool_call_history: list[ToolCallRecord] = []
+
+            for inner_iter in range(max_inner_iterations):
+                self.logger.info(f"    Inner {inner_iter + 1}: Calling solve_agent...")
+
+                with self.monitor.track(f"solve_inner_{outer_iter + 1}_{inner_iter + 1}"):
                     solve_result = await self.solve_agent.process(
+                        current_todo=current_todo,
+                        iteration_history=tool_call_history,
+                        knowledge_chain=investigate_memory.knowledge_chain,
                         question=question,
-                        current_step=current_step,
-                        solve_memory=solve_memory,
-                        investigate_memory=investigate_memory,
-                        citation_memory=citation_memory,
-                        kb_name=self.kb_name,
-                        output_dir=output_dir,
                         verbose=False,
                     )
 
-                if solve_result.get("raw_llm_response"):
-                    self.logger.log_stage_progress(
-                        "SolveLoop", "running", f"step={step.step_id}, iteration={iteration}"
-                    )
+                tool_type = solve_result.get("tool_type", "none")
+                query = solve_result.get("query", "")
 
-                if solve_result.get("requested_calls"):
-                    await self._execute_tool_calls(
-                        current_step, solve_memory, citation_memory, output_dir
-                    )
+                self.logger.info(f"      tool_type={tool_type}, query={query[:50]}...")
+
+                # Check for termination
+                if tool_type == "none" or solve_result.get("should_stop"):
+                    self.logger.info(f"    Inner loop ended: {solve_result.get('reason', 'tool_type=none')}")
+                    break
+
+                # Execute the tool call
+                tool_record = await self._execute_single_tool_call(
+                    tool_type=tool_type,
+                    query=query,
+                    iteration_record=iteration_record,
+                    citation_memory=citation_memory,
+                    output_dir=output_dir,
+                )
+
+                if tool_record:
+                    tool_call_history.append(tool_record)
+                    iteration_record.append_tool_call(tool_record)
 
                 self.logger.update_token_stats(self.token_tracker.get_summary())
 
-                if solve_result.get("finish_requested"):
-                    current_step = solve_memory.get_step(step.step_id) or step
-                    if self._has_pending_tool_calls(current_step):
-                        self.logger.debug("  Finish triggered but tools pending, continuing...")
-                        continue
-                    solve_memory.mark_step_waiting_response(current_step.step_id)
-                    solve_memory.save()
-                    self.logger.log_stage_progress(
-                        "SolveLoop", "complete", f"step={current_step.step_id} ready for response"
-                    )
-                    break
-            else:
-                self.logger.warning(f"  Step {step.step_id} max iterations reached")
-                solve_memory.mark_step_waiting_response(step.step_id)
-                solve_memory.save()
+            # ================================================================
+            # Note Agent: Update todo-list based on iteration results
+            # ================================================================
+            self.logger.info(f"    Calling note_agent...")
 
-        pending_steps = [
-            s.step_id
-            for s in solve_memory.solve_chains
-            if s.status not in ("waiting_response", "done")
-        ]
-        if pending_steps:
-            self.logger.warning(f"Steps not ready for response: {', '.join(pending_steps)}")
-
-        self.logger.log_stage_progress(
-            "SolveLoop", "complete", f"steps_processed={total_planned_steps - len(pending_steps)}"
-        )
-
-        # 3. Response: Generate responses for each step
-        self.logger.info("Response: Generating step responses...")
-        self.logger.log_stage_progress("ResponseLoop", "start", "Generating responses")
-
-        accumulated_response = ""
-        for step in solve_memory.solve_chains:
-            if step.status == "done" and step.step_response:
-                accumulated_response += step.step_response + "\n\n"
-
-        for step in solve_memory.solve_chains:
-            if step.status != "waiting_response":
-                continue
-
-            original_step_index = next(
-                (
-                    i + 1
-                    for i, s in enumerate(solve_memory.solve_chains)
-                    if s.step_id == step.step_id
-                ),
-                0,
-            )
-
-            if hasattr(self, "_send_progress_update"):
-                self._send_progress_update(
-                    "response",
-                    {
-                        "step_index": original_step_index,
-                        "step_id": step.step_id,
-                        "step_target": step.step_target,
-                    },
-                )
-
-            with self.monitor.track(f"solve_response_{step.step_id}"):
-                response_result = await self.response_agent.process(
-                    question=question,
-                    step=step,
+            with self.monitor.track(f"note_{outer_iter + 1}"):
+                note_result = await self.solve_note_agent.process(
                     solve_memory=solve_memory,
-                    investigate_memory=investigate_memory,
-                    citation_memory=citation_memory,
-                    output_dir=output_dir,
+                    iteration_record=iteration_record,
+                    target_todo=current_todo,
                     verbose=False,
-                    accumulated_response=accumulated_response,
                 )
 
-            step_response = response_result.get("step_response", "")
-            if step_response:
-                accumulated_response += step_response + "\n\n"
+            completed_todos = note_result.get("completed_todos", [])
+            if completed_todos:
+                self.logger.info(f"    Completed: {completed_todos}")
+            if note_result.get("actions"):
+                for action in note_result["actions"]:
+                    self.logger.info(f"      Action: {action}")
 
-            if response_result.get("raw_response"):
-                self.logger.log_stage_progress(
-                    "ResponseLoop", "running", f"step={step.step_id} response generated"
+            # ================================================================
+            # Fallback: If no tool calls and note_agent didn't mark complete,
+            # auto-complete the todo (solve_agent deemed info sufficient)
+            # ================================================================
+            if not tool_call_history and current_todo.todo_id not in completed_todos:
+                self.logger.info(
+                    f"    Auto-completing {current_todo.todo_id} (no tool calls needed)"
                 )
+                solve_memory.mark_todo_completed(
+                    todo_id=current_todo.todo_id,
+                    output_id="",
+                    evidence="Completed using existing knowledge (no additional tools needed)",
+                )
+                completed_todos.append(current_todo.todo_id)
+                iteration_record.set_completed_todos(completed_todos)
 
+            # ================================================================
+            # Response Agent: Generate step_response for completed todos
+            # ================================================================
+            if completed_todos:
+                self.logger.info(f"    Calling response_agent...")
+
+                # Get the completed TodoItem objects
+                completed_todo_items = [
+                    solve_memory.get_todo(tid)
+                    for tid in completed_todos
+                    if solve_memory.get_todo(tid)
+                ]
+
+                with self.monitor.track(f"response_{outer_iter + 1}"):
+                    response_result = await self.response_agent.process(
+                        question=question,
+                        iteration_record=iteration_record,
+                        completed_todos=completed_todo_items,
+                        citation_memory=citation_memory,
+                        knowledge_chain=investigate_memory.knowledge_chain,
+                        output_dir=output_dir,
+                        accumulated_response=accumulated_response,
+                        verbose=False,
+                    )
+
+                step_response = response_result.get("step_response", "")
+                if step_response:
+                    step_responses.append(step_response)
+                    accumulated_response = "\n\n".join(step_responses)
+                    self.logger.info(f"    Step response: {len(step_response)} chars")
+
+            # Save progress
+            solve_memory.save()
             self.logger.update_token_stats(self.token_tracker.get_summary())
 
-        self.logger.log_stage_progress("ResponseLoop", "complete", "All responses generated")
+        else:
+            self.logger.warning(f"Max outer iterations ({max_outer_iterations}) reached")
 
-        # 4. Finalize: Compile final answer
+        # ================================================================
+        # Finalize: Compile final answer
+        # ================================================================
+        completed_count = len(solve_memory.get_completed_todos())
+        self.logger.log_stage_progress(
+            "SolveLoop",
+            "complete",
+            f"completed={completed_count}/{total_todos}",
+        )
+
+        # Save todo-list execution history
+        try:
+            history_file = solve_memory.save_todo_history(output_dir)
+            self.logger.info(f"Todo history saved: {history_file}")
+        except Exception as e:
+            self.logger.warning(f"Failed to save todo history: {e}")
+
         self.logger.info("Finalize: Compiling final answer...")
-        self.logger.log_stage_progress("Finalize", "start", "Compiling steps")
+        self.logger.log_stage_progress("Finalize", "start", "Compiling step responses")
 
-        actual_total_steps = len(solve_memory.solve_chains)
-        completed_step_objs = [
-            step
-            for step in solve_memory.solve_chains
-            if step.status == "done" and step.step_response
-        ]
-        completed_steps = len(completed_step_objs)
+        # Compile step responses into final answer
+        final_answer = "\n\n".join(step_responses) if step_responses else ""
 
-        solve_memory.metadata["total_steps"] = actual_total_steps
-        solve_memory.metadata["completed_steps"] = completed_steps
-        solve_memory.save()
-        self.logger.info(f"  Stats: {completed_steps}/{actual_total_steps} steps completed")
-
-        used_cite_ids = []
-        for step in completed_step_objs:
-            used_cite_ids.extend(step.used_citations)
-        used_cite_ids = list(dict.fromkeys(used_cite_ids))
-
-        step_responses = [step.step_response for step in completed_step_objs]
-        final_answer = "\n\n".join(step_responses)
-
-        # Get language setting from config (unified in config/main.yaml system.language)
+        # Add citations section
+        used_cite_ids = solve_memory.get_all_iteration_citations()
         language = self.config.get("system", {}).get("language", "zh")
         lang_code = parse_language(language)
-
-        # Check if citations are enabled
         enable_citations = self.config.get("system", {}).get("enable_citations", True)
 
         citations_section = ""
-        if enable_citations and citation_memory:
+        if enable_citations and citation_memory and used_cite_ids:
             citations_section = citation_memory.format_citations_markdown(
                 used_cite_ids=used_cite_ids, language=lang_code
             )
             if citations_section:
                 final_answer = f"{final_answer}\n\n---\n\n{citations_section}"
 
-        format_result = {
-            "final_answer": final_answer.strip(),
-            "citations": used_cite_ids,
-            "metadata": {
-                "refined_steps": len(completed_step_objs),
-                "total_steps": actual_total_steps,
-                "citations_section": bool(citations_section),
-            },
-        }
+        self.logger.info(f"  Final answer: {len(final_answer)} chars")
+        self.logger.info(f"  Citations: {len(used_cite_ids)}")
 
-        self.logger.info(f"  Final answer: {len(format_result['final_answer'])} chars")
-        self.logger.info(f"  Citations: {len(format_result['citations'])}")
-
-        # 5. Precision Answer (if enabled)
+        # Precision Answer (if enabled)
+        final_answer_content = final_answer.strip()
         precision_answer_enabled = (
             self.config.get("agents", {}).get("precision_answer_agent", {}).get("enabled", False)
         )
-        final_answer_content = format_result["final_answer"]
 
-        if precision_answer_enabled and self.precision_answer_agent:
+        if precision_answer_enabled and self.precision_answer_agent and final_answer_content:
             self.logger.info("PrecisionAnswer: Generating concise answer...")
             with self.monitor.track("precision_answer"):
                 precision_result = await self.precision_answer_agent.process(
-                    question=question, detailed_answer=format_result["final_answer"], verbose=False
+                    question=question,
+                    detailed_answer=final_answer_content,
+                    verbose=False,
                 )
             if precision_result.get("needs_precision"):
                 precision_answer = precision_result.get("precision_answer", "")
                 self.logger.info(f"  Precision answer: {len(precision_answer)} chars")
-                final_answer_content = f"## Concise Answer\n\n{precision_answer}\n\n---\n\n## Detailed Answer\n\n{format_result['final_answer']}"
-            else:
-                self.logger.debug("  No precision answer needed")
+                final_answer_content = (
+                    f"## Concise Answer\n\n{precision_answer}\n\n---\n\n"
+                    f"## Detailed Answer\n\n{final_answer_content}"
+                )
 
         # Save final answer
         final_answer_file = Path(output_dir) / "final_answer.md"
@@ -817,6 +865,35 @@ class MainSolver:
         self.logger.success(f"Final answer saved: {final_answer_file}")
         self.logger.log_stage_progress("Format", "complete", f"output={final_answer_file}")
 
+        # Publish SOLVE_COMPLETE event for personalization
+        try:
+            from src.core.event_bus import Event, EventType, get_event_bus
+
+            # Collect tools used during the solve process
+            tools_used = list(set(
+                tc.tool_type 
+                for ir in solve_memory.iteration_records 
+                for tc in ir.tool_calls
+            ))
+
+            event = Event(
+                type=EventType.SOLVE_COMPLETE,
+                task_id=task_id,
+                user_input=question,
+                agent_output=final_answer_content[:2000],  # Truncate for efficiency
+                tools_used=tools_used,
+                success=True,
+                metadata={
+                    "total_todos": total_todos,
+                    "completed_todos": completed_count,
+                    "citations_count": len(used_cite_ids),
+                },
+            )
+            await get_event_bus().publish(event)
+            self.logger.debug("Published SOLVE_COMPLETE event")
+        except Exception as e:
+            self.logger.debug(f"Failed to publish SOLVE_COMPLETE event: {e}")
+
         return {
             "question": question,
             "output_dir": output_dir,
@@ -824,38 +901,199 @@ class MainSolver:
             "output_md": str(final_answer_file),
             "output_json": str(Path(output_dir) / "solve_chain.json"),
             "formatted_solution": final_answer_content,
-            "citations": format_result["citations"],
-            "pipeline": "reworked",
-            "total_steps": solve_memory.metadata["total_steps"],
+            "citations": used_cite_ids,
+            "pipeline": "iteration_mode",
+            "total_todos": total_todos,
+            "completed_todos": completed_count,
+            "total_iterations": len(solve_memory.iteration_records),
+            "total_step_responses": len(step_responses),
             "analysis_iterations": investigate_memory.metadata.get("total_iterations", 0),
-            "solve_steps": solve_memory.metadata["completed_steps"],
             "metadata": {
                 "coverage_rate": investigate_memory.metadata.get("coverage_rate", 0.0),
                 "avg_confidence": investigate_memory.metadata.get("avg_confidence", 0.0),
-                "total_steps": solve_memory.metadata["total_steps"],
+                "total_todos": total_todos,
+                "completed_todos": completed_count,
             },
         }
 
-    async def _execute_tool_calls(
+    async def _execute_single_tool_call(
         self,
-        step: SolveChainStep,
+        tool_type: str,
+        query: str,
+        iteration_record,
+        citation_memory: CitationMemory,
+        output_dir: str | None,
+    ):
+        """Execute a single tool call and return the ToolCallRecord"""
+        from .memory import ToolCallRecord
+
+        base_dir = Path(output_dir).resolve() if output_dir else Path().resolve()
+        artifacts_dir = base_dir / "artifacts"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create citation
+        cite_id = citation_memory.add_citation(
+            tool_type=tool_type,
+            query=query,
+            raw_result="",
+            content="",
+            stage="solve",
+            step_id=iteration_record.iteration_id,
+        )
+
+        # Create tool call record
+        record = ToolCallRecord(
+            tool_type=tool_type,
+            query=query,
+            cite_id=cite_id,
+            metadata={"kb_name": self.kb_name},
+        )
+
+        try:
+            # Execute the tool call
+            raw_answer, metadata = await self.tool_agent._execute_single_call(
+                record=record,
+                kb_name=self.kb_name,
+                output_dir=output_dir,
+                artifacts_dir=str(artifacts_dir),
+                verbose=False,
+            )
+
+            # Generate summary
+            summary = await self.tool_agent._summarize_tool_result(
+                tool_type=tool_type,
+                query=query,
+                raw_answer=raw_answer,
+            )
+
+            # Update the record
+            record.mark_result(
+                raw_answer=raw_answer,
+                summary=summary,
+                status="success",
+                metadata=metadata,
+            )
+
+            # Update citation
+            citation_memory.update_citation(
+                cite_id=cite_id,
+                raw_result=raw_answer,
+                content=summary,
+                metadata=metadata,
+                step_id=iteration_record.iteration_id,
+            )
+
+            self.logger.info(f"      Tool executed: {tool_type} -> {summary[:80]}...")
+
+        except Exception as e:
+            error_msg = str(e)
+            record.mark_result(
+                raw_answer=error_msg,
+                summary=f"Error: {error_msg[:200]}",
+                status="failed",
+                metadata={"error": True},
+            )
+            self.logger.warning(f"      Tool failed: {tool_type} -> {error_msg[:100]}")
+
+        citation_memory.save()
+        return record
+
+    async def _execute_output_tool_calls(
+        self,
+        output: SolveOutput,
         solve_memory: SolveMemory,
         citation_memory: CitationMemory,
         output_dir: str | None,
     ) -> dict[str, Any]:
-        tool_result = await self.tool_agent.process(
-            step=step,
-            solve_memory=solve_memory,
-            citation_memory=citation_memory,
-            kb_name=self.kb_name,
-            output_dir=output_dir,
-            verbose=False,
-        )
-        return tool_result
+        """Execute tool calls for a SolveOutput"""
 
-    @staticmethod
-    def _has_pending_tool_calls(step: SolveChainStep) -> bool:
-        return any(call.status in {"pending", "running"} for call in step.tool_calls)
+        # Get pending tool calls
+        pending_calls = [
+            call for call in output.tool_calls
+            if call.status in {"pending", "running"}
+        ]
+
+        if not pending_calls:
+            return {"executed": [], "status": "idle"}
+
+        logs = []
+        base_dir = Path(output_dir).resolve() if output_dir else Path().resolve()
+        artifacts_dir = base_dir / "artifacts"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+        for record in pending_calls:
+            import time
+            start_ts = time.time()
+            try:
+                # Execute the tool call using ToolAgent's internal method
+                raw_answer, metadata = await self.tool_agent._execute_single_call(
+                    record=record,
+                    kb_name=self.kb_name,
+                    output_dir=output_dir,
+                    artifacts_dir=str(artifacts_dir),
+                    verbose=False,
+                )
+
+                # Generate summary
+                summary = await self.tool_agent._summarize_tool_result(
+                    tool_type=record.tool_type,
+                    query=record.query,
+                    raw_answer=raw_answer,
+                )
+
+                # Update the record
+                record.mark_result(
+                    raw_answer=raw_answer,
+                    summary=summary,
+                    status="success",
+                    metadata=metadata,
+                )
+
+                # Update citation
+                if record.cite_id:
+                    citation_memory.update_citation(
+                        cite_id=record.cite_id,
+                        raw_result=raw_answer,
+                        content=summary,
+                        metadata=metadata,
+                        step_id=output.output_id,
+                    )
+
+                logs.append({
+                    "call_id": record.call_id,
+                    "tool_type": record.tool_type,
+                    "status": "success",
+                    "summary": summary,
+                })
+
+            except Exception as e:
+                error_msg = str(e)
+                record.mark_result(
+                    raw_answer=error_msg,
+                    summary=error_msg[:200],
+                    status="failed",
+                    metadata={"error": True},
+                )
+                logs.append({
+                    "call_id": record.call_id,
+                    "tool_type": record.tool_type,
+                    "status": "failed",
+                    "error": error_msg,
+                })
+
+        # Update output content with tool results
+        if logs:
+            content_parts = []
+            for call in output.tool_calls:
+                if call.summary:
+                    content_parts.append(call.summary)
+            if content_parts:
+                output.set_content("\n\n".join(content_parts))
+
+        solve_memory.save()
+        citation_memory.save()
+
+        return {"executed": logs, "status": "completed"}
 
 
 if __name__ == "__main__":

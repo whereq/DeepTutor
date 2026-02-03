@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 from src.logging import get_logger
-from src.services.config import load_config_with_main
+from src.services.path_service import get_path_service
 
 # Initialize logger for setup operations
 _setup_logger = None
@@ -25,7 +25,7 @@ def _get_setup_logger():
 
 
 # ============================================================================
-# User Directory Initialization (from user_dir_init.py)
+# User Directory Initialization
 # ============================================================================
 
 
@@ -35,67 +35,34 @@ def init_user_directories(project_root: Path | None = None) -> None:
 
     Creates the following directory structure:
     data/user/
-    ├── solve/              # Problem solving outputs
-    ├── question/           # Question generation outputs
-    ├── research/           # Research outputs
-    │   ├── cache/          # Research cache
-    │   └── reports/        # Research reports
-    ├── guide/              # Guided learning outputs
-    ├── notebook/           # Notebook data
-    ├── co-writer/          # Co-writer outputs
-    │   ├── audio/          # TTS audio files
-    │   └── tool_calls/     # Tool call history
-    ├── logs/               # User logs
-    ├── run_code_workspace/ # Code execution workspace
-    └── user_history.json   # User history file
+    ├── agent/                    # All Agent interaction history
+    │   ├── solve/
+    │   │   └── sessions.json
+    │   ├── chat/
+    │   │   └── sessions.json
+    │   ├── question/
+    │   ├── research/
+    │   │   └── reports/
+    │   ├── co-writer/
+    │   │   ├── audio/
+    │   │   └── tool_calls/
+    │   ├── guide/
+    │   ├── run_code_workspace/
+    │   └── logs/
+    │
+    ├── workspace/
+    │   ├── notebook/
+    │   └── memory/               # Personalization memory storage
+    │
+    └── settings/
+        └── interface.json
 
     Args:
-        project_root: Project root directory (if None, will try to detect)
+        project_root: Project root directory (ignored, kept for API compatibility)
     """
-    if project_root is None:
-        # Path(__file__) = src/services/setup/init.py
-        # .parent = src/services/setup/
-        # .parent.parent = src/services/
-        # .parent.parent.parent = src/
-        # .parent.parent.parent.parent = DeepTutor/ (project root)
-        project_root = Path(__file__).parent.parent.parent.parent
-
-    # Get user data directory from config
-    try:
-        config = load_config_with_main("solve_config.yaml", project_root)
-        user_data_dir = config.get("paths", {}).get("user_data_dir", "./data/user")
-
-        # Convert relative path to absolute
-        if not Path(user_data_dir).is_absolute():
-            user_data_dir = project_root / user_data_dir
-        else:
-            user_data_dir = Path(user_data_dir)
-    except Exception:
-        # Fallback to default
-        user_data_dir = project_root / "data" / "user"
-
-    # Required subdirectories (based on actual usage in the codebase)
-    required_dirs = [
-        "solve",  # Problem solving outputs
-        "question",  # Question generation outputs
-        "research",  # Research outputs (will have cache/ and reports/ subdirs)
-        "guide",  # Guided learning outputs
-        "notebook",  # Notebook data
-        "co-writer",  # Co-writer outputs
-        "logs",  # User logs
-        "run_code_workspace",  # Code execution workspace
-    ]
-
-    # Additional subdirectories for specific modules
-    co_writer_subdirs = [
-        "audio",  # TTS audio files
-        "tool_calls",  # Tool call history
-    ]
-
-    research_subdirs = [
-        "cache",  # Research cache
-        "reports",  # Research reports
-    ]
+    # Use PathService for all paths
+    path_service = get_path_service()
+    user_data_dir = path_service.user_data_dir
 
     # Check if user directory exists and is empty
     user_dir_exists = user_data_dir.exists()
@@ -124,41 +91,40 @@ def init_user_directories(project_root: Path | None = None) -> None:
         # Create main user directory
         user_data_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create all required subdirectories
-        for dir_name in required_dirs:
-            dir_path = user_data_dir / dir_name
+        # Create agent directories
+        agent_modules = ["solve", "chat", "question", "research", "co-writer", "guide", "run_code_workspace", "logs"]
+        for module in agent_modules:
+            dir_path = path_service.get_agent_dir(module)
             dir_path.mkdir(parents=True, exist_ok=True)
-            logger.success(f"Created: {dir_name}/")
+            logger.success(f"Created: agent/{module}/")
 
         # Create co-writer subdirectories
-        co_writer_dir = user_data_dir / "co-writer"
+        co_writer_subdirs = ["audio", "tool_calls"]
+        co_writer_dir = path_service.get_co_writer_dir()
         for subdir_name in co_writer_subdirs:
             subdir_path = co_writer_dir / subdir_name
             subdir_path.mkdir(parents=True, exist_ok=True)
-            logger.success(f"Created: co-writer/{subdir_name}/")
+            logger.success(f"Created: agent/co-writer/{subdir_name}/")
 
         # Create research subdirectories
-        research_dir = user_data_dir / "research"
-        for subdir_name in research_subdirs:
-            subdir_path = research_dir / subdir_name
-            subdir_path.mkdir(parents=True, exist_ok=True)
-            logger.success(f"Created: research/{subdir_name}/")
+        reports_dir = path_service.get_research_reports_dir()
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        logger.success("Created: agent/research/reports/")
 
-        # Create user_history.json if it doesn't exist
-        user_history_file = user_data_dir / "user_history.json"
-        if not user_history_file.exists():
-            initial_history = {"version": "1.0", "created_at": None, "sessions": []}
-            try:
-                with open(user_history_file, "w", encoding="utf-8") as f:
-                    json.dump(initial_history, f, indent=2, ensure_ascii=False)
-                logger.success("Created: user_history.json")
-            except Exception as e:
-                logger.warning(f"Failed to create user_history.json: {e}")
+        # Create workspace/notebook directory
+        notebook_dir = path_service.get_notebook_dir()
+        notebook_dir.mkdir(parents=True, exist_ok=True)
+        logger.success("Created: workspace/notebook/")
 
-        # Create interface.json in settings folder if it doesn't exist
-        settings_dir = user_data_dir / "settings"
+        # Create workspace/memory directory for personalization
+        memory_dir = path_service.get_memory_dir()
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        logger.success("Created: workspace/memory/")
+
+        # Create settings directory and interface.json
+        settings_dir = path_service.get_settings_dir()
         settings_dir.mkdir(parents=True, exist_ok=True)
-        interface_file = settings_dir / "interface.json"
+        interface_file = path_service.get_settings_file("interface")
         if not interface_file.exists():
             initial_settings = {"theme": "light", "language": "en", "output_language": "en"}
             try:
@@ -173,43 +139,42 @@ def init_user_directories(project_root: Path | None = None) -> None:
         logger.info("=" * 80 + "\n")
     else:
         # Directory exists and is not empty, just ensure all subdirectories exist
-        for dir_name in required_dirs:
-            dir_path = user_data_dir / dir_name
-            dir_path.mkdir(parents=True, exist_ok=True)
+        _ensure_directories_exist(path_service)
 
-        # Ensure co-writer subdirectories exist
-        co_writer_dir = user_data_dir / "co-writer"
-        for subdir_name in co_writer_subdirs:
-            subdir_path = co_writer_dir / subdir_name
-            subdir_path.mkdir(parents=True, exist_ok=True)
 
-        # Ensure research subdirectories exist
-        research_dir = user_data_dir / "research"
-        for subdir_name in research_subdirs:
-            subdir_path = research_dir / subdir_name
-            subdir_path.mkdir(parents=True, exist_ok=True)
+def _ensure_directories_exist(path_service) -> None:
+    """
+    Ensure all required directories exist (silent mode for existing installations).
+    """
+    # Agent directories
+    agent_modules = ["solve", "chat", "question", "research", "co-writer", "guide", "run_code_workspace", "logs"]
+    for module in agent_modules:
+        path_service.get_agent_dir(module).mkdir(parents=True, exist_ok=True)
 
-        # Ensure user_history.json exists
-        user_history_file = user_data_dir / "user_history.json"
-        if not user_history_file.exists():
-            initial_history = {"version": "1.0", "created_at": None, "sessions": []}
-            try:
-                with open(user_history_file, "w", encoding="utf-8") as f:
-                    json.dump(initial_history, f, indent=2, ensure_ascii=False)
-            except Exception:
-                pass  # Silent fail if file creation fails but directory exists
+    # Co-writer subdirectories
+    path_service.get_co_writer_tool_calls_dir().mkdir(parents=True, exist_ok=True)
+    path_service.get_co_writer_audio_dir().mkdir(parents=True, exist_ok=True)
 
-        # Ensure interface.json exists in settings folder
-        settings_dir = user_data_dir / "settings"
-        settings_dir.mkdir(parents=True, exist_ok=True)
-        interface_file = settings_dir / "interface.json"
-        if not interface_file.exists():
-            initial_settings = {"theme": "light", "language": "en", "output_language": "en"}
-            try:
-                with open(interface_file, "w", encoding="utf-8") as f:
-                    json.dump(initial_settings, f, indent=2, ensure_ascii=False)
-            except Exception:
-                pass  # Silent fail if file creation fails but directory exists
+    # Research reports directory
+    path_service.get_research_reports_dir().mkdir(parents=True, exist_ok=True)
+
+    # Workspace/notebook directory
+    path_service.get_notebook_dir().mkdir(parents=True, exist_ok=True)
+
+    # Workspace/memory directory for personalization
+    path_service.get_memory_dir().mkdir(parents=True, exist_ok=True)
+
+    # Settings directory and interface.json
+    settings_dir = path_service.get_settings_dir()
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    interface_file = path_service.get_settings_file("interface")
+    if not interface_file.exists():
+        initial_settings = {"theme": "light", "language": "en", "output_language": "en"}
+        try:
+            with open(interface_file, "w", encoding="utf-8") as f:
+                json.dump(initial_settings, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass  # Silent fail if file creation fails but directory exists
 
 
 # ============================================================================

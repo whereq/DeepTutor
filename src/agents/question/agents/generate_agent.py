@@ -92,6 +92,18 @@ class GenerateAgent(BaseAgent):
                 knowledge_point=requirement.get("knowledge_point", ""),
             )
 
+    def _get_user_preference(self) -> str:
+        """Get user preference from personalization service."""
+        try:
+            from src.personalization.service import get_personalization_service
+
+            service = get_personalization_service()
+            preference = service.get_preference_for_prompt()
+            return preference if preference else "(No user preference recorded)"
+        except Exception as e:
+            self.logger.debug(f"Failed to get user preference: {e}")
+            return "(No user preference recorded)"
+
     async def _generate_custom(
         self,
         requirements_str: str,
@@ -118,13 +130,18 @@ class GenerateAgent(BaseAgent):
             # Fallback prompt
             user_prompt_template = (
                 "Generate a question based on:\n"
+                "User Preference: {preference}\n"
                 "Requirements: {requirements}\n"
                 "Focus: {focus}\n"
                 "Knowledge: {knowledge}\n\n"
                 "Return JSON with question_type, question, correct_answer, explanation."
             )
 
+        # Get user preference
+        preference = self._get_user_preference()
+
         user_prompt = user_prompt_template.format(
+            preference=preference,
             requirements=requirements_str,
             focus=focus_str,
             knowledge=knowledge_context[:4000]
@@ -181,13 +198,18 @@ class GenerateAgent(BaseAgent):
             # Fallback prompt
             user_prompt_template = (
                 "Generate a new question inspired by the reference but distinct:\n"
+                "User Preference: {preference}\n"
                 "Reference: {reference_question}\n"
                 "Requirements: {requirements}\n"
                 "Knowledge: {knowledge}\n\n"
                 "Return JSON with question_type, question, correct_answer, explanation."
             )
 
+        # Get user preference
+        preference = self._get_user_preference()
+
         user_prompt = user_prompt_template.format(
+            preference=preference,
             reference_question=reference_question,
             requirements=requirements_str,
             knowledge=knowledge_context[:4000]

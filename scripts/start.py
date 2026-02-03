@@ -30,7 +30,6 @@ sys.path.insert(0, str(project_root))
 
 from src.agents.question import AgentCoordinator
 from src.agents.solve import MainSolver
-from src.api.utils.history import ActivityType, history_manager
 from src.logging import get_logger
 from src.services.llm import get_llm_config
 
@@ -227,28 +226,6 @@ class AITutorStarter:
                 print(preview)
                 logger.separator()
 
-            # Save to history
-            try:
-                history_manager.add_entry(
-                    activity_type=ActivityType.SOLVE,
-                    title=question[:50] + "..." if len(question) > 50 else question,
-                    content={
-                        "question": question,
-                        "answer": result.get("formatted_solution", ""),
-                        "output_dir": result["metadata"]["output_dir"],
-                        "kb_name": kb_name,
-                        "metadata": result.get("metadata", {}),
-                    },
-                    summary=(
-                        formatted_solution[:100] + "..."
-                        if formatted_solution and len(formatted_solution) > 100
-                        else (formatted_solution or "")
-                    ),
-                )
-            except Exception as hist_error:
-                # History save failure does not affect main flow
-                logger.warning(f"History save failed: {hist_error!s}")
-
         except Exception as e:
             logger.section("Solving failed")
             logger.error(str(e))
@@ -361,27 +338,6 @@ class AITutorStarter:
                     print(f"\n📁 Output directory: {result['output_dir']}")
 
                 print("=" * 70)
-
-                # Save to history
-                try:
-                    history_manager.add_entry(
-                        activity_type=ActivityType.QUESTION,
-                        title=f"{knowledge_point} ({question_type})",
-                        content={
-                            "requirement": requirement,
-                            "question": question_data,
-                            "output_dir": result.get("output_dir", ""),
-                            "kb_name": kb_name,
-                        },
-                        summary=(
-                            question_data.get("question", "")[:100] + "..."
-                            if len(question_data.get("question", "")) > 100
-                            else question_data.get("question", "")
-                        ),
-                    )
-                except Exception as hist_error:
-                    # History save failure does not affect main flow
-                    print(f"\n⚠️  History save failed: {hist_error!s}")
             else:
                 print("\n" + "=" * 70)
                 print(f"❌ Question generation failed: {result.get('error', 'Unknown error')}")
@@ -537,35 +493,6 @@ class AITutorStarter:
                     print(f"   Tool calls: {stats.get('total_tool_calls', 0)}")
 
             print("=" * 70)
-
-            # Save to history
-            try:
-                # Read report content
-                report_content = ""
-                if result.get("final_report_path") and Path(result["final_report_path"]).exists():
-                    with open(result["final_report_path"], encoding="utf-8") as f:
-                        report_content = f.read()
-
-                history_manager.add_entry(
-                    activity_type=ActivityType.RESEARCH,
-                    title=topic,
-                    content={
-                        "topic": topic,
-                        "report": report_content,
-                        "report_path": result.get("final_report_path", ""),
-                        "research_id": result.get("research_id", ""),
-                        "kb_name": kb_name,
-                        "metadata": metadata,
-                    },
-                    summary=(
-                        report_content[:200] + "..."
-                        if len(report_content) > 200
-                        else report_content
-                    ),
-                )
-            except Exception as hist_error:
-                # History save failure does not affect main flow
-                logger.warning(f"History save failed: {hist_error!s}")
 
         except Exception as e:
             logger.section("Research failed")

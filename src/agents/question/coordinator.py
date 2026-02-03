@@ -255,6 +255,13 @@ class AgentCoordinator:
         # Update token stats from shared LLMStats
         self._update_token_stats()
 
+        # Publish QUESTION_COMPLETE event for personalization
+        await self._publish_question_complete_event(
+            requirement=requirement,
+            questions=[question],
+            mode="single",
+        )
+
         return result
 
     async def generate_questions_custom(
@@ -476,11 +483,67 @@ class AgentCoordinator:
         self.logger.info(f"Completed: {len(results)}")
         self.logger.info(f"Failed: {len(failures)}")
 
+        # Publish QUESTION_COMPLETE event for personalization
+        generated_questions = [r["question"] for r in results if "question" in r]
+        await self._publish_question_complete_event(
+            requirement=requirement,
+            questions=generated_questions,
+            mode="custom",
+        )
+
         return summary
 
     # =========================================================================
     # Helper Methods
     # =========================================================================
+
+    async def _publish_question_complete_event(
+        self,
+        requirement: dict[str, Any],
+        questions: list[dict[str, Any]],
+        mode: str = "single",
+    ) -> None:
+        """
+        Publish QUESTION_COMPLETE event for personalization.
+
+        Args:
+            requirement: Question requirement dict
+            questions: List of generated questions
+            mode: Generation mode ("single" or "custom")
+        """
+        try:
+            from src.core.event_bus import Event, EventType, get_event_bus
+
+            # Build summary of generated questions
+            question_summaries = []
+            for q in questions[:3]:  # Limit to first 3 for efficiency
+                summary = {
+                    "type": q.get("question_type", "unknown"),
+                    "question": q.get("question", "")[:200],
+                }
+                question_summaries.append(summary)
+
+            event = Event(
+                type=EventType.QUESTION_COMPLETE,
+                task_id=f"question_{mode}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                user_input=json.dumps({
+                    "knowledge_point": requirement.get("knowledge_point", ""),
+                    "difficulty": requirement.get("difficulty", ""),
+                    "question_type": requirement.get("question_type", ""),
+                }, ensure_ascii=False),
+                agent_output=json.dumps(question_summaries, ensure_ascii=False),
+                tools_used=["rag_tool"],
+                success=len(questions) > 0,
+                metadata={
+                    "mode": mode,
+                    "num_questions": len(questions),
+                    "knowledge_point": requirement.get("knowledge_point", ""),
+                },
+            )
+            await get_event_bus().publish(event)
+            self.logger.debug(f"Published QUESTION_COMPLETE event (mode={mode})")
+        except Exception as e:
+            self.logger.debug(f"Failed to publish QUESTION_COMPLETE event: {e}")
 
     async def _generate_question_plan(
         self,

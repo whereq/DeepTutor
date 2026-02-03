@@ -10,8 +10,8 @@ from pydantic import BaseModel
 
 from src.agents.research.agents import RephraseAgent
 from src.agents.research.research_pipeline import ResearchPipeline
-from src.api.utils.history import ActivityType, history_manager
 from src.api.utils.task_id_manager import TaskIDManager
+from src.services.path_service import get_path_service
 from src.logging import get_logger
 from src.services.config import load_config_with_main
 from src.services.llm import get_llm_config
@@ -242,17 +242,16 @@ async def websocket_research_run(websocket: WebSocket):
         if skip_rephrase:
             config["planning"]["rephrase"]["enabled"] = False
 
-        # Define unified output directory
-        # Use project root directory user/research as unified output directory
-        root_dir = Path(__file__).parent.parent.parent.parent
-        output_base = root_dir / "data" / "user" / "research"
+        # Define unified output directory using PathService
+        path_service = get_path_service()
+        output_base = path_service.get_research_dir()
 
         # Update config with unified output paths
         if "system" not in config:
             config["system"] = {}
 
         config["system"]["output_base_dir"] = str(output_base / "cache")
-        config["system"]["reports_dir"] = str(output_base / "reports")
+        config["system"]["reports_dir"] = str(path_service.get_research_reports_dir())
 
         # Inject API keys from env if not in config
         try:
@@ -350,14 +349,6 @@ async def websocket_research_run(websocket: WebSocket):
             # Send final report content
             with open(result["final_report_path"], encoding="utf-8") as f:
                 report_content = f.read()
-
-            # Save to history
-            history_manager.add_entry(
-                activity_type=ActivityType.RESEARCH,
-                title=topic,
-                content={"topic": topic, "report": report_content, "kb_name": kb_name},
-                summary=f"Research ID: {result['research_id']}",
-            )
 
             await websocket.send_json(
                 {

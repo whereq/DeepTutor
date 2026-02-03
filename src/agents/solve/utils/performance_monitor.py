@@ -14,6 +14,8 @@ from pathlib import Path
 import time
 from typing import Any
 
+from src.services.path_service import get_path_service
+
 
 @dataclass
 class PerformanceMetrics:
@@ -99,9 +101,9 @@ class PerformanceMonitor:
         self.enabled = enabled
 
         if save_dir is None:
-            # Default to data/user/performance (relative to project root)
-            project_root = Path(__file__).parent.parent.parent.parent.parent
-            self.save_dir = project_root / "data" / "user" / "performance"
+            # Default to data/user/agent/logs/performance using PathService
+            path_service = get_path_service()
+            self.save_dir = path_service.get_logs_dir() / "performance"
         else:
             self.save_dir = Path(save_dir)
 

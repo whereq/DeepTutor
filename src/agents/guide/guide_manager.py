@@ -16,6 +16,7 @@ import yaml
 
 from src.logging import get_logger
 from src.services.config import load_config_with_main, parse_language
+from src.services.path_service import get_path_service
 
 from .agents import ChatAgent, InteractiveAgent, LocateAgent, SummaryAgent
 
@@ -111,9 +112,9 @@ class GuideManager:
             if output_dir_from_config:
                 self.output_dir = Path(output_dir_from_config)
             else:
-                # Fallback to default path
-                project_root = Path(__file__).parent.parent.parent.parent
-                self.output_dir = project_root / "data" / "user" / "guide"
+                # Fallback to default path using PathService
+                path_service = get_path_service()
+                self.output_dir = path_service.get_guide_dir()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.locate_agent = LocateAgent(

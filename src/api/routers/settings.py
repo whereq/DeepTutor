@@ -13,12 +13,13 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from src.services.path_service import get_path_service
+
 router = APIRouter()
 
 # Settings file path for UI preferences (stored in settings folder with other configs)
-SETTINGS_FILE = (
-    Path(__file__).parent.parent.parent.parent / "data" / "user" / "settings" / "interface.json"
-)
+_path_service = get_path_service()
+SETTINGS_FILE = _path_service.get_settings_file("interface")
 
 # Default sidebar navigation order
 DEFAULT_SIDEBAR_NAV_ORDER = {

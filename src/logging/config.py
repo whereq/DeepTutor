@@ -36,8 +36,10 @@ class LoggingConfig:
 
 def get_default_log_dir() -> Path:
     """Get the default log directory."""
-    project_root = Path(__file__).resolve().parent.parent.parent
-    return project_root / "data" / "user" / "logs"
+    from src.services.path_service import get_path_service
+    
+    path_service = get_path_service()
+    return path_service.get_logs_dir()
 
 
 def get_global_log_level() -> str:

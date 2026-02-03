@@ -24,8 +24,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 load_dotenv(PROJECT_ROOT / "DeepTutor.env", override=False)
 load_dotenv(PROJECT_ROOT / ".env", override=False)
 
-# Storage directory
-SETTINGS_DIR = PROJECT_ROOT / "data" / "user" / "settings"
+# Storage directory using PathService
+from src.services.path_service import get_path_service
+
+_path_service = get_path_service()
+SETTINGS_DIR = _path_service.get_settings_dir()
 
 
 class ConfigType(str, Enum):

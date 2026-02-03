@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 """
 ToolAgent - Tool executor
-Responsible for reading tool calls in solve-chain, actually executing tools and producing summary
+
+Responsible for executing tool calls and producing summaries.
 """
 
 from pathlib import Path
 import re
 import sys
-import time
 from typing import Any
 
 project_root = Path(__file__).parent.parent.parent.parent
@@ -20,7 +20,6 @@ from src.tools.code_executor import run_code
 from src.tools.rag_tool import rag_search
 from src.tools.web_search import web_search
 
-from ..memory import CitationMemory, SolveChainStep, SolveMemory
 from ..memory.solve_memory import ToolCallRecord
 
 
@@ -47,7 +46,51 @@ class ToolAgent(BaseAgent):
             token_tracker=token_tracker,
         )
 
+    async def process(
+        self,
+        record: ToolCallRecord,
+        kb_name: str,
+        output_dir: str | None = None,
+        verbose: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Execute a single tool call and return the result.
+
+        Args:
+            record: The tool call record to execute
+            kb_name: Knowledge base name
+            output_dir: Output directory path
+            verbose: Whether to print detailed information
+
+        Returns:
+            dict: Execution result with raw_answer, summary, and metadata
+        """
+        base_dir = Path(output_dir).resolve() if output_dir else Path().resolve()
+        artifacts_dir = base_dir / "artifacts"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+        raw_answer, metadata = await self._execute_single_call(
+            record=record,
+            kb_name=kb_name,
+            output_dir=output_dir,
+            artifacts_dir=str(artifacts_dir),
+            verbose=verbose,
+        )
+
+        summary = await self._summarize_tool_result(
+            tool_type=record.tool_type,
+            query=record.query,
+            raw_answer=raw_answer,
+        )
+
+        return {
+            "raw_answer": raw_answer,
+            "summary": summary,
+            "metadata": metadata,
+        }
+
     async def _generate_code_from_intent(self, intent: str) -> str:
+        """Generate Python code from a natural language intent description"""
         system_prompt = """
 You are a Python code generator.
 Generate ONLY executable Python code.
@@ -77,153 +120,6 @@ Rules:
 
         return code.strip()
 
-    async def process(
-        self,
-        step: SolveChainStep,
-        solve_memory: SolveMemory,
-        citation_memory: CitationMemory,
-        kb_name: str,
-        output_dir: str | None = None,
-        verbose: bool = True,
-    ) -> dict[str, Any]:
-        pending = [
-            call
-            for call in step.tool_calls
-            if call.tool_type not in {"none", "finish"} and call.status in {"pending", "running"}
-        ]
-
-        if not pending:
-            return {"step_id": step.step_id, "executed": [], "status": "idle"}
-
-        logs: list[dict[str, Any]] = []
-        base_dir = Path(output_dir).resolve() if output_dir else Path().resolve()
-        artifacts_dir = base_dir / "artifacts"
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-        self.logger.log_stage_progress(
-            "Tool", "start", f"step={step.step_id}, pending_calls={len(pending)}"
-        )
-
-        for record in pending:
-            call_label = f"{record.tool_type} | cite={record.cite_id or '-'}"
-            self.logger.log_stage_progress(
-                "Tool", "running", f"step={step.step_id}, call={call_label}"
-            )
-            start_ts = time.time()
-            try:
-                raw_answer, metadata = await self._execute_single_call(
-                    record=record,
-                    kb_name=kb_name,
-                    output_dir=output_dir,
-                    artifacts_dir=str(artifacts_dir),
-                    verbose=verbose,
-                )
-
-                # Check if code execution failed
-                is_failed = False
-                if record.tool_type == "code_execution":
-                    is_failed = metadata.get("execution_failed", False)
-                    exit_code = metadata.get("exit_code", 0)
-                    if exit_code != 0:
-                        is_failed = True
-
-                summary = await self._summarize_tool_result(
-                    tool_type=record.tool_type, query=record.query, raw_answer=raw_answer
-                )
-
-                # Set correct status based on execution result
-                status = "failed" if is_failed else "success"
-                solve_memory.update_tool_call_result(
-                    step_id=step.step_id,
-                    call_id=record.call_id,
-                    raw_answer=raw_answer,
-                    summary=summary,
-                    status=status,
-                    metadata=metadata,  # Pass metadata to ensure artifacts are saved
-                )
-                citation_memory.update_citation(
-                    cite_id=record.cite_id,
-                    raw_result=raw_answer,
-                    content=summary,
-                    metadata=metadata,
-                    step_id=step.step_id,
-                )
-                elapsed_ms = (time.time() - start_ts) * 1000
-                self.logger.log_tool_call(
-                    tool_name=record.tool_type,
-                    tool_input={
-                        "step_id": step.step_id,
-                        "call_id": record.call_id,
-                        "query": record.query,
-                    },
-                    tool_output=raw_answer,
-                    status="success",
-                    elapsed_ms=elapsed_ms,
-                    step_id=step.step_id,
-                    cite_id=record.cite_id,
-                )
-                logs.append(
-                    {
-                        "call_id": record.call_id,
-                        "tool_type": record.tool_type,
-                        "cite_id": record.cite_id,
-                        "status": "success",
-                        "summary": summary,
-                    }
-                )
-            except Exception as e:
-                error_msg = str(e)
-                elapsed_ms = (time.time() - start_ts) * 1000
-                solve_memory.update_tool_call_result(
-                    step_id=step.step_id,
-                    call_id=record.call_id,
-                    raw_answer=error_msg,
-                    summary=error_msg[:200],
-                    status="failed",
-                    metadata={"error": True},
-                )
-                citation_memory.update_citation(
-                    cite_id=record.cite_id,
-                    raw_result=error_msg,
-                    content=error_msg[:200],
-                    metadata={"error": True},
-                    step_id=step.step_id,
-                )
-                self.logger.log_tool_call(
-                    tool_name=record.tool_type,
-                    tool_input={
-                        "step_id": step.step_id,
-                        "call_id": record.call_id,
-                        "query": record.query,
-                    },
-                    tool_output=error_msg,
-                    status="failed",
-                    elapsed_ms=elapsed_ms,
-                    step_id=step.step_id,
-                    cite_id=record.cite_id,
-                )
-                self.logger.log_stage_progress(
-                    "Tool", "warning", f"step={step.step_id}, call={call_label}, error={error_msg}"
-                )
-                logs.append(
-                    {
-                        "call_id": record.call_id,
-                        "tool_type": record.tool_type,
-                        "cite_id": record.cite_id,
-                        "status": "failed",
-                        "error": error_msg,
-                    }
-                )
-
-        solve_memory.save()
-        citation_memory.save()
-
-        self.logger.log_stage_progress(
-            "Tool", "complete", f"step={step.step_id}, executed={len(logs)}"
-        )
-
-        return {"step_id": step.step_id, "executed": logs, "status": "completed"}
-
     async def _execute_single_call(
         self,
         record: ToolCallRecord,
@@ -232,6 +128,19 @@ Rules:
         artifacts_dir: str,
         verbose: bool,
     ) -> tuple[str, dict[str, Any]]:
+        """
+        Execute a single tool call.
+
+        Args:
+            record: The tool call record
+            kb_name: Knowledge base name
+            output_dir: Output directory path
+            artifacts_dir: Directory for code execution artifacts
+            verbose: Whether to print detailed information
+
+        Returns:
+            tuple: (raw_answer, metadata)
+        """
         tool_type = record.tool_type
         query = record.query
 
@@ -315,6 +224,7 @@ Rules:
         raise ValueError(f"Unknown tool type: {tool_type}")
 
     def _format_code_answer(self, exec_result: dict[str, Any], artifacts_dir: str) -> str:
+        """Format code execution result as a readable string"""
         stdout = exec_result.get("stdout", "")
         stderr = exec_result.get("stderr", "")
         artifacts = exec_result.get("artifacts", [])
@@ -347,6 +257,7 @@ Rules:
         return "\n".join(lines)
 
     async def _summarize_tool_result(self, tool_type: str, query: str, raw_answer: str) -> str:
+        """Generate a summary of the tool result using LLM"""
         system_prompt = self.get_prompt("system") if self.has_prompts() else None
         if not system_prompt:
             raise ValueError(
@@ -368,7 +279,11 @@ Rules:
         )
         return response.strip()
 
+    # ------------------------------------------------------------------ #
+    # Helper methods
+    # ------------------------------------------------------------------ #
     def _infer_sources(self, text: str) -> tuple[str, list[str]]:
+        """Extract URLs from text"""
         if not text:
             return "", []
         matches = re.findall(r"(https?://[^\s\)\]]+)", text)
@@ -380,6 +295,7 @@ Rules:
         return (", ".join(cleaned), cleaned)
 
     def _extract_answer_citations(self, answer: str) -> list[str]:
+        """Extract citation IDs from answer text"""
         if not answer:
             return []
         pattern = re.compile(r"\[(\d+)\]")
@@ -393,6 +309,7 @@ Rules:
     def _select_web_citations(
         self, used_ids: list[str], result: dict[str, Any]
     ) -> list[dict[str, Any]]:
+        """Select and format web citations based on used IDs"""
         if not used_ids:
             return []
         raw_citations = result.get("citations") or []
@@ -434,6 +351,7 @@ Rules:
     IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".svg", ".gif", ".bmp"}
 
     def _snapshot_image_artifacts(self, artifacts_path: Path) -> set:
+        """Take a snapshot of existing image files in artifacts directory"""
         if not artifacts_path.exists():
             return set()
         snapshot = set()
@@ -445,6 +363,7 @@ Rules:
     def _collect_new_image_artifacts(
         self, artifacts_path: Path, before_snapshot: set, output_dir: str | None
     ) -> list[str]:
+        """Collect newly created image artifacts"""
         after_snapshot = self._snapshot_image_artifacts(artifacts_path)
         new_files = sorted(after_snapshot - before_snapshot)
         if not new_files:
