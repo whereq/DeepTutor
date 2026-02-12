@@ -2,22 +2,20 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useRef,
   useState,
-  useCallback,
 } from "react";
 import { wsUrl } from "@/lib/api";
 import {
-  QuestionContextState,
-  QuestionProgressInfo,
-  INITIAL_QUESTION_CONTEXT_STATE,
   DEFAULT_QUESTION_AGENT_STATUS,
   DEFAULT_QUESTION_TOKEN_STATS,
+  INITIAL_QUESTION_CONTEXT_STATE,
+  QuestionContextState,
 } from "@/types/question";
 import { LogEntry } from "@/types/common";
 
-// Context type
 interface QuestionContextType {
   questionState: QuestionContextState;
   setQuestionState: React.Dispatch<React.SetStateAction<QuestionContextState>>;
@@ -37,9 +35,7 @@ interface QuestionContextType {
   resetQuestionGen: () => void;
 }
 
-const QuestionContext = createContext<QuestionContextType | undefined>(
-  undefined,
-);
+const QuestionContext = createContext<QuestionContextType | undefined>(undefined);
 
 export function QuestionProvider({ children }: { children: React.ReactNode }) {
   const [questionState, setQuestionState] = useState<QuestionContextState>(
@@ -51,184 +47,200 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
     setQuestionState((prev) => ({ ...prev, logs: [...prev.logs, log] }));
   }, []);
 
-  // Helper function to handle mimic WebSocket messages
-  const handleMimicWsMessage = useCallback(
+  const handleCommonWsMessage = useCallback(
     (data: any, ws: WebSocket) => {
-      const stageMap: Record<string, string> = {
-        init: "uploading",
-        upload: "uploading",
-        parsing: "parsing",
-        processing: "extracting",
-      };
+      if (data.type === "log") {
+        addQuestionLog(data);
+        return;
+      }
 
-      switch (data.type) {
-        case "log":
-          addQuestionLog(data);
-          break;
+      if (data.type === "status") {
+        addQuestionLog({ type: "system", content: data.content || "Started" });
+        return;
+      }
 
-        case "status": {
-          const mappedStage = stageMap[data.stage] || data.stage;
-          addQuestionLog({
-            type: "system",
-            content: data.content || data.message || `Stage: ${data.stage}`,
-          });
-          if (mappedStage) {
-            setQuestionState((prev) => ({
-              ...prev,
-              progress: { ...prev.progress, stage: mappedStage },
-            }));
-          }
-          break;
-        }
-
-        case "progress": {
-          const stage = data.stage || "generating";
-          if (data.message) {
-            addQuestionLog({ type: "system", content: data.message });
-          }
-          setQuestionState((prev) => ({
-            ...prev,
+      if (data.type === "progress") {
+        const stage = data.stage || "generating";
+        setQuestionState((prev) => ({
+          ...prev,
+          progress: {
+            ...prev.progress,
+            stage,
             progress: {
-              ...prev.progress,
-              stage: stage,
-              progress: {
-                ...prev.progress.progress,
-                current: data.current ?? prev.progress.progress.current,
-                total:
-                  data.total_questions ??
-                  data.total ??
-                  prev.progress.progress.total,
-                status: data.status,
-              },
+              ...prev.progress.progress,
+              current:
+                data.current ?? data.progress?.current ?? prev.progress.progress.current,
+              total: data.total ?? data.progress?.total ?? prev.progress.progress.total,
+              status: data.status ?? data.progress?.status,
+              round:
+                data.current_round ??
+                data.round ??
+                data.progress?.round ??
+                prev.progress.progress.round,
+              max_rounds:
+                data.max_rounds ??
+                data.maxRounds ??
+                data.progress?.max_rounds ??
+                prev.progress.progress.max_rounds,
             },
-          }));
-          if (
-            stage === "extracting" &&
-            data.status === "complete" &&
-            data.reference_questions
-          ) {
-            setQuestionState((prev) => ({
-              ...prev,
-              progress: {
-                ...prev.progress,
-                progress: {
-                  ...prev.progress.progress,
-                  total:
-                    data.total_questions || data.reference_questions.length,
-                },
-              },
-            }));
-          }
-          break;
+            completedQuestions:
+              data.completed ?? prev.progress.completedQuestions ?? prev.results.length,
+            failedQuestions: data.failed ?? prev.progress.failedQuestions,
+          },
+        }));
+        if (data.message) {
+          addQuestionLog({ type: "system", content: data.message });
         }
+        return;
+      }
 
-        case "question_update": {
-          const statusMessage =
-            data.status === "generating"
-              ? `Generating mimic question ${data.index}...`
-              : data.status === "failed"
-                ? `Question ${data.index} failed: ${data.error}`
-                : `Question ${data.index}: ${data.status}`;
-          addQuestionLog({
-            type: data.status === "failed" ? "warning" : "system",
-            content: statusMessage,
-          });
-          if (data.current !== undefined) {
-            setQuestionState((prev) => ({
-              ...prev,
-              progress: {
-                ...prev.progress,
-                progress: { ...prev.progress.progress, current: data.current },
-              },
-            }));
-          }
-          break;
-        }
-
-        case "result": {
-          const isExtended =
-            data.extended || data.validation?.decision === "extended";
-          addQuestionLog({
-            type: "success",
-            content: `✅ Question ${data.index || (data.current ?? 0)} generated successfully`,
-          });
-          setQuestionState((prev) => ({
-            ...prev,
-            results: [
-              ...prev.results,
-              {
-                success: true,
-                question_id: data.question_id || `q_${prev.results.length + 1}`,
-                question: data.question,
-                validation: data.validation,
-                rounds: data.rounds || 1,
-                reference_question: data.reference_question,
-                extended: isExtended,
-              },
-            ],
+      if (data.type === "templates_ready") {
+        const templates = data.templates || [];
+        const subFocuses = templates.map((t: any, i: number) => ({
+          id: t.question_id || `q_${i + 1}`,
+          focus: t.concentration || "",
+        }));
+        setQuestionState((prev) => ({
+          ...prev,
+          progress: {
+            ...prev.progress,
+            stage: "templates_ready",
+            subFocuses,
             progress: {
-              ...prev.progress,
-              stage: "generating",
-              progress: {
-                ...prev.progress.progress,
-                current: data.current ?? prev.results.length + 1,
-                total: data.total ?? prev.progress.progress.total ?? 1,
-              },
-              extendedQuestions:
-                (prev.progress.extendedQuestions || 0) + (isExtended ? 1 : 0),
+              ...prev.progress.progress,
+              total: data.count || templates.length || prev.progress.progress.total,
             },
-          }));
-          break;
-        }
+          },
+        }));
+        addQuestionLog({
+          type: "success",
+          content: `Templates ready: ${data.count || templates.length}`,
+        });
+        return;
+      }
 
-        case "summary":
-          addQuestionLog({
-            type: "success",
-            content: `Generation complete: ${data.successful}/${data.total_reference} succeeded`,
-          });
-          setQuestionState((prev) => ({
-            ...prev,
+      if (data.type === "idea_round") {
+        addQuestionLog({
+          type: "system",
+          content: `Idea round ${data.round || "?"} complete${data.feedback ? `: ${data.feedback}` : ""}`,
+        });
+        setQuestionState((prev) => ({
+          ...prev,
+          progress: {
+            ...prev.progress,
+            stage: "idea_loop",
+          },
+        }));
+        return;
+      }
+
+      if (data.type === "question_update") {
+        addQuestionLog({
+          type: data.status === "error" ? "warning" : "system",
+          content: `[${data.question_id}] ${data.status || "updating"}`,
+        });
+        return;
+      }
+
+      if (data.type === "validating") {
+        setQuestionState((prev) => ({
+          ...prev,
+          progress: { ...prev.progress, stage: "validating" },
+        }));
+        addQuestionLog({
+          type: "system",
+          content: `[${data.question_id}] validating (attempt ${data.attempt || 1})`,
+        });
+        return;
+      }
+
+      if (data.type === "result") {
+        const incomingQuestion = data.question || {};
+        const question = {
+          ...incomingQuestion,
+          type: incomingQuestion.type || incomingQuestion.question_type,
+          question_type: incomingQuestion.question_type || incomingQuestion.type,
+          concentration: incomingQuestion.concentration || "",
+          difficulty: incomingQuestion.difficulty || "",
+          metadata: incomingQuestion.metadata || {},
+        };
+        const validation = data.validation || {};
+        addQuestionLog({
+          type: "success",
+          content: `[${data.question_id || "q"}] generated`,
+        });
+        setQuestionState((prev) => ({
+          ...prev,
+          results: [
+            ...prev.results,
+            {
+              success: true,
+              question_id: data.question_id || `q_${prev.results.length + 1}`,
+              question,
+              validation,
+              rounds: data.attempts || data.rounds || 1,
+            },
+          ],
+          progress: {
+            ...prev.progress,
+            stage: "generating",
+            completedQuestions: prev.results.length + 1,
             progress: {
-              ...prev.progress,
-              stage: "generating",
-              progress: {
-                current: data.successful,
-                total: data.total_reference,
-              },
-              completedQuestions: data.successful,
-              failedQuestions: data.failed,
+              ...prev.progress.progress,
+              current: prev.results.length + 1,
+              total: data.total ?? prev.progress.progress.total ?? prev.count,
             },
-          }));
-          break;
+          },
+        }));
+        return;
+      }
 
-        case "complete":
-          addQuestionLog({
-            type: "success",
-            content: "✅ Mimic generation completed!",
-          });
-          setQuestionState((prev) => ({
-            ...prev,
-            step: "result",
+      if (data.type === "batch_summary") {
+        addQuestionLog({
+          type: "success",
+          content: `Batch summary: ${data.completed || 0}/${data.requested || 0}`,
+        });
+        setQuestionState((prev) => ({
+          ...prev,
+          progress: {
+            ...prev.progress,
+            completedQuestions: data.completed ?? prev.progress.completedQuestions,
+            failedQuestions: data.failed ?? prev.progress.failedQuestions,
             progress: {
-              ...prev.progress,
-              stage: "complete",
-              completedQuestions: prev.results.length,
+              ...prev.progress.progress,
+              current: data.completed ?? prev.progress.progress.current,
+              total: data.requested ?? prev.progress.progress.total,
             },
-          }));
-          ws.close();
-          break;
+          },
+        }));
+        return;
+      }
 
-        case "error":
-          addQuestionLog({
-            type: "error",
-            content: `Error: ${data.content || data.message || "Unknown error"}`,
-          });
-          setQuestionState((prev) => ({
-            ...prev,
-            step: "config",
-            progress: { stage: null, progress: {} },
-          }));
-          break;
+      if (data.type === "complete") {
+        addQuestionLog({ type: "success", content: "Generation complete" });
+        setQuestionState((prev) => ({
+          ...prev,
+          step: "result",
+          progress: {
+            ...prev.progress,
+            stage: "complete",
+            completedQuestions: prev.results.length,
+          },
+        }));
+        ws.close();
+        return;
+      }
+
+      if (data.type === "error") {
+        addQuestionLog({
+          type: "error",
+          content: data.content || data.message || "Unknown error",
+        });
+        setQuestionState((prev) => ({
+          ...prev,
+          step: "config",
+          progress: { stage: null, progress: {} },
+        }));
       }
     },
     [addQuestionLog],
@@ -237,6 +249,10 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
   const startQuestionGen = useCallback(
     (topic: string, diff: string, type: string, count: number, kb: string) => {
       if (questionWs.current) questionWs.current.close();
+      const normalizedDiff =
+        (diff || "").trim().toLowerCase() === "auto" ? "" : (diff || "").trim();
+      const normalizedType =
+        (type || "").trim().toLowerCase() === "auto" ? "" : (type || "").trim();
 
       setQuestionState((prev) => ({
         ...prev,
@@ -250,7 +266,7 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
         count,
         selectedKb: kb,
         progress: {
-          stage: count > 1 ? "planning" : "generating",
+          stage: "idea_loop",
           progress: { current: 0, total: count },
           subFocuses: [],
           activeQuestions: [],
@@ -269,269 +285,49 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
           JSON.stringify({
             requirement: {
               knowledge_point: topic,
-              difficulty: diff,
-              question_type: type,
+              difficulty: normalizedDiff,
+              question_type: normalizedType,
               additional_requirements: "Ensure clarity and academic rigor.",
             },
-            count: count,
+            count,
             kb_name: kb,
           }),
         );
-        addQuestionLog({
-          type: "system",
-          content: "Initializing Generator...",
-        });
+        addQuestionLog({ type: "system", content: "Initializing Generator..." });
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === "log") {
-          addQuestionLog(data);
-          // Parse progress info from log content
-          if (data.content.includes("Generating question")) {
-            const match = data.content.match(/(\d+)\/(\d+)/);
-            if (match) {
-              setQuestionState((prev) => ({
-                ...prev,
-                progress: {
-                  ...prev.progress,
-                  stage: "generating",
-                  progress: {
-                    current: parseInt(match[1]),
-                    total: parseInt(match[2]),
-                  },
-                },
-              }));
-            }
-          }
-          if (
-            data.content.includes("Round") ||
-            data.content.includes("round")
-          ) {
-            const match = data.content.match(/Round\s+(\d+)/i);
-            if (match) {
-              setQuestionState((prev) => ({
-                ...prev,
-                progress: {
-                  ...prev.progress,
-                  progress: {
-                    ...prev.progress.progress,
-                    round: parseInt(match[1]),
-                  },
-                },
-              }));
-            }
-          }
-          if (
-            data.content.includes("Validation") ||
-            data.content.includes("validation")
-          ) {
-            setQuestionState((prev) => ({
-              ...prev,
-              progress: {
-                ...prev.progress,
-                stage: "validating",
-              },
-            }));
-          }
-        } else if (data.type === "agent_status") {
-          setQuestionState((prev) => ({
-            ...prev,
-            agentStatus: data.all_agents || {
-              ...prev.agentStatus,
-              [data.agent]: data.status,
-            },
-          }));
-        } else if (data.type === "token_stats") {
-          setQuestionState((prev) => ({
-            ...prev,
-            tokenStats: data.stats || prev.tokenStats,
-          }));
-        } else if (data.type === "progress") {
-          setQuestionState((prev) => ({
-            ...prev,
-            progress: {
-              stage: data.stage || prev.progress.stage,
-              progress: {
-                ...prev.progress.progress,
-                ...data.progress,
-                total: data.total ?? prev.progress.progress.total,
-              },
-              subFocuses:
-                data.focuses || data.sub_focuses || prev.progress.subFocuses,
-              activeQuestions: prev.progress.activeQuestions,
-              completedQuestions:
-                data.completed ?? prev.progress.completedQuestions,
-              failedQuestions: data.failed ?? prev.progress.failedQuestions,
-            },
-          }));
-        } else if (data.type === "question_update") {
-          const statusLabel =
-            data.status === "analyzing"
-              ? "Analyzing relevance"
-              : data.status === "generating"
-                ? "Generating"
-                : data.status === "done"
-                  ? "Completed"
-                  : data.status;
-          addQuestionLog({
-            type: data.status === "done" ? "success" : "system",
-            content: `[${data.question_id}] ${statusLabel}${data.focus ? `: ${data.focus.slice(0, 50)}...` : ""}`,
-          });
-        } else if (data.type === "question_error") {
-          addQuestionLog({
-            type: "error",
-            content: `[${data.question_id}] Error: ${data.error}${data.reason ? ` - ${data.reason}` : ""}`,
-          });
-        } else if (data.type === "knowledge_saved") {
-          addQuestionLog({
-            type: "success",
-            content: `Background knowledge retrieved (${data.queries?.length || 0} queries)`,
-          });
-        } else if (data.type === "plan_ready") {
-          const focuses = data.focuses || data.plan?.focuses || [];
-          setQuestionState((prev) => ({
-            ...prev,
-            progress: {
-              ...prev.progress,
-              stage: "planning",
-              subFocuses: focuses,
-              progress: {
-                ...prev.progress.progress,
-                status: "plan_ready",
-              },
-            },
-          }));
-          addQuestionLog({
-            type: "success",
-            content: `Question plan created with ${focuses.length} focuses`,
-          });
-        } else if (data.type === "batch_summary") {
-          setQuestionState((prev) => ({
-            ...prev,
-            progress: {
-              ...prev.progress,
-              subFocuses:
-                data.sub_focuses ||
-                data.plan?.focuses ||
-                prev.progress.subFocuses,
-              completedQuestions: data.completed || prev.results.length,
-              failedQuestions: data.failed || 0,
-              progress: {
-                ...prev.progress.progress,
-                current: data.completed || prev.results.length,
-                total: data.requested || prev.count,
-              },
-            },
-          }));
-          addQuestionLog({
-            type: "success",
-            content: `Generation complete: ${data.completed}/${data.requested} questions generated${data.failed > 0 ? `, ${data.failed} failed` : ""}`,
-          });
-        } else if (data.type === "result") {
-          const isExtended =
-            data.extended || data.validation?.decision === "extended";
-          const questionPreview =
-            data.question?.question?.slice(0, 50) || "Unknown";
-          addQuestionLog({
-            type: "success",
-            content: `Question ${data.question_id || (data.index !== undefined ? `#${data.index + 1}` : "")} generated: ${questionPreview}...`,
-          });
-          setQuestionState((prev) => ({
-            ...prev,
-            results: [
-              ...prev.results,
-              {
-                success: true,
-                question_id: data.question_id || `q_${prev.results.length + 1}`,
-                question: data.question,
-                validation: data.validation,
-                rounds: data.rounds || 1,
-                extended: isExtended,
-              },
-            ],
-            progress: {
-              ...prev.progress,
-              stage: "generating",
-              completedQuestions: prev.results.length + 1,
-              progress: {
-                ...prev.progress.progress,
-                current: prev.results.length + 1,
-                total: prev.count,
-                round: data.rounds || 1,
-              },
-              extendedQuestions:
-                (prev.progress.extendedQuestions || 0) + (isExtended ? 1 : 0),
-            },
-          }));
-        } else if (data.type === "complete") {
-          setQuestionState((prev) => ({
-            ...prev,
-            step: "result",
-            progress: {
-              ...prev.progress,
-              stage: "complete",
-              completedQuestions: prev.results.length,
-            },
-          }));
-          ws.close();
-        } else if (data.type === "error") {
-          addQuestionLog({
-            type: "error",
-            content: `Error: ${data.content || data.message || "Unknown error"}`,
-          });
-          setQuestionState((prev) => ({
-            ...prev,
-            progress: {
-              stage: null,
-              progress: {},
-            },
-          }));
-        }
+        handleCommonWsMessage(data, ws);
       };
 
       ws.onerror = () => {
-        addQuestionLog({
-          type: "error",
-          content: "WebSocket connection error",
-        });
+        addQuestionLog({ type: "error", content: "WebSocket connection error" });
         setQuestionState((prev) => ({
           ...prev,
           step: "config",
-          progress: {
-            stage: null,
-            progress: {},
-          },
+          progress: { stage: null, progress: {} },
           agentStatus: { ...DEFAULT_QUESTION_AGENT_STATUS },
         }));
       };
 
       ws.onclose = () => {
-        if (questionWs.current === ws) {
-          questionWs.current = null;
-        }
+        if (questionWs.current === ws) questionWs.current = null;
       };
     },
-    [addQuestionLog],
+    [addQuestionLog, handleCommonWsMessage],
   );
 
   const startMimicQuestionGen = useCallback(
-    async (
-      file: File | null,
-      paperPath: string,
-      kb: string,
-      maxQuestions?: number,
-    ) => {
+    async (file: File | null, paperPath: string, kb: string, maxQuestions?: number) => {
       if (questionWs.current) questionWs.current.close();
 
       const hasFile = file !== null;
       const hasParsedPath = paperPath && paperPath.trim() !== "";
-
       if (!hasFile && !hasParsedPath) {
         addQuestionLog({
           type: "error",
-          content:
-            "Please upload a PDF file or provide a parsed exam directory",
+          content: "Please upload a PDF file or provide a parsed exam directory",
         });
         return;
       }
@@ -544,10 +340,14 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
         results: [],
         selectedKb: kb,
         uploadedFile: file,
-        paperPath: paperPath,
+        paperPath,
         progress: {
           stage: hasFile ? "uploading" : "parsing",
           progress: { current: 0, total: maxQuestions || 1 },
+          subFocuses: [],
+          activeQuestions: [],
+          completedQuestions: 0,
+          failedQuestions: 0,
         },
         agentStatus: { ...DEFAULT_QUESTION_AGENT_STATUS },
         tokenStats: { ...DEFAULT_QUESTION_TOKEN_STATS },
@@ -558,10 +358,6 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
 
       ws.onopen = async () => {
         if (hasFile && file) {
-          addQuestionLog({
-            type: "system",
-            content: "Preparing to upload PDF file...",
-          });
           const reader = new FileReader();
           reader.onload = () => {
             const base64Data = (reader.result as string).split(",")[1];
@@ -574,10 +370,6 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
                 max_questions: maxQuestions,
               }),
             );
-            addQuestionLog({
-              type: "system",
-              content: `Uploaded: ${file.name}, parsing...`,
-            });
           };
           reader.readAsDataURL(file);
         } else {
@@ -589,27 +381,20 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
               max_questions: maxQuestions,
             }),
           );
-          addQuestionLog({
-            type: "system",
-            content: "Initializing Mimic Generator...",
-          });
         }
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        handleMimicWsMessage(data, ws);
+        handleCommonWsMessage(data, ws);
       };
 
       ws.onerror = () => {
-        addQuestionLog({
-          type: "error",
-          content: "WebSocket connection error",
-        });
+        addQuestionLog({ type: "error", content: "WebSocket connection error" });
         setQuestionState((prev) => ({ ...prev, step: "config" }));
       };
     },
-    [addQuestionLog, handleMimicWsMessage],
+    [addQuestionLog, handleCommonWsMessage],
   );
 
   const resetQuestionGen = useCallback(() => {
@@ -650,7 +435,6 @@ export function QuestionProvider({ children }: { children: React.ReactNode }) {
 
 export const useQuestion = () => {
   const context = useContext(QuestionContext);
-  if (!context)
-    throw new Error("useQuestion must be used within QuestionProvider");
+  if (!context) throw new Error("useQuestion must be used within QuestionProvider");
   return context;
 };

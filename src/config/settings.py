@@ -18,7 +18,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class LLMRetryConfig(BaseModel):
     max_retries: int = Field(default=3, description="Maximum retry attempts for LLM calls")
-    base_delay: float = Field(default=1.0, description="Base delay between retries in seconds")
+    base_delay: float = Field(default=5.0, description="Base delay between retries in seconds")
     exponential_backoff: bool = Field(
         default=True, description="Whether to use exponential backoff"
     )

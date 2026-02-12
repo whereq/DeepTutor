@@ -36,13 +36,9 @@ class DisplayManager:
         self.rich_available = RICH_AVAILABLE
 
         self.agents_status = {
-            "InvestigateAgent": "pending",
-            "NoteAgent": "pending",
-            "ManagerAgent": "pending",
-            "SolveAgent": "pending",
-            "ToolAgent": "pending",
-            "ResponseAgent": "pending",
-            "PrecisionAnswerAgent": "pending",
+            "PlannerAgent": "pending",
+            "SolverAgent": "pending",
+            "WriterAgent": "pending",
         }
 
         self.stats = {
