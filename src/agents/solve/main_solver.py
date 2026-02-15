@@ -585,13 +585,14 @@ class MainSolver:
         code = await self._generate_code(intent)
 
         # Step 2: Execute
-        from src.tools.code_executor import run_code
+        from src.tools.code_executor import run_code, DEFAULT_SAFE_IMPORTS
 
         result = await run_code(
             language="python",
             code=code,
             timeout=30,
             assets_dir=artifacts_dir,
+            allowed_imports=DEFAULT_SAFE_IMPORTS,
         )
 
         parts: list[str] = []

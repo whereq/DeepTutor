@@ -56,7 +56,7 @@ from src.agents.research.agents import (
 from src.agents.research.data_structures import DynamicTopicQueue
 from src.agents.research.utils.citation_manager import CitationManager
 from src.logging import get_logger
-from src.tools.code_executor import run_code
+from src.tools.code_executor import run_code, DEFAULT_SAFE_IMPORTS
 from src.tools.paper_search_tool import PaperSearchTool
 from src.tools.query_item_tool import query_numbered_item
 from src.tools.rag_tool import rag_search
@@ -364,6 +364,7 @@ class ResearchPipeline:
                     run_code,
                     language="python",
                     code=query,
+                    allowed_imports=DEFAULT_SAFE_IMPORTS,
                     max_retries=1,
                     timeout=30,  # Wrapper timeout
                     tool_name="run_code",
@@ -379,7 +380,7 @@ class ResearchPipeline:
                 mode="hybrid",
                 max_retries=max_retries,
                 timeout=default_timeout,
-                tool_name="rag_search(hybrid)",
+                tool_name=f"rag_search(hybrid)",
             )
             return json.dumps(res, ensure_ascii=False)
         except Exception as e:

@@ -22,6 +22,13 @@ RUN_CODE_ALLOWED_ROOTS_ENV = "RUN_CODE_ALLOWED_ROOTS"
 DEFAULT_WORKSPACE_NAME = "run_code_workspace"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# Standard scientific and utility libraries allowed by default
+DEFAULT_SAFE_IMPORTS = [
+    "math", "numpy", "pandas", "matplotlib", "plt", "seaborn", 
+    "scipy", "statsmodels", "json", "datetime", "re", "collections",
+    "itertools", "functools", "random", "time", "statistics", "sympy"
+]
+
 from src.logging import get_logger
 from src.services.path_service import get_path_service
 
@@ -139,10 +146,9 @@ class WorkspaceManager:
                 self.base_dir = path_service.get_run_code_workspace_dir().resolve()
 
         # Determine allowed root paths list
-        # Default includes project root and user directory
+        # Default includes only the user directory for safety (avoid project root access)
         path_service = get_path_service()
         self.allowed_roots: list[Path] = [
-            PROJECT_ROOT.resolve(),
             path_service.user_data_dir.resolve(),
         ]
 
@@ -289,7 +295,14 @@ class CodeExecutionEnvironment:
         timeout: int,
         assets_dir: Path | None,
     ) -> tuple[str, str, int, float]:
-        env = os.environ.copy()
+        # Filter environment variables to prevent leaking API keys to the code process
+        env = {}
+        # Only include safe environment variables
+        safe_vars = {"PYTHONIOENCODING", "PATH", "LANG", "LC_ALL"}
+        for k, v in os.environ.items():
+            if k in safe_vars or k.startswith("PYTHON"):
+                env[k] = v
+        
         env["PYTHONIOENCODING"] = "utf-8"
 
         with self.workspace.create_temp_dir() as temp_dir:
@@ -334,6 +347,11 @@ async def run_code(
         raise ValueError(f"Unsupported language: {language}, currently only Python is supported")
 
     WORKSPACE_MANAGER.ensure_initialized()
+    
+    # Apply default whitelist if none provided
+    if allowed_imports is None:
+        allowed_imports = DEFAULT_SAFE_IMPORTS
+        
     ImportGuard.validate(code, allowed_imports)
 
     assets_path = WORKSPACE_MANAGER.resolve_assets_dir(assets_dir)
