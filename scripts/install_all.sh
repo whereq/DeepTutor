@@ -78,7 +78,7 @@ if [ ! -f "$REQUIREMENTS_FILE" ]; then
     exit 1
 fi
 
-print_info "Using Python: $(which python)"
+print_info "Using Python: $(which python3)"
 print_info "Requirements file: $REQUIREMENTS_FILE"
 
 # Function to install with uv (faster and better resolver)
@@ -86,7 +86,7 @@ install_with_uv() {
     # Check if uv is available
     if ! command -v uv &> /dev/null; then
         print_info "Installing uv for better dependency resolution..."
-        if python -m pip install uv; then
+        if python3 -m pip install uv; then
             print_success "uv installed successfully"
         else
             return 1
@@ -94,7 +94,7 @@ install_with_uv() {
     fi
 
     print_info "Using uv for faster dependency resolution..."
-    if python -m uv pip install -r "$REQUIREMENTS_FILE"; then
+    if python3 -m uv pip install -r "$REQUIREMENTS_FILE"; then
         return 0
     else
         return 1
@@ -107,7 +107,7 @@ install_with_pip_staged() {
 
     # Stage 1: Core dependencies
     print_info "Stage 1/3: Installing core dependencies..."
-    if python -m pip install \
+    if python3 -m pip install \
         "python-dotenv>=1.0.0" \
         "PyYAML>=6.0" \
         "tiktoken>=0.5.0" \
@@ -137,7 +137,7 @@ install_with_pip_staged() {
     print_info "Stage 3/4: Installing raganything (includes lightrag-hku, this may take a while)..."
     if ! python -m pip install "raganything>=0.1.0"; then
         print_warning "Standard install failed, trying with --no-deps..."
-        python -m pip install "raganything>=0.1.0" --no-deps || print_warning "raganything installation had issues"
+        python3 -m pip install "raganything>=0.1.0" --no-deps || print_warning "raganything installation had issues"
     fi
 
     # Stage 4: docling (alternative parser for Office/HTML documents)
@@ -145,7 +145,7 @@ install_with_pip_staged() {
     python -m pip install "docling>=2.31.0" || print_warning "docling installation had issues (optional, can be skipped)"
 
     # Optional deps
-    python -m pip install "perplexityai>=0.1.0" "dashscope>=1.14.0" 2>/dev/null || true
+    python3 -m pip install "perplexityai>=0.1.0" "dashscope>=1.14.0" 2>/dev/null || true
 
     return 0
 }
@@ -165,7 +165,7 @@ else
     else
         # Strategy 3: Direct pip as last resort
         print_warning "Staged installation had issues, trying direct pip install..."
-        if python -m pip install -r "$REQUIREMENTS_FILE"; then
+        if python3 -m pip install -r "$REQUIREMENTS_FILE"; then
             print_success "Backend dependencies installed successfully"
         else
             print_error "Backend dependencies installation failed"
@@ -318,7 +318,7 @@ ALL_OK=true
 print_info "Checking backend key packages..."
 
 check_python_package() {
-    if python -c "import $1" 2>/dev/null; then
+    if python3 -c "import $1" 2>/dev/null; then
         print_success "  ✓ $1"
         return 0
     else
@@ -332,7 +332,7 @@ check_python_package uvicorn || ALL_OK=false
 check_python_package openai || ALL_OK=false
 
 # Check lightrag_hku (import name is lightrag)
-if python -c "import lightrag" 2>/dev/null; then
+if python3 -c "import lightrag" 2>/dev/null; then
     print_success "  ✓ lightrag_hku"
 else
     print_error "  ✗ lightrag_hku not installed"
@@ -340,7 +340,7 @@ else
 fi
 
 # Check raganything
-if python -c "import raganything" 2>/dev/null; then
+if python3 -c "import raganything" 2>/dev/null; then
     print_success "  ✓ raganything"
 else
     print_error "  ✗ raganything not installed"

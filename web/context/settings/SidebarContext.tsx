@@ -83,7 +83,25 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
             setSidebarDescriptionState(data.description);
           }
           if (data.nav_order) {
-            setSidebarNavOrderState(data.nav_order);
+            // Merge saved nav_order with DEFAULT_NAV_ORDER to include new items
+            const mergedOrder: SidebarNavOrder = {
+              start: [...data.nav_order.start],
+              learnResearch: [...data.nav_order.learnResearch],
+            };
+
+            // Add any new items from DEFAULT_NAV_ORDER that are not in saved order
+            DEFAULT_NAV_ORDER.start.forEach((item) => {
+              if (!mergedOrder.start.includes(item)) {
+                mergedOrder.start.push(item);
+              }
+            });
+            DEFAULT_NAV_ORDER.learnResearch.forEach((item) => {
+              if (!mergedOrder.learnResearch.includes(item)) {
+                mergedOrder.learnResearch.push(item);
+              }
+            });
+
+            setSidebarNavOrderState(mergedOrder);
           }
         }
       } catch (e) {

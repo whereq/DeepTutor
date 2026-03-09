@@ -1,5 +1,5 @@
 system:
-  language: en
+  language: zh
 paths:
   user_data_dir: ./data/user
   knowledge_bases_dir: ./data/knowledge_bases
@@ -10,6 +10,7 @@ paths:
   research_output_dir: ./data/user/research/cache
   research_reports_dir: ./data/user/research/reports
   solve_output_dir: ./data/user/solve
+  vision_solver_output_dir: ./data/user/vision_solver
 tools:
   rag_tool:
     kb_base_dir: ./data/knowledge_bases
@@ -57,6 +58,36 @@ solve:
   observation_max_tokens: 2000  # Truncation limit for tool results
   enable_citations: true
   save_intermediate_results: true
+  # Valid tools for investigate agent validation
+  valid_tools:
+    - "rag_naive"
+    - "rag_hybrid"
+    - "web_search"
+    - "query_item"
+    - "none"
+  agents:
+    investigate_agent:
+      max_actions_per_round: 1
+      max_iterations: 3
+    precision_answer_agent:
+      enabled: true
+vision_solver:
+  enabled: true
+  max_image_size: 10MB
+  geogebra:
+    xmin: -10
+    xmax: 10
+    ymin: -8
+    ymax: 8
+  stages:
+    bbox:
+      temperature: 0.3
+    analysis:
+      temperature: 0.3
+    ggbscript:
+      temperature: 0.3
+    reflection:
+      temperature: 0.3
   detailed_answer: false        # true = iterative step-by-step writing; false = single-shot
 research:
   planning:
