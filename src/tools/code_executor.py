@@ -22,6 +22,12 @@ RUN_CODE_ALLOWED_ROOTS_ENV = "RUN_CODE_ALLOWED_ROOTS"
 DEFAULT_WORKSPACE_NAME = "run_code_workspace"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+DEFAULT_SAFE_IMPORTS = [
+    "math", "numpy", "pandas", "matplotlib", "plt", "seaborn",
+    "scipy", "statsmodels", "json", "datetime", "re", "collections",
+    "itertools", "functools", "random", "time", "statistics", "sympy",
+]
+
 from src.logging import get_logger
 from src.services.path_service import get_path_service
 
@@ -274,6 +280,8 @@ async def run_code(
     status = "error"
 
     try:
+        if allowed_imports is None:
+            allowed_imports = DEFAULT_SAFE_IMPORTS
         ImportGuard.validate(code, allowed_imports)
 
         loop = asyncio.get_running_loop()
