@@ -16,6 +16,9 @@ import warnings
 _PIPELINES: Dict[str, Callable] = {}
 _PIPELINES_INITIALIZED = False
 
+# Cached pipeline instances keyed by (name, kb_base_dir)
+_PIPELINE_CACHE: Dict[tuple, object] = {}
+
 
 def _init_pipelines():
     """Lazily initialize pipeline registry.
@@ -67,6 +70,9 @@ def get_pipeline(name: str = "raganything", kb_base_dir: Optional[str] = None, *
     """
     Get a pre-configured pipeline by name.
 
+    Instances are cached by (name, kb_base_dir) so repeated calls reuse the
+    same pipeline (and its internal RAG instance cache).
+
     Args:
         name: Pipeline name (raganything, raganything_docling, lightrag, llamaindex)
         kb_base_dir: Base directory for knowledge bases (passed to all pipelines)
@@ -83,6 +89,12 @@ def get_pipeline(name: str = "raganything", kb_base_dir: Optional[str] = None, *
         available = list(_PIPELINES.keys())
         raise ValueError(f"Unknown pipeline: {name}. Available: {available}")
 
+    # Return cached instance when no extra kwargs are provided
+    if not kwargs:
+        cache_key = (name, kb_base_dir)
+        if cache_key in _PIPELINE_CACHE:
+            return _PIPELINE_CACHE[cache_key]
+
     factory = _PIPELINES[name]
 
     try:
@@ -90,11 +102,16 @@ def get_pipeline(name: str = "raganything", kb_base_dir: Optional[str] = None, *
         # - lightrag: callable that accepts kb_base_dir and returns a composed RAGPipeline
         # - llamaindex, raganything, raganything_docling: callables that instantiate class-based pipelines
         if name in ("lightrag",):
-            return factory(kb_base_dir=kb_base_dir, **kwargs)
+            instance = factory(kb_base_dir=kb_base_dir, **kwargs)
+        else:
+            if kb_base_dir:
+                kwargs["kb_base_dir"] = kb_base_dir
+            instance = factory(**kwargs)
 
-        if kb_base_dir:
-            kwargs["kb_base_dir"] = kb_base_dir
-        return factory(**kwargs)
+        if not kwargs or (len(kwargs) == 1 and "kb_base_dir" in kwargs):
+            _PIPELINE_CACHE[(name, kb_base_dir)] = instance
+
+        return instance
     except ImportError as e:
         # Common case: user didn't install optional RAG backend deps (e.g. llama_index).
         raise ValueError(

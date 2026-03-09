@@ -13,7 +13,7 @@ paths:
 tools:
   rag_tool:
     kb_base_dir: ./data/knowledge_bases
-    default_kb: ai_textbook
+    default_kb: ai-textbook
   run_code:
     workspace: ./data/user/run_code_workspace
     allowed_roots:
@@ -30,7 +30,7 @@ tools:
 logging:
   # Global log level for the entire system (DEBUG, INFO, WARNING, ERROR)
   # This controls both DeepTutor logs and RAG module logs
-  level: DEBUG
+  level: WARNING
   save_to_file: true
   console_output: true
   # RAG module logger name mapping (optional customization)
@@ -38,34 +38,26 @@ logging:
     knowledge_init: RAG-Init
     rag_tool: RAG
 question:
-  # Refactored: no iteration loops (max_rounds removed)
   rag_query_count: 3
   max_parallel_questions: 1
   rag_mode: naive
-  agents:
-    retrieve:
-      top_k: 30
-    generate:
-      max_retries: 2
-    relevance_analyzer:
-      enabled: true
+  idea_loop:
+    max_rounds: 3
+    ideas_per_round: 5
+  generation:
+    max_retries: 2
+    tools:
+      web_search: true
+      rag_tool: true
+      write_code: true
 solve:
-  max_solve_correction_iterations: 3
+  max_react_iterations: 10       # Max ReAct rounds per plan step
+  max_plan_steps: 10            # Max steps in a plan
+  max_replans: 2                # Max replan attempts
+  observation_max_tokens: 2000  # Truncation limit for tool results
   enable_citations: true
   save_intermediate_results: true
-  # Valid tools for investigate agent validation
-  valid_tools:
-    - "rag_naive"
-    - "rag_hybrid"
-    - "web_search"
-    - "query_item"
-    - "none"
-  agents:
-    investigate_agent:
-      max_actions_per_round: 1
-      max_iterations: 3
-    precision_answer_agent:
-      enabled: true
+  detailed_answer: true        # true = iterative step-by-step writing; false = single-shot
 research:
   planning:
     rephrase:
@@ -79,7 +71,7 @@ research:
   researching:
     max_iterations: 5
     new_topic_min_score: 0.85
-    execution_mode: series 
+    execution_mode: series
     max_parallel_topics: 1
     enable_rag_naive: true
     enable_rag_hybrid: true

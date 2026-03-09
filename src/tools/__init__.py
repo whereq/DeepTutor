@@ -57,6 +57,7 @@ except Exception as e:
 from .code_executor import run_code, run_code_sync
 from .query_item_tool import query_numbered_item
 from .rag_tool import rag_search
+from .reason import reason
 from .web_search import web_search
 
 # Paper research related tools
@@ -71,6 +72,7 @@ try:
         "TexDownloader",
         "query_numbered_item",
         "rag_search",
+        "reason",
         "read_tex_file",
         "run_code",
         "run_code_sync",
@@ -82,6 +84,7 @@ except ImportError as e:
     __all__ = [
         "query_numbered_item",
         "rag_search",
+        "reason",
         "run_code",
         "run_code_sync",
         "web_search",

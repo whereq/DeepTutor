@@ -1,0 +1,13 @@
+\section{Example Appendix}
+\label{sec:appendix}
+
+This is an appendix.
+
+\section{Worked Example: Profile Injection}
+\label{sec:appendix_worked_example}
+
+To illustrate the profile injection mechanism ($\mathcal{C}_{\text{mem}}$), consider a scenario where a beginner learner asks: ``How does backpropagation work?''.
+
+1. \textbf{Active Trace Retrieval}: The TraceToolkit queries the trace forest using the question embedding. It retrieves a Level 1 session summary (``Learner struggled with chain rule last week'') and a Level 3 execution record (``Failed to apply chain rule in a nested function problem'').
+2. \textbf{Profile Excerpting}: The planner receives $\mathcal{D}_s$ (``Topic: Calculus, Neural Networks'') and $\mathcal{D}_w$ (``Active Weakness: Chain rule application''). The writer receives $\mathcal{D}_r$ (``Self-Reflection: Learner needs step-by-step mathematical derivations before code examples'').
+3. \textbf{Context Assembly}: The token budget is partitioned (e.g., 60\% for $\mathcal{C}_{\text{rag}}$ to retrieve backpropagation formulas, 40\% for $\mathcal{C}_{\text{mem}}$). The final prompt instructs the agent to explain backpropagation with a specific focus on the chain rule, providing a step-by-step derivation.

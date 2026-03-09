@@ -18,6 +18,27 @@ from src.logging.adapters import LightRAGLogContext
 from src.services.llm.config import get_llm_config as _early_config_load  # noqa: F401
 
 
+def _patch_doc_processing_status() -> None:
+    """Patch DocProcessingStatus to tolerate unknown fields from newer LightRAG/RAGAnything versions."""
+    try:
+        from dataclasses import fields as dc_fields
+        from lightrag.base import DocProcessingStatus
+
+        _orig_init = DocProcessingStatus.__init__
+
+        def _tolerant_init(self, *args, **kwargs):
+            known = {f.name for f in dc_fields(DocProcessingStatus)}
+            kwargs = {k: v for k, v in kwargs.items() if k in known}
+            _orig_init(self, *args, **kwargs)
+
+        DocProcessingStatus.__init__ = _tolerant_init
+    except Exception:
+        pass
+
+
+_patch_doc_processing_status()
+
+
 class RAGAnythingPipeline:
     """
     RAG-Anything end-to-end Pipeline.
@@ -110,6 +131,9 @@ class RAGAnythingPipeline:
         kb_name: str,
         file_paths: List[str],
         extract_numbered_items: bool = True,
+        use_mineru_api: bool = False,
+        mineru_api_token: Optional[str] = None,
+        mineru_model_version: str = "vlm",
         **kwargs,
     ) -> bool:
         """
@@ -131,6 +155,9 @@ class RAGAnythingPipeline:
             kb_name: Knowledge base name
             file_paths: List of file paths to process
             extract_numbered_items: Whether to extract numbered items after processing
+            use_mineru_api: Use MinerU cloud API instead of local MinerU
+            mineru_api_token: MinerU API token (falls back to MINERU_API_TOKEN env var)
+            mineru_model_version: MinerU API model version ("pipeline", "vlm", "MinerU-HTML")
             **kwargs: Additional arguments
 
         Returns:
@@ -144,7 +171,10 @@ class RAGAnythingPipeline:
             migrate_images_and_update_paths,
         )
 
-        self.logger.info(f"Initializing KB '{kb_name}' with {len(file_paths)} files")
+        parse_mode = "MinerU API" if use_mineru_api else "MinerU local"
+        self.logger.info(
+            f"Initializing KB '{kb_name}' with {len(file_paths)} files (parser: {parse_mode})"
+        )
 
         kb_dir = Path(self.kb_base_dir) / kb_name
         content_list_dir = kb_dir / "content_list"
@@ -161,6 +191,19 @@ class RAGAnythingPipeline:
             f"{len(classification.unsupported)} unsupported"
         )
 
+        # Initialize MinerU API client if needed
+        mineru_api_client = None
+        if use_mineru_api and classification.needs_mineru:
+            from ..parsers.mineru_api import MinerUAPIClient
+
+            mineru_api_client = MinerUAPIClient(
+                token=mineru_api_token,
+                model_version=mineru_model_version,
+            )
+            self.logger.info(
+                f"Using MinerU Cloud API (model_version: {mineru_model_version})"
+            )
+
         with LightRAGLogContext(scene="knowledge_init"):
             rag = self._get_rag_instance(kb_name)
             await rag._ensure_lightrag_initialized()
@@ -173,15 +216,25 @@ class RAGAnythingPipeline:
             for file_path in classification.needs_mineru:
                 idx += 1
                 file_name = Path(file_path).name
-                self.logger.info(f"Processing [{idx}/{total_files}] (MinerU): {file_name}")
+                self.logger.info(f"Processing [{idx}/{total_files}] ({parse_mode}): {file_name}")
 
-                # Step 1: Parse document (without RAG insertion)
-                self.logger.info("  Step 1/3: Parsing document...")
-                content_list, doc_id = await rag.parse_document(
-                    file_path=file_path,
-                    output_dir=str(content_list_dir),
-                    parse_method="auto",
-                )
+                if mineru_api_client:
+                    # === MinerU Cloud API path ===
+                    self.logger.info("  Step 1/3: Parsing document via MinerU API...")
+                    content_list, _md = await mineru_api_client.parse_file(
+                        file_path=file_path,
+                        output_dir=str(content_list_dir),
+                    )
+                    # Generate doc_id from content (same logic as RAGAnything)
+                    doc_id = rag._generate_content_based_doc_id(content_list)
+                else:
+                    # === Local MinerU path ===
+                    self.logger.info("  Step 1/3: Parsing document locally...")
+                    content_list, doc_id = await rag.parse_document(
+                        file_path=file_path,
+                        output_dir=str(content_list_dir),
+                        parse_method="auto",
+                    )
 
                 # Step 2: Migrate images and update paths
                 self.logger.info("  Step 2/3: Migrating images to canonical location...")
@@ -310,7 +363,13 @@ class RAGAnythingPipeline:
         """
         with LightRAGLogContext(scene="rag_search"):
             rag = self._get_rag_instance(kb_name)
-            await rag._ensure_lightrag_initialized()
+            # Parser (MinerU) is not needed for search — skip the check
+            rag._parser_installation_checked = True
+            init_result = await rag._ensure_lightrag_initialized()
+            if isinstance(init_result, dict) and not init_result.get("success", True):
+                raise RuntimeError(
+                    f"LightRAG init failed for '{kb_name}': {init_result.get('error', 'unknown')}"
+                )
 
             answer = await rag.aquery(query, mode=mode, only_need_context=only_need_context)
             answer_str = answer if isinstance(answer, str) else str(answer)

@@ -3,15 +3,21 @@
 # Configuration for the personalization memory system.
 
 llm:
-  # Model to use for MemoryAgent. Empty string uses system default LLM.
+  # Model to use for memory agents. Empty string uses system default LLM.
   model: "qwen3-next-80b-a3b-instruct"
   # Temperature for memory analysis (lower = more deterministic)
   temperature: 0.5
 
 memory:
-  # Number of recent days of notes to read for context
-  recent_days: 7
   # Whether to automatically update memory after task completion
   auto_update: true
-  # Maximum length of preference context to inject into prompts (characters)
-  max_preference_length: 2000
+  # Maximum ReAct rounds per agent
+  max_react_rounds: 6
+
+agents:
+  reflection:
+    enabled: true
+  summary:
+    enabled: true
+  weakness:
+    enabled: true

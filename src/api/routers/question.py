@@ -383,7 +383,6 @@ async def websocket_question_generate(websocket: WebSocket):
             api_version=api_version,
             kb_name=kb_name,
             language=get_ui_language(default=config.get("system", {}).get("language", "en")),
-            max_rounds=10,
             output_dir=str(output_base),
         )
 
@@ -425,34 +424,30 @@ async def websocket_question_generate(websocket: WebSocket):
                     logger.debug("WebSocket closed, stopping question generation")
                     return
 
-                # Use custom mode generation (new streamlined flow)
-                logger.info(f"Starting custom mode generation for {count} question(s)")
+                # Extract fields from requirement dict
+                user_topic = requirement.get("knowledge_point", "") if isinstance(requirement, dict) else str(requirement)
+                preference = requirement.get("preference", "") if isinstance(requirement, dict) else ""
+                difficulty = requirement.get("difficulty", "") if isinstance(requirement, dict) else ""
+                question_type = requirement.get("question_type", "") if isinstance(requirement, dict) else ""
 
-                # Use the new custom generation method
-                batch_result = await coordinator.generate_questions_custom(
-                    requirement=requirement,
+                logger.info(f"Starting question generation for {count} question(s), topic: {user_topic}")
+
+                batch_result = await coordinator.generate_from_topic(
+                    user_topic=user_topic,
+                    preference=preference,
                     num_questions=count,
+                    difficulty=difficulty,
+                    question_type=question_type,
                 )
-
-                # Results are already sent via WebSocket callbacks in the coordinator
-
-                # Send final token stats
-                try:
-                    await websocket.send_json(
-                        {"type": "token_stats", "stats": coordinator.token_stats}
-                    )
-                except (RuntimeError, WebSocketDisconnect):
-                    logger.debug("WebSocket closed, stopping question generation")
 
                 # Send batch summary
                 try:
                     await websocket.send_json(
                         {
                             "type": "batch_summary",
-                            "requested": batch_result.get("requested", count),
+                            "requested": count,
                             "completed": batch_result.get("completed", 0),
                             "failed": batch_result.get("failed", 0),
-                            "plan": batch_result.get("plan", {}),
                         }
                     )
                 except (RuntimeError, WebSocketDisconnect):

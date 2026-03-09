@@ -151,16 +151,12 @@ MODEL_OVERRIDES: dict[str, dict[str, object]] = {
         # QwQ is Qwen's reasoning model with thinking tags
         "has_thinking_tags": True,
     },
-    # Claude models through OpenRouter or other providers
-    "claude": {
-        "supports_response_format": False,
-        "system_in_messages": False,
-    },
-    # Anthropic models
-    "anthropic/": {
-        "supports_response_format": False,
-        "system_in_messages": False,
-    },
+    # NOTE: supports_response_format and system_in_messages are binding-level
+    # capabilities, NOT model-level. When using OpenRouter or other OpenAI-compatible
+    # proxies (binding="openai"), they handle response_format translation and expect
+    # system prompts in messages. The native Anthropic limitations are already
+    # handled by PROVIDER_CAPABILITIES["anthropic"] / ["claude"] above.
+    # Only model-intrinsic capabilities (like has_thinking_tags) belong here.
     # Reasoning models - only support temperature=1.0
     # See: https://github.com/HKUDS/DeepTutor/issues/141
     "gpt-5": {

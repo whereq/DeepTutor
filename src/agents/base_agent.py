@@ -423,6 +423,7 @@ class BaseAgent(ABC):
                 api_key=self.api_key,
                 base_url=self.base_url,
                 api_version=self.api_version,
+                binding=self.binding,
                 max_retries=max_retries,
                 **kwargs,
             )
@@ -522,6 +523,7 @@ class BaseAgent(ABC):
                 api_key=self.api_key,
                 base_url=self.base_url,
                 api_version=self.api_version,
+                binding=self.binding,
                 messages=messages,
                 **kwargs,
             ):

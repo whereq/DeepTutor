@@ -8,13 +8,10 @@
 # =============================================================================
 
 # Solve Module - Problem solving agents
-# Agents: investigate_agent, note_agent, manager_agent, solve_agent, tool_agent, response_agent, precision_answer_agent
+# Agents: planner_agent, solver_agent, writer_agent
 solve:
   temperature: 0.3
   max_tokens: 8192
-  # NOTE: Valid tools for investigate agent validation are defined in
-  #       config/main.yaml, which is the SINGLE source of truth for valid_tools.
-  #       Do not re-declare valid_tools here to avoid configuration drift.
 
 # Research Module - Deep research agents
 # Agents: rephrase_agent, decompose_agent, manager_agent, research_agent, note_agent, reporting_agent
@@ -23,7 +20,7 @@ research:
   max_tokens: 12000
 
 # Question Module - Question generation agents
-# Agents: question_generation_agent, question_validation_agent
+# Agents: idea_agent, evaluator, generator, validator
 question:
   temperature: 0.7
   max_tokens: 4096
@@ -45,6 +42,11 @@ ideagen:
 co_writer:
   temperature: 0.7
   max_tokens: 4096
+
+# Personalization Module - Memory agents (reflection, summary, weakness)
+personalization:
+  temperature: 0.5
+  max_tokens: 8192
 
 # =============================================================================
 # Narrator Agent - Independent configuration for TTS integration

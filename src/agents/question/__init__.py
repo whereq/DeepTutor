@@ -1,11 +1,10 @@
 """
 Question Generation System
 
-Modular question generation using specialized agents:
-- RetrieveAgent: Knowledge base retrieval
-- GenerateAgent: Question generation
-- RelevanceAnalyzer: Question-KB relevance analysis
-- AgentCoordinator: Workflow orchestration
+Refactored dual-loop architecture:
+- Idea loop: IdeaAgent <-> Evaluator
+- Generation loop: Generator <-> Validator
+- AgentCoordinator: End-to-end orchestration for topic and exam paths
 
 Tools (moved to src/tools/question):
 - parse_pdf_with_mineru
@@ -13,12 +12,16 @@ Tools (moved to src/tools/question):
 - mimic_exam_questions
 """
 
-from .agents import GenerateAgent, RelevanceAnalyzer, RetrieveAgent
+from .agents import Evaluator, Generator, IdeaAgent, Validator
 from .coordinator import AgentCoordinator
+from .models import QAPair, QuestionTemplate
 
 __all__ = [
-    "RetrieveAgent",
-    "GenerateAgent",
-    "RelevanceAnalyzer",
+    "IdeaAgent",
+    "Evaluator",
+    "Generator",
+    "Validator",
+    "QuestionTemplate",
+    "QAPair",
     "AgentCoordinator",
 ]

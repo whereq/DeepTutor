@@ -7,20 +7,36 @@ Provides personalized learning experience through memory management and
 event-driven updates.
 
 Components:
-- LearningMemory: Markdown-based memory storage for user preferences and notes
-- MemoryAgent: LLM-powered agent for memory analysis and updates
+- Memory Agents: Three specialized ReAct agents (Reflection, Summary, Weakness)
 - PersonalizationService: Service layer for memory management
+- TraceToolkit: Five tools for agents to explore trace forest
+- ReActRunner: ReAct loop with parallel tool call support
 """
 
-from .memory import LearningMemory, get_learning_memory
-from .memory_agent import MemoryAgent, MemoryDecision
+from .agents import ReflectionAgent, SummaryAgent, WeaknessAgent
+from .memory_reader import MemoryReader, get_memory_reader_instance
+from .react_runner import ReActRunner
 from .service import PersonalizationService, get_personalization_service
+from .trace_forest import TraceForest
+from .trace_tools import TraceToolkit
+from .trace_tree import TraceNode, TraceTree
 
 __all__ = [
-    "LearningMemory",
-    "get_learning_memory",
-    "MemoryAgent",
-    "MemoryDecision",
+    # Agents
+    "ReflectionAgent",
+    "SummaryAgent",
+    "WeaknessAgent",
+    # Tools & Runner
+    "TraceToolkit",
+    "ReActRunner",
+    # Reader
+    "MemoryReader",
+    "get_memory_reader_instance",
+    # Service
     "PersonalizationService",
     "get_personalization_service",
+    # Trace memory
+    "TraceNode",
+    "TraceTree",
+    "TraceForest",
 ]

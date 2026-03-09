@@ -1,0 +1,96 @@
+\documentclass[11pt]{article}
+
+% Change "review" to "final" to generate the final (sometimes called camera-ready) version.
+% Change to "preprint" to generate a non-anonymous version with page numbers.
+\usepackage[preprint]{acl}
+
+% Standard package includes
+\usepackage{times}
+\usepackage{latexsym}
+
+% For proper rendering and hyphenation of words containing Latin characters (including in bib files)
+\usepackage[T1]{fontenc}
+
+% This assumes your files are encoded as UTF8
+\usepackage[utf8]{inputenc}
+
+% This is not strictly necessary, and may be commented out,
+% but it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+% This is also not strictly necessary, and may be commented out.
+% However, it will improve the aesthetics of text in
+% the typewriter font.
+\usepackage{inconsolata}
+
+% Additional packages
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{pifont}
+\usepackage{multirow}
+\usepackage{stfloats}
+
+% If the title and author information does not fit in the area allocated, uncomment the following
+%\setlength\titlebox{<dim>}
+
+\author{
+ \textbf{Bingxi Zhao\textsuperscript{1,2}$^*$},
+ \textbf{Jiahao Zhang\textsuperscript{1}$^*$},
+ \textbf{Xubin Ren\textsuperscript{1}},
+ \textbf{Zirui Guo\textsuperscript{1}},
+ \textbf{Chao Huang\textsuperscript{1}$^\dagger$}
+\\
+ \textsuperscript{1}University of Hong Kong,
+ \textsuperscript{2}Beijing Jiaotong University,
+\\
+ \small{
+   \textbf{Correspondence: \{bingxizhao39, chaohuang75\}@gmail.com} 
+ }
+}
+
+\begin{document}
+\title{DeepTutor: Tool-Augmented Personalized Tutoring System}
+\maketitle
+
+\begin{abstract}
+\renewcommand{\thefootnote}{}%
+\footnotetext{\hspace{-1.8em}$^*$Equal contribution.\newline $^\dagger$Corresponding author.}%
+\renewcommand{\thefootnote}{\arabic{footnote}}%
+\setcounter{footnote}{0}%
+Education is among the most promising real-world applications of large language models (LLMs). 
+While current LLMs exhibit strong abilities, they rely heavily on static knowledge acquired during pre-training stages.
+While current RAG systems can anchor responses in course
+content, they optimize for retrieval precision rather than the adaptive,
+guided explanations that effective tutoring demands.
+In this paper, we present \textsc{DeepTutor}, among the first open-source agentic frameworks to unify citation-grounded problem-solving and difficulty-calibrated question generation.
+These two capabilities are unified through a hybrid personalization engine that couples static knowledge grounding with a trace forest that continuously refines an evolving learner profile to customize every interaction.
+To further evaluate personalized tutoring abilities, we construct TutorBench, a benchmark containing 100 KB-grounded learner profiles to perform first-person interactive assessments via profile-driven student simulator. 
+Generalization experiments on five standard benchmarks further show that our reasoning pipeline lifts solving accuracy by approximately 25\% on average over the backbone model across these datasets. 
+\textsc{DeepTutor} system with full evaluation suites are open-sourced at \url{https://github.com/HKUDS/DeepTutor/tree/eval}.
+
+\end{abstract}
+
+% ===== Sections =====
+\input{sections/intro}
+\input{sections/method}
+\input{sections/experiments}
+\input{sections/related-work}
+\input{sections/conclusion}
+\input{sections/limitation}
+
+\section*{Acknowledgments}
+
+% Bibliography
+\bibliography{custom}
+
+\appendix
+\input{sections/appendix}
+
+\end{document}

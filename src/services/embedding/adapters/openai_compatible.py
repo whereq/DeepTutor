@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """OpenAI-compatible embedding adapter for OpenAI, Azure, HuggingFace, LM Studio, etc."""
 
+import json
 import logging
 from typing import Any, Dict
 
@@ -17,6 +18,76 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         "text-embedding-3-small": {"default": 1536, "dimensions": [512, 1536]},
         "text-embedding-ada-002": 1536,
     }
+
+    @staticmethod
+    def _extract_embeddings_from_response(data: Any) -> list[list[float]]:
+        """
+        Extract embeddings from different OpenAI-compatible response schemas.
+
+        Supported shapes include:
+        - {"data": [{"embedding": [...]}, ...]}
+        - {"embeddings": [[...], ...]}
+        - {"result": {"data": [{"embedding": [...]}, ...]}}
+        - {"output": {"embeddings": [[...], ...]}}
+        """
+        if not isinstance(data, dict):
+            raise ValueError(f"Embedding response is not a JSON object: type={type(data).__name__}")
+
+        # Some providers return HTTP 200 with {"error": ...} payload.
+        if "error" in data:
+            err = data.get("error")
+            if isinstance(err, dict):
+                msg = (
+                    err.get("message")
+                    or err.get("msg")
+                    or err.get("detail")
+                    or json.dumps(err, ensure_ascii=False)
+                )
+                code = err.get("code")
+                etype = err.get("type")
+                raise ValueError(
+                    f"Embedding provider returned error payload: "
+                    f"message={msg}, code={code}, type={etype}"
+                )
+            raise ValueError(f"Embedding provider returned error payload: {err}")
+
+        candidates = []
+        # Standard OpenAI schema
+        if isinstance(data.get("data"), list):
+            candidates.append(data["data"])
+        # Common proxy schema
+        if isinstance(data.get("embeddings"), list):
+            candidates.append(data["embeddings"])
+        # Nested result/output variants
+        result = data.get("result")
+        if isinstance(result, dict):
+            if isinstance(result.get("data"), list):
+                candidates.append(result["data"])
+            if isinstance(result.get("embeddings"), list):
+                candidates.append(result["embeddings"])
+        output = data.get("output")
+        if isinstance(output, dict):
+            if isinstance(output.get("data"), list):
+                candidates.append(output["data"])
+            if isinstance(output.get("embeddings"), list):
+                candidates.append(output["embeddings"])
+
+        for c in candidates:
+            if not c:
+                continue
+            first = c[0]
+            # list of {"embedding":[...]}
+            if isinstance(first, dict) and "embedding" in first:
+                return [item.get("embedding", []) for item in c if isinstance(item, dict)]
+            # list of vectors [[...], ...]
+            if isinstance(first, list):
+                return [item for item in c if isinstance(item, list)]
+
+        keys = sorted(list(data.keys()))
+        raise ValueError(
+            "Cannot parse embeddings from response JSON. "
+            f"Top-level keys={keys}, expected one of: data/embeddings/result/output."
+        )
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         headers = {
@@ -54,27 +125,32 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
             response.raise_for_status()
             data = response.json()
 
-        embeddings = [item["embedding"] for item in data["data"]]
+        embeddings = self._extract_embeddings_from_response(data)
+        if not embeddings:
+            raise ValueError("Embedding response parsed successfully but no vectors were found.")
 
         actual_dims = len(embeddings[0]) if embeddings else 0
         expected_dims = request.dimensions or self.dimensions
+        model_name = data.get("model") if isinstance(data, dict) else None
+        if not model_name:
+            model_name = request.model or self.model
 
         if expected_dims and actual_dims != expected_dims:
             logger.warning(
                 f"Dimension mismatch: expected {expected_dims}, got {actual_dims}. "
-                f"Model '{data['model']}' may not support custom dimensions."
+                f"Model '{model_name}' may not support custom dimensions."
             )
 
         logger.info(
             f"Successfully generated {len(embeddings)} embeddings "
-            f"(model: {data['model']}, dimensions: {actual_dims})"
+            f"(model: {model_name}, dimensions: {actual_dims})"
         )
 
         return EmbeddingResponse(
             embeddings=embeddings,
-            model=data["model"],
+            model=model_name,
             dimensions=actual_dims,
-            usage=data.get("usage", {}),
+            usage=data.get("usage", {}) if isinstance(data, dict) else {},
         )
 
     def get_model_info(self) -> Dict[str, Any]:

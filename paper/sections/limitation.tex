@@ -1,0 +1,6 @@
+\section*{Limitations}
+
+Our interactive evaluation relies on LLM-powered student simulators and rubric assessors, which may not fully capture real learner behaviors such as affective states or idiosyncratic reasoning; validation with human learners in authentic classrooms remains important future work.
+The multi-stage pipeline issues multiple LLM calls per interaction, incurring latency and cost that may challenge real-time deployment in resource-constrained settings.
+Additionally, the trace forest grows monotonically and may require periodic pruning for very long-term engagements, and the system's performance ceiling is ultimately bounded by the backbone model's capabilities.
+Finally, our automated evaluation applies exact-match criteria for numerical answers without tolerance for rounding differences, which may understate effective accuracy in certain cases.

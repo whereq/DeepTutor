@@ -81,11 +81,15 @@ def _is_retriable_error(error: BaseException) -> bool:
     - Network/connection errors
 
     Non-retriable errors:
+    - CancelledError / KeyboardInterrupt (must propagate immediately)
     - Authentication errors (401)
     - Bad request (400)
     - Not found (404)
     - Client errors (4xx except 429)
     """
+    if isinstance(error, (asyncio.CancelledError, KeyboardInterrupt, GeneratorExit)):
+        return False
+
     from aiohttp import ClientError
 
     if isinstance(error, (asyncio.TimeoutError, ClientError)):
@@ -185,6 +189,8 @@ async def complete(
         outcome = retry_state.outcome
         exception = outcome.exception() if outcome else None
         error_message = str(exception) if exception else "unknown error"
+        if not error_message.strip():
+            error_message = f"{type(exception).__name__} (no message)"
         logger.warning(
             "LLM call failed (attempt %s/%s), retrying in %.1fs... Error: %s"
             % (

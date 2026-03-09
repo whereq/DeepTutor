@@ -302,53 +302,61 @@ async def _openai_complete(
     if not supports_response_format(binding, model):
         kwargs.pop("response_format", None)
 
+    messages = kwargs.pop("messages", None)
+
     content = None
-    try:
-        # Try using lightrag's openai_complete_if_cache first (has caching)
-        # Only pass api_version if it's set (for Azure OpenAI)
-        # Standard OpenAI SDK doesn't accept api_version parameter
-        history_messages: list[dict[str, str]] = []
-        lightrag_kwargs: dict[str, object] = dict(kwargs)
-        lightrag_kwargs.pop("system_prompt", None)
-        lightrag_kwargs.pop("history_messages", None)
-        lightrag_kwargs.pop("api_key", None)
-        lightrag_kwargs.pop("base_url", None)
-        lightrag_kwargs.pop("api_version", None)
-
-        # Suppress lightrag's and openai's internal error logging during the call
-        # (errors are handled by our fallback mechanism)
-        original_lightrag_level = _lightrag_logger.level
-        original_openai_level = _openai_logger.level
-        _lightrag_logger.setLevel(logging.CRITICAL)
-        _openai_logger.setLevel(logging.CRITICAL)
+    # When pre-built messages are provided, skip lightrag (it expects prompt+history, not messages)
+    # and use direct aiohttp call. Otherwise try lightrag first for caching.
+    if not messages:
         try:
-            # model and prompt must be positional arguments
-            if api_version:
-                lightrag_kwargs["api_version"] = api_version
+            history_messages: list[dict[str, str]] = []
+            lightrag_kwargs: dict[str, object] = dict(kwargs)
+            lightrag_kwargs.pop("system_prompt", None)
+            lightrag_kwargs.pop("history_messages", None)
+            lightrag_kwargs.pop("api_key", None)
+            lightrag_kwargs.pop("base_url", None)
+            lightrag_kwargs.pop("api_version", None)
 
-            openai_complete_if_cache = _get_openai_complete_if_cache()
-            content = await openai_complete_if_cache(
-                model,
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-                api_key=api_key,
-                base_url=base_url,
-                **lightrag_kwargs,
-            )
-        finally:
-            _lightrag_logger.setLevel(original_lightrag_level)
-            _openai_logger.setLevel(original_openai_level)
-    except Exception as exc:
-        # Skip cache failures and fall back to direct aiohttp call
-        logger.debug("Exception occurred: %s", exc)
-    # Fallback: Direct aiohttp call
+            original_lightrag_level = _lightrag_logger.level
+            original_openai_level = _openai_logger.level
+            _lightrag_logger.setLevel(logging.CRITICAL)
+            _openai_logger.setLevel(logging.CRITICAL)
+            try:
+                if api_version:
+                    lightrag_kwargs["api_version"] = api_version
+
+                openai_complete_if_cache = _get_openai_complete_if_cache()
+                content = await openai_complete_if_cache(
+                    model,
+                    prompt,
+                    system_prompt=system_prompt,
+                    history_messages=history_messages,
+                    api_key=api_key,
+                    base_url=base_url,
+                    **lightrag_kwargs,
+                )
+            finally:
+                _lightrag_logger.setLevel(original_lightrag_level)
+                _openai_logger.setLevel(original_openai_level)
+        except Exception as exc:
+            logger.debug("Exception occurred: %s", exc)
+
+    # Direct aiohttp call (used when messages provided, or as fallback)
     if not content:
         effective_base = base_url or "https://api.openai.com/v1"
         url = build_chat_url(effective_base, api_version, binding)
 
         # Build headers using unified utility
         headers = build_auth_headers(api_key, binding)
+
+        # Use pre-built messages when provided; otherwise build from prompt/system_prompt
+        if messages:
+            msg_list = messages
+        else:
+            msg_list = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ]
 
         temperature = get_effective_temperature(
             binding,
@@ -357,10 +365,7 @@ async def _openai_complete(
         )
         data: dict[str, object] = {
             "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
+            "messages": msg_list,
             "temperature": temperature,
         }
 
@@ -380,7 +385,7 @@ async def _openai_complete(
 
         timeout = aiohttp.ClientTimeout(total=120)
         connector = _get_aiohttp_connector()
-        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
             try:
                 async with session.post(url, headers=headers, json=data) as resp:
                     if resp.status == 200:
@@ -491,7 +496,7 @@ async def _openai_stream(
 
     timeout = aiohttp.ClientTimeout(total=300)
     connector = _get_aiohttp_connector()
-    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
         async with session.post(url, headers=headers, json=data) as resp:
             if resp.status != 200:
                 error_text = await resp.text()
@@ -619,7 +624,7 @@ async def _anthropic_complete(
 
     timeout = aiohttp.ClientTimeout(total=120)
     connector = _get_aiohttp_connector()
-    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
         async with session.post(url, headers=headers, json=data) as response:
             if response.status != 200:
                 error_text = await response.text()
@@ -694,7 +699,7 @@ async def _anthropic_stream(
 
     timeout = aiohttp.ClientTimeout(total=300)
     connector = _get_aiohttp_connector()
-    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
         async with session.post(url, headers=headers, json=data) as response:
             if response.status != 200:
                 error_text = await response.text()
@@ -760,7 +765,7 @@ async def _cohere_complete(
 
     timeout = aiohttp.ClientTimeout(total=120)
     connector = _get_aiohttp_connector()
-    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
         async with session.post(url, headers=headers, json=data) as response:
             if response.status != 200:
                 error_text = await response.text()
@@ -807,7 +812,7 @@ async def fetch_models(
 
     timeout = aiohttp.ClientTimeout(total=30)
     connector = _get_aiohttp_connector()
-    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
         try:
             url = f"{base_url}/models"
             async with session.get(url, headers=headers) as resp:

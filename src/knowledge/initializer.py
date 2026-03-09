@@ -191,11 +191,23 @@ class KnowledgeBaseInitializer:
 
         return copied_files
 
-    async def process_documents(self):
-        """Process documents using RAGService with dynamic provider selection"""
+    async def process_documents(
+        self,
+        use_mineru_api: bool = False,
+        mineru_api_token: str | None = None,
+        mineru_model_version: str = "vlm",
+    ):
+        """Process documents using RAGService with dynamic provider selection.
+
+        Args:
+            use_mineru_api: Use MinerU cloud API instead of local MinerU for parsing.
+            mineru_api_token: MinerU API token (falls back to MINERU_API_TOKEN env var).
+            mineru_model_version: MinerU API model version ("pipeline", "vlm", "MinerU-HTML").
+        """
         # Use the provider passed during initialization, or fallback to env var
         provider = self.rag_provider or os.getenv("RAG_PROVIDER", "raganything")
-        logger.info(f"Processing documents with RAG provider: {provider}")
+        parse_mode = "MinerU API" if use_mineru_api else "local"
+        logger.info(f"Processing documents with RAG provider: {provider} (parser: {parse_mode})")
 
         self.progress_tracker.update(
             ProgressStage.PROCESSING_DOCUMENTS,
@@ -242,6 +254,9 @@ class KnowledgeBaseInitializer:
                 kb_name=self.kb_name,
                 file_paths=file_paths,
                 extract_numbered_items=True,  # Enable numbered items extraction
+                use_mineru_api=use_mineru_api,
+                mineru_api_token=mineru_api_token,
+                mineru_model_version=mineru_model_version,
             )
 
             if success:

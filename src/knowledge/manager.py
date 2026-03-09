@@ -174,26 +174,100 @@ class KnowledgeBaseManager:
         }
 
     def list_knowledge_bases(self) -> list[str]:
-        """List all available knowledge bases from kb_config.json"""
+        """List all available knowledge bases.
+        
+        This method:
+        1. Loads registered KBs from kb_config.json
+        2. Scans the directory for existing KBs not yet registered
+        3. Auto-registers any discovered KBs with valid structure (rag_storage or llamaindex_storage)
+        """
         # Always reload config from file to ensure we have the latest data
-        # This is important when new KBs are created by other processes/requests
         self.config = self._load_config()
 
-        # Read knowledge base list from config file (this is the authoritative source)
-        # Return all KBs in config, regardless of directory status
-        # (status field indicates if KB is ready or still initializing)
+        # Read knowledge base list from config file
         config_kbs = self.config.get("knowledge_bases", {})
-        kb_list = list(config_kbs.keys())
+        kb_list = set(config_kbs.keys())
 
-        # If no config file or config is empty, fallback to scanning directory (backward compatibility)
-        if not kb_list and self.base_dir.exists():
+        # Also scan directory for KBs that may not be registered yet
+        # This ensures backward compatibility and auto-discovery
+        if self.base_dir.exists():
+            config_changed = False
             for item in self.base_dir.iterdir():
-                if item.is_dir() and item.name != "__pycache__":
-                    metadata_file = item / "metadata.json"
-                    if metadata_file.exists():
-                        kb_list.append(item.name)
+                if not item.is_dir() or item.name.startswith(("__", ".")):
+                    continue
+                    
+                # Skip if already in config
+                if item.name in kb_list:
+                    continue
+                    
+                # Check if this is a valid KB directory (has rag_storage or llamaindex_storage)
+                rag_storage = item / "rag_storage"
+                llamaindex_storage = item / "llamaindex_storage"
+                is_valid_kb = (
+                    (rag_storage.exists() and rag_storage.is_dir()) or
+                    (llamaindex_storage.exists() and llamaindex_storage.is_dir())
+                )
+                
+                if is_valid_kb:
+                    # Auto-register this KB to kb_config.json
+                    kb_list.add(item.name)
+                    self._auto_register_kb(item.name)
+                    config_changed = True
+            
+            # Save config if we registered new KBs
+            if config_changed:
+                self._save_config()
 
         return sorted(kb_list)
+    
+    def _auto_register_kb(self, name: str):
+        """Auto-register an existing KB to kb_config.json.
+        
+        Reads info from metadata.json (if exists) for backward compatibility.
+        """
+        kb_dir = self.base_dir / name
+        
+        # Default values
+        kb_entry = {
+            "path": name,
+            "description": f"Knowledge base: {name}",
+            "status": "ready",  # Existing KB with storage is considered ready
+            "updated_at": datetime.now().isoformat(),
+        }
+        
+        # Try to read metadata.json for existing info (backward compatibility)
+        metadata_file = kb_dir / "metadata.json"
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, encoding="utf-8") as f:
+                    metadata = json.load(f)
+                # Migrate relevant fields
+                if metadata.get("description"):
+                    kb_entry["description"] = metadata["description"]
+                if metadata.get("rag_provider"):
+                    kb_entry["rag_provider"] = metadata["rag_provider"]
+                if metadata.get("created_at"):
+                    kb_entry["created_at"] = metadata["created_at"]
+                if metadata.get("last_updated"):
+                    kb_entry["updated_at"] = metadata["last_updated"]
+            except Exception as e:
+                print(f"[KnowledgeBaseManager] Warning: Failed to read metadata.json for '{name}': {e}")
+        
+        # Detect rag_provider from storage type if not set
+        if "rag_provider" not in kb_entry:
+            rag_storage = kb_dir / "rag_storage"
+            llamaindex_storage = kb_dir / "llamaindex_storage"
+            if llamaindex_storage.exists():
+                kb_entry["rag_provider"] = "llamaindex"
+            elif rag_storage.exists():
+                kb_entry["rag_provider"] = "raganything"
+        
+        # Add to config
+        if "knowledge_bases" not in self.config:
+            self.config["knowledge_bases"] = {}
+        self.config["knowledge_bases"][name] = kb_entry
+        
+        print(f"[KnowledgeBaseManager] Auto-registered KB '{name}' to kb_config.json")
 
     def register_knowledge_base(self, name: str, description: str = "", set_default: bool = False):
         """Register a knowledge base"""
@@ -289,13 +363,44 @@ class KnowledgeBaseManager:
         return None
 
     def get_metadata(self, name: str | None = None) -> dict:
-        """Get knowledge base metadata"""
-        kb_dir = self.get_knowledge_base_path(name)
-        metadata_file = kb_dir / "metadata.json"
-
-        if metadata_file.exists():
-            with open(metadata_file, encoding="utf-8") as f:
-                return json.load(f)
+        """Get knowledge base metadata.
+        
+        Priority:
+        1. kb_config.json (authoritative source)
+        2. metadata.json (backward compatibility fallback)
+        """
+        kb_name = name
+        if kb_name is None:
+            kb_name = self.get_default()
+            if kb_name is None:
+                return {}
+        
+        # First, try kb_config.json (authoritative source)
+        self.config = self._load_config()
+        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
+        
+        if kb_config:
+            # Build metadata from config
+            metadata = {
+                "name": kb_name,
+                "description": kb_config.get("description", f"Knowledge base: {kb_name}"),
+                "rag_provider": kb_config.get("rag_provider"),
+                "created_at": kb_config.get("created_at"),
+                "last_updated": kb_config.get("updated_at"),
+            }
+            # Remove None values
+            metadata = {k: v for k, v in metadata.items() if v is not None}
+            return metadata
+        
+        # Fallback: try metadata.json (backward compatibility)
+        try:
+            kb_dir = self.get_knowledge_base_path(name)
+            metadata_file = kb_dir / "metadata.json"
+            if metadata_file.exists():
+                with open(metadata_file, encoding="utf-8") as f:
+                    return json.load(f)
+        except ValueError:
+            pass
 
         return {}
 
@@ -304,8 +409,8 @@ class KnowledgeBaseManager:
 
         This method:
         1. Gets the KB name (from parameter or default)
-        2. Reads status and progress from kb_config.json
-        3. Reads metadata.json from the KB directory (if exists)
+        2. Reads all config from kb_config.json (authoritative source)
+        3. Falls back to metadata.json for legacy KBs
         4. Collects statistics about files and RAG status
         """
         # Reload config to get latest status
@@ -318,10 +423,14 @@ class KnowledgeBaseManager:
         # Get knowledge base path
         kb_dir = self.base_dir / kb_name
 
-        # Get status and progress from kb_config.json
+        # Get config from kb_config.json (authoritative source)
         kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
         status = kb_config.get("status")
         progress = kb_config.get("progress")
+        description = kb_config.get("description", f"Knowledge base: {kb_name}")
+        rag_provider = kb_config.get("rag_provider")
+        created_at = kb_config.get("created_at")
+        updated_at = kb_config.get("updated_at")
 
         # KB might not have a directory yet if still initializing
         dir_exists = kb_dir.exists()
@@ -329,38 +438,44 @@ class KnowledgeBaseManager:
         # For old KBs without status field, determine status from rag_storage
         if not status and dir_exists:
             rag_storage_dir = kb_dir / "rag_storage"
-            if rag_storage_dir.exists() and any(rag_storage_dir.iterdir()):
+            llamaindex_storage_dir = kb_dir / "llamaindex_storage"
+            if (rag_storage_dir.exists() and any(rag_storage_dir.iterdir())) or \
+               (llamaindex_storage_dir.exists() and any(llamaindex_storage_dir.iterdir())):
                 status = "ready"
             else:
                 status = "unknown"
         elif not status:
             status = "unknown"
 
+        # Build metadata from kb_config.json (authoritative source)
+        metadata = {
+            "name": kb_name,
+            "description": description,
+            "rag_provider": rag_provider,
+        }
+        if created_at:
+            metadata["created_at"] = created_at
+        if updated_at:
+            metadata["last_updated"] = updated_at
+        
+        # Remove None values
+        metadata = {k: v for k, v in metadata.items() if v is not None}
+
         info = {
             "name": kb_name,
             "path": str(kb_dir),
             "is_default": kb_name == self.get_default(),
-            "metadata": {},
+            "metadata": metadata,
             "status": status,
             "progress": progress,
         }
-
-        # Read metadata.json (if exists)
-        if dir_exists:
-            metadata_file = kb_dir / "metadata.json"
-            if metadata_file.exists():
-                try:
-                    with open(metadata_file, encoding="utf-8") as f:
-                        info["metadata"] = json.load(f)
-                except Exception as e:
-                    print(f"Warning: Failed to read metadata.json for KB '{kb_name}': {e}")
-                    info["metadata"] = {}
 
         # Count files - handle errors gracefully
         raw_dir = kb_dir / "raw" if dir_exists else None
         images_dir = kb_dir / "images" if dir_exists else None
         content_list_dir = kb_dir / "content_list" if dir_exists else None
         rag_storage_dir = kb_dir / "rag_storage" if dir_exists else None
+        llamaindex_storage_dir = kb_dir / "llamaindex_storage" if dir_exists else None
 
         raw_count = 0
         images_count = 0
@@ -390,14 +505,10 @@ class KnowledgeBaseManager:
             except Exception:
                 pass
 
-        metadata = info["metadata"]
-        rag_provider = metadata.get("rag_provider") if isinstance(metadata, dict) else None
-        # Also check kb_config for rag_provider (fallback)
-        if not rag_provider:
-            rag_provider = kb_config.get("rag_provider")
-
+        # Check rag_initialized for both storage types
         rag_initialized = (
-            dir_exists and rag_storage_dir and rag_storage_dir.exists() and rag_storage_dir.is_dir()
+            (dir_exists and rag_storage_dir and rag_storage_dir.exists() and rag_storage_dir.is_dir()) or
+            (dir_exists and llamaindex_storage_dir and llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir())
         )
 
         info["statistics"] = {
@@ -559,17 +670,10 @@ class KnowledgeBaseManager:
         if not folder.is_dir():
             raise ValueError(f"Path is not a directory: {folder}")
 
-        # Get RAG provider from KB metadata to determine supported extensions
-        kb_dir = self.base_dir / kb_name
-        metadata_file = kb_dir / "metadata.json"
-        provider = "raganything"  # default to most comprehensive
-        if metadata_file.exists():
-            try:
-                with open(metadata_file, encoding="utf-8") as f:
-                    kb_meta = json.load(f)
-                    provider = kb_meta.get("rag_provider") or "raganything"
-            except Exception:
-                pass
+        # Get RAG provider from kb_config.json to determine supported extensions
+        self.config = self._load_config()
+        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
+        provider = kb_config.get("rag_provider") or "raganything"
 
         # Get supported files in folder based on provider
         supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
@@ -748,17 +852,10 @@ class KnowledgeBaseManager:
             except Exception:
                 pass
 
-        # Get RAG provider from KB metadata to determine supported extensions
-        kb_dir = self.base_dir / kb_name
-        metadata_file = kb_dir / "metadata.json"
-        provider = "raganything"  # default to most comprehensive
-        if metadata_file.exists():
-            try:
-                with open(metadata_file, encoding="utf-8") as f:
-                    metadata = json.load(f)
-                    provider = metadata.get("rag_provider") or "raganything"
-            except Exception:
-                pass
+        # Get RAG provider from kb_config.json to determine supported extensions
+        self.config = self._load_config()
+        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
+        provider = kb_config.get("rag_provider") or "raganything"
 
         # Scan current files based on provider's supported extensions
         supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)

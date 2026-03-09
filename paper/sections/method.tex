@@ -1,0 +1,185 @@
+\section{Method}
+\label{sec:method}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/full-pipe-ver7.png}
+    \caption{Overview of \textsc{DeepTutor}. The system unifies two task pipelines through a Hybrid Personalization layer. \textbf{Static Knowledge Grounding} (center) constructs multi-modal knowledge graphs and vector databases from course materials, enabling mixed graph--embedding retrieval. \textbf{Dynamic Personal Memory} (bottom) maintains a trace forest accessible via a programmatic \emph{TraceToolkit}, and distills interaction histories into three evolving profile dimensions. \textbf{Personalized Problem Solving} (left) proceeds through Investigation~(\ding{172}), Step-by-step Solving~(\ding{173}), and Iterative Writing~(\ding{174}). \textbf{Personalized Question Generation} (right) proceeds via Idea Generation~(\ding{175}) and a Critic-Guided Q-A Pair Generation loop~(\ding{176}). Both pipelines record interaction traces that continuously refine the learner profile, forming a closed tutoring cycle.}
+    \label{fig:overview}
+\end{figure*}
+
+DeepTutor is built around two sub-pipes with a common personalization engine, as shown in figure~\ref{fig:overview}.
+The \textit{Hybrid Personalization Engine} (\S\ref{sec:personalization}) couples a static knowledge grounding---multi-modal knowledge graphs and vector databases built from course materials---with a dynamic memory that maintains an evolving learner profile.
+Building upon this substrate, the \textit{problem-solving pipeline} (\S\ref{sec:solve}) produces citation-grounded explanations through three stages, while the \textit{question-generation pipeline} (\S\ref{sec:generate}) produces difficulty-calibrated practice items.
+Each completed interaction feeds back into the learner profile, creating a closed tutoring cycle (\S\ref{sec:system}).
+
+% ===========================================================================
+\subsection{Preliminaries}
+\label{sec:prelim}
+% ===========================================================================
+
+\paragraph{Task Formulation.}
+DeepTutor addresses two complementary tutoring tasks:
+(i)~\emph{problem solving}, producing a citation-grounded explanation $a$ for a learner question $q$, calibrated to the student's proficiency; and
+(ii)~\emph{question generation}, producing customized practice items for a topic $\tau$ that target the learner's specific gaps.
+Both tasks share the personalization substrate described below.
+
+\paragraph{Notation.}
+Course materials are indexed into a knowledge base $\mathcal{K}$ with dual representations for structured and semantic retrieval (\S\ref{sec:rag}).
+The system maintains a learner profile $\mathcal{D} = (\mathcal{D}_s, \mathcal{D}_w, \mathcal{D}_r)$ capturing interaction summaries, diagnosed weaknesses, and tutor self-reflections, continuously updated by specialized memory agents (\S\ref{sec:memory}).
+Before every agent step, a personalization context $\mathcal{C}_{\text{mem}}$ is assembled from $\mathcal{D}$ and the trace forest (the latter queried via a dedicated \emph{TraceToolkit}), yielding a compact, role-specific excerpt that steers the agent's behavior (\S\ref{sec:injection}).
+
+Algorithm~\ref{alg:loop} gives a unified view of the full tutoring cycle.
+Each session begins with profile injection and mixed retrieval, then branches into either problem solving (\ding{172}--\ding{174}) or question generation (\ding{175}--\ding{176}).
+The resulting interaction trace is appended to the trace forest and used to update the learner profile.
+
+\begin{algorithm}[t]
+\caption{Closed-Loop Personalized Tutoring}\label{alg:loop}
+\small
+\begin{algorithmic}[1]
+\Require learner profile $\mathcal{D}^{(0)}$;\; trace forest $\mathcal{F}^{(0)} = \emptyset$
+\For{session $j = 1, 2, \ldots$}
+    \State $\mathcal{C}_{\text{mem}} \gets \Call{ProfileInject}{\mathcal{D}^{(j{-}1)}, \mathcal{F}^{(j{-}1)}, \text{task}_j}$
+    \State $\mathcal{C}_{\text{rag}} \gets \textsc{RagTool}(\text{task}_j)$
+    \If{$\text{task}_j = (\textsc{Solve},\, q)$}
+        \State $\mathcal{P}{=}\langle s_1,\dots,s_K\rangle \gets \Call{Plan}{q,\;\mathcal{C}_{\text{rag}},\;\mathcal{C}_{\text{mem}}}$ \Comment{\ding{172}}
+        \For{$k = 1$ \textbf{to} $K$} \Comment{\ding{173}}
+            \While{$s_k$ not resolved}
+                \State $(\alpha_t,\, \mathbf{s}_t) \gets \Call{ToolAgent}{q, \mathcal{P}, \mathcal{S}, \mathcal{C}_{\text{mem}}}$
+                \State $\mathcal{S} \gets \mathcal{S} \cup \{\mathbf{s}_t\}$
+                \If{$\alpha_t = \textsc{Replan}$}
+                    \State $\mathcal{P} \gets \Call{Revise}{\mathcal{P}, \mathcal{S}}$
+                \EndIf
+            \EndWhile
+            \State $\mathcal{S} \gets \Call{Compress}{\mathcal{S}, k}$
+        \EndFor
+        \State $a \gets \Call{IterativeWrite}{\mathcal{S},\;\mathcal{C}_{\text{mem}}}$ \Comment{\ding{174}}
+        \State $T_j \gets \Call{BuildTrace}{q, a}$
+    \Else \Comment{$\text{task}_j = (\textsc{Generate},\, \tau)$}
+        \State $\mathcal{I} \gets \Call{IdeaAgent}{\tau,\;\mathcal{C}_{\text{rag}},\;\mathcal{C}_{\text{mem}}}$ \Comment{\ding{175}}
+        \State $\mathcal{T}_{1..N} \gets \Call{TopKSelect}{\mathcal{I}}$
+        \For{$i = 1$ \textbf{to} $N$} \Comment{\ding{176}}
+            \Repeat
+                \State $(q_i, a_i) \gets \Call{Generator}{\mathcal{T}_i,\;\mathcal{C}_{\text{rag}},\;\mathcal{C}_{\text{mem}}}$
+                \State $(\textit{pass}, f_i) \gets \Call{Validator}{q_i, a_i, \mathcal{T}_i}$
+                \If{$\lnot\,\textit{pass}$} $\mathcal{T}_i \gets \Call{Revise}{\mathcal{T}_i, f_i}$
+                \EndIf
+            \Until{\textit{pass}}
+        \EndFor
+        \State $T_j \gets \Call{BuildTrace}{\tau, \{(q_i, a_i)\}}$
+    \EndIf
+    \State $\mathcal{F}^{(j)} \gets \mathcal{F}^{(j{-}1)} \cup \{T_j\}$
+    \State $\mathcal{D}^{(j)} \gets \Call{MemoryUpdate}{\mathcal{D}^{(j{-}1)}, T_j}$ 
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+% ===========================================================================
+\subsection{Hybrid Personalization Engine}
+\label{sec:personalization}
+% ===========================================================================
+
+Both the solver and the generator require two types of knowledge: \emph{domain expertise} and \emph{learner awareness}. DeepTutor provides the former through Static Knowledge Grounding and the latter through Dynamic Memory, unified by a Profile Injection mechanism that delivers tailored context to each specific stage.
+
+\subsubsection{Static Knowledge Grounding}
+\label{sec:rag}
+
+Real-world course materials are inherently multimodal: textbooks interleave prose with figures, equations, and data tables, each encoding domain knowledge that is difficult to faithfully flatten into plain text.
+To preserve this richness, we perform multimodal knowledge unification, decomposing source documents into atomic content units $\{c_j=(t_j, x_j)\}$, where $t_j\!\in\!\{\text{text}, \text{image}, \text{table}, \text{equation}\}$ denotes the modality and $x_j$ the raw payload~\cite{wang2024mineruopensourcesolutionprecise}.
+Dedicated extractors handle each modality so as to retain its internal structure: figures keep their captions, equations stay anchored to surrounding definitions, and tables preserve header--cell relationships.
+
+The resulting units are indexed through a dual-graph construction: a cross-modal KG grounds non-textual units within their contextual neighborhood via entity and relation extraction, while a text-based KG captures fine-grained semantic relationships from prose~\cite{guo2025raganythingallinoneragframework}.
+The two graphs are merged through entity alignment into a unified knowledge graph $\mathcal{G}=(\mathcal{V},\mathcal{E})$ that encodes both cross-modal associations and textual semantics.
+In parallel, dense encoders map all content units into modality-specific vector stores (a text VDB and a multi-modal VDB), unified into a combined embedding index $\mathcal{B}$.
+Together, $\mathcal{G}$ and $\mathcal{B}$ form the complete retrieval index over the knowledge base $\mathcal{K}$.
+
+At query time, we introduce cross-modal hybrid retrieval that operates over both indices in parallel: graph-based retrieval traverses $\mathcal{G}$ to capture explicit relationships and multi-hop reasoning paths, while embedding-based retrieval searches $\mathcal{B}$ to surface semantically relevant content beyond the graph's structural coverage.
+The resulting candidate sets are merged via reciprocal rank fusion, scoring each passage $d$ as $\textstyle\sum_{r}{1}/({k+\mathrm{rank}_r(d)})$, where $k$ is a smoothing constant~\citep{cormack2009reciprocal}.
+Retrieved passages are deduplicated and truncated to a context budget before injection as domain grounding $\mathcal{C}_{\text{rag}}$.
+
+\subsubsection{Dynamic Personal Memory}
+\label{sec:memory}
+
+While the knowledge base captures \emph{what the course materials contain}, the dynamic personal memory captures \emph{how the individual learner has engaged with them}.
+We further propose \textit{Trace Forest}, a structured memory $\mathcal{F} = \{T_1, T_2, \ldots\}$ in which each tree $T_j = (V_j, E_j)$ records one complete tutoring interaction as a multi-resolution, semantically searchable artifact.
+Every node $v \in V_j$ is a triple $(\texttt{type}, \texttt{content}, \mathbf{e}_v)$ where \texttt{type} identifies the granularity level, \texttt{content} stores the payload, and $\mathbf{e}_v$ is a dense embedding, forming a three-level hierarchy. \textit{Level~1} captures the session-level input and a global summary; \textit{Level~2} records intermediate planning units produced by task decomposition; and \textit{Level~3} stores fine-grained execution records including tool invocations, evidence, and validation outcomes.
+The concrete node types at each level are task-specific and detailed alongside the respective pipelines (\S\ref{sec:solve}, \S\ref{sec:generate}).
+
+Rather than treating the forest as a passive data store, we expose it to all pipeline agents through a programmatic \emph{TraceToolkit} with three operations: \textsc{SearchTrace} embeds a query and retrieves the most relevant nodes across $\mathcal{F}$ via cosine similarity-based ANN search using a shared encoder; \textsc{ListTraces} enumerates traces filtered by time range, task type, or topic; and \textsc{ReadNodes} fetches the full content of specific nodes along with their ancestry path.
+This interface lets each agent actively explore the learner's history with their specific demands, from coarse session summaries at Level~1 to fine-grained reasoning steps at Level~3.
+
+\paragraph{Profile Construction.}
+\label{sec:injection}
+Raw traces must be interpreted into actionable tutoring signals.
+We introduce three specialized memory agents to process each new trace tree $T_j$ in parallel, incrementally updating a dedicated dimension of the learner profile $\mathcal{D}$:
+\begin{itemize}[nosep,leftmargin=*]
+\item Session History $ \mathcal{D}_s$: distills topics covered and performance trends. This will record what has happened, providing general session memories.
+\item User Weakness $\mathcal{D}_w$: compares learner responses against reference solutions, labeling each weakness as active or resolved to maintain a prioritized gap inventory, emphasizing where to focus.
+\item Self-Reflection $\mathcal{D}_r$: critiques the system's own prior outputs for pedagogical alignment, producing actionable improvement notes, indicating how to improve.
+\end{itemize}
+Each agent receives the new trace along with its current profile dimension and produces an updated version through incremental revision. To prevent error accumulation, this process employs a \textit{confidence-gated update} mechanism, where state transitions (e.g., marking a weakness as resolved) require explicit evidence grounding, preserving long-term trends while incorporating recent signals.
+
+Before each agent step, the system assembles a personalization context $\mathcal{C}_{\text{mem}}$ through two channels:
+(i)~\emph{active trace retrieval} via the TraceToolkit, retrieving the top-$k$ most relevant nodes with $k$ allocated proportionally across levels to balance broad session context with fine-grained precedents;
+(ii)~\emph{profile excerpting}, where role-specific slices of $\mathcal{D}$ are drawn based on the requesting agent's function to decouple their attention (e.g., the planner receives $\mathcal{D}_s$ and $\mathcal{D}_w$; the writer receives $\mathcal{D}_r$; generation agents receive $\mathcal{D}_w$ alongside historical question patterns). The total token budget is dynamically partitioned between $\mathcal{C}_{\text{rag}}$ and $\mathcal{C}_{\text{mem}}$ (see Appendix for a worked example).
+
+% ===========================================================================
+\subsection{Personalized Problem-Solving}
+\label{sec:solve}
+% ===========================================================================
+
+Prior tool-augmented agents~\citep{yao2023reactsynergizingreasoningacting, chen2026iterresearch} pack planning, retrieval, and exposition into a full reasoning loop.
+This suffices for short factoid queries but becomes a bottleneck in tutoring, where thorough investigation and personalized presentation compete for the same context budget.
+DeepTutor disentangles them into three incremental stages (\ding{172}--\ding{174} in Algorithm~\ref{alg:loop}), guided by \textit{scaffolding theory} to provide step-by-step cognitive support.
+
+\paragraph{Stage \ding{172}: Personalized Investigation.}
+The planner decomposes $q$ into several meta-questions and launches a multi-source investigation: it retrieves relevant passages from $\mathcal{K}$ via the RAG tool, consults the trace forest via the trace toolkit for precedents from similar past interactions, and invokes auxiliary toolkits as needed.
+Jointly conditioning on the assembled domain context $\mathcal{C}_{\text{rag}}$ and the learner context $\mathcal{C}_{\text{mem}}$, the planner produces a solving plan $\mathcal{P} = \langle s_1, \ldots, s_K \rangle$ of concrete sub-goals, each annotated with its step-level goal and a brief description.
+A shared scratchpad $\mathcal{S}$ accumulates all subsequent reasoning artifacts.
+Investigating before planning prevents sub-goals that are too vague or redundant with what the learner already understands (e.g., generating ``review chain rule in trigonometry'' rather than a vague ``review calculus'').
+
+\paragraph{Stage \ding{173}: Step-by-step Problem Solving.}
+Each sub-goal $s_k$ is executed through a ReAct-style loop, ~\citep{yao2023reactsynergizingreasoningacting}, conditioned on both the domain grounding $\mathcal{C}_{\text{rag}}$ and the learner context $\mathcal{C}_{\text{mem}}$.
+At every iteration the tool agent produces a reasoning trace $r_t$, selects an action $\alpha_t$ from a shared tool suite $\mathcal{A}$ (encompassing knowledge-base retrieval, trace-forest lookup, sandboxed code execution, web search, and deep reasoning), observes the output $o_t$, and records a \emph{self-note} $n_t$.
+Unlike the reasoning trace, which captures the full deliberation process, the self-note distills the step's outcome into a concise takeaway (e.g., ``retrieved formula confirmed'') that subsequent steps can reference without re-reading verbose intermediates.
+When the current plan proves inadequate, the agent triggers \emph{adaptive replanning}, revising remaining sub-goals while preserving completed work.
+
+Hierarchical compression (line 14 in Algorithm~\ref{alg:loop}) prevents the scratchpad from exceeding the model's context window.
+Once sub-goal $s_k$ is resolved, an LLM-based summarizer distills its full trace into a compact digest that retains key conclusions and evidence pointers while discarding verbose intermediate steps.
+As the plan advances, earlier sub-goals are represented by increasingly concise digests, freeing context capacity for deeper reasoning on later sub-goals.
+
+\paragraph{Stage \ding{174}: Evidence-based Iterative Writing.}
+Rather than concatenating raw tool outputs, the writing stage extracts structured evidence bundles from the scratchpad and constructs the answer through successive draft-refine iterations, reconciling potentially conflicting findings.
+The learner context $\mathcal{C}_{\text{mem}}$
+% ---including diagnosed weaknesses from $\mathcal{D}_w$ and the system's pedagogical self-reflections from $\mathcal{D}_r$---
+steers both the depth and the tone of the explanation within the learner's \textit{Zone of Proximal Development}: \textit{beginners} receive step-by-step derivations with scaffolding, while \textit{proficient learners} receive focused summaries that foreground key insights.
+Every claim is grounded with traceable citations back to $\mathcal{K}$.
+
+% ===========================================================================
+\subsection{Personalized Question Generation}
+\label{sec:generate}
+% ===========================================================================
+
+A tutor must also pose the right questions: ones that are meaningful, factually grounded, and calibrated to the individual learner.
+We propose a two-stage architecture (\ding{175}--\ding{176} in Algorithm~\ref{alg:loop}) that separates \emph{what to ask} from \emph{how to ask and verify}.
+
+\paragraph{Stage \ding{175}: Personalized Idea Generation.}
+Rather than generating questions directly from a bare topic, DeepTutor first maps the conceptual landscape around $\tau$ through the lens of the individual learner.
+The idea agent jointly conditions on domain knowledge $\mathcal{C}_{\text{rag}}$ and learner context $\mathcal{C}_{\text{mem}}$---including past mistakes, difficulty trends, and related problems surfaced via the TraceToolkit---to synthesize a diverse pool of candidate ideas, each characterized by a target concept, a question format (MCQ, written-response, or coding), and a personalized rationale grounded in the learner's diagnosed gaps.
+A two-stage selection then filters ill-formed or redundant candidates and ranks survivors along quality dimensions such as clarity, relevance, and diversity, yielding structured question templates $\{\mathcal{T}_i\}$ that serve as blueprints for the subsequent generation stage.
+
+\paragraph{Stage \ding{176}: Critic-Guided Q-A Pair Generation.}
+For each template $\mathcal{T}_i$, a \textbf{generator} produces a complete question--answer--explanation triple $(q_i, a_i, e_i)$, drawing on $\mathcal{C}_{\text{rag}}$ for factual grounding and $\mathcal{C}_{\text{mem}}$ to calibrate difficulty and phrasing to the learner's level.
+A structurally separated \textbf{validator} then challenges the output through two-level quality assurance: an LLM-based reasoning check evaluates template alignment, factual correctness, and pedagogical soundness, while computational questions undergo additional verification via sandboxed code execution.
+This dual-agent separation is critical: because the validator shares no reasoning chain with the generator, it must independently verify correctness, catching errors that self-evaluation would miss.
+Failed pairs receive structured diagnostic feedback $f_i$; the template is revised and the pair regenerated until both pedagogical and factual constraints are satisfied.
+
+% ===========================================================================
+\subsection{Closed-Loop Tutoring Cycle}
+\label{sec:system}
+% ===========================================================================
+
+As shown in Algorithm~\ref{alg:loop}, the components above form a self-reinforcing cycle.
+After each task, whether a problem-solving session or a question-generation episode, the pipeline records a new trace tree $T_j$ into the trace forest $\mathcal{F}$, and the three memory agents update the learner profile in parallel, producing $\mathcal{D}^{(j)}$ that immediately informs subsequent interactions.
+The key property is \textbf{bidirectional task coupling}, which operationalizes \textit{formative assessment}: weaknesses diagnosed during problem solving propagate to $\mathcal{D}_w$ and directly shape which questions are generated next; conversely, the learner's performance on generated questions refines $\mathcal{D}_s$ and $\mathcal{D}_r$, improving future explanations.
+Because every agent can actively query the trace forest through the TraceToolkit, this feedback is not limited to profile-level summaries: agents can retrieve fine-grained precedents from any prior interaction, enabling increasingly nuanced personalization as the interaction history grows.

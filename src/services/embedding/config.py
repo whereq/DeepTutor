@@ -35,6 +35,7 @@ class EmbeddingConfig:
     dim: int = 3072
     max_tokens: int = 8192
     request_timeout: int = 30
+    batch_size: int = 10
     input_type: Optional[str] = None  # For task-aware embeddings (Cohere, Jina)
 
     # Optional provider-specific settings
@@ -93,6 +94,7 @@ def get_embedding_config() -> EmbeddingConfig:
                 base_url=config.get("base_url"),
                 api_version=config.get("api_version"),
                 dim=config.get("dimensions", 3072),
+                batch_size=config.get("batch_size", 10),
             )
     except ImportError:
         # Unified config service not yet available, fall back to env
@@ -132,6 +134,7 @@ def get_embedding_config() -> EmbeddingConfig:
     dim = _to_int(dim_str, 3072)
     max_tokens = _to_int(_strip_value(os.getenv("EMBEDDING_MAX_TOKENS")), 8192)
     request_timeout = _to_int(_strip_value(os.getenv("EMBEDDING_REQUEST_TIMEOUT")), 30)
+    batch_size = _to_int(_strip_value(os.getenv("EMBEDDING_BATCH_SIZE")), 10)
     input_type = _strip_value(os.getenv("EMBEDDING_INPUT_TYPE"))  # Optional
 
     # Provider-specific optional settings
@@ -149,6 +152,7 @@ def get_embedding_config() -> EmbeddingConfig:
         dim=dim,
         max_tokens=max_tokens,
         request_timeout=request_timeout,
+        batch_size=max(1, batch_size),
         input_type=input_type,
         encoding_format=encoding_format,
         normalized=normalized,

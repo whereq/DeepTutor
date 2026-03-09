@@ -212,18 +212,43 @@ class EventBus:
         self._processor_task = asyncio.create_task(self._process_events())
         logger.info("EventBus started")
 
+    async def flush(self, timeout: float = 60.0) -> None:
+        """Wait for all queued events to be processed without stopping.
+
+        This should be called after publishing events when the caller needs
+        to ensure all handlers have completed before continuing (e.g. before
+        a blocking ``input()`` call that would freeze the event loop).
+
+        Args:
+            timeout: Maximum seconds to wait for the queue to drain.
+        """
+        if not self._running:
+            return
+        if self._task_queue.empty():
+            return
+        logger.debug("EventBus flushing %d pending events...", self._task_queue.qsize())
+        try:
+            await asyncio.wait_for(self._task_queue.join(), timeout=timeout)
+            logger.debug("EventBus flush complete")
+        except asyncio.TimeoutError:
+            logger.warning(
+                "EventBus flush timeout after %.0fs – %d events may still be pending",
+                timeout, self._task_queue.qsize(),
+            )
+
     async def stop(self) -> None:
         """Stop the event processor and wait for pending events."""
         if not self._running:
             return
 
-        self._running = False
-
-        # Wait for queue to drain (with timeout)
+        # First drain the queue while the processor is still running
         try:
-            await asyncio.wait_for(self._task_queue.join(), timeout=5.0)
+            await asyncio.wait_for(self._task_queue.join(), timeout=10.0)
         except asyncio.TimeoutError:
             logger.warning("EventBus shutdown timeout - some events may be lost")
+
+        # Now stop the processor
+        self._running = False
 
         # Cancel processor task
         if self._processor_task:
@@ -261,3 +286,4 @@ def get_event_bus() -> EventBus:
     if _event_bus is None:
         _event_bus = EventBus()
     return _event_bus
+

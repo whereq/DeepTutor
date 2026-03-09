@@ -1,0 +1,11 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Agentic Tool Use.}
+ReAct \citep{yao2023reactsynergizingreasoningacting} introduced interleaved reasoning and action for tool-augmented LLMs, inspiring planning-and-tool workflows \citep{zhao2025llmbasedagenticreasoningframeworks,wu-etal-2025-agentic,li2025intheflowagenticoptimizationeffective}. These frameworks target short-horizon tasks without persistent learner state. DeepTutor extends tool-based agentic reasoning to stateful tutoring by coupling solving, generation, and memory.
+
+\paragraph{Personalization and Memory.}
+LLM personalization spans dialogue memory \citep{tan-etal-2025-prospect,li-etal-2025-hello,cho-etal-2022-personalized}, RAG-style adaptation \citep{li2025surveypersonalizationragagent,guo2025raganythingallinoneragframework}, and reusable workflow induction \citep{wang2024agentworkflowmemory}. Unlike traditional knowledge tracing (e.g., BKT, DKT) that maintains scalar skill scores, DeepTutor introduces Trace Forest, an event-driven structured memory that provides interpretable, multi-resolution records of learner-specific weaknesses and historical traces.
+
+\paragraph{AI for Education.}
+While classic intelligent tutoring systems (ITS) like Cognitive Tutor rely on hard-coded rules, recent LLM-based works improve personalization through conversational tutoring \citep{park2024empoweringpersonalizedlearning} and multi-agent paths \citep{wang2025llmpoweredmultiagentframeworkgoaloriented}. However, they typically rely on prompt-level adaptation without unifying solve/generate/memory loops. DeepTutor integrates tool-based reasoning, structured long-term memory, and bidirectional task coupling within a single architecture.

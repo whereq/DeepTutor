@@ -68,23 +68,30 @@ class EmbeddingClient:
         Returns:
             List of embedding vectors
         """
-        adapter = self.manager.get_active_adapter()
+        if not texts:
+            return []
 
-        request = EmbeddingRequest(
-            texts=texts,
-            model=self.config.model,
-            dimensions=self.config.dim,
-            input_type=self.config.input_type,  # Pass input_type for task-aware embeddings
-        )
+        adapter = self.manager.get_active_adapter()
+        batch_size = max(1, getattr(self.config, "batch_size", 10))
+        all_embeddings: List[List[float]] = []
 
         try:
-            response = await adapter.embed(request)
+            for start in range(0, len(texts), batch_size):
+                batch = texts[start : start + batch_size]
+                request = EmbeddingRequest(
+                    texts=batch,
+                    model=self.config.model,
+                    dimensions=self.config.dim,
+                    input_type=self.config.input_type,  # Pass input_type for task-aware embeddings
+                )
+                response = await adapter.embed(request)
+                all_embeddings.extend(response.embeddings)
 
             self.logger.debug(
-                f"Generated {len(response.embeddings)} embeddings using {self.config.binding}"
+                f"Generated {len(all_embeddings)} embeddings using "
+                f"{self.config.binding} (batch_size={batch_size})"
             )
-
-            return response.embeddings
+            return all_embeddings
         except Exception as e:
             self.logger.error(f"Embedding request failed: {e}")
             raise

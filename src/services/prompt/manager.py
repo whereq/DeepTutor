@@ -26,7 +26,10 @@ class PromptManager:
     }
 
     # Supported modules
-    MODULES = ["research", "solve", "guide", "question", "ideagen", "co_writer"]
+    MODULES = ["research", "solve", "guide", "question", "ideagen", "co_writer", "personalization"]
+    
+    # Modules that are not under src/agents/ directory
+    NON_AGENT_MODULES = {"personalization": "personalization"}
 
     def __new__(cls) -> "PromptManager":
         if cls._instance is None:
@@ -81,7 +84,11 @@ class PromptManager:
         subdirectory: str | None,
     ) -> dict[str, Any]:
         """Load prompt file with language fallback."""
-        prompts_dir = PROJECT_ROOT / "src" / "agents" / module_name / "prompts"
+        # Handle modules that are not under src/agents/
+        if module_name in self.NON_AGENT_MODULES:
+            prompts_dir = PROJECT_ROOT / "src" / module_name / "prompts"
+        else:
+            prompts_dir = PROJECT_ROOT / "src" / "agents" / module_name / "prompts"
         fallback_chain = self.LANGUAGE_FALLBACKS.get(lang_code, ["en"])
 
         for lang in fallback_chain:

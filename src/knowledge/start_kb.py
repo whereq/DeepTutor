@@ -150,13 +150,25 @@ async def init_knowledge_base(args):
         print("Use --docs or --docs-dir to specify documents\n")
         return
 
+    # Resolve KB name:
+    # - Use explicit name if provided
+    # - Otherwise default to first document filename (without extension)
+    kb_name = args.name
+    if not kb_name:
+        if not doc_files:
+            print("✗ Error: Cannot infer KB name without documents")
+            print("Please provide kb name explicitly or pass --docs/--docs-dir\n")
+            return
+        kb_name = Path(doc_files[0]).stem
+        print(f"ℹ️  KB name not provided, defaulting to filename: {kb_name}")
+
     # Initialize knowledge base
     print("\n" + "=" * 60)
-    print(f"🚀 Initializing knowledge base: {args.name}")
+    print(f"🚀 Initializing knowledge base: {kb_name}")
     print("=" * 60 + "\n")
 
     initializer = KnowledgeBaseInitializer(
-        kb_name=args.name, base_dir=str(KNOWLEDGE_BASES_DIR), api_key=api_key, base_url=base_url
+        kb_name=kb_name, base_dir=str(KNOWLEDGE_BASES_DIR), api_key=api_key, base_url=base_url
     )
 
     # Create directory structure
@@ -169,7 +181,18 @@ async def init_knowledge_base(args):
 
     # Process documents
     if not args.skip_processing:
-        await initializer.process_documents()
+        use_mineru_api = getattr(args, "use_mineru_api", False)
+        mineru_api_token = getattr(args, "mineru_api_token", None)
+        mineru_model_version = getattr(args, "mineru_model_version", "vlm")
+
+        if use_mineru_api:
+            print(f"🌐 Using MinerU Cloud API (model: {mineru_model_version})\n")
+
+        await initializer.process_documents(
+            use_mineru_api=use_mineru_api,
+            mineru_api_token=mineru_api_token,
+            mineru_model_version=mineru_model_version,
+        )
     else:
         print("⏭️  Skipping document processing\n")
 
@@ -180,7 +203,7 @@ async def init_knowledge_base(args):
         print("⏭️  Skipping numbered items extraction\n")
 
     print("\n" + "=" * 60)
-    print(f"✓ Knowledge base '{args.name}' initialization complete!")
+    print(f"✓ Knowledge base '{kb_name}' initialization complete!")
     print(f"Location: {initializer.kb_dir}")
     print("=" * 60 + "\n")
 
@@ -347,8 +370,19 @@ async def refresh_knowledge_base(args):
             kb_name=kb_name, base_dir=str(KNOWLEDGE_BASES_DIR), api_key=api_key, base_url=base_url
         )
 
-        # Reprocess documents
-        await initializer.process_documents()
+        # Reprocess documents (with optional MinerU API)
+        use_mineru_api = getattr(args, "use_mineru_api", False)
+        mineru_api_token = getattr(args, "mineru_api_token", None)
+        mineru_model_version = getattr(args, "mineru_model_version", "vlm")
+
+        if use_mineru_api:
+            print(f"🌐 Using MinerU Cloud API (model: {mineru_model_version})")
+
+        await initializer.process_documents(
+            use_mineru_api=use_mineru_api,
+            mineru_api_token=mineru_api_token,
+            mineru_model_version=mineru_model_version,
+        )
 
         # Extract numbered items
         if not args.skip_extract:
@@ -416,7 +450,7 @@ Usage Examples:
 
     # init command
     init_parser = subparsers.add_parser("init", help="Initialize new knowledge base")
-    init_parser.add_argument("name", help="Knowledge base name")
+    init_parser.add_argument("name", nargs="?", help="Knowledge base name (optional)")
     init_parser.add_argument("--docs", nargs="+", help="Document file list")
     init_parser.add_argument("--docs-dir", help="Document directory")
     init_parser.add_argument("--api-key", help="OpenAI API Key")
@@ -428,6 +462,21 @@ Usage Examples:
         "--skip-extract", action="store_true", help="Skip numbered items extraction"
     )
     init_parser.add_argument("--batch-size", type=int, default=20, help="Batch size (default 20)")
+    init_parser.add_argument(
+        "--use-mineru-api",
+        action="store_true",
+        help="Use MinerU cloud API for document parsing instead of local MinerU",
+    )
+    init_parser.add_argument(
+        "--mineru-api-token",
+        help="MinerU API token (falls back to MINERU_API_TOKEN env var)",
+    )
+    init_parser.add_argument(
+        "--mineru-model-version",
+        default="vlm",
+        choices=["pipeline", "vlm", "MinerU-HTML"],
+        help="MinerU API model version (default: vlm)",
+    )
 
     # extract command
     extract_parser = subparsers.add_parser("extract", help="Extract numbered items")
@@ -482,6 +531,21 @@ Usage Examples:
     )
     refresh_parser.add_argument("--api-key", help="OpenAI API Key")
     refresh_parser.add_argument("--base-url", help="API Base URL")
+    refresh_parser.add_argument(
+        "--use-mineru-api",
+        action="store_true",
+        help="Use MinerU cloud API for document parsing instead of local MinerU",
+    )
+    refresh_parser.add_argument(
+        "--mineru-api-token",
+        help="MinerU API token (falls back to MINERU_API_TOKEN env var)",
+    )
+    refresh_parser.add_argument(
+        "--mineru-model-version",
+        default="vlm",
+        choices=["pipeline", "vlm", "MinerU-HTML"],
+        help="MinerU API model version (default: vlm)",
+    )
 
     args = parser.parse_args()
 
