@@ -101,15 +101,33 @@ class DocumentAdder:
 
     def _get_provider_from_metadata(self) -> str:
         """
-        Get the RAG provider from KB metadata.
+        Get the RAG provider for the KB.
 
-        This is the ONLY source of truth for incremental adds - we must use
-        the same provider that was used during initialization to ensure
-        data consistency and correct storage format.
+        Priority:
+        1. kb_config.json (authoritative source)
+        2. metadata.json (backward compatibility)
+        3. Detect from storage structure (fallback)
+
+        This ensures we use the same provider that was used during initialization
+        for data consistency and correct storage format.
 
         Returns:
             Provider name (llamaindex, lightrag, raganything, raganything_docling)
         """
+        # First, try kb_config.json (authoritative source)
+        kb_config_file = Path(self.base_dir) / "kb_config.json"
+        if kb_config_file.exists():
+            try:
+                with open(kb_config_file, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                    kb_config = config.get("knowledge_bases", {}).get(self.kb_name, {})
+                    provider = kb_config.get("rag_provider")
+                    if provider:
+                        return provider
+            except Exception as e:
+                logger.warning(f"Failed to read provider from kb_config.json: {e}")
+        
+        # Fallback: try metadata.json (backward compatibility)
         if self.metadata_file.exists():
             try:
                 with open(self.metadata_file, "r", encoding="utf-8") as f:
@@ -118,7 +136,7 @@ class DocumentAdder:
                     if provider:
                         return provider
             except Exception as e:
-                logger.warning(f"Failed to read provider from metadata: {e}")
+                logger.warning(f"Failed to read provider from metadata.json: {e}")
 
         # Fallback: detect from storage structure
         llamaindex_storage = self.kb_dir / "llamaindex_storage"

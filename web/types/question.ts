@@ -7,21 +7,24 @@ export interface QuestionFocus {
 }
 
 export interface QuestionValidation {
-  decision?:
-    | "approve"
-    | "request_modification"
-    | "request_regeneration"
-    | "extended";
+  decision?: "approve" | "reject";
+  approved?: boolean;
+  feedback?: string;
   issues?: string[];
-  suggestions?: string[];
+  needs_code_check?: boolean;
+  code_check?: {
+    exit_code?: number;
+    stdout?: string;
+    stderr?: string;
+  };
+  // Legacy fields (kept for backward compat with older results)
   reasoning?: string;
-  // Extension analysis fields (for extended questions)
-  kb_connection?: string;
-  extended_aspect?: string;
-  // Relevance analysis fields (for custom mode)
-  relevance?: "high" | "partial";
+  suggestions?: string[];
   kb_coverage?: string;
   extension_points?: string;
+  kb_connection?: string;
+  extended_aspect?: string;
+  relevance?: "high" | "partial";
 }
 
 // Question Plan (for custom mode)
@@ -33,6 +36,17 @@ export interface QuestionPlan {
   focuses: QuestionFocus[];
 }
 
+export interface QuestionTemplate {
+  question_id: string;
+  concentration: string;
+  question_type: string;
+  difficulty: string;
+  source?: "custom" | "mimic";
+  reference_question?: string;
+  reference_answer?: string;
+  metadata?: Record<string, any>;
+}
+
 export interface GeneratedQuestion {
   question_type?: string;
   type?: string;
@@ -41,6 +55,9 @@ export interface GeneratedQuestion {
   correct_answer: string;
   explanation: string;
   knowledge_point?: string;
+  concentration?: string;
+  difficulty?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface QuestionResult {
@@ -82,9 +99,10 @@ export interface QuestionTask {
 export interface QuestionProgress {
   stage:
     | "idle"
-    | "planning"
-    | "researching"
+    | "idea_loop"
+    | "templates_ready"
     | "generating"
+    | "validating"
     | "complete"
     // Mimic mode stages
     | "uploading"
@@ -113,9 +131,10 @@ export interface QuestionState {
   global: {
     stage:
       | "idle"
-      | "planning"
-      | "researching"
+      | "idea_loop"
+      | "templates_ready"
       | "generating"
+      | "validating"
       | "complete"
       // Mimic mode stages
       | "uploading"
@@ -171,9 +190,9 @@ export type QuestionEventType =
   | "question_result"
   | "question_error"
   | "batch_summary"
-  // Custom mode events
-  | "knowledge_saved"
-  | "plan_ready"
+  | "idea_round"
+  | "templates_ready"
+  | "validating"
   // Mimic mode events
   | "summary" // Mimic mode final summary
   // Status events
@@ -209,6 +228,7 @@ export interface QuestionEvent {
   queries?: string[];
   // Custom mode fields
   plan?: QuestionPlan;
+  templates?: QuestionTemplate[];
   // Mimic mode fields
   reference_question?: string;
   reference_number?: string;
@@ -247,8 +267,8 @@ export interface QuestionAgentStatus {
 // Config for question generation
 export interface QuestionConfig {
   topic: string;
-  difficulty: "easy" | "medium" | "hard";
-  type: "choice" | "written";
+  difficulty: "easy" | "medium" | "hard" | "auto";
+  type: "choice" | "written" | "coding" | "auto";
   count: number;
   selectedKb: string;
 }
@@ -270,8 +290,8 @@ export interface MimicConfig {
  */
 export interface QuestionProgressInfo {
   stage:
-    | "planning"
-    | "researching"
+    | "idea_loop"
+    | "templates_ready"
     | "generating"
     | "validating"
     | "complete"
@@ -319,9 +339,10 @@ export interface QuestionContextState {
  * Default question agent status
  */
 export const DEFAULT_QUESTION_AGENT_STATUS: QuestionAgentStatus = {
-  QuestionGenerationAgent: "pending",
-  ValidationWorkflow: "pending",
-  RetrievalTool: "pending",
+  IdeaAgent: "pending",
+  Evaluator: "pending",
+  Generator: "pending",
+  Validator: "pending",
 };
 
 /**
@@ -345,8 +366,8 @@ export const INITIAL_QUESTION_CONTEXT_STATE: QuestionContextState = {
   logs: [],
   results: [],
   topic: "",
-  difficulty: "medium",
-  type: "choice",
+  difficulty: "auto",
+  type: "auto",
   count: 1,
   selectedKb: "",
   progress: {

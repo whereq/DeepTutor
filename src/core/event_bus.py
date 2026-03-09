@@ -5,6 +5,9 @@ Event Bus
 
 Asynchronous event bus for inter-module communication.
 Supports publish/subscribe pattern with non-blocking event delivery.
+
+Also supports writing events to a file queue for cross-process communication
+with external services like the standalone personalization service.
 """
 
 import asyncio
@@ -16,6 +19,9 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
+
+# Global flag to enable/disable file queue for external personalization service
+_file_queue_enabled: bool = False
 
 
 class EventType(str, Enum):
@@ -151,11 +157,21 @@ class EventBus:
         The event is queued for background processing, allowing the publisher
         to continue immediately without waiting for handlers to complete.
 
+        If file queue is enabled (for external personalization service),
+        the event is also written to the file queue for cross-process delivery.
+
         Args:
             event: The event to publish
         """
         await self._task_queue.put(event)
         logger.debug(f"Event published: {event.type.value} (task_id={event.task_id})")
+
+        # Write to file queue if enabled (for external personalization service)
+        if _file_queue_enabled:
+            try:
+                _write_event_to_file_queue(event)
+            except Exception as e:
+                logger.warning(f"Failed to write event to file queue: {e}")
 
         # Start processor if not running
         if not self._running:
@@ -261,3 +277,79 @@ def get_event_bus() -> EventBus:
     if _event_bus is None:
         _event_bus = EventBus()
     return _event_bus
+
+
+# ============================================================================
+# File Queue Integration for External Personalization Service
+# ============================================================================
+
+
+def enable_file_queue() -> None:
+    """
+    Enable writing events to file queue for external personalization service.
+    
+    Call this during application startup if you want to run the personalization
+    service in a separate process.
+    
+    Usage:
+        from src.core.event_bus import enable_file_queue
+        enable_file_queue()
+    """
+    global _file_queue_enabled
+    _file_queue_enabled = True
+    logger.info("File queue enabled for external personalization service")
+
+
+def disable_file_queue() -> None:
+    """
+    Disable writing events to file queue.
+    
+    Use this when running personalization in-process (default behavior).
+    """
+    global _file_queue_enabled
+    _file_queue_enabled = False
+    logger.debug("File queue disabled")
+
+
+def is_file_queue_enabled() -> bool:
+    """Check if file queue is enabled."""
+    return _file_queue_enabled
+
+
+def _write_event_to_file_queue(event: Event) -> None:
+    """
+    Write an event to the file queue for cross-process delivery.
+    
+    This is called automatically when file queue is enabled and an event
+    is published. The event will be picked up by the standalone
+    personalization service.
+    
+    Args:
+        event: The event to write
+    """
+    try:
+        from src.personalization.event_queue import QueuedEvent, get_event_queue
+        
+        # Convert Event to QueuedEvent
+        queued_event = QueuedEvent(
+            event_id=event.event_id,
+            event_type=event.type.value if isinstance(event.type, EventType) else event.type,
+            task_id=event.task_id,
+            user_input=event.user_input,
+            agent_output=event.agent_output,
+            tools_used=event.tools_used,
+            success=event.success,
+            metadata=event.metadata,
+            timestamp=event.timestamp.isoformat(),
+        )
+        
+        # Push to file queue
+        queue = get_event_queue()
+        queue.push(queued_event)
+        
+        logger.debug(f"Event written to file queue: {event.type.value} ({event.event_id})")
+        
+    except ImportError:
+        logger.warning("personalization.event_queue not available, skipping file queue")
+    except Exception as e:
+        logger.error(f"Failed to write event to file queue: {e}")

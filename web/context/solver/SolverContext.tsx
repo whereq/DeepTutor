@@ -128,13 +128,9 @@ export function SolverProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           isSolving: false,
           agentStatus: {
-            InvestigateAgent: "error",
-            NoteAgent: "error",
-            ManagerAgent: "error",
-            SolveAgent: "error",
-            ToolAgent: "error",
-            ResponseAgent: "error",
-            PrecisionAnswerAgent: "error",
+            PlannerAgent: "error",
+            SolverAgent: "error",
+            WriterAgent: "error",
           },
           progress: {
             stage: null,

@@ -140,8 +140,12 @@ class RAGService:
 
     def _get_provider_for_kb(self, kb_name: str) -> str:
         """
-        Get the RAG provider for a specific knowledge base from its metadata.
-        Falls back to instance provider or env var if not found in metadata.
+        Get the RAG provider for a specific knowledge base.
+        
+        Priority:
+        1. kb_config.json (authoritative source)
+        2. metadata.json (backward compatibility)
+        3. Instance provider (fallback)
 
         Args:
             kb_name: Knowledge base name
@@ -150,23 +154,34 @@ class RAGService:
             Provider name (e.g., 'llamaindex', 'lightrag', 'raganything')
         """
         try:
-            metadata_file = Path(self.kb_base_dir) / kb_name / "metadata.json"
+            # First, try kb_config.json (authoritative source)
+            kb_config_file = Path(self.kb_base_dir) / "kb_config.json"
+            if kb_config_file.exists():
+                with open(kb_config_file, encoding="utf-8") as f:
+                    config = json.load(f)
+                    kb_config = config.get("knowledge_bases", {}).get(kb_name, {})
+                    provider = kb_config.get("rag_provider")
+                    if provider:
+                        self.logger.info(f"Using provider '{provider}' from kb_config.json")
+                        return provider
 
+            # Fallback: try metadata.json (backward compatibility)
+            metadata_file = Path(self.kb_base_dir) / kb_name / "metadata.json"
             if metadata_file.exists():
                 with open(metadata_file, encoding="utf-8") as f:
                     metadata = json.load(f)
                     provider = metadata.get("rag_provider")
                     if provider:
-                        self.logger.info(f"Using provider '{provider}' from KB metadata")
+                        self.logger.info(f"Using provider '{provider}' from metadata.json")
                         return provider
 
             # Fallback to instance provider
-            self.logger.info(f"No provider in metadata, using instance provider: {self.provider}")
+            self.logger.info(f"No provider in config, using instance provider: {self.provider}")
             return self.provider
 
         except Exception as e:
             self.logger.warning(
-                f"Error reading provider from metadata: {e}, using instance provider"
+                f"Error reading provider from config: {e}, using instance provider"
             )
             return self.provider
 

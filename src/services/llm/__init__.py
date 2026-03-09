@@ -155,12 +155,10 @@ __all__ = [
 
 def __getattr__(name: str):
     """Lazy import for provider modules that depend on heavy libraries."""
+    from importlib import import_module
+
     if name == "cloud_provider":
-        from . import cloud_provider
-
-        return cloud_provider
+        return import_module("src.services.llm.cloud_provider")
     if name == "local_provider":
-        from . import local_provider
-
-        return local_provider
+        return import_module("src.services.llm.local_provider")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

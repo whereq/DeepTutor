@@ -2,17 +2,20 @@
 Question Generation Agents
 
 Specialized agents for question generation workflow:
-- RetrieveAgent: Knowledge retrieval from KB
-- GenerateAgent: Question generation
-- RelevanceAnalyzer: Question-KB relevance analysis
+- IdeaAgent: Topic-driven idea generation
+- Evaluator: Idea scoring and top-k selection
+- Generator: Q-A generation with tools
+- Validator: Approval/reject loop with feedback
 """
 
-from .generate_agent import GenerateAgent
-from .relevance_analyzer import RelevanceAnalyzer
-from .retrieve_agent import RetrieveAgent
+from .evaluator import Evaluator
+from .generator import Generator
+from .idea_agent import IdeaAgent
+from .validator import Validator
 
 __all__ = [
-    "RetrieveAgent",
-    "GenerateAgent",
-    "RelevanceAnalyzer",
+    "IdeaAgent",
+    "Evaluator",
+    "Generator",
+    "Validator",
 ]
