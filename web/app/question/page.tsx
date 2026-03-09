@@ -19,7 +19,7 @@ import {
   AlertCircle,
   Lightbulb,
 } from "lucide-react";
-import { useGlobal } from "@/context/GlobalContext";
+import { useQuestion } from "@/context/question";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -29,7 +29,6 @@ import { apiUrl } from "@/lib/api";
 import { processLatexContent } from "@/lib/latex";
 import AddToNotebookModal from "@/components/AddToNotebookModal";
 import { LogDrawer } from "@/components/question";
-import { useQuestionReducer } from "@/hooks/useQuestionReducer";
 import { useTranslation } from "react-i18next";
 
 export default function QuestionPage() {
@@ -39,11 +38,8 @@ export default function QuestionPage() {
     startQuestionGen,
     startMimicQuestionGen,
     resetQuestionGen,
-  } = useGlobal();
+  } = useQuestion();
   const { t } = useTranslation();
-
-  // Dashboard state for parallel generation
-  const [dashboardState, dispatchDashboard] = useQuestionReducer();
 
   // UI state
   const [activeIdx, setActiveIdx] = useState(0);
@@ -63,6 +59,12 @@ export default function QuestionPage() {
   const extendedCount = questionState.results.filter(
     (r: any) => r.extended,
   ).length;
+  const getQuestionType = (question: any) =>
+    String(question?.type || question?.question_type || "written").toLowerCase();
+  const getQuestionDifficulty = (question: any) =>
+    String(question?.difficulty || "auto").toLowerCase();
+  const getQuestionConcentration = (question: any) =>
+    String(question?.concentration || "").trim();
 
   // Progress info from questionState
   const progress = questionState.progress || {};
@@ -407,6 +409,7 @@ export default function QuestionPage() {
                           }
                           className="w-full p-3 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-purple-500 dark:text-slate-200"
                         >
+                          <option value="auto">{t("Auto")}</option>
                           <option value="easy">{t("Easy")}</option>
                           <option value="medium">{t("Medium")}</option>
                           <option value="hard">{t("Hard")}</option>
@@ -427,8 +430,10 @@ export default function QuestionPage() {
                           }
                           className="w-full p-3 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-purple-500 dark:text-slate-200"
                         >
+                          <option value="auto">{t("Auto")}</option>
                           <option value="choice">{t("Multiple Choice")}</option>
                           <option value="written">{t("Written")}</option>
+                          <option value="coding">{t("Coding")}</option>
                         </select>
                       </div>
                     </div>
@@ -599,9 +604,11 @@ export default function QuestionPage() {
                             {result.question.question.slice(0, 80)}...
                           </p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-slate-400 uppercase">
-                              {result.question.type ||
-                                result.question.question_type}
+                            <span className="text-xs text-slate-500 uppercase bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                              {getQuestionType(result.question)}
+                            </span>
+                            <span className="text-xs text-slate-500 uppercase bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                              {getQuestionDifficulty(result.question)}
                             </span>
                             {result.extended && (
                               <span className="text-xs text-amber-500">
@@ -627,9 +634,16 @@ export default function QuestionPage() {
                           Question {activeIdx + 1}
                         </span>
                         <span className="px-2 py-0.5 text-xs font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-500 rounded">
-                          {currentQuestion.question.type ||
-                            currentQuestion.question.question_type}
+                          {getQuestionType(currentQuestion.question)}
                         </span>
+                        <span className="px-2 py-0.5 text-xs font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-500 rounded">
+                          {getQuestionDifficulty(currentQuestion.question)}
+                        </span>
+                        {getQuestionConcentration(currentQuestion.question) && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 rounded max-w-72 truncate">
+                            {getQuestionConcentration(currentQuestion.question)}
+                          </span>
+                        )}
                         {currentQuestion.extended && (
                           <span className="px-2 py-0.5 text-xs font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/40 text-amber-600 rounded flex items-center gap-1">
                             <Zap className="w-3 h-3" />
@@ -649,20 +663,27 @@ export default function QuestionPage() {
                     {/* Question Content */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
                       {/* Question Text */}
-                      <div className="prose prose-slate dark:prose-invert max-w-none">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                        >
-                          {processLatexContent(
-                            currentQuestion.question.question,
-                          )}
-                        </ReactMarkdown>
-                      </div>
+                      {getQuestionType(currentQuestion.question) === "coding" ? (
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-900 text-slate-100 p-4 overflow-x-auto">
+                          <pre className="text-sm leading-relaxed whitespace-pre-wrap">
+                            <code>{String(currentQuestion.question.question || "")}</code>
+                          </pre>
+                        </div>
+                      ) : (
+                        <div className="prose prose-slate dark:prose-invert max-w-none">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                          >
+                            {processLatexContent(
+                              currentQuestion.question.question,
+                            )}
+                          </ReactMarkdown>
+                        </div>
+                      )}
 
                       {/* Options or Input */}
-                      {(currentQuestion.question.question_type === "choice" ||
-                        currentQuestion.question.type === "choice") &&
+                      {getQuestionType(currentQuestion.question) === "choice" &&
                       currentQuestion.question.options &&
                       Object.keys(currentQuestion.question.options).length >
                         0 ? (
@@ -743,18 +764,31 @@ export default function QuestionPage() {
                             <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-2">
                               {t("Correct Answer")}
                             </p>
-                            <div className="text-emerald-800 dark:text-emerald-200 prose prose-sm dark:prose-invert max-w-none">
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm, remarkMath]}
-                                rehypePlugins={[rehypeKatex]}
-                              >
-                                {processLatexContent(
-                                  String(
-                                    currentQuestion.question.correct_answer,
-                                  ),
-                                )}
-                              </ReactMarkdown>
-                            </div>
+                            {getQuestionType(currentQuestion.question) ===
+                            "coding" ? (
+                              <div className="rounded-lg bg-slate-900 text-slate-100 p-3 overflow-x-auto">
+                                <pre className="text-sm whitespace-pre-wrap">
+                                  <code>
+                                    {String(
+                                      currentQuestion.question.correct_answer,
+                                    )}
+                                  </code>
+                                </pre>
+                              </div>
+                            ) : (
+                              <div className="text-emerald-800 dark:text-emerald-200 prose prose-sm dark:prose-invert max-w-none">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm, remarkMath]}
+                                  rehypePlugins={[rehypeKatex]}
+                                >
+                                  {processLatexContent(
+                                    String(
+                                      currentQuestion.question.correct_answer,
+                                    ),
+                                  )}
+                                </ReactMarkdown>
+                              </div>
+                            )}
                           </div>
 
                           {/* Explanation */}
@@ -776,7 +810,7 @@ export default function QuestionPage() {
                             </div>
                           )}
 
-                          {/* Relevance Analysis (collapsible) */}
+                          {/* Validation Details (collapsible) */}
                           {currentQuestion.validation && (
                             <div className="border border-slate-200 dark:border-slate-600 rounded-xl overflow-hidden">
                               <button
@@ -786,7 +820,21 @@ export default function QuestionPage() {
                                 <div className="flex items-center gap-2 text-sm">
                                   <AlertCircle className="w-4 h-4 text-slate-400" />
                                   <span className="font-medium text-slate-600 dark:text-slate-300">
-                                    {t("Relevance Analysis")}
+                                    {t("Validation Details")}
+                                  </span>
+                                  {/* Decision badge */}
+                                  <span
+                                    className={`text-xs px-1.5 py-0.5 rounded font-bold uppercase ${
+                                      (currentQuestion.validation as any)
+                                        .decision === "approve" ||
+                                      (currentQuestion.validation as any)
+                                        .approved
+                                        ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600"
+                                        : "bg-red-100 dark:bg-red-900/40 text-red-600"
+                                    }`}
+                                  >
+                                    {(currentQuestion.validation as any)
+                                      .decision || "unknown"}
                                   </span>
                                   <span className="text-xs px-1.5 py-0.5 bg-slate-200 dark:bg-slate-600 text-slate-500 rounded">
                                     {currentQuestion.rounds || 1} {t("round")}
@@ -804,118 +852,146 @@ export default function QuestionPage() {
 
                               {showAnalysis && (
                                 <div className="px-4 py-3 space-y-3 text-sm bg-white dark:bg-slate-800">
-                                  {currentQuestion.validation.kb_coverage && (
-                                    <div>
-                                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">
-                                        <Database className="w-3 h-3" />
-                                        {t("KB Coverage")}
-                                      </div>
-                                      <div className="text-slate-600 dark:text-slate-300 prose prose-xs dark:prose-invert max-w-none">
-                                        <ReactMarkdown
-                                          remarkPlugins={[
-                                            remarkGfm,
-                                            remarkMath,
-                                          ]}
-                                          rehypePlugins={[rehypeKatex]}
-                                        >
-                                          {processLatexContent(
-                                            currentQuestion.validation
-                                              .kb_coverage,
-                                          )}
-                                        </ReactMarkdown>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {currentQuestion.validation
-                                    .extension_points && (
-                                    <div>
-                                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">
-                                        <Zap className="w-3 h-3" />
-                                        {t("Extension Points")}
-                                      </div>
-                                      <div className="text-slate-600 dark:text-slate-300 prose prose-xs dark:prose-invert max-w-none">
-                                        <ReactMarkdown
-                                          remarkPlugins={[
-                                            remarkGfm,
-                                            remarkMath,
-                                          ]}
-                                          rehypePlugins={[rehypeKatex]}
-                                        >
-                                          {processLatexContent(
-                                            currentQuestion.validation
-                                              .extension_points,
-                                          )}
-                                        </ReactMarkdown>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {currentQuestion.extended &&
-                                    currentQuestion.validation
-                                      .kb_connection && (
-                                      <div>
-                                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">
-                                          <Database className="w-3 h-3" />
-                                          {t("KB Connection")}
-                                        </div>
-                                        <div className="text-slate-600 dark:text-slate-300 prose prose-xs dark:prose-invert max-w-none">
-                                          <ReactMarkdown
-                                            remarkPlugins={[
-                                              remarkGfm,
-                                              remarkMath,
-                                            ]}
-                                            rehypePlugins={[rehypeKatex]}
-                                          >
-                                            {processLatexContent(
-                                              currentQuestion.validation
-                                                .kb_connection,
-                                            )}
-                                          </ReactMarkdown>
-                                        </div>
-                                      </div>
-                                    )}
-                                  {currentQuestion.extended &&
-                                    currentQuestion.validation
-                                      .extended_aspect && (
-                                      <div>
-                                        <div className="flex items-center gap-1.5 text-xs font-bold text-orange-600 uppercase tracking-wider mb-1">
-                                          <Lightbulb className="w-3 h-3" />
-                                          {t("Extended Aspects")}
-                                        </div>
-                                        <div className="text-slate-600 dark:text-slate-300 prose prose-xs dark:prose-invert max-w-none">
-                                          <ReactMarkdown
-                                            remarkPlugins={[
-                                              remarkGfm,
-                                              remarkMath,
-                                            ]}
-                                            rehypePlugins={[rehypeKatex]}
-                                          >
-                                            {processLatexContent(
-                                              currentQuestion.validation
-                                                .extended_aspect,
-                                            )}
-                                          </ReactMarkdown>
-                                        </div>
-                                      </div>
-                                    )}
-                                  {currentQuestion.validation.reasoning && (
+                                  {/* Feedback */}
+                                  {(currentQuestion.validation as any)
+                                    .feedback && (
                                     <div>
                                       <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                        {t("Reasoning")}
+                                        {t("Feedback")}
                                       </div>
-                                      <div className="text-slate-600 dark:text-slate-300 prose prose-xs dark:prose-invert max-w-none">
-                                        <ReactMarkdown
-                                          remarkPlugins={[
-                                            remarkGfm,
-                                            remarkMath,
-                                          ]}
-                                          rehypePlugins={[rehypeKatex]}
-                                        >
-                                          {processLatexContent(
-                                            currentQuestion.validation
-                                              .reasoning,
+                                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                                        {(currentQuestion.validation as any)
+                                          .feedback}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Issues */}
+                                  {Array.isArray(
+                                    (currentQuestion.validation as any).issues,
+                                  ) &&
+                                    (
+                                      (currentQuestion.validation as any)
+                                        .issues as string[]
+                                    ).length > 0 && (
+                                      <div>
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">
+                                          <AlertCircle className="w-3 h-3" />
+                                          {t("Issues")}
+                                        </div>
+                                        <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 space-y-0.5">
+                                          {(
+                                            (currentQuestion.validation as any)
+                                              .issues as string[]
+                                          ).map(
+                                            (issue: string, issueIdx: number) => (
+                                              <li key={issueIdx}>{issue}</li>
+                                            ),
                                           )}
-                                        </ReactMarkdown>
+                                        </ul>
                                       </div>
+                                    )}
+
+                                  {/* Tools Used */}
+                                  {currentQuestion.question.metadata?.tool_plan && (
+                                    <div>
+                                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">
+                                        <Zap className="w-3 h-3" />
+                                        {t("Tools Used")}
+                                      </div>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        {currentQuestion.question.metadata
+                                          .tool_plan.use_rag && (
+                                          <span className="text-xs px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
+                                            RAG
+                                          </span>
+                                        )}
+                                        {currentQuestion.question.metadata
+                                          .tool_plan.use_web && (
+                                          <span className="text-xs px-2 py-0.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300 rounded-full">
+                                            Web Search
+                                          </span>
+                                        )}
+                                        {currentQuestion.question.metadata
+                                          .tool_plan.use_code && (
+                                          <span className="text-xs px-2 py-0.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 rounded-full">
+                                            Code
+                                          </span>
+                                        )}
+                                        {!currentQuestion.question.metadata
+                                          .tool_plan.use_rag &&
+                                          !currentQuestion.question.metadata
+                                            .tool_plan.use_web &&
+                                          !currentQuestion.question.metadata
+                                            .tool_plan.use_code && (
+                                            <span className="text-xs text-slate-400 italic">
+                                              {t("None")}
+                                            </span>
+                                          )}
+                                      </div>
+                                      {currentQuestion.question.metadata
+                                        .tool_plan.reasoning && (
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                          {
+                                            currentQuestion.question.metadata
+                                              .tool_plan.reasoning
+                                          }
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Code Check Result */}
+                                  {(currentQuestion.validation as any)
+                                    .needs_code_check && (
+                                    <div>
+                                      <div className="flex items-center gap-1.5 text-xs font-bold text-purple-600 uppercase tracking-wider mb-1">
+                                        <Lightbulb className="w-3 h-3" />
+                                        {t("Code Verification")}
+                                      </div>
+                                      {(currentQuestion.validation as any)
+                                        .code_check &&
+                                      Object.keys(
+                                        (currentQuestion.validation as any)
+                                          .code_check,
+                                      ).length > 0 ? (
+                                        <div className="rounded-lg bg-slate-900 text-slate-100 p-2 text-xs font-mono">
+                                          <div>
+                                            exit_code:{" "}
+                                            {
+                                              (
+                                                currentQuestion.validation as any
+                                              ).code_check.exit_code
+                                            }
+                                          </div>
+                                          {(currentQuestion.validation as any)
+                                            .code_check.stdout && (
+                                            <div className="mt-1 text-emerald-300">
+                                              stdout:{" "}
+                                              {
+                                                (
+                                                  currentQuestion.validation as any
+                                                ).code_check.stdout
+                                              }
+                                            </div>
+                                          )}
+                                          {(currentQuestion.validation as any)
+                                            .code_check.stderr && (
+                                            <div className="mt-1 text-red-300">
+                                              stderr:{" "}
+                                              {
+                                                (
+                                                  currentQuestion.validation as any
+                                                ).code_check.stderr
+                                              }
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-slate-400 italic">
+                                          {t("Code check was requested but no result available")}
+                                        </p>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -1006,8 +1082,13 @@ export default function QuestionPage() {
               : "N/A"
           }\n\n**Correct Answer:** ${currentQuestion.question.correct_answer}\n\n**Explanation:**\n${currentQuestion.question.explanation}`}
           metadata={{
-            difficulty: questionState.difficulty,
-            question_type: questionState.type,
+            difficulty:
+              currentQuestion.question.difficulty || questionState.difficulty,
+            question_type:
+              currentQuestion.question.type ||
+              currentQuestion.question.question_type ||
+              questionState.type,
+            concentration: currentQuestion.question.concentration || "",
             validation_rounds: currentQuestion.rounds,
             extended: currentQuestion.extended,
           }}

@@ -451,40 +451,23 @@ export default function SolverPage() {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                     </span>
                     <span className="font-semibold">
-                      {solverState.progress.stage === "investigate" &&
-                        "🔍 Investigating..."}
+                      {solverState.progress.stage === "plan" &&
+                        "📋 Planning..."}
                       {solverState.progress.stage === "solve" &&
                         "🧮 Solving..."}
-                      {solverState.progress.stage === "response" &&
-                        "✍️ Responding..."}
+                      {solverState.progress.stage === "write" &&
+                        "✍️ Writing..."}
                       {!solverState.progress.stage &&
                         "Reasoning Engine Active..."}
                     </span>
                   </div>
 
                   {/* Progress Details */}
-                  {solverState.progress.stage === "investigate" &&
-                    solverState.progress.progress.queries &&
-                    solverState.progress.progress.queries.length > 0 && (
-                      <div className="space-y-1.5">
-                        <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                          Round {solverState.progress.progress.round || 1} -
-                          Tool Queries:
-                        </div>
-                        <div className="space-y-1">
-                          {solverState.progress.progress.queries.map(
-                            (query, idx) => (
-                              <div
-                                key={idx}
-                                className="text-xs text-slate-500 dark:text-slate-400 pl-3 border-l-2 border-blue-200 dark:border-blue-600"
-                              >
-                                • {query}
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      </div>
-                    )}
+                  {solverState.progress.stage === "plan" && (
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
+                      <span className="font-medium">Analyzing question and creating plan...</span>
+                    </div>
+                  )}
 
                   {solverState.progress.stage === "solve" &&
                     solverState.progress.progress.step_id && (
@@ -499,18 +482,11 @@ export default function SolverPage() {
                       </div>
                     )}
 
-                  {solverState.progress.stage === "response" &&
-                    solverState.progress.progress.step_id && (
-                      <div className="text-xs text-slate-600 dark:text-slate-400">
-                        <span className="font-medium">
-                          Responding step{" "}
-                          {solverState.progress.progress.step_index || "?"}:
-                        </span>{" "}
-                        <span className="text-slate-500 dark:text-slate-400">
-                          {solverState.progress.progress.step_target || ""}
-                        </span>
-                      </div>
-                    )}
+                  {solverState.progress.stage === "write" && (
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
+                      <span className="font-medium">Writing final answer...</span>
+                    </div>
+                  )}
 
                   {!solverState.progress.stage && (
                     <>
@@ -622,29 +598,28 @@ export default function SolverPage() {
             <div className="flex items-center gap-2 mb-2">
               <div
                 className={`p-1.5 rounded-lg ${
-                  solverState.progress.stage === "investigate"
+                  solverState.progress.stage === "plan"
                     ? "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400"
                     : solverState.progress.stage === "solve"
                       ? "bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400"
                       : "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400"
                 }`}
               >
-                {solverState.progress.stage === "investigate" && (
+                {solverState.progress.stage === "plan" && (
                   <Search className="w-3.5 h-3.5" />
                 )}
                 {solverState.progress.stage === "solve" && (
                   <Sparkles className="w-3.5 h-3.5" />
                 )}
-                {solverState.progress.stage === "response" && (
+                {solverState.progress.stage === "write" && (
                   <FileText className="w-3.5 h-3.5" />
                 )}
               </div>
               <div>
                 <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 capitalize">
-                  {solverState.progress.stage === "investigate" &&
-                    "Investigating"}
+                  {solverState.progress.stage === "plan" && "Planning"}
                   {solverState.progress.stage === "solve" && "Solving"}
-                  {solverState.progress.stage === "response" && "Responding"}
+                  {solverState.progress.stage === "write" && "Writing"}
                 </div>
                 {solverState.progress.progress.round && (
                   <div className="text-[10px] text-indigo-500 dark:text-indigo-400">
@@ -654,39 +629,28 @@ export default function SolverPage() {
               </div>
             </div>
 
-            {/* Investigate stage - show queries */}
-            {solverState.progress.stage === "investigate" &&
-              solverState.progress.progress.queries &&
-              solverState.progress.progress.queries.length > 0 && (
-                <div className="space-y-1 mt-2">
-                  {solverState.progress.progress.queries
-                    .slice(0, 3)
-                    .map((query, idx) => (
-                      <div
-                        key={idx}
-                        className="text-[10px] text-indigo-600 dark:text-indigo-400 pl-2 border-l-2 border-indigo-200 dark:border-indigo-600 truncate"
-                      >
-                        {query}
-                      </div>
-                    ))}
-                  {solverState.progress.progress.queries.length > 3 && (
-                    <div className="text-[10px] text-indigo-400 dark:text-indigo-500 pl-2">
-                      +{solverState.progress.progress.queries.length - 3} more
-                      queries...
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* Plan stage - show status */}
+            {solverState.progress.stage === "plan" && (
+              <div className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-1">
+                Analyzing question...
+              </div>
+            )}
 
-            {/* Solve/Response stage - show step info */}
-            {(solverState.progress.stage === "solve" ||
-              solverState.progress.stage === "response") &&
+            {/* Solve stage - show step info */}
+            {solverState.progress.stage === "solve" &&
               solverState.progress.progress.step_id && (
                 <div className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-1">
                   Step {solverState.progress.progress.step_index || "?"}:{" "}
                   {solverState.progress.progress.step_target || "Processing..."}
                 </div>
               )}
+
+            {/* Write stage - show status */}
+            {solverState.progress.stage === "write" && (
+              <div className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-1">
+                Composing final answer...
+              </div>
+            )}
           </div>
         )}
 

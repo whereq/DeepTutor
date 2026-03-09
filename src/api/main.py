@@ -20,6 +20,7 @@ from src.api.routers import (
     settings,
     solve,
     system,
+    vision_solver,
 )
 from src.logging import get_logger
 from src.services.path_service import get_path_service
@@ -153,30 +154,58 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to start EventBus: {e}")
 
-    # Start PersonalizationService for memory management
-    try:
-        from src.personalization.service import get_personalization_service
+    # Check if personalization should run externally
+    # Set PERSONALIZATION_EXTERNAL=true to run personalization in a separate process
+    # via: python scripts/start_personalization.py
+    import os
+    personalization_external = os.environ.get("PERSONALIZATION_EXTERNAL", "").lower() in ("true", "1", "yes")
+    
+    if personalization_external:
+        # External mode: Enable file queue for cross-process communication
+        # Personalization service will be started separately via start_personalization.py
+        try:
+            from src.core.event_bus import enable_file_queue
+            
+            enable_file_queue()
+            logger.info("Personalization running in external mode - file queue enabled")
+            logger.info("Start personalization service with: python scripts/start_personalization.py")
+        except Exception as e:
+            logger.warning(f"Failed to enable file queue for external personalization: {e}")
+    else:
+        # Internal mode: Start PersonalizationService in-process
+        try:
+            from src.personalization.service import get_personalization_service
 
-        personalization_service = get_personalization_service()
-        await personalization_service.start()
-        logger.info("PersonalizationService started")
-    except Exception as e:
-        logger.warning(f"Failed to start PersonalizationService: {e}")
+            personalization_service = get_personalization_service()
+            await personalization_service.start()
+            logger.info("PersonalizationService started (internal mode)")
+        except Exception as e:
+            logger.warning(f"Failed to start PersonalizationService: {e}")
 
     yield
 
     # Execute on shutdown
     logger.info("Application shutdown")
 
-    # Stop PersonalizationService
-    try:
-        from src.personalization.service import get_personalization_service
+    # Stop PersonalizationService (only if running in internal mode)
+    if not personalization_external:
+        try:
+            from src.personalization.service import get_personalization_service
 
-        personalization_service = get_personalization_service()
-        await personalization_service.stop()
-        logger.info("PersonalizationService stopped")
-    except Exception as e:
-        logger.warning(f"Failed to stop PersonalizationService: {e}")
+            personalization_service = get_personalization_service()
+            await personalization_service.stop()
+            logger.info("PersonalizationService stopped")
+        except Exception as e:
+            logger.warning(f"Failed to stop PersonalizationService: {e}")
+    else:
+        # In external mode, just disable file queue
+        try:
+            from src.core.event_bus import disable_file_queue
+            
+            disable_file_queue()
+            logger.info("File queue disabled")
+        except Exception as e:
+            logger.warning(f"Failed to disable file queue: {e}")
 
     # Stop EventBus
     try:
@@ -243,6 +272,7 @@ app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"]
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
 app.include_router(agent_config.router, prefix="/api/v1/agent-config", tags=["agent-config"])
+app.include_router(vision_solver.router, prefix="/api/v1", tags=["vision-solver"])
 
 
 @app.get("/")

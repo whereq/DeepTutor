@@ -15,8 +15,9 @@ export interface SolverChatMessage {
  * Solver progress information
  */
 export interface SolverProgressInfo {
-  stage: "investigate" | "solve" | "response" | null;
+  stage: "plan" | "solve" | "write" | null;
   progress: {
+    status?: string;
     round?: number;
     queries?: string[];
     step_index?: number;
@@ -43,13 +44,9 @@ export interface SolverState {
  * Default agent status for solver
  */
 export const DEFAULT_SOLVER_AGENT_STATUS: AgentStatus = {
-  InvestigateAgent: "pending",
-  NoteAgent: "pending",
-  ManagerAgent: "pending",
-  SolveAgent: "pending",
-  ToolAgent: "pending",
-  ResponseAgent: "pending",
-  PrecisionAnswerAgent: "pending",
+  PlannerAgent: "pending",
+  SolverAgent: "pending",
+  WriterAgent: "pending",
 };
 
 /**

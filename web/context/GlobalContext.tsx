@@ -338,13 +338,9 @@ const DEFAULT_SOLVER_STATE: SolverState = {
   question: "",
   selectedKb: "",
   agentStatus: {
-    InvestigateAgent: "pending",
-    NoteAgent: "pending",
-    ManagerAgent: "pending",
-    SolveAgent: "pending",
-    ToolAgent: "pending",
-    ResponseAgent: "pending",
-    PrecisionAnswerAgent: "pending",
+    PlannerAgent: "pending",
+    SolverAgent: "pending",
+    WriterAgent: "pending",
   },
   tokenStats: {
     model: "Unknown",
@@ -613,6 +609,7 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
     learnResearch: [
       "/question",
       "/solver",
+      "/vision-solver",
       "/guide",
       "/ideagen",
       "/research",
@@ -636,7 +633,25 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
             setSidebarDescriptionState(data.description);
           }
           if (data.nav_order) {
-            setSidebarNavOrderState(data.nav_order);
+            // Merge saved nav_order with DEFAULT_NAV_ORDER to include new items
+            const mergedOrder: SidebarNavOrder = {
+              start: [...data.nav_order.start],
+              learnResearch: [...data.nav_order.learnResearch],
+            };
+
+            // Add any new items from DEFAULT_NAV_ORDER that are not in saved order
+            DEFAULT_NAV_ORDER.start.forEach((item) => {
+              if (!mergedOrder.start.includes(item)) {
+                mergedOrder.start.push(item);
+              }
+            });
+            DEFAULT_NAV_ORDER.learnResearch.forEach((item) => {
+              if (!mergedOrder.learnResearch.includes(item)) {
+                mergedOrder.learnResearch.push(item);
+              }
+            });
+
+            setSidebarNavOrderState(mergedOrder);
           }
         }
       } catch (e) {
@@ -717,13 +732,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
       question,
       selectedKb: kb,
       agentStatus: {
-        InvestigateAgent: "pending",
-        NoteAgent: "pending",
-        ManagerAgent: "pending",
-        SolveAgent: "pending",
-        ToolAgent: "pending",
-        ResponseAgent: "pending",
-        PrecisionAnswerAgent: "pending",
+        PlannerAgent: "pending",
+        SolverAgent: "pending",
+        WriterAgent: "pending",
       },
       tokenStats: {
         model: "Unknown",
@@ -823,13 +834,9 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         isSolving: false,
         agentStatus: {
-          InvestigateAgent: "error",
-          NoteAgent: "error",
-          ManagerAgent: "error",
-          SolveAgent: "error",
-          ToolAgent: "error",
-          ResponseAgent: "error",
-          PrecisionAnswerAgent: "error",
+          PlannerAgent: "error",
+          SolverAgent: "error",
+          WriterAgent: "error",
         },
         progress: {
           stage: null,

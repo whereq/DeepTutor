@@ -29,6 +29,7 @@ export const DEFAULT_NAV_ORDER: SidebarNavOrder = {
   learnResearch: [
     "/question",
     "/solver",
+    "/vision-solver",
     "/guide",
     "/ideagen",
     "/research",

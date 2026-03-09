@@ -148,8 +148,9 @@ async def websocket_solve(websocket: WebSocket):
         # 1. Wait for the initial message with the question and config
         data = await websocket.receive_json()
         question = data.get("question")
-        kb_name = data.get("kb_name", "ai_textbook")
+        kb_name = data.get("kb_name", "ai-textbook")
         session_id = data.get("session_id")  # Optional session ID
+        detailed_answer = data.get("detailed_answer", False)  # Iterative detailed mode
 
         if not question:
             await websocket.send_json({"type": "error", "content": "Question is required"})
@@ -298,7 +299,7 @@ async def websocket_solve(websocket: WebSocket):
 
             logger.progress(f"[{task_id}] Solving started")
 
-            result = await solver.solve(question, verbose=True)
+            result = await solver.solve(question, verbose=True, detailed=detailed_answer)
 
             logger.success(f"[{task_id}] Solving completed")
             task_manager.update_task_status(task_id, "completed")

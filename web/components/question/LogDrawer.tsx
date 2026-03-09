@@ -67,56 +67,36 @@ export const LogDrawer: React.FC<LogDrawerProps> = ({
   const isGenerating = stage === "generating" || stage === "validating";
   const isComplete = stage === "complete";
 
-  // Custom mode steps
+  // Custom mode steps (refactored pipeline)
   const customModeSteps = [
     {
-      id: "init",
-      label: t("Initializing"),
+      id: "idea",
+      label: t("Idea Loop"),
       icon: Sparkles,
-      active: stage === "planning" && !progress?.status,
+      active: stage === "idea_loop",
       done:
-        stage === "researching" ||
-        progress?.status === "generating_queries" ||
-        progress?.status === "retrieving" ||
-        progress?.status === "creating_plan" ||
-        progress?.status === "plan_ready" ||
-        isGenerating ||
-        isComplete,
+        stage === "templates_ready" || stage === "generating" || stage === "validating" || isComplete,
     },
     {
-      id: "query",
-      label: t("Generating Search Queries"),
-      icon: Search,
-      active:
-        progress?.status === "generating_queries" ||
-        progress?.status === "splitting_queries",
-      done:
-        stage === "researching" ||
-        progress?.status === "retrieving" ||
-        progress?.status === "creating_plan" ||
-        progress?.status === "plan_ready" ||
-        isGenerating ||
-        isComplete,
-    },
-    {
-      id: "research",
-      label: t("Retrieving Knowledge"),
-      icon: Database,
-      active: stage === "researching" || progress?.status === "retrieving",
-      done:
-        progress?.status === "creating_plan" ||
-        progress?.status === "plan_ready" ||
-        isGenerating ||
-        isComplete,
-    },
-    {
-      id: "plan",
-      label: t("Creating Question Plan"),
+      id: "templates",
+      label: t("Templates Ready"),
       icon: Target,
-      active:
-        progress?.status === "creating_plan" ||
-        progress?.status === "planning_focuses",
-      done: progress?.status === "plan_ready" || isGenerating || isComplete,
+      active: stage === "templates_ready",
+      done: stage === "generating" || stage === "validating" || isComplete,
+    },
+    {
+      id: "generate",
+      label: t("Generating Questions"),
+      icon: Database,
+      active: stage === "generating",
+      done: stage === "validating" || isComplete,
+    },
+    {
+      id: "validate",
+      label: t("Validation Loop"),
+      icon: Search,
+      active: stage === "validating",
+      done: isComplete,
     },
   ];
 
