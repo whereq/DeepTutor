@@ -6,18 +6,12 @@ Responsible for managing DynamicTopicQueue state and task distribution
 """
 
 import asyncio
-from pathlib import Path
-import sys
 from typing import Any
 
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-from src.agents.base_agent import BaseAgent
 from src.agents.research.data_structures import DynamicTopicQueue, TopicBlock
 
 
-class ManagerAgent(BaseAgent):
+class ManagerAgent:
     """Queue management Agent"""
 
     def __init__(
@@ -27,16 +21,6 @@ class ManagerAgent(BaseAgent):
         base_url: str | None = None,
         api_version: str | None = None,
     ):
-        language = config.get("system", {}).get("language", "zh")
-        super().__init__(
-            module_name="research",
-            agent_name="manager_agent",
-            api_key=api_key,
-            base_url=base_url,
-            api_version=api_version,
-            language=language,
-            config=config,
-        )
         self.queue: DynamicTopicQueue | None = None
         self.primary_topic: str | None = None
         self._lock = asyncio.Lock()  # Lock for thread-safe operations in parallel mode

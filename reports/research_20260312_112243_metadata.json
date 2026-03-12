@@ -1,0 +1,15 @@
+{
+  "research_id": "research_20260312_112243",
+  "topic": "agentic rag",
+  "optimized_topic": "Designing a structured learning path for mastering Agentic RAG: From foundational RAG architectures and autonomous agent orchestration to implementing iterative reasoning loops, tool-use integration, and multi-agent collaboration frameworks for production-grade AI systems.",
+  "statistics": {
+    "total_blocks": 2,
+    "pending": 0,
+    "researching": 0,
+    "completed": 2,
+    "failed": 0,
+    "total_tool_calls": 2
+  },
+  "report_word_count": 8728,
+  "completed_at": "2026-03-12T11:23:27.693590"
+}

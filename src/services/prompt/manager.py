@@ -26,7 +26,7 @@ class PromptManager:
     }
 
     # Supported modules
-    MODULES = ["research", "solve", "guide", "question", "ideagen", "co_writer", "personalization"]
+    MODULES = ["research", "solve", "guide", "question", "co_writer", "personalization", "math_animator"]
     
     # Modules that are not under src/agents/ directory
     NON_AGENT_MODULES = {"personalization": "personalization"}
@@ -47,7 +47,7 @@ class PromptManager:
         Load prompts for an agent.
 
         Args:
-            module_name: Module name (research, solve, guide, question, ideagen, co_writer)
+            module_name: Module name (research, solve, guide, question, co_writer)
             agent_name: Agent name (filename without .yaml)
             language: Language code ('zh' or 'en')
             subdirectory: Optional subdirectory (e.g., 'solve_loop' for solve module)

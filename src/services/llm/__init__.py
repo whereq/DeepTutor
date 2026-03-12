@@ -60,8 +60,10 @@ from .capabilities import (
     supports_response_format,
     supports_streaming,
     supports_tools,
+    supports_vision,
     system_in_messages,
 )
+from .multimodal import MultimodalResult, prepare_multimodal_messages
 from .client import LLMClient, get_llm_client, reset_llm_client
 from .config import (
     LLMConfig,
@@ -119,7 +121,11 @@ __all__ = [
     "system_in_messages",
     "has_thinking_tags",
     "supports_tools",
+    "supports_vision",
     "requires_api_version",
+    # Multimodal
+    "MultimodalResult",
+    "prepare_multimodal_messages",
     # Exceptions
     "LLMError",
     "LLMConfigError",

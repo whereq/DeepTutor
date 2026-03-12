@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
 Run Code Tool - Code execution tool
-Execute Python code in isolated workspace.  Every execution is persisted
-under ``run_code_workspace/`` with its source code, output log, and any
+Execute Python code in isolated workspace. Every execution is persisted
+under task-scoped ``code_runs/`` directories (or the detached runtime workspace) with its source code, output log, and any
 generated artifacts (images, data files, etc.).
 """
 
@@ -19,7 +19,7 @@ from typing import Any
 
 RUN_CODE_WORKSPACE_ENV = "RUN_CODE_WORKSPACE"
 RUN_CODE_ALLOWED_ROOTS_ENV = "RUN_CODE_ALLOWED_ROOTS"
-DEFAULT_WORKSPACE_NAME = "run_code_workspace"
+DEFAULT_WORKSPACE_NAME = "_detached_code_execution"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_SAFE_IMPORTS = [
@@ -27,6 +27,25 @@ DEFAULT_SAFE_IMPORTS = [
     "scipy", "statsmodels", "json", "datetime", "re", "collections",
     "itertools", "functools", "random", "time", "statistics", "sympy",
 ]
+DISALLOWED_CALL_NAMES = {
+    "open",
+    "exec",
+    "eval",
+    "compile",
+    "__import__",
+    "input",
+    "breakpoint",
+}
+DISALLOWED_ATTRIBUTE_BASES = {
+    "os",
+    "sys",
+    "subprocess",
+    "socket",
+    "pathlib",
+    "shutil",
+    "importlib",
+    "builtins",
+}
 
 from src.logging import get_logger
 from src.services.path_service import get_path_service
@@ -38,39 +57,14 @@ _META_FILES = frozenset({"code.py", "output.log", ".gitkeep"})
 
 
 def _load_config() -> dict[str, Any]:
-    """Load run_code configuration from main.yaml and module configs"""
-    try:
-        from src.services.config import load_config_with_main
+    """Load run_code configuration from main.yaml."""
+    from src.services.config import load_config_with_main
 
-        for cfg_name in ("solve_config.yaml", "question_config.yaml"):
-            try:
-                config = load_config_with_main(cfg_name, PROJECT_ROOT)
-                run_code_config = config.get("tools", {}).get("run_code", {})
-                if run_code_config:
-                    logger.debug(f"Loaded run_code config from {cfg_name} (with main.yaml)")
-                    return run_code_config
-            except Exception as e:
-                logger.debug(f"Failed to load from {cfg_name}: {e}")
-
-    except ImportError:
-        logger.debug("config_loader not available, using fallback")
-
-    # Fallback: try loading main.yaml directly
-    try:
-        import yaml
-
-        main_config_path = PROJECT_ROOT / "config" / "main.yaml"
-        if main_config_path.exists():
-            with open(main_config_path, encoding="utf-8") as f:
-                config = yaml.safe_load(f) or {}
-            run_code_config = config.get("tools", {}).get("run_code", {})
-            if run_code_config:
-                logger.debug("Loaded run_code config from main.yaml")
-                return run_code_config
-    except Exception as e:
-        logger.debug(f"Failed to load from main.yaml: {e}")
-
-    return {}
+    config = load_config_with_main("main.yaml", PROJECT_ROOT)
+    run_code_config = config.get("tools", {}).get("run_code", {})
+    if run_code_config:
+        logger.debug("Loaded run_code config from main.yaml")
+    return run_code_config
 
 
 def _save_output_log(
@@ -124,25 +118,15 @@ class OperationLogger:
 
 
 class WorkspaceManager:
-    """Manages the persistent ``run_code_workspace`` directory."""
+    """Manages detached code-execution workspaces for explicit non-task runs."""
 
     def __init__(self):
-        config = _load_config()
-
         env_path = os.getenv(RUN_CODE_WORKSPACE_ENV)
         if env_path:
             self.base_dir = Path(env_path).expanduser().resolve()
         else:
-            config_workspace = config.get("workspace")
-            if config_workspace:
-                workspace_path = Path(config_workspace).expanduser()
-                if workspace_path.is_absolute():
-                    self.base_dir = workspace_path.resolve()
-                else:
-                    self.base_dir = (PROJECT_ROOT / workspace_path).resolve()
-            else:
-                path_service = get_path_service()
-                self.base_dir = path_service.get_run_code_workspace_dir().resolve()
+            path_service = get_path_service()
+            self.base_dir = path_service.get_run_code_workspace_dir().resolve()
 
         self._initialized = False
 
@@ -207,9 +191,39 @@ class ImportGuard:
                 f"The following modules are not in the allowed list: {', '.join(unauthorized)}"
             )
 
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in DISALLOWED_CALL_NAMES:
+                    raise CodeExecutionError(
+                        f"Use of unsafe builtin is not allowed: {node.func.id}"
+                    )
+                if (
+                    isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id in DISALLOWED_ATTRIBUTE_BASES
+                ):
+                    raise CodeExecutionError(
+                        f"Use of unsafe module access is not allowed: "
+                        f"{node.func.value.id}.{node.func.attr}"
+                    )
+
 
 class CodeExecutionEnvironment:
     """Run Python code inside a persistent execution directory."""
+
+    @staticmethod
+    def _build_isolated_env() -> dict[str, str]:
+        env = {
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUNBUFFERED": "1",
+            "PYTHONNOUSERSITE": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+        for key in ("PATH", "SYSTEMROOT", "HOME", "TMPDIR", "TEMP", "TMP"):
+            value = os.environ.get(key)
+            if value:
+                env[key] = value
+        return env
 
     def run_python(
         self,
@@ -220,15 +234,14 @@ class CodeExecutionEnvironment:
         """Write *code* to ``execution_dir/code.py``, execute it, and return
         (stdout, stderr, exit_code, elapsed_ms).  The source file is kept on
         disk for later inspection."""
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
+        env = self._build_isolated_env()
 
         code_file = execution_dir / "code.py"
         code_file.write_text(code, encoding="utf-8")
 
         start_time = time.time()
         result = subprocess.run(
-            [sys.executable, str(code_file)],
+            [sys.executable, "-I", str(code_file)],
             check=False,
             capture_output=True,
             text=True,
@@ -253,8 +266,14 @@ async def run_code(
     timeout: int = 10,
     allowed_imports: list[str] | None = None,
     workspace_dir: str | Path | None = None,
+    feature: str | None = None,
+    task_id: str | None = None,
+    session_id: str | None = None,
+    turn_id: str | None = None,
 ) -> dict[str, Any]:
-    """Execute code in an isolated, persistent directory under ``run_code_workspace``.
+    """Execute code in a restricted, persistent directory under task-scoped ``code_runs``.
+
+    This is a best-effort restricted runner, not a true operating-system sandbox.
 
     Each invocation creates a new timestamped directory containing:
     - ``code.py``    – the executed source code
@@ -266,6 +285,14 @@ async def run_code(
     """
     if language.lower() != "python":
         raise ValueError(f"Unsupported language: {language}, currently only Python is supported")
+
+    if workspace_dir is None:
+        workspace_dir = _resolve_task_workspace(
+            feature=feature,
+            task_id=task_id,
+            session_id=session_id,
+            turn_id=turn_id,
+        )
 
     if workspace_dir is not None:
         custom_workspace = Path(workspace_dir).expanduser().resolve()
@@ -346,6 +373,31 @@ async def run_code(
         "artifacts": artifacts,
         "artifact_paths": artifact_paths,
     }
+
+
+def _resolve_task_workspace(
+    *,
+    feature: str | None,
+    task_id: str | None,
+    session_id: str | None,
+    turn_id: str | None,
+) -> Path | None:
+    """Resolve a task-scoped code workspace from runtime identifiers."""
+    feature_name = str(feature or "").strip()
+    if not feature_name:
+        return None
+
+    identifier = (
+        str(task_id or "").strip()
+        or str(turn_id or "").strip()
+        or str(session_id or "").strip()
+    )
+    if not identifier:
+        return None
+
+    path_service = get_path_service()
+    task_root = path_service.get_task_workspace(feature_name, identifier)
+    return task_root / "code_runs"
 
 
 def run_code_sync(

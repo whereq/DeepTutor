@@ -1,27 +1,31 @@
 """
-Question Generation System
+Question generation package.
 
-Refactored dual-loop architecture:
-- Idea loop: IdeaAgent <-> Evaluator
-- Generation loop: Generator <-> Validator
-- AgentCoordinator: End-to-end orchestration for topic and exam paths
-
-Tools (moved to src/tools/question):
-- parse_pdf_with_mineru
-- extract_questions_from_paper
-- mimic_exam_questions
+Exports are resolved lazily so lightweight imports such as
+``src.agents.question.models`` do not eagerly pull in optional RAG dependencies.
 """
 
-from .agents import Evaluator, Generator, IdeaAgent, Validator
-from .coordinator import AgentCoordinator
-from .models import QAPair, QuestionTemplate
+from importlib import import_module
+from typing import Any
 
 __all__ = [
     "IdeaAgent",
-    "Evaluator",
     "Generator",
-    "Validator",
+    "FollowupAgent",
     "QuestionTemplate",
     "QAPair",
     "AgentCoordinator",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in {"IdeaAgent", "Generator", "FollowupAgent"}:
+        module = import_module("src.agents.question.agents")
+        return getattr(module, name)
+    if name == "AgentCoordinator":
+        module = import_module("src.agents.question.coordinator")
+        return getattr(module, name)
+    if name in {"QuestionTemplate", "QAPair"}:
+        module = import_module("src.agents.question.models")
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

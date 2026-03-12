@@ -89,7 +89,12 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
             f"Top-level keys={keys}, expected one of: data/embeddings/result/output."
         )
 
+    _MAX_RETRIES = 2
+    _RETRY_BACKOFF = 1.0
+
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        import asyncio
+
         headers = {
             "Content-Type": "application/json",
         }
@@ -107,7 +112,11 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         if request.dimensions or self.dimensions:
             payload["dimensions"] = request.dimensions or self.dimensions
 
-        url = f"{self.base_url.rstrip('/')}/embeddings"
+        base = self.base_url.rstrip('/')
+        if base.endswith('/embeddings'):
+            url = base
+        else:
+            url = f"{base}/embeddings"
         if self.api_version:
             if "?" not in url:
                 url += f"?api-version={self.api_version}"
@@ -116,14 +125,38 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
 
         logger.debug(f"Sending embedding request to {url} with {len(request.texts)} texts")
 
-        async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-            response = await client.post(url, json=payload, headers=headers)
+        timeout = httpx.Timeout(
+            connect=10.0,
+            read=max(self.request_timeout, 60),
+            write=10.0,
+            pool=10.0,
+        )
+        last_exc: Exception | None = None
+        for attempt in range(1 + self._MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(url, json=payload, headers=headers)
 
-            if response.status_code >= 400:
-                logger.error(f"HTTP {response.status_code} response body: {response.text}")
+                    if response.status_code >= 400:
+                        logger.error(f"HTTP {response.status_code} response body: {response.text}")
 
-            response.raise_for_status()
-            data = response.json()
+                    response.raise_for_status()
+                    data = response.json()
+                break
+            except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.PoolTimeout) as exc:
+                last_exc = exc
+                if attempt < self._MAX_RETRIES:
+                    wait = self._RETRY_BACKOFF * (attempt + 1)
+                    logger.warning(
+                        f"Embedding request timeout (attempt {attempt + 1}/{1 + self._MAX_RETRIES}), "
+                        f"retrying in {wait:.0f}s..."
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    logger.error(
+                        f"Embedding request failed after {1 + self._MAX_RETRIES} attempts: {exc}"
+                    )
+                    raise
 
         embeddings = self._extract_embeddings_from_response(data)
         if not embeddings:

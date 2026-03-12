@@ -107,7 +107,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8001
 | Solve | `data/user/solve/solve_YYYYMMDD_HHMMSS/` |
 | Question | `data/user/question/question_YYYYMMDD_HHMMSS/` |
 | Research | `data/user/research/reports/` |
-| Interactive IdeaGen | `data/user/co-writer/` |
+| Co-Writer | `data/user/co-writer/` |
 | Notebook | `data/user/notebook/` |
 | Guide | `data/user/guide/session_{session_id}.json` |
 | Logs | `data/user/logs/` |

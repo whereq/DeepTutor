@@ -1,0 +1,15 @@
+{
+  "research_id": "research_20260311_103941",
+  "topic": "what is agentic rag?",
+  "optimized_topic": "Agentic RAG: Definition and Applications",
+  "statistics": {
+    "total_blocks": 5,
+    "pending": 0,
+    "researching": 0,
+    "completed": 5,
+    "failed": 0,
+    "total_tool_calls": 23
+  },
+  "report_word_count": 60458,
+  "completed_at": "2026-03-11T11:10:20.859174"
+}

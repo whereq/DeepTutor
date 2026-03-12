@@ -1,16 +1,13 @@
-from pathlib import Path
-import sys
+import asyncio
 import traceback
-from typing import Literal
+from datetime import datetime
+from dataclasses import asdict
+from typing import AsyncGenerator, Literal
+import uuid
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
-
-# Ensure co_writer module can be imported
-project_root = Path(__file__).parent.parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 import json
 
@@ -19,18 +16,22 @@ from src.agents.co_writer.edit_agent import (
     EditAgent,
     load_history,
     print_stats,
+    save_history,
+    save_tool_call,
 )
+from src.agents.chat.agentic_pipeline import AgenticChatPipeline
 from src.agents.co_writer.narrator_agent import NarratorAgent
+from src.core.context import UnifiedContext
+from src.core.stream_bus import StreamBus
 from src.logging import get_logger
-from src.services.config import load_config_with_main
+from src.services.config import PROJECT_ROOT, load_config_with_main
 from src.services.settings.interface_settings import get_ui_language
 from src.services.tts import get_tts_config
 
 router = APIRouter()
 
 # Initialize logger with config
-project_root = Path(__file__).parent.parent.parent.parent
-config = load_config_with_main("solve_config.yaml", project_root)  # Use any config to get main.yaml
+config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = get_logger("CoWriter", level="INFO", log_dir=log_dir)
 
@@ -92,6 +93,21 @@ class EditResponse(BaseModel):
     operation_id: str
 
 
+class ReactEditRequest(BaseModel):
+    selected_text: str
+    instruction: str = ""
+    mode: Literal["rewrite", "shorten", "expand", "none"] = "rewrite"
+    tools: list[str] = []
+    kb_name: str | None = None
+
+
+class ReactEditResponse(BaseModel):
+    edited_text: str
+    operation_id: str
+    thinking: str = ""
+    tool_traces: list[dict] = []
+
+
 class AutoMarkRequest(BaseModel):
     text: str
 
@@ -99,6 +115,293 @@ class AutoMarkRequest(BaseModel):
 class AutoMarkResponse(BaseModel):
     marked_text: str
     operation_id: str
+
+
+def _normalize_react_edit_tools(tools: list[str] | None) -> list[str]:
+    allowed = {
+        "brainstorm",
+        "rag",
+        "web_search",
+        "code_execution",
+        "reason",
+        "paper_search",
+    }
+    normalized: list[str] = []
+    for name in tools or []:
+        tool = str(name or "").strip()
+        if tool and tool in allowed and tool not in normalized:
+            normalized.append(tool)
+    return normalized
+
+
+def _default_mode_instruction(mode: str, language: str) -> str:
+    zh = language.startswith("zh")
+    defaults = {
+        "rewrite": "润色这段 markdown，保持原意、结构和语气自然。",
+        "shorten": "压缩这段 markdown，让表达更精炼，同时保留关键信息。",
+        "expand": "扩展这段 markdown，补充必要细节，同时保持原有风格。",
+        "none": "根据用户要求编辑这段 markdown。",
+    }
+    if zh:
+        return defaults.get(mode, defaults["none"])
+    defaults_en = {
+        "rewrite": "Rewrite this markdown snippet while preserving its meaning, structure, and tone.",
+        "shorten": "Shorten this markdown snippet while preserving the key information.",
+        "expand": "Expand this markdown snippet with helpful detail while keeping the original style.",
+        "none": "Edit this markdown snippet according to the user's request.",
+    }
+    return defaults_en.get(mode, defaults_en["none"])
+
+
+def _build_react_edit_prompt(
+    *,
+    selected_text: str,
+    instruction: str,
+    mode: str,
+    language: str,
+) -> str:
+    user_instruction = instruction.strip() or _default_mode_instruction(mode, language)
+    if language.startswith("zh"):
+        return (
+            "你正在编辑一段从 Markdown 编辑器里选中的文本。\n\n"
+            f"编辑模式: {mode}\n"
+            f"用户要求: {user_instruction}\n\n"
+            "待编辑的选中文本:\n"
+            "```markdown\n"
+            f"{selected_text}\n"
+            "```\n\n"
+            "要求:\n"
+            "1. 只输出编辑后的那段 Markdown 文本，供编辑器直接替换。\n"
+            "2. 不要输出解释、标题、前后缀、代码围栏。\n"
+            "3. 保持 Markdown 语法合法。\n"
+            "4. 如果用了工具，把工具得到的事实自然融入结果，不要提工具名。\n"
+        )
+    return (
+        "You are editing a text selection from a Markdown editor.\n\n"
+        f"Edit mode: {mode}\n"
+        f"User request: {user_instruction}\n\n"
+        "Selected text to edit:\n"
+        "```markdown\n"
+        f"{selected_text}\n"
+        "```\n\n"
+        "Requirements:\n"
+        "1. Output only the edited Markdown snippet for direct replacement.\n"
+        "2. Do not include explanations, headings, prefixes, suffixes, or code fences.\n"
+        "3. Keep the Markdown valid.\n"
+        "4. If tools were used, incorporate their facts naturally without mentioning the tools.\n"
+    )
+
+
+def _strip_markdown_fence(text: str) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```") and cleaned.endswith("```"):
+        lines = cleaned.splitlines()
+        if len(lines) >= 3:
+            return "\n".join(lines[1:-1]).strip()
+    return cleaned
+
+
+def _prepare_react_edit_request(
+    request: ReactEditRequest, language: str
+) -> tuple[str, str, list[str], list[str], str]:
+    tools = _normalize_react_edit_tools(request.tools)
+    instruction = request.instruction.strip()
+    if request.mode == "none" and not instruction:
+        detail = (
+            "请输入编辑要求，或选择 shorten / expand / rewrite 模式。"
+            if language.startswith("zh")
+            else "Provide an edit instruction, or choose shorten / expand / rewrite mode."
+        )
+        raise HTTPException(status_code=400, detail=detail)
+
+    selected_text = request.selected_text.strip("\n")
+    if not selected_text.strip():
+        detail = "请先选中一段文本。" if language.startswith("zh") else "Please select a text passage first."
+        raise HTTPException(status_code=400, detail=detail)
+
+    knowledge_bases = [request.kb_name] if request.kb_name and "rag" in tools else []
+    prompt = _build_react_edit_prompt(
+        selected_text=selected_text,
+        instruction=instruction,
+        mode=request.mode,
+        language=language,
+    )
+    return selected_text, instruction, tools, knowledge_bases, prompt
+
+
+async def _run_react_edit(
+    request: ReactEditRequest,
+    *,
+    language: str,
+    stream: StreamBus | None = None,
+) -> dict[str, object]:
+    selected_text, instruction, tools, knowledge_bases, prompt = (
+        _prepare_react_edit_request(request, language)
+    )
+    operation_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
+
+    context = UnifiedContext(
+        session_id="",
+        user_message=prompt,
+        conversation_history=[],
+        enabled_tools=tools,
+        active_capability="chat",
+        knowledge_bases=knowledge_bases,
+        attachments=[],
+        config_overrides={},
+        language=language,
+        metadata={"source": "co_writer_react_edit", "mode": request.mode},
+    )
+
+    pipeline = AgenticChatPipeline(language=language)
+    active_stream = stream or StreamBus()
+    enabled_tools = pipeline._normalize_enabled_tools(context.enabled_tools)
+    thinking_text = await pipeline._stage_thinking(context, enabled_tools, active_stream)
+    tool_traces = await pipeline._stage_acting(
+        context=context,
+        enabled_tools=enabled_tools,
+        thinking_text=thinking_text,
+        stream=active_stream,
+    )
+
+    agent = get_edit_agent()
+    system_prompt = (
+        "You are an expert markdown editor."
+        if not language.startswith("zh")
+        else "你是一个严格的 Markdown 编辑助手。"
+    )
+    final_prompt = _build_react_edit_prompt(
+        selected_text=selected_text,
+        instruction=instruction,
+        mode=request.mode,
+        language=language,
+    )
+    if thinking_text.strip():
+        if language.startswith("zh"):
+            final_prompt += f"\n内部推理摘要（不要暴露给用户）:\n{thinking_text.strip()}\n"
+        else:
+            final_prompt += f"\nInternal reasoning summary (do not reveal):\n{thinking_text.strip()}\n"
+    if tool_traces:
+        formatted_traces = pipeline._format_tool_traces(tool_traces)
+        if language.startswith("zh"):
+            final_prompt += f"\n工具结果（只吸收事实，不要解释过程）:\n{formatted_traces}\n"
+        else:
+            final_prompt += (
+                f"\nTool results (absorb the facts only, do not explain the process):\n"
+                f"{formatted_traces}\n"
+            )
+
+    response_chunks: list[str] = []
+    if stream is None:
+        response_chunks.append(
+            await agent.call_llm(
+                user_prompt=final_prompt,
+                system_prompt=system_prompt,
+                stage=f"react_edit_{request.mode}",
+            )
+        )
+    else:
+        async with active_stream.stage("responding", source="co_writer_react_edit"):
+            await active_stream.progress(
+                "Writing final edit...",
+                source="co_writer_react_edit",
+                stage="responding",
+            )
+            async for chunk in agent.stream_llm(
+                user_prompt=final_prompt,
+                system_prompt=system_prompt,
+                stage=f"react_edit_{request.mode}",
+            ):
+                if not chunk:
+                    continue
+                response_chunks.append(chunk)
+                await active_stream.content(
+                    chunk,
+                    source="co_writer_react_edit",
+                    stage="responding",
+                )
+
+    edited_text = _strip_markdown_fence("".join(response_chunks))
+
+    tool_call_file = None
+    if tool_traces:
+        tool_call_file = save_tool_call(
+            operation_id,
+            "react_tools",
+            {
+                "type": "react_tools",
+                "timestamp": datetime.now().isoformat(),
+                "operation_id": operation_id,
+                "mode": request.mode,
+                "tools": tools,
+                "kb_name": request.kb_name,
+                "thinking": thinking_text,
+                "tool_traces": [asdict(trace) for trace in tool_traces],
+            },
+        )
+
+    history = load_history()
+    history.append(
+        {
+            "id": operation_id,
+            "timestamp": datetime.now().isoformat(),
+            "action": "react_edit",
+            "mode": request.mode,
+            "tools": tools,
+            "kb_name": request.kb_name,
+            "input": {
+                "selected_text": request.selected_text,
+                "instruction": instruction,
+            },
+            "output": {"edited_text": edited_text},
+            "tool_call_file": tool_call_file,
+            "model": agent.get_model(),
+        }
+    )
+    save_history(history)
+    print_stats()
+
+    result = {
+        "edited_text": edited_text,
+        "operation_id": operation_id,
+        "thinking": thinking_text,
+        "tool_traces": [asdict(trace) for trace in tool_traces],
+    }
+    if stream is not None:
+        await active_stream.result(result, source="co_writer_react_edit")
+    return result
+
+
+async def _stream_react_edit(request: ReactEditRequest) -> AsyncGenerator[str, None]:
+    language = _current_language()
+    bus = StreamBus()
+    error_holder: dict[str, str] = {}
+    result_holder: dict[str, object] | None = None
+
+    async def _run() -> None:
+        nonlocal result_holder
+        try:
+            result_holder = await _run_react_edit(request, language=language, stream=bus)
+        except HTTPException as exc:
+            error_holder["detail"] = str(exc.detail)
+        except Exception as exc:
+            error_holder["detail"] = str(exc)
+        finally:
+            await bus.close()
+
+    task = asyncio.create_task(_run())
+    try:
+        async for event in bus.subscribe():
+            yield f"event: stream\ndata: {json.dumps(event.to_dict(), default=str)}\n\n"
+
+        await task
+        if error_holder:
+            yield f"event: error\ndata: {json.dumps(error_holder, default=str)}\n\n"
+        else:
+            yield f"event: result\ndata: {json.dumps(result_holder or {}, default=str)}\n\n"
+    finally:
+        if not task.done():
+            task.cancel()
 
 
 @router.post("/edit", response_model=EditResponse)
@@ -123,6 +426,30 @@ async def edit_text(request: EditRequest):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/edit_react", response_model=ReactEditResponse)
+async def edit_text_react(request: ReactEditRequest):
+    try:
+        return await _run_react_edit(request, language=_current_language())
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/edit_react/stream")
+async def edit_text_react_stream(request: ReactEditRequest):
+    try:
+        _prepare_react_edit_request(request, _current_language())
+    except HTTPException:
+        raise
+    return StreamingResponse(
+        _stream_react_edit(request),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/automark", response_model=AutoMarkResponse)

@@ -1,16 +1,35 @@
 # -*- coding: utf-8 -*-
-"""
-Core Module
-===========
+"""Core contracts shared across runtime, tools, and capabilities."""
 
-Core infrastructure components for DeepTutor.
-"""
-
-from .event_bus import Event, EventType, EventBus, get_event_bus
+from .capability_protocol import BaseCapability, CapabilityManifest
+from .context import Attachment, UnifiedContext
+from .stream import StreamEvent, StreamEventType
+from .stream_bus import StreamBus
+from .trace import build_trace_metadata, merge_trace_metadata, new_call_id
+from .tool_protocol import (
+    BaseTool,
+    ToolAlias,
+    ToolDefinition,
+    ToolParameter,
+    ToolPromptHints,
+    ToolResult,
+)
 
 __all__ = [
-    "Event",
-    "EventType",
-    "EventBus",
-    "get_event_bus",
+    "StreamEvent",
+    "StreamEventType",
+    "StreamBus",
+    "new_call_id",
+    "build_trace_metadata",
+    "merge_trace_metadata",
+    "BaseTool",
+    "ToolAlias",
+    "ToolDefinition",
+    "ToolParameter",
+    "ToolPromptHints",
+    "ToolResult",
+    "BaseCapability",
+    "CapabilityManifest",
+    "UnifiedContext",
+    "Attachment",
 ]

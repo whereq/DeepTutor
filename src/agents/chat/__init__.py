@@ -2,7 +2,8 @@
 Chat Module - Lightweight conversational AI with session management.
 
 This module provides:
-- ChatAgent: Multi-turn conversational agent with RAG/Web Search support
+- ChatAgent: Legacy conversational agent with RAG/Web Search support
+- AgenticChatPipeline: Four-stage chat orchestration with autonomous tool use
 - SessionManager: Chat session persistence and management
 
 Usage:
@@ -18,7 +19,8 @@ Usage:
     )
 """
 
+from .agentic_pipeline import AgenticChatPipeline
 from .chat_agent import ChatAgent
 from .session_manager import SessionManager
 
-__all__ = ["ChatAgent", "SessionManager"]
+__all__ = ["AgenticChatPipeline", "ChatAgent", "SessionManager"]

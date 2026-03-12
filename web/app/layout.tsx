@@ -2,13 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
-import { GlobalProvider } from "@/context/GlobalContext";
-import { QuestionProvider } from "@/context/question";
 import ThemeScript from "@/components/ThemeScript";
-import LayoutWrapper from "@/components/LayoutWrapper";
+import { UnifiedChatProvider } from "@/context/UnifiedChatContext";
 import { I18nClientBridge } from "@/i18n/I18nClientBridge";
 
-// Use Inter font with swap display for better loading
 const font = Inter({
   subsets: ["latin"],
   display: "swap",
@@ -16,35 +13,29 @@ const font = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "DeepTutor Platform",
-  description: "Multi-Agent Teaching & Research Copilot",
+  title: "DeepTutor",
+  description: "Agent-native intelligent learning companion",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <ThemeScript />
       </head>
-      <body className={font.className}>
-        <GlobalProvider>
-          <QuestionProvider>
-            <I18nClientBridge>
-              <LayoutWrapper>
-                <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden transition-colors duration-200">
-                  <Sidebar />
-                  <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900">
-                    {children}
-                  </main>
-                </div>
-              </LayoutWrapper>
-            </I18nClientBridge>
-          </QuestionProvider>
-        </GlobalProvider>
+      <body className={`${font.className} bg-[var(--background)] text-[var(--foreground)]`}>
+        <UnifiedChatProvider>
+          <I18nClientBridge>
+            <div className="flex h-screen overflow-hidden">
+              <Sidebar />
+              <main className="flex-1 overflow-hidden bg-[var(--background)]">{children}</main>
+            </div>
+          </I18nClientBridge>
+        </UnifiedChatProvider>
       </body>
     </html>
   );

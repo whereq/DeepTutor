@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.agents.base_agent import BaseAgent
+from src.core.trace import build_trace_metadata, new_call_id
 
 from ..memory.scratchpad import Scratchpad
 
@@ -71,6 +72,13 @@ class WriterAgent(BaseAgent):
             system_prompt=system_prompt,
             max_tokens=self.get_max_tokens() or 8192,
             stage="write",
+            trace_meta=build_trace_metadata(
+                call_id=new_call_id("write"),
+                phase="writing",
+                label="Write answer",
+                call_kind="llm_generation",
+                trace_id="write",
+            ),
         )
 
         return response.strip()
@@ -212,6 +220,14 @@ class WriterAgent(BaseAgent):
             system_prompt=system_prompt,
             max_tokens=self.get_max_tokens() or 8192,
             stage=f"write_iter_{iteration}",
+            trace_meta=build_trace_metadata(
+                call_id=new_call_id(f"write-draft-{iteration}"),
+                phase="writing",
+                label=f"Write draft {iteration}",
+                call_kind="llm_generation",
+                trace_id=f"write-draft-{iteration}",
+                iteration=iteration,
+            ),
         )
         return response.strip()
 
@@ -244,6 +260,13 @@ class WriterAgent(BaseAgent):
             system_prompt=system_prompt,
             max_tokens=1024,
             stage="write_concise",
+            trace_meta=build_trace_metadata(
+                call_id=new_call_id("write-concise"),
+                phase="writing",
+                label="Write concise answer",
+                call_kind="llm_summary",
+                trace_id="write-concise",
+            ),
         )
         return response.strip()
 

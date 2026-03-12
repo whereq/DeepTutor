@@ -13,11 +13,11 @@ interface MermaidProps {
 mermaid.initialize({
   startOnLoad: false,
   theme: "neutral",
-  securityLevel: "loose",
+  securityLevel: "strict",
   fontFamily: "ui-sans-serif, system-ui, sans-serif",
   flowchart: {
     useMaxWidth: true,
-    htmlLabels: true,
+    htmlLabels: false,
     curve: "basis",
   },
   themeVariables: {
@@ -72,10 +72,10 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
         </p>
         <pre className="text-xs text-red-500 whitespace-pre-wrap">{error}</pre>
         <details className="mt-2">
-          <summary className="text-xs text-slate-500 cursor-pointer">
+          <summary className="text-xs text-[var(--muted-foreground)] cursor-pointer">
             {t("Show source")}
           </summary>
-          <pre className="mt-2 p-2 bg-slate-100 rounded text-xs overflow-x-auto">
+          <pre className="mt-2 p-2 bg-[var(--muted)] rounded text-xs overflow-x-auto text-[var(--foreground)]">
             {chart}
           </pre>
         </details>

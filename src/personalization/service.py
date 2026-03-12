@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 import yaml
 
 from src.agents.base_agent import BaseAgent
-from src.core.event_bus import Event, EventType, get_event_bus
+from src.events.event_bus import Event, EventType, get_event_bus
 from src.services.path_service import get_path_service
 
 from .agents import ReflectionAgent, SummaryAgent, WeaknessAgent
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class PersonalizationService:
     """Orchestrates trace registration and three memory agents.
 
-    After each ``SOLVE_COMPLETE`` or ``QUESTION_COMPLETE`` event the
+    After each capability-complete event the
     service:
 
     1. Builds and registers a :class:`TraceTree`.
@@ -79,7 +79,7 @@ class PersonalizationService:
     # ------------------------------------------------------------------
 
     def _load_config(self) -> None:
-        config_path = get_path_service().project_root / "config" / "memory.yaml"
+        config_path = get_path_service().get_runtime_config_file("memory")
         if config_path.exists():
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
@@ -134,6 +134,7 @@ class PersonalizationService:
             event_bus = get_event_bus()
             event_bus.subscribe(EventType.SOLVE_COMPLETE, self._handle_event)
             event_bus.subscribe(EventType.QUESTION_COMPLETE, self._handle_event)
+            event_bus.subscribe(EventType.CAPABILITY_COMPLETE, self._handle_event)
             logger.info("PersonalizationService started, subscribed to events")
         else:
             logger.info("PersonalizationService started (auto-update disabled)")
@@ -146,6 +147,7 @@ class PersonalizationService:
             event_bus = get_event_bus()
             event_bus.unsubscribe(EventType.SOLVE_COMPLETE, self._handle_event)
             event_bus.unsubscribe(EventType.QUESTION_COMPLETE, self._handle_event)
+            event_bus.unsubscribe(EventType.CAPABILITY_COMPLETE, self._handle_event)
         logger.info("PersonalizationService stopped")
 
     # ------------------------------------------------------------------
@@ -287,6 +289,12 @@ class PersonalizationService:
                 return self._build_solve_trace(event)
             if event_type == EventType.QUESTION_COMPLETE.value:
                 return self._build_question_trace(event)
+            if event_type == EventType.CAPABILITY_COMPLETE.value:
+                capability = str((event.metadata or {}).get("capability", "") or "")
+                if capability == "deep_solve":
+                    return self._build_solve_trace(event)
+                if capability == "deep_question":
+                    return self._build_question_trace(event)
             return None
         except Exception as exc:
             logger.warning("[MEM-WRITE] Failed to build trace from event: %s", exc)

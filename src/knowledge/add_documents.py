@@ -105,8 +105,7 @@ class DocumentAdder:
 
         Priority:
         1. kb_config.json (authoritative source)
-        2. metadata.json (backward compatibility)
-        3. Detect from storage structure (fallback)
+        2. Detect from storage structure
 
         This ensures we use the same provider that was used during initialization
         for data consistency and correct storage format.
@@ -127,23 +126,11 @@ class DocumentAdder:
             except Exception as e:
                 logger.warning(f"Failed to read provider from kb_config.json: {e}")
         
-        # Fallback: try metadata.json (backward compatibility)
-        if self.metadata_file.exists():
-            try:
-                with open(self.metadata_file, "r", encoding="utf-8") as f:
-                    metadata = json.load(f)
-                    provider = metadata.get("rag_provider")
-                    if provider:
-                        return provider
-            except Exception as e:
-                logger.warning(f"Failed to read provider from metadata.json: {e}")
-
-        # Fallback: detect from storage structure
+        # Detect from storage structure
         llamaindex_storage = self.kb_dir / "llamaindex_storage"
         if llamaindex_storage.exists():
             return "llamaindex"
 
-        # Default to raganything for backward compatibility
         return "raganything"
 
     def _ensure_working_directories(self):

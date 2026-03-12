@@ -58,40 +58,27 @@ class ProgressTracker:
 
     def _notify(self, progress: dict):
         """Notify progress update (call all callbacks)"""
-        # Try to send via broadcaster (if available)
-        try:
-            from src.api.utils.progress_broadcaster import ProgressBroadcaster
+        from src.runtime.mode import is_server
 
-            broadcaster = ProgressBroadcaster.get_instance()
-
-            # Try to get current event loop and broadcast
+        if is_server():
             try:
-                loop = asyncio.get_running_loop()
-                # If event loop is running, use create_task (non-blocking)
-                asyncio.create_task(broadcaster.broadcast(self.kb_name, progress))
-            except RuntimeError:
-                # No running event loop, try to get main event loop
-                try:
-                    # Try to get main event loop (FastAPI main loop)
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # If loop is running, create task
-                        asyncio.create_task(broadcaster.broadcast(self.kb_name, progress))
-                    else:
-                        # If loop exists but not running, try to run (may fail, but doesn't affect main flow)
-                        try:
-                            loop.run_until_complete(broadcaster.broadcast(self.kb_name, progress))
-                        except RuntimeError:
-                            # Cannot run, ignore
-                            pass
-                except RuntimeError:
-                    pass
-        except (ImportError, Exception):
-            # Broadcaster unavailable or error, continue using callbacks
-            # Don't print error to avoid interfering with normal flow
-            pass
+                from src.api.utils.progress_broadcaster import ProgressBroadcaster
 
-        # Call all registered callbacks
+                broadcaster = ProgressBroadcaster.get_instance()
+
+                try:
+                    asyncio.get_running_loop()
+                    asyncio.create_task(broadcaster.broadcast(self.kb_name, progress))
+                except RuntimeError:
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(broadcaster.broadcast(self.kb_name, progress))
+                    except RuntimeError:
+                        pass
+            except (ImportError, Exception):
+                pass
+
         for callback in self._callbacks:
             try:
                 callback(progress)
@@ -135,18 +122,11 @@ class ProgressTracker:
                     "file_name": progress.get("file_name"),
                     "error": progress.get("error"),
                     "timestamp": progress.get("timestamp"),
+                    "task_id": progress.get("task_id"),
                 },
             )
         except Exception as e:
             print(f"[ProgressTracker] Failed to save progress to kb_config.json: {e}")
-
-        # Also save to local .progress.json file (for backward compatibility)
-        try:
-            self.kb_dir.mkdir(parents=True, exist_ok=True)
-            with open(self.progress_file, "w", encoding="utf-8") as f:
-                json.dump(progress, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"[ProgressTracker] Failed to save progress to local file: {e}")
 
     def update(
         self,
@@ -160,6 +140,7 @@ class ProgressTracker:
         """Update progress"""
         progress = {
             "kb_name": self.kb_name,
+            "task_id": self.task_id,
             "stage": stage.value,
             "message": message,
             "current": current,

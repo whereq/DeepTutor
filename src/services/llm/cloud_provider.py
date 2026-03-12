@@ -229,7 +229,7 @@ async def stream(
     base_url: str | None = None,
     api_version: str | None = None,
     binding: str = "openai",
-    messages: list[dict[str, str]] | None = None,
+    messages: list[dict[str, object]] | None = None,
     **kwargs: object,
 ) -> AsyncGenerator[str, None]:
     """
@@ -440,7 +440,7 @@ async def _openai_stream(
     base_url: str | None,
     api_version: str | None = None,
     binding: str = "openai",
-    messages: list[dict[str, str]] | None = None,
+    messages: list[dict[str, object]] | None = None,
     **kwargs: object,
 ) -> AsyncGenerator[str, None]:
     """OpenAI-compatible streaming."""
@@ -584,7 +584,7 @@ async def _anthropic_complete(
     system_prompt: str,
     api_key: str | None,
     base_url: str | None,
-    messages: list[dict[str, str]] | None = None,
+    messages: list[dict[str, object]] | None = None,
     max_tokens: int | None = None,
     temperature: float | None = None,
 ) -> str:
@@ -656,7 +656,7 @@ async def _anthropic_stream(
     system_prompt: str,
     api_key: str | None,
     base_url: str | None,
-    messages: list[dict[str, str]] | None = None,
+    messages: list[dict[str, object]] | None = None,
     max_tokens: int | None = None,
     temperature: float | None = None,
 ) -> AsyncGenerator[str, None]:

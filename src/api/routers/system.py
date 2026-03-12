@@ -25,6 +25,38 @@ class TestResponse(BaseModel):
     error: str | None = None
 
 
+@router.get("/runtime-topology")
+async def get_runtime_topology():
+    """
+    Describe the current execution topology.
+
+    This makes the unified runtime explicit for operators and frontend code:
+    interactive chat turns should prefer `/api/v1/ws`, while a few routers still
+    exist as compatibility or isolated subsystem endpoints.
+    """
+    return {
+        "primary_runtime": {
+            "transport": "/api/v1/ws",
+            "manager": "TurnRuntimeManager",
+            "orchestrator": "ChatOrchestrator",
+            "session_store": "SQLiteSessionStore",
+            "capability_entry": "CapabilityRegistry",
+            "tool_entry": "ToolRegistry",
+        },
+        "compatibility_routes": [
+            {"router": "chat", "mode": "legacy_adapter_target"},
+            {"router": "solve", "mode": "legacy_adapter_target"},
+            {"router": "question", "mode": "legacy_specialized"},
+            {"router": "research", "mode": "legacy_specialized"},
+        ],
+        "isolated_subsystems": [
+            {"router": "guide", "mode": "independent_subsystem"},
+            {"router": "co_writer", "mode": "independent_subsystem"},
+            {"router": "plugins_api", "mode": "playground_transport"},
+        ],
+    }
+
+
 @router.get("/status")
 async def get_system_status():
     """

@@ -3,7 +3,7 @@ SolverAgent — ReAct agent that iteratively gathers information for each plan s
 
 For every step in the plan, the SolverAgent runs a think-act-observe loop:
   1. THINK  — reason about what information is still missing
-  2. ACT    — choose a tool (rag_search | web_search | code_execute | done | replan)
+  2. ACT    — choose one enabled action from the unified tool/runtime layer
   3. OBSERVE — the tool result is appended to the Scratchpad (outside this agent)
 
 The agent outputs a single JSON decision per call.
@@ -14,9 +14,10 @@ from __future__ import annotations
 from typing import Any
 
 from src.agents.base_agent import BaseAgent
+from src.core.trace import build_trace_metadata, new_call_id
 
 from ..memory.scratchpad import PlanStep, Scratchpad
-from ..tools import ToolRegistry
+from ..tool_runtime import SolveToolRuntime
 from ..utils.json_utils import extract_json_from_text
 
 
@@ -50,7 +51,7 @@ class SolverAgent(BaseAgent):
         api_version: str | None = None,
         token_tracker: Any | None = None,
         language: str = "en",
-        tool_registry: ToolRegistry | None = None,
+        tool_runtime: SolveToolRuntime | None = None,
     ) -> None:
         super().__init__(
             module_name="solve",
@@ -63,7 +64,7 @@ class SolverAgent(BaseAgent):
             token_tracker=token_tracker,
             language=language,
         )
-        self._tool_registry = tool_registry or ToolRegistry.create_default(language)
+        self._tool_runtime = tool_runtime or SolveToolRuntime([], language=language)
 
     async def process(
         self,
@@ -72,6 +73,7 @@ class SolverAgent(BaseAgent):
         scratchpad: Scratchpad,
         memory_context: str = "",
         image_url: str | None = None,
+        round_index: int | None = None,
     ) -> dict[str, str]:
         """Run one ReAct iteration for the given plan step.
 
@@ -93,11 +95,31 @@ class SolverAgent(BaseAgent):
             memory_context=memory_context,
         )
 
+        trace_meta = build_trace_metadata(
+            call_id=new_call_id(f"solve-{current_step.id.lower()}"),
+            phase="reasoning",
+            label=(
+                f"{current_step.id} / Round {round_index}"
+                if round_index is not None
+                else current_step.id
+            ),
+            call_kind="react_round",
+            trace_id=(
+                f"{current_step.id.lower()}-round-{round_index}"
+                if round_index is not None
+                else current_step.id.lower()
+            ),
+            trace_role="thought",
+            trace_group="react_round",
+            step_id=current_step.id,
+            round=round_index,
+        )
         llm_kwargs: dict[str, object] = {
             "user_prompt": user_prompt,
             "system_prompt": system_prompt,
             "response_format": {"type": "json_object"},
             "stage": f"solve_{current_step.id}",
+            "trace_meta": trace_meta,
         }
 
         if image_url:
@@ -107,14 +129,16 @@ class SolverAgent(BaseAgent):
 
         response = await self.call_llm(**llm_kwargs)
 
-        return self._parse_decision(response)
+        decision = self._parse_decision(response)
+        decision["_trace"] = trace_meta
+        return decision
 
     # ------------------------------------------------------------------
     # Prompt construction
     # ------------------------------------------------------------------
 
     def _build_system_prompt(self) -> str:
-        tools_desc = self._tool_registry.build_solver_description()
+        tools_desc = self._tool_runtime.build_solver_description()
 
         prompt = self.get_prompt("system") if self.has_prompts() else None
         if prompt:
@@ -183,7 +207,7 @@ class SolverAgent(BaseAgent):
             }
 
         action = str(data.get("action", "done")).strip().lower()
-        if action not in self._tool_registry.valid_actions:
+        if action not in self._tool_runtime.valid_actions:
             action = "done"
 
         return {

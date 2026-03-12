@@ -8,7 +8,6 @@ This module provides a collection of various tools used in the DeepTutor system,
 tools/
 ├── __init__.py              # Module initialization, unified export of all tools
 ├── code_executor.py         # Code execution tool ⭐
-├── query_item_tool.py       # Numbered item query tool ⭐
 ├── rag_tool.py              # RAG retrieval tool ⭐
 ├── web_search.py            # Web search tool
 ├── paper_search_tool.py     # Paper search tool
@@ -25,7 +24,6 @@ tools/
 from src.tools import (
     run_code,              # Code execution
     run_code_sync,         # Synchronous code execution
-    query_numbered_item,   # Query numbered items
     rag_search,            # RAG retrieval
     web_search,            # Web search
     PaperSearchTool,       # Paper search (optional)
@@ -74,74 +72,14 @@ result = run_code_sync(
 ```
 
 **Configuration:**
-- Configure via `tools.run_code` in `solve_config.yaml` or `question_config.yaml`
+- Configure via `tools.run_code` in `data/user/settings/main.yaml`
 - Environment variables:
   - `RUN_CODE_WORKSPACE`: Workspace directory
   - `RUN_CODE_ALLOWED_ROOTS`: List of allowed root directories
 
 ---
 
-### 2. Numbered Item Query Tool (`query_item_tool.py`)
-
-Query numbered items in the knowledge base, such as definitions, theorems, formulas, figures, etc.
-
-**Key Features:**
-- Support for multiple numbered item types: definitions, theorems, formulas, figures, examples, remarks, etc.
-- Support for fuzzy and exact matching
-- Returns multiple matching results
-- Backward compatible with single result format
-
-**Usage Example:**
-
-```python
-from src.tools import query_numbered_item
-
-# Query definition
-result = query_numbered_item(
-    identifier="Definition 1.1",
-    kb_name="ai_textbook"
-)
-
-# Query formula
-result = query_numbered_item(
-    identifier="(1.2.1)",
-    kb_name="ai_textbook"
-)
-
-# Query figure
-result = query_numbered_item(
-    identifier="Figure 2.5",
-    kb_name="ai_textbook",
-    max_results=3
-)
-
-# Result format
-# {
-#     "identifier": str,      # Original query identifier
-#     "type": str,            # Type: formula/definition/theorem/lemma/figure/example/remark
-#     "status": str,          # success/failed
-#     "count": int,           # Number of matched items
-#     "items": [              # List of all matched items
-#         {
-#             "identifier": str,
-#             "type": str,
-#             "content": str
-#         }
-#     ],
-#     "content": str,         # Backward compatible: single item content or merged content
-#     "error": str            # Error message (only when failed)
-# }
-```
-
-**Supported Identifier Formats:**
-- Definition/Theorem: `"Definition 1.1"`, `"Theorem 2.3"`
-- Formula: `"(1.2.1)"`, `"(2.3.5)"`
-- Figure: `"Figure 1.1"`, `"Figure 2.5"`
-- Example/Remark: `"Example 1.1"`, `"Remark 2.1"`
-
----
-
-### 3. RAG Retrieval Tool (`rag_tool.py`)
+### 2. RAG Retrieval Tool (`rag_tool.py`)
 
 Knowledge base query tool based on RAG (Retrieval-Augmented Generation).
 
@@ -408,8 +346,7 @@ KB_BASE_DIR=./knowledge_bases
 Tool configuration is mainly in the following configuration files:
 
 - `config/main.yaml`: Main configuration file (LLM, Embedding, etc.)
-- `config/solve_config.yaml`: Solver configuration (includes `tools.run_code`)
-- `config/question_config.yaml`: Question configuration (includes `tools.run_code`)
+- `config/main.yaml`: Shared application configuration (includes `tools.run_code`)
 
 ---
 
@@ -458,10 +395,7 @@ print(x.mean())
 ### Scenario 2: Knowledge Base Query
 
 ```python
-from src.tools import query_numbered_item, rag_search
-
-# Query specific definition
-definition = query_numbered_item("Definition 3.1", kb_name="ai_textbook")
+from src.tools import rag_search
 
 # RAG retrieval of related concepts
 context = await rag_search(

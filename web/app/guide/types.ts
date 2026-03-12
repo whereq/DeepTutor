@@ -11,6 +11,7 @@ export interface Notebook {
 export interface NotebookRecord {
   id: string;
   title: string;
+  summary?: string;
   user_query: string;
   output: string;
   type: string;
@@ -32,15 +33,29 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp?: number;
+  knowledge_index?: number | null;
+}
+
+export type PageStatus = "pending" | "generating" | "ready" | "failed";
+
+export interface SessionSummary {
+  session_id: string;
+  topic: string;
+  status: "initialized" | "learning" | "completed";
+  created_at: number;
+  total_points: number;
+  ready_count: number;
+  progress: number;
 }
 
 export interface SessionState {
   session_id: string | null;
-  notebook_id: string | null;
-  notebook_name: string;
+  topic: string;
   knowledge_points: KnowledgePoint[];
   current_index: number;
-  current_html: string;
+  html_pages: Record<number, string>;
+  page_statuses: Record<number, PageStatus>;
+  page_errors: Record<number, string>;
   status: "idle" | "initialized" | "learning" | "completed";
   progress: number;
   summary: string;
@@ -48,11 +63,12 @@ export interface SessionState {
 
 export const INITIAL_SESSION_STATE: SessionState = {
   session_id: null,
-  notebook_id: null,
-  notebook_name: "",
+  topic: "",
   knowledge_points: [],
   current_index: -1,
-  current_html: "",
+  html_pages: {},
+  page_statuses: {},
+  page_errors: {},
   status: "idle",
   progress: 0,
   summary: "",
@@ -69,6 +85,10 @@ export function getTypeColor(type: string): string {
       return "bg-emerald-100 text-emerald-700 border-emerald-200";
     case "co_writer":
       return "bg-amber-100 text-amber-700 border-amber-200";
+    case "chat":
+      return "bg-cyan-100 text-cyan-700 border-cyan-200";
+    case "guided_learning":
+      return "bg-rose-100 text-rose-700 border-rose-200";
     default:
       return "bg-slate-100 text-slate-700 border-slate-200";
   }

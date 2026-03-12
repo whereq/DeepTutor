@@ -10,7 +10,6 @@ External interface (preserved for API compatibility):
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import traceback
 from datetime import datetime
@@ -21,9 +20,10 @@ import yaml
 
 from ...services.config import parse_language
 from ...services.path_service import get_path_service
+from src.core.trace import derive_trace_metadata, new_call_id
 from .agents import PlannerAgent, SolverAgent, WriterAgent
 from .memory import Scratchpad, Source
-from .tools import ToolRegistry
+from .tool_runtime import SolveToolRuntime
 from .utils.display_manager import get_display_manager
 from .utils.token_tracker import TokenTracker
 
@@ -39,9 +39,9 @@ class MainSolver:
         api_version: str | None = None,
         model: str | None = None,
         language: str | None = None,
-        kb_name: str = "ai-textbook",
+        kb_name: str | None = None,
         output_base_dir: str | None = None,
-        tool_registry: ToolRegistry | None = None,
+        enabled_tools: list[str] | None = None,
         disable_memory: bool = False,
         disable_planner_retrieve: bool = False,
         max_tokens: int | None = None,
@@ -56,7 +56,7 @@ class MainSolver:
         self._language = language
         self._kb_name = kb_name
         self._output_base_dir = output_base_dir
-        self._external_tool_registry = tool_registry
+        self._enabled_tools = enabled_tools
         self.disable_memory = disable_memory
         self.disable_planner_retrieve = disable_planner_retrieve
         self._max_tokens_override = max_tokens
@@ -67,14 +67,17 @@ class MainSolver:
         self.api_key: str | None = None
         self.base_url: str | None = None
         self.api_version: str | None = None
-        self.kb_name = kb_name
+        self.kb_name = kb_name or ""
         self.logger: Any = None
         self.token_tracker: TokenTracker | None = None
+        self._trace_callback: Any = None
+        self._conversation_context: str = ""
 
         # Agents (set in ainit)
         self.planner_agent: PlannerAgent | None = None
         self.solver_agent: SolverAgent | None = None
         self.writer_agent: WriterAgent | None = None
+        self.tool_runtime: SolveToolRuntime | None = None
 
     # ------------------------------------------------------------------
     # Async initialisation
@@ -86,6 +89,24 @@ class MainSolver:
         self._init_logging()
         self._init_agents()
         self.logger.success("Solver ready (Plan -> ReAct -> Write)")
+
+    def set_trace_callback(self, callback) -> None:
+        """Register a callback that receives structured LLM trace events."""
+        self._trace_callback = callback
+        for agent in (self.planner_agent, self.solver_agent, self.writer_agent):
+            if agent is not None:
+                agent.set_trace_callback(callback)
+
+    async def _emit_trace_event(self, payload: dict[str, Any]) -> None:
+        callback = self._trace_callback
+        if callback is None:
+            return
+        try:
+            result = callback(payload)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception:
+            pass
 
     async def _load_config(self) -> None:
         """Load configuration from main.yaml or custom path."""
@@ -165,7 +186,7 @@ class MainSolver:
         self.api_key = api_key
         self.base_url = base_url
         self.api_version = api_version
-        self.kb_name = self._kb_name
+        self.kb_name = self._kb_name or ""
 
     def _init_logging(self) -> None:
         """Initialise logger, display manager, and token tracker."""
@@ -197,10 +218,14 @@ class MainSolver:
 
     def _init_agents(self) -> None:
         """Create the three agents."""
+        from src.runtime.registry.tool_registry import get_tool_registry
+
         lang = parse_language(self.config.get("system", {}).get("language", "en"))
-        self.tool_registry = (
-            self._external_tool_registry
-            or ToolRegistry.create_default(language=lang)
+        self._core_tool_registry = get_tool_registry()
+        self.tool_runtime = SolveToolRuntime(
+            enabled_tools=self._enabled_tools,
+            language=lang,
+            core_registry=self._core_tool_registry,
         )
         common = dict(
             config=self.config,
@@ -213,11 +238,13 @@ class MainSolver:
         )
         self.planner_agent = PlannerAgent(
             **common,
-            tool_registry=self.tool_registry,
+            tool_runtime=self.tool_runtime,
             enable_pre_retrieve=not self.disable_planner_retrieve,
         )
-        self.solver_agent = SolverAgent(**common, tool_registry=self.tool_registry)
+        self.solver_agent = SolverAgent(**common, tool_runtime=self.tool_runtime)
         self.writer_agent = WriterAgent(**common)
+        if self._trace_callback is not None:
+            self.set_trace_callback(self._trace_callback)
 
         # Apply per-run overrides from benchmark config (pipeline.max_tokens / pipeline.temperature)
         if self._max_tokens_override is not None or self._temperature_override is not None:
@@ -228,7 +255,7 @@ class MainSolver:
                     agent._agent_params["temperature"] = self._temperature_override
 
         self.logger.info(
-            f"Agents initialised (lang={lang}), tools registered: {self.tool_registry.tool_names}"
+            f"Agents initialised (lang={lang}), tools registered: {self.tool_runtime.tool_names}"
         )
 
     # ------------------------------------------------------------------
@@ -241,6 +268,7 @@ class MainSolver:
         image_url: str | None = None,
         verbose: bool = True,
         detailed: bool | None = None,
+        conversation_context: str = "",
     ) -> dict[str, Any]:
         """Run the full Plan -> ReAct -> Write pipeline.
 
@@ -256,6 +284,7 @@ class MainSolver:
         if detailed is None:
             detailed = self.config.get("solve", {}).get("detailed_answer", False)
         self._detailed = detailed
+        self._conversation_context = conversation_context.strip()
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         path_service = get_path_service()
@@ -398,17 +427,28 @@ class MainSolver:
                     scratchpad=scratchpad,
                     memory_context=step_memory_context,
                     image_url=image_url,
+                    round_index=round_num + 1,
                 )
 
                 action = decision["action"]
                 action_input = decision["action_input"]
                 thought = decision["thought"]
                 self_note = decision["self_note"]
+                trace_meta = decision.get("_trace", {})
 
                 self.logger.info(f"    Round {round_num + 1}: {action}({action_input[:60]}...)")
                 self.logger.debug(f"    Thought: {thought[:120]}")
 
                 if action == "done":
+                    if self_note:
+                        await self._emit_trace_event(
+                            {
+                                "event": "llm_observation",
+                                "state": "complete",
+                                "response": self_note,
+                                **trace_meta,
+                            }
+                        )
                     scratchpad.add_entry(
                         step_id=step.id,
                         round_num=round_num,
@@ -424,6 +464,15 @@ class MainSolver:
                     break
 
                 if action == "replan":
+                    if self_note:
+                        await self._emit_trace_event(
+                            {
+                                "event": "llm_observation",
+                                "state": "complete",
+                                "response": self_note,
+                                **trace_meta,
+                            }
+                        )
                     replan_count += 1
                     self.logger.info(f"    -> Replan requested ({replan_count}/{max_replans}): {action_input[:80]}")
                     # Record the replan entry
@@ -462,13 +511,42 @@ class MainSolver:
                     break
 
                 # Execute tool
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_call",
+                        "state": "running",
+                        "tool_name": action,
+                        "tool_args": {"input": action_input},
+                        **trace_meta,
+                    }
+                )
                 observation, sources = await self._execute_tool(
                     action=action,
                     action_input=action_input,
                     output_dir=output_dir,
                     question=question,
                     scratchpad=scratchpad,
+                    trace_meta=trace_meta,
                 )
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_result",
+                        "state": "complete",
+                        "tool_name": action,
+                        "result": observation,
+                        "sources": [s.to_dict() for s in sources],
+                        **trace_meta,
+                    }
+                )
+                if self_note:
+                    await self._emit_trace_event(
+                        {
+                            "event": "llm_observation",
+                            "state": "complete",
+                            "response": self_note,
+                            **trace_meta,
+                        }
+                    )
 
                 scratchpad.add_entry(
                     step_id=step.id,
@@ -571,139 +649,124 @@ class MainSolver:
         output_dir: str,
         question: str = "",
         scratchpad: Scratchpad | None = None,
+        trace_meta: dict[str, Any] | None = None,
     ) -> tuple[str, list[Source]]:
         """Execute a tool and return (observation_text, sources)."""
         obs_max = self.config.get("solve", {}).get("observation_max_tokens", 2000)
         sources: list[Source] = []
+        retrieve_trace = self._build_retrieve_trace_meta(action, action_input, trace_meta)
 
         try:
-            if action == "rag_search":
-                observation, sources = await self._tool_rag(action_input, obs_max)
-            elif action == "web_search":
-                observation, sources = await self._tool_web(action_input, output_dir, obs_max)
-            elif action == "code_execute":
-                observation, sources = await self._tool_code(action_input, obs_max, output_dir)
-            elif action == "reason":
-                observation, sources = await self._tool_reason(
-                    action_input, question, scratchpad, obs_max,
-                )
-            else:
+            if self.tool_runtime is None:
+                raise RuntimeError("Solve tool runtime is not initialised.")
+            if action not in self.tool_runtime.valid_actions:
                 observation = f"Unknown action: {action}"
+                return observation, sources
+
+            async def _event_sink(
+                event_type: str,
+                message: str = "",
+                metadata: dict[str, Any] | None = None,
+            ) -> None:
+                if retrieve_trace is None or not message:
+                    return
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_log",
+                        "message": message,
+                        **derive_trace_metadata(
+                            retrieve_trace,
+                            trace_kind=str(event_type or "tool_log"),
+                            **(metadata or {}),
+                        ),
+                    }
+                )
+
+            if retrieve_trace is not None:
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_log",
+                        "message": f"Query: {action_input}" if action_input else "Starting retrieval",
+                        **derive_trace_metadata(
+                            retrieve_trace,
+                            trace_kind="call_status",
+                            call_state="running",
+                        ),
+                    }
+                )
+
+            result = await self.tool_runtime.execute(
+                action,
+                action_input,
+                kb_name=self.kb_name or None,
+                output_dir=output_dir,
+                reason_context=self._build_reason_context(question, scratchpad),
+                api_key=self.api_key,
+                base_url=self.base_url,
+                model=self.solver_agent.get_model() if self.solver_agent else None,
+                event_sink=_event_sink if retrieve_trace is not None else None,
+            )
+            if retrieve_trace is not None:
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_log",
+                        "message": f"Retrieve complete ({len(result.content)} chars)",
+                        **derive_trace_metadata(
+                            retrieve_trace,
+                            trace_kind="call_status",
+                            call_state="complete",
+                        ),
+                    }
+                )
+            observation = self._format_tool_observation(action, result.content, result.metadata, obs_max)
+            sources = self._convert_tool_sources(result.sources, result.metadata)
         except Exception as exc:
             observation = f"Tool error ({action}): {exc}"
             self.logger.warning(f"    Tool error: {exc}")
+            if retrieve_trace is not None:
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_log",
+                        "message": f"Retrieve failed: {exc}",
+                        **derive_trace_metadata(
+                            retrieve_trace,
+                            trace_kind="call_status",
+                            call_state="error",
+                            error=str(exc),
+                        ),
+                    }
+                )
 
         return observation, sources
 
-    async def _tool_rag(
-        self, query: str, max_chars: int
-    ) -> tuple[str, list[Source]]:
-        from src.tools.rag_tool import rag_search
-
-        result = await rag_search(
-            query=query,
-            kb_name=self.kb_name,
-            mode="hybrid",
-            top_k=8,
-        )
-        answer = result.get("answer", "") or result.get("content", "")
-        observation = answer[:max_chars * 4] if answer else "(no results)"
-
-        sources: list[Source] = []
-        # Extract source from the answer metadata if available
-        if answer:
-            sources.append(Source(type="rag", file=self.kb_name, chunk_id=query[:50]))
-
-        return observation, sources
-
-    async def _tool_web(
-        self, query: str, output_dir: str, max_chars: int
-    ) -> tuple[str, list[Source]]:
-        from src.tools.web_search import web_search
-
-        result = await asyncio.to_thread(web_search, query=query, output_dir=output_dir)
-        answer = result.get("answer", "")
-        observation = answer[:max_chars * 4] if answer else "(no results)"
-
-        sources: list[Source] = []
-        for cit in result.get("citations", [])[:5]:
-            sources.append(Source(
-                type="web",
-                url=cit.get("url", ""),
-                file=cit.get("title", ""),
-            ))
-
-        return observation, sources
-
-    async def _tool_code(
-        self, intent: str, max_chars: int, output_dir: str | None = None
-    ) -> tuple[str, list[Source]]:
-        """Generate Python code from intent, then execute it."""
-        # Step 1: Generate code from the intent description
-        code = await self._generate_code(intent)
-
-        # Step 2: Execute (all outputs go to run_code_workspace automatically)
-        from src.tools.code_executor import run_code
-
-        result = await run_code(
-            language="python",
-            code=code,
-            timeout=30,
-            workspace_dir=(os.path.join(output_dir, "code_runs") if output_dir else None),
-        )
-
-        parts: list[str] = []
-        if result.get("stdout"):
-            parts.append(f"Output:\n{result['stdout']}")
-        if result.get("stderr"):
-            parts.append(f"Stderr:\n{result['stderr']}")
-        if result.get("artifacts"):
-            parts.append(f"Artifacts: {', '.join(result['artifacts'])}")
-        if result.get("exit_code", 0) != 0:
-            parts.append(f"Exit code: {result['exit_code']}")
-
-        observation = "\n".join(parts)[:max_chars * 4] if parts else "(no output)"
-        observation = f"Code:\n```python\n{code}\n```\n\n{observation}"
-
-        sources: list[Source] = []
-        for art in result.get("artifact_paths", []):
-            sources.append(Source(type="code", file=Path(art).name))
-
-        return observation, sources
-
-    async def _generate_code(self, intent: str) -> str:
-        """Use the LLM to generate Python code from a natural-language intent."""
-        system = (
-            "You are a Python code generator. Given a description of what to compute, "
-            "output ONLY valid Python code (no markdown, no explanation). "
-            "Use standard libraries (numpy, matplotlib, sympy, scipy) as needed. "
-            "Print results to stdout. Save any plots to the current directory."
-        )
-        response = await self.solver_agent.call_llm(
-            user_prompt=intent,
-            system_prompt=system,
-            stage="codegen",
-        )
-        # Strip markdown fences if present
-        code = response.strip()
-        if code.startswith("```"):
-            lines = code.split("\n")
-            lines = lines[1:]  # Remove opening fence
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            code = "\n".join(lines)
-        return code
-
-    async def _tool_reason(
+    def _build_retrieve_trace_meta(
         self,
-        query: str,
+        action: str,
+        action_input: str,
+        trace_meta: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if self.tool_runtime is None or not trace_meta:
+            return None
+        resolved_tool = self.tool_runtime.resolve_tool_name(action)
+        if resolved_tool != "rag":
+            return None
+        return derive_trace_metadata(
+            trace_meta,
+            call_id=new_call_id("solve-retrieve"),
+            label="Retrieve",
+            call_kind="rag_retrieval",
+            trace_role="retrieve",
+            trace_group="retrieve",
+            trace_id=f"{trace_meta.get('trace_id', 'solve')}-retrieve",
+            query=action_input,
+            tool_name=resolved_tool,
+        )
+
+    def _build_reason_context(
+        self,
         question: str,
         scratchpad: Scratchpad | None,
-        max_chars: int,
-    ) -> tuple[str, list[Source]]:
-        """Invoke the stateless deep-reasoning tool."""
-        from src.tools.reason import reason
-
+    ) -> str:
         # Build context from scratchpad so the reasoning LLM has background
         context_parts: list[str] = []
         if question:
@@ -723,18 +786,44 @@ class MainSolver:
                 if notes:
                     context_parts.append("Knowledge from previous steps:\n" + "\n".join(notes))
 
-        context = "\n\n".join(context_parts)
+        return "\n\n".join(context_parts)
 
-        result = await reason(
-            query=query,
-            context=context,
-            api_key=self.api_key,
-            base_url=self.base_url,
-            model=self.solver_agent.get_model(),
-        )
+    @staticmethod
+    def _format_tool_observation(
+        action: str,
+        content: str,
+        metadata: dict[str, Any],
+        max_chars: int,
+    ) -> str:
+        text = (content or "").strip() or "(no results)"
+        if action in {"code_execution", "code_execute", "run_code"}:
+            code = (metadata.get("code") or "").strip()
+            if code:
+                text = f"Code:\n```python\n{code}\n```\n\n{text}"
+        return text[: max_chars * 4]
 
-        observation = result.get("answer", "(no reasoning output)")
-        return observation[:max_chars * 4], []
+    @staticmethod
+    def _convert_tool_sources(
+        tool_sources: list[dict[str, Any]] | None,
+        metadata: dict[str, Any],
+    ) -> list[Source]:
+        sources: list[Source] = []
+        for item in tool_sources or []:
+            if not isinstance(item, dict):
+                continue
+            sources.append(
+                Source(
+                    type=str(item.get("type", "reference")),
+                    file=item.get("file") or item.get("title") or item.get("kb_name"),
+                    page=item.get("page"),
+                    url=item.get("url"),
+                    chunk_id=item.get("chunk_id") or item.get("query") or item.get("identifier"),
+                )
+            )
+
+        for artifact_path in metadata.get("artifact_paths", []):
+            sources.append(Source(type="code", file=Path(artifact_path).name))
+        return sources
 
     # ------------------------------------------------------------------
     # Helpers
@@ -756,23 +845,45 @@ class MainSolver:
         from src.personalization.memory_reader import get_memory_reader_instance
 
         reader = get_memory_reader_instance()
+        memory_context = ""
         if not reader:
-            return ""
+            return self._merge_memory_context(memory_context)
         try:
-            return await reader.get_planner_context(question)
+            memory_context = await reader.get_planner_context(question)
         except Exception:
-            return ""
+            memory_context = ""
+        return self._merge_memory_context(memory_context)
 
     async def _get_solver_memory_context(self, step_goal: str) -> str:
         from src.personalization.memory_reader import get_memory_reader_instance
 
         reader = get_memory_reader_instance()
+        memory_context = ""
         if not reader:
-            return ""
+            return self._merge_memory_context(
+                memory_context,
+                include_conversation=False,
+            )
         try:
-            return await reader.get_solver_context(step_goal)
+            memory_context = await reader.get_solver_context(step_goal)
         except Exception:
-            return ""
+            memory_context = ""
+        return self._merge_memory_context(
+            memory_context,
+            include_conversation=False,
+        )
+
+    def _merge_memory_context(
+        self,
+        memory_context: str,
+        include_conversation: bool = True,
+    ) -> str:
+        parts = []
+        if include_conversation and self._conversation_context:
+            parts.append(f"Conversation context:\n{self._conversation_context}")
+        if memory_context:
+            parts.append(memory_context)
+        return "\n\n".join(part for part in parts if part)
 
     async def _publish_event(
         self,
@@ -783,7 +894,7 @@ class MainSolver:
     ) -> None:
         """Publish SOLVE_COMPLETE event for personalisation."""
         try:
-            from src.core.event_bus import Event, EventType, get_event_bus
+            from src.events.event_bus import Event, EventType, get_event_bus
 
             task_id = Path(output_dir).name
             tools_used = list({e.action for e in scratchpad.entries if e.action not in ("done", "replan")})

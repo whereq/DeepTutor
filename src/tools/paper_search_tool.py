@@ -1,14 +1,8 @@
 """
-Paper Search Tool - ArXiv paper search tool
+ArXiv search tool for preprint discovery.
 
-Features:
-1. Search ArXiv papers
-2. Parse paper metadata
-3. Format paper information
-
-Author: DeepTutor Team
-Version: v1.0
-Based on: TODO.md specification
+This utility searches arXiv and returns lightweight metadata suitable for
+tool usage in chat / playground flows.
 """
 
 import asyncio
@@ -18,8 +12,8 @@ import re
 import arxiv
 
 
-class PaperSearchTool:
-    """ArXiv paper search tool"""
+class ArxivSearchTool:
+    """Search arXiv preprints and return normalized metadata."""
 
     def __init__(self):
         """Initialize search tool"""
@@ -51,6 +45,12 @@ class PaperSearchTool:
                 - arxiv_id: ArXiv ID
                 - published: Publication date (ISO format)
         """
+        query = (query or "").strip()
+        if not query:
+            return []
+
+        max_results = max(1, int(max_results))
+
         # Determine sort method
         if sort_by == "date":
             sort_criterion = arxiv.SortCriterion.SubmittedDate
@@ -68,8 +68,8 @@ class PaperSearchTool:
         papers = []
         current_year = datetime.now().year
 
-        # Execute search asynchronously (arxiv library is synchronous, but we can run in executor)
-        results = list(self.client.results(search))
+        # The arxiv client is synchronous, so run it off the event loop.
+        results = await asyncio.to_thread(lambda: list(self.client.results(search)))
 
         for result in results:
             # Extract year
@@ -93,7 +93,7 @@ class PaperSearchTool:
                 "title": result.title,
                 "authors": authors,
                 "year": paper_year,
-                "abstract": result.summary,
+                "abstract": " ".join((result.summary or "").split()),
                 "url": result.entry_id,
                 "arxiv_id": arxiv_id,
                 "published": published_date.isoformat(),
@@ -147,7 +147,7 @@ class PaperSearchTool:
 
 async def main():
     """Test function"""
-    tool = PaperSearchTool()
+    tool = ArxivSearchTool()
 
     # Test search
     print("Search: transformer attention mechanism")
@@ -169,3 +169,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+# Backward compatibility for existing imports.
+PaperSearchTool = ArxivSearchTool

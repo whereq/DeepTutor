@@ -10,6 +10,7 @@ from typing import Any, Literal
 import uuid
 
 from src.agents.base_agent import BaseAgent
+from src.runtime.registry.tool_registry import get_tool_registry
 from src.services.path_service import get_path_service
 from src.tools.rag_tool import rag_search
 from src.tools.web_search import web_search
@@ -59,7 +60,12 @@ def save_tool_call(call_id: str, tool_type: str, data: dict[str, Any]) -> str:
 class EditAgent(BaseAgent):
     """Co-writer editing agent using unified BaseAgent."""
 
-    def __init__(self, language: str = "en"):
+    def __init__(
+        self,
+        language: str = "en",
+        enabled_tools: list[str] | None = None,
+        **kwargs: Any,
+    ):
         """
         Initialize EditAgent.
 
@@ -74,7 +80,10 @@ class EditAgent(BaseAgent):
             module_name="co_writer",
             agent_name="edit_agent",
             language=language,
+            **kwargs,
         )
+        self.enabled_tools = enabled_tools or ["rag", "web_search"]
+        self._tool_registry = get_tool_registry()
 
     async def process(
         self,
@@ -97,6 +106,13 @@ class EditAgent(BaseAgent):
         context = ""
         tool_call_file = None
         tool_call_data = None
+
+        if source == "rag" and "rag" not in self.enabled_tools:
+            self.logger.warning("RAG source requested but tool is not enabled")
+            source = None
+        if source == "web" and "web_search" not in self.enabled_tools:
+            self.logger.warning("Web source requested but tool is not enabled")
+            source = None
 
         if source == "rag":
             if not kb_name:
@@ -151,7 +167,13 @@ class EditAgent(BaseAgent):
                 source = None
 
         # Build prompts
-        system_prompt = self.get_prompt("system", "You are an expert editor and writing assistant.")
+        system_template = self.get_prompt(
+            "system",
+            "You are an expert editor and writing assistant.\n\nAvailable reference tools:\n{available_tools}",
+        )
+        system_prompt = system_template.format(
+            available_tools=self._build_available_tools_text()
+        )
 
         action_verbs = {"rewrite": "Rewrite", "shorten": "Shorten", "expand": "Expand"}
         action_verb = action_verbs.get(action, "Rewrite")
@@ -164,9 +186,12 @@ class EditAgent(BaseAgent):
 
         if context:
             context_template = self.get_prompt(
-                "context_template", "Reference Context:\n{context}\n\n"
+                "context_template", "Reference Context ({source_label}):\n{context}\n\n"
             )
-            user_prompt += context_template.format(context=context)
+            user_prompt += context_template.format(
+                context=context,
+                source_label=self._get_source_label(source),
+            )
 
         text_template = self.get_prompt(
             "user_template",
@@ -245,6 +270,30 @@ class EditAgent(BaseAgent):
         self.logger.info(f"Auto-mark operation {operation_id} recorded successfully")
 
         return {"marked_text": response, "operation_id": operation_id}
+
+    def _build_available_tools_text(self) -> str:
+        tool_names = [name for name in self.enabled_tools if name in {"rag", "web_search"}]
+        if not tool_names:
+            return (
+                "（当前未启用外部参考工具）"
+                if str(self.language).lower().startswith("zh")
+                else "(no external reference tools enabled)"
+            )
+        return self._tool_registry.build_prompt_text(
+            tool_names,
+            format="list",
+            language=self.language,
+        )
+
+    def _get_source_label(self, source: Literal["rag", "web"] | None) -> str:
+        labels = {
+            "en": {"rag": "knowledge base", "web": "web search"},
+            "zh": {"rag": "知识库", "web": "网页搜索"},
+        }
+        lang = "zh" if str(self.language).lower().startswith("zh") else "en"
+        if source in labels[lang]:
+            return labels[lang][source]
+        return "reference" if lang == "en" else "参考资料"
 
 
 # Legacy compatibility - export get_stats pointing to BaseAgent's stats

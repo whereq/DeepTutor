@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Refactored Question Coordinator
+Question Coordinator
 
-Two-loop architecture:
-1) Idea loop (IdeaAgent <-> Evaluator) for topic-driven templates
-2) Generation loop (Generator <-> Validator) for final Q-A pairs
-
-All intermediate artifacts are saved to a per-batch directory.
+Simplified architecture:
+1) Template generation in batches (max 5 per batch)
+2) Single-pass question generation per template
 """
 
 from __future__ import annotations
@@ -16,32 +14,20 @@ from collections.abc import Callable
 from datetime import datetime
 import json
 from pathlib import Path
-import sys
 from typing import Any
 
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-from src.agents.question.agents.evaluator import Evaluator
 from src.agents.question.agents.generator import Generator
-from src.agents.question.agents.idea_agent import IdeaAgent
-from src.agents.question.agents.validator import Validator
+from src.agents.question.agents.idea_agent import BATCH_SIZE, IdeaAgent
 from src.agents.question.models import QAPair, QuestionTemplate
 from src.logging import Logger, get_logger
-from src.services.config import load_config_with_main
+from src.services.config import PROJECT_ROOT, load_config_with_main
+from src.services.path_service import get_path_service
 from src.tools.question.pdf_parser import parse_pdf_with_mineru
 from src.tools.question.question_extractor import extract_questions_from_paper
 
 
 class AgentCoordinator:
-    """
-    Orchestrates both input paths:
-    - generate_from_topic: user_topic + preference
-    - generate_from_exam: exam paper parse/extract -> templates
-
-    All intermediate files (templates, traces, per-question results) are
-    persisted to self._batch_dir for debugging and reproducibility.
-    """
+    """Coordinate topic-driven and paper-driven quiz generation."""
 
     def __init__(
         self,
@@ -61,11 +47,10 @@ class AgentCoordinator:
         self._base_url = base_url
         self._api_version = api_version
         self._ws_callback: Callable | None = None
-        self._batch_dir: Path | None = None
+        self._trace_callback: Callable | None = None
         self.enable_idea_rag = enable_idea_rag
 
-        self.config = load_config_with_main("question_config.yaml", project_root)
-
+        self.config = load_config_with_main("main.yaml", PROJECT_ROOT)
         log_dir = self.config.get("paths", {}).get("user_log_dir") or self.config.get(
             "logging", {}
         ).get("log_dir")
@@ -73,58 +58,23 @@ class AgentCoordinator:
 
         question_cfg = self.config.get("question", {})
         self.rag_mode = question_cfg.get("rag_mode", "naive")
-        self.max_parallel_questions = question_cfg.get("max_parallel_questions", 1)
-        self.idea_cfg = question_cfg.get("idea_loop", {})
-        self.generation_cfg = question_cfg.get("generation", {})
-        default_tool_flags = self.generation_cfg.get(
+        generation_cfg = question_cfg.get("generation", {})
+        default_tool_flags = generation_cfg.get(
             "tools",
-            {"web_search": True, "rag_tool": True, "write_code": True},
+            {"web_search": True, "rag": True, "code_execution": True},
         )
         self.tool_flags = (
             tool_flags_override
             if isinstance(tool_flags_override, dict)
             else default_tool_flags
         )
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+        self._current_batch_dir: Path | None = None
 
     def set_ws_callback(self, callback: Callable) -> None:
         self._ws_callback = callback
 
-    def get_batch_dir(self) -> Path | None:
-        """Return the current batch directory (available after generation starts)."""
-        return self._batch_dir
-
-    # ------------------------------------------------------------------
-    # Batch directory & artifact persistence
-    # ------------------------------------------------------------------
-
-    def _init_batch_dir(self) -> Path | None:
-        """Create a timestamped batch directory for this generation run."""
-        if not self.output_dir:
-            return None
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        batch_dir = Path(self.output_dir) / f"batch_{ts}"
-        batch_dir.mkdir(parents=True, exist_ok=True)
-        self._batch_dir = batch_dir
-        return batch_dir
-
-    def _save_artifact(self, filename: str, data: Any) -> None:
-        """Save an intermediate artifact to the batch directory."""
-        if not self._batch_dir:
-            return
-        try:
-            filepath = self._batch_dir / filename
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception as exc:
-            self.logger.debug(f"Failed to save artifact {filename}: {exc}")
-
-    # ------------------------------------------------------------------
-    # WebSocket helpers
-    # ------------------------------------------------------------------
+    def set_trace_callback(self, callback: Callable | None) -> None:
+        self._trace_callback = callback
 
     async def _send_ws_update(self, update_type: str, data: dict[str, Any]) -> None:
         if self._ws_callback:
@@ -133,12 +83,8 @@ class AgentCoordinator:
             except Exception as exc:
                 self.logger.debug(f"WS update failed: {exc}")
 
-    # ------------------------------------------------------------------
-    # Agent factories
-    # ------------------------------------------------------------------
-
     def _create_idea_agent(self) -> IdeaAgent:
-        return IdeaAgent(
+        agent = IdeaAgent(
             kb_name=self.kb_name,
             rag_mode=self.rag_mode,
             enable_rag=self.enable_idea_rag,
@@ -147,17 +93,11 @@ class AgentCoordinator:
             base_url=self._base_url,
             api_version=self._api_version,
         )
-
-    def _create_evaluator(self) -> Evaluator:
-        return Evaluator(
-            language=self.language,
-            api_key=self._api_key,
-            base_url=self._base_url,
-            api_version=self._api_version,
-        )
+        agent.set_trace_callback(self._trace_callback)
+        return agent
 
     def _create_generator(self) -> Generator:
-        return Generator(
+        agent = Generator(
             kb_name=self.kb_name,
             rag_mode=self.rag_mode,
             language=self.language,
@@ -166,19 +106,8 @@ class AgentCoordinator:
             base_url=self._base_url,
             api_version=self._api_version,
         )
-
-    def _create_validator(self) -> Validator:
-        return Validator(
-            language=self.language,
-            tool_flags=self.tool_flags,
-            api_key=self._api_key,
-            base_url=self._base_url,
-            api_version=self._api_version,
-        )
-
-    # ------------------------------------------------------------------
-    # Path 1: Topic -> Idea Loop -> Generation Loop
-    # ------------------------------------------------------------------
+        agent.set_trace_callback(self._trace_callback)
+        return agent
 
     async def generate_from_topic(
         self,
@@ -187,137 +116,15 @@ class AgentCoordinator:
         num_questions: int,
         difficulty: str = "",
         question_type: str = "",
+        history_context: str = "",
     ) -> dict[str, Any]:
-        self._init_batch_dir()
-
-        await self._send_ws_update(
-            "progress",
-            {"stage": "idea_loop", "status": "running", "current_round": 0, "max_rounds": 0},
-        )
-
-        templates, idea_trace = await self._idea_loop(
-            user_topic=user_topic,
-            preference=preference,
-            num_questions=num_questions,
-            difficulty=difficulty,
-            question_type=question_type,
-        )
-
-        # Save intermediate artifacts
-        self._save_artifact("templates.json", [t.__dict__ for t in templates])
-        self._save_artifact("idea_trace.json", idea_trace)
-
-        await self._send_ws_update(
-            "templates_ready",
-            {
-                "stage": "templates_ready",
-                "templates": [t.__dict__ for t in templates],
-                "count": len(templates),
-            },
-        )
-
-        qa_pairs = await self._generation_loop(
-            templates=templates,
-            user_topic=user_topic,
-            preference=preference,
-        )
-
-        summary = self._build_summary(
-            source="topic",
-            requested=num_questions,
-            templates=templates,
-            qa_pairs=qa_pairs,
-            trace=idea_trace,
-        )
-        self._save_artifact("summary.json", summary)
-
-        await self._publish_question_complete_event(
-            mode="topic",
-            user_topic=user_topic,
-            templates=templates,
-            qa_pairs=qa_pairs,
-        )
-        return summary
-
-    # ------------------------------------------------------------------
-    # Path 2: Exam Paper -> Parse -> Templates -> Generation Loop
-    # ------------------------------------------------------------------
-
-    async def generate_from_exam(
-        self,
-        exam_paper_path: str,
-        max_questions: int,
-        paper_mode: str = "upload",
-    ) -> dict[str, Any]:
-        self._init_batch_dir()
-
-        templates, parse_trace = await self._parse_exam_to_templates(
-            exam_paper_path=exam_paper_path,
-            max_questions=max_questions,
-            paper_mode=paper_mode,
-        )
-
-        # Save intermediate artifacts
-        self._save_artifact("templates.json", [t.__dict__ for t in templates])
-        self._save_artifact("parse_trace.json", parse_trace)
-
-        await self._send_ws_update(
-            "templates_ready",
-            {
-                "stage": "templates_ready",
-                "templates": [t.__dict__ for t in templates],
-                "count": len(templates),
-            },
-        )
-
-        qa_pairs = await self._generation_loop(
-            templates=templates,
-            user_topic="",
-            preference="",
-        )
-
-        summary = self._build_summary(
-            source="exam",
-            requested=max_questions,
-            templates=templates,
-            qa_pairs=qa_pairs,
-            trace=parse_trace,
-        )
-        self._save_artifact("summary.json", summary)
-
-        await self._publish_question_complete_event(
-            mode="exam",
-            user_topic="",
-            templates=templates,
-            qa_pairs=qa_pairs,
-        )
-        return summary
-
-    # ------------------------------------------------------------------
-    # Idea Loop
-    # ------------------------------------------------------------------
-
-    async def _idea_loop(
-        self,
-        user_topic: str,
-        preference: str,
-        num_questions: int,
-        difficulty: str = "",
-        question_type: str = "",
-    ) -> tuple[list[QuestionTemplate], dict[str, Any]]:
-        max_rounds = int(self.idea_cfg.get("max_rounds", 3))
-        ideas_per_round = int(self.idea_cfg.get("ideas_per_round", max(3, num_questions)))
-
+        self._current_batch_dir = self._create_batch_dir("custom")
+        requested = max(1, int(num_questions or 1))
         idea_agent = self._create_idea_agent()
-        evaluator = self._create_evaluator()
-        idea_memory_context = await self._get_idea_memory_context(user_topic)
-        evaluator_memory_context = await self._get_evaluator_memory_context(user_topic)
-        idea_preference = self._merge_preference(preference, idea_memory_context)
-        evaluator_preference = self._merge_preference(idea_preference, evaluator_memory_context)
+        templates: list[QuestionTemplate] = []
+        batch_trace: list[dict[str, Any]] = []
+        existing_concentrations: list[str] = []
 
-        feedback = ""
-        trace_rounds: list[dict[str, Any]] = []
-        selected_templates: list[QuestionTemplate] = []
         normalized_difficulty = difficulty.strip().lower()
         normalized_question_type = question_type.strip().lower()
         target_difficulty = (
@@ -331,260 +138,200 @@ class AgentCoordinator:
             else ""
         )
 
-        for round_idx in range(1, max_rounds + 1):
+        batch_number = 0
+        while len(templates) < requested:
+            batch_number += 1
+            batch_size = min(BATCH_SIZE, requested - len(templates))
             await self._send_ws_update(
                 "progress",
                 {
-                    "stage": "idea_loop",
+                    "stage": "ideation",
                     "status": "running",
-                    "current_round": round_idx,
-                    "max_rounds": max_rounds,
+                    "batch": batch_number,
+                    "current": len(templates),
+                    "total": requested,
+                    "batch_size": batch_size,
                 },
             )
 
             idea_result = await idea_agent.process(
                 user_topic=user_topic,
-                preference=idea_preference,
-                evaluator_feedback=feedback,
-                num_ideas=ideas_per_round,
+                preference=preference,
+                num_ideas=batch_size,
                 target_difficulty=target_difficulty,
                 target_question_type=target_question_type,
+                existing_concentrations=existing_concentrations,
+                batch_number=batch_number,
             )
-            ideas = idea_result.get("ideas", [])
+            batch_templates = idea_result.get("templates", [])
+            if not isinstance(batch_templates, list):
+                batch_templates = []
 
-            eval_result = await evaluator.process(
-                user_topic=user_topic,
-                preference=evaluator_preference,
-                ideas=ideas,
-                top_k=num_questions,
-                current_round=round_idx,
-                max_rounds=max_rounds,
-                target_difficulty=target_difficulty,
-                target_question_type=target_question_type,
-            )
+            for template in batch_templates:
+                if not isinstance(template, QuestionTemplate):
+                    continue
+                template.question_id = f"q_{len(templates) + 1}"
+                templates.append(template)
+                existing_concentrations.append(template.concentration)
 
-            feedback = eval_result.get("feedback", "")
-            selected_templates = eval_result.get("templates", [])
-            continue_loop = eval_result.get("continue_loop", False)
-
-            round_trace = {
-                "round": round_idx,
-                "ideas": ideas,
-                "selected_ideas": eval_result.get("selected_ideas", []),
-                "feedback": feedback,
-                "continue_loop": continue_loop,
-                "queries": idea_result.get("queries", []),
-            }
-            trace_rounds.append(round_trace)
-
-            # Save per-round trace
-            self._save_artifact(f"idea_round_{round_idx}.json", round_trace)
-
-            await self._send_ws_update(
-                "idea_round",
+            batch_trace.append(
                 {
-                    "round": round_idx,
-                    "ideas": ideas,
-                    "selected_ideas": eval_result.get("selected_ideas", []),
-                    "continue_loop": continue_loop,
-                    "feedback": feedback,
+                    "batch": batch_number,
+                    "requested": batch_size,
+                    "generated": len(batch_templates),
+                    "knowledge_context": idea_result.get("knowledge_context", ""),
+                }
+            )
+            await self._send_ws_update(
+                "templates_ready",
+                {
+                    "stage": "ideation",
+                    "batch": batch_number,
+                    "count": len(batch_templates),
+                    "generated_total": len(templates),
+                    "requested_total": requested,
+                    "templates": [t.__dict__ for t in batch_templates],
                 },
             )
 
-            if not continue_loop:
+            if not batch_templates:
+                self.logger.warning(
+                    "Template generation returned an empty batch; stopping early."
+                )
                 break
 
-        if not selected_templates:
-            selected_templates = [
-                QuestionTemplate(
-                    question_id=f"q_{i+1}",
-                    concentration=f"{user_topic} - aspect {i+1}",
-                    question_type="written",
-                    difficulty="medium",
-                    source="custom",
-                )
-                for i in range(num_questions)
-            ]
+        await self._send_ws_update(
+            "progress",
+            {
+                "stage": "ideation",
+                "status": "complete",
+                "current": len(templates),
+                "total": requested,
+                "batches": batch_number,
+            },
+        )
 
-        return selected_templates[:num_questions], {
-            "rounds": trace_rounds,
-            "max_rounds": max_rounds,
-        }
+        qa_pairs = await self._generation_loop(
+            templates=templates[:requested],
+            user_topic=user_topic,
+            preference=preference,
+            history_context=history_context,
+        )
+        return self._build_summary(
+            source="topic",
+            requested=requested,
+            templates=templates[:requested],
+            qa_pairs=qa_pairs,
+            trace={"batches": batch_trace},
+        )
 
-    # ------------------------------------------------------------------
-    # Generation Loop (with exception safety)
-    # ------------------------------------------------------------------
+    async def generate_from_exam(
+        self,
+        exam_paper_path: str,
+        max_questions: int,
+        paper_mode: str = "upload",
+        history_context: str = "",
+    ) -> dict[str, Any]:
+        if self._current_batch_dir is None:
+            self._current_batch_dir = self._create_batch_dir("mimic")
+        templates, parse_trace = await self._parse_exam_to_templates(
+            exam_paper_path=exam_paper_path,
+            max_questions=max_questions,
+            paper_mode=paper_mode,
+        )
+        for idx, template in enumerate(templates, 1):
+            template.question_id = f"q_{idx}"
+
+        await self._send_ws_update(
+            "templates_ready",
+            {
+                "stage": "ideation",
+                "count": len(templates),
+                "generated_total": len(templates),
+                "requested_total": max_questions,
+                "templates": [t.__dict__ for t in templates],
+            },
+        )
+
+        qa_pairs = await self._generation_loop(
+            templates=templates,
+            user_topic="",
+            preference="",
+            history_context=history_context,
+        )
+        return self._build_summary(
+            source="exam",
+            requested=max_questions,
+            templates=templates,
+            qa_pairs=qa_pairs,
+            trace=parse_trace,
+        )
 
     async def _generation_loop(
         self,
         templates: list[QuestionTemplate],
         user_topic: str,
         preference: str,
+        history_context: str = "",
     ) -> list[dict[str, Any]]:
-        max_retries = int(self.generation_cfg.get("max_retries", 2))
         generator = self._create_generator()
-        validator = self._create_validator()
-
         results: list[dict[str, Any]] = []
         total = len(templates)
 
         for idx, template in enumerate(templates, 1):
             await self._send_ws_update(
-                "progress",
+                "question_update",
                 {
-                    "stage": "generating",
-                    "current": idx - 1,
-                    "total": total,
                     "question_id": template.question_id,
+                    "status": "generating",
+                    "current": idx,
+                    "total": total,
                 },
             )
 
-            feedback = ""
-            attempts: list[dict[str, Any]] = []
-            final_qa: QAPair | None = None
-            final_validation: dict[str, Any] = {}
-
-            for attempt in range(1, max_retries + 2):
-                await self._send_ws_update(
-                    "question_update",
-                    {
-                        "question_id": template.question_id,
-                        "status": "generating",
-                        "attempt": attempt,
-                        "max_attempts": max_retries + 1,
-                    },
+            success = True
+            try:
+                qa_pair = await generator.process(
+                    template=template,
+                    user_topic=user_topic,
+                    preference=preference,
+                    history_context=history_context,
                 )
-
-                try:
-                    template_preference = preference
-                    generator_memory_context = await self._get_generator_memory_context(
-                        template.concentration
-                    )
-                    template_preference = self._merge_preference(
-                        template_preference,
-                        generator_memory_context,
-                    )
-                    qa_pair = await generator.process(
-                        template=template,
-                        user_topic=user_topic,
-                        preference=template_preference,
-                        validator_feedback=feedback,
-                    )
-                    validation = await validator.process(
-                        template=template, qa_pair=qa_pair
-                    )
-
-                    attempts.append(
-                        {
-                            "attempt": attempt,
-                            "qa_pair": qa_pair.__dict__,
-                            "validation": validation,
-                        }
-                    )
-
-                    await self._send_ws_update(
-                        "validating",
-                        {
-                            "question_id": template.question_id,
-                            "attempt": attempt,
-                            "validation": validation,
-                        },
-                    )
-
-                    if validation.get("approved"):
-                        final_qa = qa_pair
-                        final_validation = validation
-                        break
-                    feedback = validation.get("feedback", "")
-
-                except Exception as exc:
-                    self.logger.warning(
-                        f"Attempt {attempt} failed for {template.question_id}: {exc}"
-                    )
-                    attempts.append(
-                        {
-                            "attempt": attempt,
-                            "error": str(exc),
-                        }
-                    )
-                    feedback = f"Previous attempt raised an error: {exc}"
-
-            # Reconstruct final_qa from last successful attempt if not approved
-            if final_qa is None:
-                for att in reversed(attempts):
-                    if "qa_pair" in att:
-                        try:
-                            final_qa = QAPair(
-                                **{
-                                    k: v
-                                    for k, v in att["qa_pair"].items()
-                                    if k
-                                    in {
-                                        "question_id",
-                                        "question",
-                                        "correct_answer",
-                                        "explanation",
-                                        "question_type",
-                                        "options",
-                                        "concentration",
-                                        "difficulty",
-                                        "validation",
-                                        "metadata",
-                                    }
-                                }
-                            )
-                            final_validation = att.get("validation", {})
-                        except Exception:
-                            pass
-                        break
-
-            # If ALL attempts failed with exceptions, create a placeholder
-            if final_qa is None:
-                final_qa = QAPair(
+            except Exception as exc:
+                success = False
+                self.logger.warning(f"Generation failed for {template.question_id}: {exc}")
+                qa_pair = QAPair(
                     question_id=template.question_id,
                     question=f"[Generation failed] {template.concentration}",
                     correct_answer="N/A",
-                    explanation="All generation attempts failed.",
+                    explanation=str(exc),
                     question_type=template.question_type,
                     concentration=template.concentration,
                     difficulty=template.difficulty,
+                    metadata={"error": str(exc)},
                 )
-                final_validation = {
-                    "decision": "reject",
-                    "approved": False,
-                    "feedback": "All generation attempts failed with errors.",
-                    "issues": [str(a.get("error", "unknown")) for a in attempts if "error" in a],
-                }
 
-            final_qa.validation = final_validation
             result = {
                 "template": template.__dict__,
-                "qa_pair": final_qa.__dict__,
-                "attempts": attempts,
-                "success": bool(final_validation.get("approved")),
+                "qa_pair": qa_pair.__dict__,
+                "success": success,
             }
             results.append(result)
-
-            # Save per-question artifact
-            self._save_artifact(
-                f"{template.question_id}_result.json", result
-            )
 
             await self._send_ws_update(
                 "result",
                 {
                     "question_id": template.question_id,
                     "index": idx - 1,
-                    "question": final_qa.__dict__,
-                    "validation": final_validation,
-                    "attempts": len(attempts),
+                    "question": qa_pair.__dict__,
+                    "success": success,
                 },
             )
-
             await self._send_ws_update(
                 "progress",
                 {
-                    "stage": "generating",
+                    "stage": "generation",
+                    "status": "running",
                     "current": idx,
                     "total": total,
                     "question_id": template.question_id,
@@ -597,27 +344,24 @@ class AgentCoordinator:
         )
         return results
 
-    # ------------------------------------------------------------------
-    # Exam paper parsing
-    # ------------------------------------------------------------------
-
     async def _parse_exam_to_templates(
         self,
         exam_paper_path: str,
         max_questions: int,
         paper_mode: str,
     ) -> tuple[list[QuestionTemplate], dict[str, Any]]:
-        await self._send_ws_update("progress", {"stage": "parsing", "status": "running"})
+        await self._send_ws_update(
+            "progress", {"stage": "parsing", "status": "running"}
+        )
 
         paper_path = Path(exam_paper_path)
         output_base = (
-            Path(self.output_dir)
-            if self.output_dir
-            else (project_root / "data" / "user" / "question" / "mimic_papers")
+            self._current_batch_dir
+            or (Path(self.output_dir) if self.output_dir else None)
+            or get_path_service().get_question_dir()
         )
         output_base.mkdir(parents=True, exist_ok=True)
 
-        working_dir: Path
         if paper_mode == "parsed":
             working_dir = paper_path
         else:
@@ -688,10 +432,6 @@ class AgentCoordinator:
             "template_count": len(templates),
         }
 
-    # ------------------------------------------------------------------
-    # Summary & Events
-    # ------------------------------------------------------------------
-
     def _build_summary(
         self,
         source: str,
@@ -702,8 +442,8 @@ class AgentCoordinator:
     ) -> dict[str, Any]:
         completed = sum(1 for item in qa_pairs if item.get("success"))
         failed = len(qa_pairs) - completed
-        return {
-            "success": failed == 0 and completed > 0,
+        summary = {
+            "success": completed > 0 and failed == 0,
             "source": source,
             "requested": requested,
             "template_count": len(templates),
@@ -712,102 +452,25 @@ class AgentCoordinator:
             "templates": [t.__dict__ for t in templates],
             "results": qa_pairs,
             "trace": trace,
-            "batch_dir": str(self._batch_dir) if self._batch_dir else None,
+            "batch_dir": str(self._current_batch_dir) if self._current_batch_dir else None,
         }
+        self._persist_summary(summary)
+        return summary
 
-    async def _publish_question_complete_event(
-        self,
-        mode: str,
-        user_topic: str,
-        templates: list[QuestionTemplate],
-        qa_pairs: list[dict[str, Any]],
-    ) -> None:
-        try:
-            from src.core.event_bus import Event, EventType, get_event_bus
+    def _create_batch_dir(self, prefix: str) -> Path:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base = (
+            Path(self.output_dir)
+            if self.output_dir
+            else get_path_service().get_question_dir()
+        )
+        batch_dir = base / f"{prefix}_{timestamp}"
+        batch_dir.mkdir(parents=True, exist_ok=True)
+        return batch_dir
 
-            question_summaries = [
-                {
-                    "type": item.get("qa_pair", {}).get("question_type", "unknown"),
-                    "question": item.get("qa_pair", {}).get("question", "")[:200],
-                }
-                for item in qa_pairs[:3]
-            ]
-
-            # Collect actually used tools from results
-            tools_used = set()
-            for item in qa_pairs:
-                plan = item.get("qa_pair", {}).get("metadata", {}).get("tool_plan", {})
-                if plan.get("use_rag"):
-                    tools_used.add("rag_tool")
-                if plan.get("use_web"):
-                    tools_used.add("web_search")
-                if plan.get("use_code"):
-                    tools_used.add("write_code")
-
-            event = Event(
-                type=EventType.QUESTION_COMPLETE,
-                task_id=f"question_{mode}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                user_input=json.dumps(
-                    {
-                        "topic": user_topic,
-                        "mode": mode,
-                        "template_count": len(templates),
-                    },
-                    ensure_ascii=False,
-                ),
-                agent_output=json.dumps(question_summaries, ensure_ascii=False),
-                tools_used=list(tools_used),
-                success=any(item.get("success") for item in qa_pairs),
-                metadata={
-                    "mode": mode,
-                    "num_questions": len(qa_pairs),
-                    "batch_dir": str(self._batch_dir) if self._batch_dir else "",
-                    "user_topic": user_topic,
-                },
-            )
-            await get_event_bus().publish(event)
-        except Exception as exc:
-            self.logger.debug(f"Failed to publish QUESTION_COMPLETE event: {exc}")
-
-    async def _get_idea_memory_context(self, topic: str) -> str:
-        from src.personalization.memory_reader import get_memory_reader_instance
-
-        reader = get_memory_reader_instance()
-        if not reader:
-            return ""
-        try:
-            return await reader.get_idea_context(topic)
-        except Exception:
-            return ""
-
-    async def _get_evaluator_memory_context(self, topic: str) -> str:
-        from src.personalization.memory_reader import get_memory_reader_instance
-
-        reader = get_memory_reader_instance()
-        if not reader:
-            return ""
-        try:
-            return await reader.get_evaluator_context(topic)
-        except Exception:
-            return ""
-
-    async def _get_generator_memory_context(self, concentration: str) -> str:
-        from src.personalization.memory_reader import get_memory_reader_instance
-
-        reader = get_memory_reader_instance()
-        if not reader:
-            return ""
-        try:
-            return await reader.get_generator_context(concentration)
-        except Exception:
-            return ""
-
-    @staticmethod
-    def _merge_preference(user_pref: str, memory_context: str) -> str:
-        pref = (user_pref or "").strip()
-        mem = (memory_context or "").strip()
-        if pref and mem:
-            return f"{pref}\n\n[Memory Context]\n{mem}"
-        if mem:
-            return f"[Memory Context]\n{mem}"
-        return pref
+    def _persist_summary(self, summary: dict[str, Any]) -> None:
+        if self._current_batch_dir is None:
+            return
+        summary_file = self._current_batch_dir / "summary.json"
+        with open(summary_file, "w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False, indent=2)

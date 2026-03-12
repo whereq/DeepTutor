@@ -18,7 +18,8 @@ from pathlib import Path
 
 import uvicorn
 
-if __name__ == "__main__":
+
+def main() -> None:
     # Get project root directory
     project_root = Path(__file__).parent.parent.parent
 
@@ -59,3 +60,7 @@ if __name__ == "__main__":
         reload_excludes=reload_excludes,
         log_level="info",
     )
+
+
+if __name__ == "__main__":
+    main()

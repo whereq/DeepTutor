@@ -573,8 +573,10 @@ class UnifiedConfigManager:
                     logger.debug("Updated OPENAI_API_KEY env var for LightRAG compatibility")
 
                 if base_url:
-                    os.environ["OPENAI_BASE_URL"] = base_url
-                    logger.debug(f"Updated OPENAI_BASE_URL env var to {base_url}")
+                    from src.services.llm.utils import sanitize_url
+                    clean_url = sanitize_url(base_url)
+                    os.environ["OPENAI_BASE_URL"] = clean_url
+                    logger.debug(f"Updated OPENAI_BASE_URL env var to {clean_url}")
 
             # Reset LLM client singleton to pick up new configuration
             try:

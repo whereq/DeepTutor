@@ -27,7 +27,6 @@ class ToolType(Enum):
 
     RAG_NAIVE = "rag_naive"
     RAG_HYBRID = "rag_hybrid"
-    QUERY_ITEM = "query_item"
     PAPER_SEARCH = "paper_search"
     RUN_CODE = "run_code"
     WEB_SEARCH = "web_search"
@@ -120,11 +119,6 @@ class ToolTrace:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ToolTrace":
         """Create from dictionary"""
-        # Handle backward compatibility - old data may not have new fields
-        if "raw_answer_truncated" not in data:
-            data["raw_answer_truncated"] = False
-        if "raw_answer_original_size" not in data:
-            data["raw_answer_original_size"] = len(data.get("raw_answer", ""))
         return cls(**data)
 
     @classmethod

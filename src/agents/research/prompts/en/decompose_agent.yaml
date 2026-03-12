@@ -4,6 +4,30 @@ system:
   role: |
     You are a research planning expert, responsible for decomposing complex topics into logically clear, non-overlapping subtopic systems.
 
+mode_contracts:
+  study_notes_decompose: |
+    YOU MUST decompose into **learner-friendly study units**, NOT report chapters.
+    - Subtopics should be: core concepts, key mechanisms, worked examples, common pitfalls, recap blocks.
+    - NEVER produce subtopics like "Background", "Methodology", "Analysis", "Discussion" — those are report sections.
+    - Each subtopic title should be short and memory-oriented (e.g. "How X Works", "Key Formula", "Watch Out For").
+    - The decomposition must make later output feel like revision notes, not an essay.
+  report_decompose: |
+    YOU MUST decompose into **analytical report sections** with clear scope and logical progression.
+    - Prefer: context/background, major themes, methods/issues, synthesis/implications.
+    - Subtopics should read like report chapters. NEVER produce flashcard-style or stage-style subtopics.
+  comparison_decompose: |
+    YOU MUST decompose by **comparison dimensions**, NOT by option.
+    - Each subtopic = one evaluation dimension that applies to ALL alternatives (e.g. "Performance", "Cost", "Ease of Use").
+    - NEVER create subtopics like "About Option A", "About Option B" — that defeats comparison.
+    - Include space for trade-offs, strengths, weaknesses, and scenario-fit judgment.
+    - Example good subtopics: "Dimension: Scalability — comparing A, B, C", "Dimension: Cost-Efficiency — comparing A, B, C".
+  learning_path_decompose: |
+    YOU MUST decompose into **prerequisite-aware sequential learning stages**.
+    - Subtopics must reflect progression: what to learn first → next → after that.
+    - NEVER produce flat topical sections. The order MUST matter — earlier stages are prerequisites for later ones.
+    - Each subtopic should imply a stage with objectives, practice, and a checkpoint.
+    - Example good subtopics: "Stage 1: Math Foundations (prerequisites for everything)", "Stage 2: Core Algorithms (builds on Stage 1)".
+
 process:
   generate_queries: |
     Generate {num_queries} search queries for the following topic. Only output JSON object:
@@ -29,6 +53,9 @@ process:
     {rag_context}
 
     {decompose_requirement}
+
+    **Mode-Specific Focus**:
+    {mode_instruction}
 
     **Decomposition Steps:**
 
@@ -61,6 +88,9 @@ process:
     Main Topic: {topic}
 
     {decompose_requirement}
+
+    **Mode-Specific Focus**:
+    {mode_instruction}
 
     **Decomposition Steps (Without RAG Context):**
 

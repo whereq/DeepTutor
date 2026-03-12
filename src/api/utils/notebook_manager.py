@@ -21,6 +21,8 @@ class RecordType(str, Enum):
     QUESTION = "question"
     RESEARCH = "research"
     CO_WRITER = "co_writer"
+    CHAT = "chat"
+    GUIDED_LEARNING = "guided_learning"
 
 
 class NotebookRecord(BaseModel):
@@ -29,6 +31,7 @@ class NotebookRecord(BaseModel):
     id: str
     type: RecordType
     title: str
+    summary: str = ""
     user_query: str
     output: str
     metadata: dict = {}
@@ -296,6 +299,7 @@ class NotebookManager:
         title: str,
         user_query: str,
         output: str,
+        summary: str = "",
         metadata: dict = None,
         kb_name: str = None,
     ) -> dict:
@@ -321,6 +325,7 @@ class NotebookManager:
             "id": record_id,
             "type": record_type,
             "title": title,
+            "summary": summary,
             "user_query": user_query,
             "output": output,
             "metadata": metadata or {},
@@ -347,6 +352,48 @@ class NotebookManager:
                 self._save_index(index)
 
         return {"record": record, "added_to_notebooks": added_to}
+
+    def get_records(self, notebook_id: str, record_ids: list[str] | None = None) -> list[dict]:
+        """Get records from a notebook, optionally filtered by record ids."""
+        notebook = self._load_notebook(notebook_id)
+        if not notebook:
+            return []
+
+        records = list(notebook.get("records", []))
+        if not record_ids:
+            return records
+
+        wanted = set(record_ids)
+        return [record for record in records if str(record.get("id", "")) in wanted]
+
+    def get_records_by_references(self, notebook_references: list[dict]) -> list[dict]:
+        """Resolve cross-notebook references into record payloads."""
+        resolved: list[dict] = []
+
+        for ref in notebook_references:
+            notebook_id = str(ref.get("notebook_id", "") or "").strip()
+            if not notebook_id:
+                continue
+            record_ids = [
+                str(record_id).strip()
+                for record_id in (ref.get("record_ids") or [])
+                if str(record_id).strip()
+            ]
+            notebook = self._load_notebook(notebook_id)
+            if not notebook:
+                continue
+
+            notebook_name = str(notebook.get("name", "") or notebook_id)
+            for record in self.get_records(notebook_id, record_ids):
+                resolved.append(
+                    {
+                        **record,
+                        "notebook_id": notebook_id,
+                        "notebook_name": notebook_name,
+                    }
+                )
+
+        return resolved
 
     def remove_record(self, notebook_id: str, record_id: str) -> bool:
         """
@@ -393,7 +440,14 @@ class NotebookManager:
         notebooks = self.list_notebooks()
 
         total_records = 0
-        type_counts = {"solve": 0, "question": 0, "research": 0, "co_writer": 0}
+        type_counts = {
+            "solve": 0,
+            "question": 0,
+            "research": 0,
+            "co_writer": 0,
+            "chat": 0,
+            "guided_learning": 0,
+        }
 
         for nb_info in notebooks:
             notebook = self._load_notebook(nb_info["id"])

@@ -1,0 +1,10 @@
+# ============================================
+# DeepTutor Full RAG Dependencies
+# ============================================
+# Install: pip install -r requirements/rag-full.txt
+# Includes all RAG providers (raganything, docling)
+
+-r rag-lite.txt
+
+raganything>=0.1.0
+docling>=2.31.0

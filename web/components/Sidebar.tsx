@@ -1,516 +1,247 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
-import { useTranslation } from "react-i18next";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  Home,
-  History,
+  Blocks,
   BookOpen,
-  PenTool,
-  Calculator,
-  Microscope,
-  Edit3,
-  Settings,
-  Book,
+  Brain,
   GraduationCap,
-  Lightbulb,
-  Github,
-  Globe,
-  ChevronsLeft,
-  ChevronsRight,
-  GripVertical,
-  Check,
-  X,
-  LucideIcon,
-  Eye,
+  MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PenLine,
+  Plus,
+  Settings,
+  type LucideIcon,
 } from "lucide-react";
-import { useGlobal } from "@/context/GlobalContext";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import SessionList from "@/components/SessionList";
+import {
+  deleteSession,
+  listSessions,
+  updateSessionTitle,
+  type SessionSummary,
+} from "@/lib/session-api";
 
-const SIDEBAR_EXPANDED_WIDTH = 256;
-const SIDEBAR_COLLAPSED_WIDTH = 64;
-
-// Navigation item type
-interface NavItem {
-  name: string;
+interface NavEntry {
   href: string;
+  label: string;
   icon: LucideIcon;
 }
 
-// All available navigation items (static reference)
-const ALL_NAV_ITEMS: Record<string, { icon: LucideIcon; nameKey: string }> = {
-  "/": { icon: Home, nameKey: "Home" },
-  "/history": { icon: History, nameKey: "History" },
-  "/knowledge": { icon: BookOpen, nameKey: "Knowledge Bases" },
-  "/notebook": { icon: Book, nameKey: "Notebooks" },
-  "/question": { icon: PenTool, nameKey: "Question Generator" },
-  "/solver": { icon: Calculator, nameKey: "Smart Solver" },
-  "/vision-solver": { icon: Eye, nameKey: "Vision Solver" },
-  "/guide": { icon: GraduationCap, nameKey: "Guided Learning" },
-  "/ideagen": { icon: Lightbulb, nameKey: "IdeaGen" },
-  "/research": { icon: Microscope, nameKey: "Deep Research" },
-  "/co_writer": { icon: Edit3, nameKey: "Co-Writer" },
-};
+const PRIMARY_NAV: NavEntry[] = [
+  { href: "/", label: "Chat", icon: MessageSquare },
+  { href: "/co-writer", label: "Co-Writer", icon: PenLine },
+  { href: "/guide", label: "Guided Learning", icon: GraduationCap },
+  { href: "/knowledge", label: "Knowledge", icon: BookOpen },
+  { href: "/memory", label: "Memory", icon: Brain },
+  { href: "/playground", label: "Playground", icon: Blocks },
+];
+
+const SECONDARY_NAV: NavEntry[] = [
+  { href: "/settings", label: "Settings", icon: Settings },
+];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const {
-    sidebarCollapsed,
-    toggleSidebar,
-    sidebarDescription,
-    setSidebarDescription,
-    sidebarNavOrder,
-    setSidebarNavOrder,
-  } = useGlobal();
-  const { t } = useTranslation();
+  const router = useRouter();
+  const { newSession, loadSession, selectedSessionId, sessionStatuses, sidebarRefreshToken } =
+    useUnifiedChat();
+  const [collapsed, setCollapsed] = useState(false);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const hasLoadedSessionsRef = useRef(false);
 
-  const [showTooltip, setShowTooltip] = useState<string | null>(null);
+  const refreshSessions = useCallback(async () => {
+    if (!hasLoadedSessionsRef.current) {
+      setLoadingSessions(true);
+    }
+    try {
+      setSessions(await listSessions());
+      hasLoadedSessionsRef.current = true;
+    } catch (error) {
+      console.error("Failed to load sessions", error);
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, []);
 
-  // Editable description state
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [editingDescriptionValue, setEditingDescriptionValue] =
-    useState(sidebarDescription);
-  const descriptionInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    void refreshSessions();
+  }, [refreshSessions, sidebarRefreshToken]);
 
-  // Drag and drop state
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
-  const [dragGroup, setDragGroup] = useState<"start" | "learnResearch" | null>(
-    null,
+  const mergedSessions = sessions.map((session) => {
+    const runtime = sessionStatuses[session.session_id];
+    if (!runtime) return session;
+    return {
+      ...session,
+      status: runtime.status,
+      active_turn_id: runtime.activeTurnId || session.active_turn_id,
+    };
+  });
+  const orderedSessions = mergedSessions
+    .map((session, index) => ({ session, index }))
+    .sort((a, b) => {
+      const aPriority = a.session.status === "running" ? 0 : 1;
+      const bPriority = b.session.status === "running" ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return a.index - b.index;
+    })
+    .map(({ session }) => session);
+
+  const handleNewChat = () => {
+    newSession();
+    if (pathname !== "/") router.push("/");
+  };
+
+  const handleSelectSession = useCallback(
+    async (sessionId: string) => {
+      await loadSession(sessionId);
+      if (pathname !== "/") router.push("/");
+    },
+    [loadSession, pathname, router],
   );
 
-  // Build navigation items from saved order - defined inside useMemo to properly capture dependencies
-  const navGroups = useMemo(() => {
-    const buildNavItems = (hrefs: string[]): NavItem[] => {
-      return hrefs
-        .filter((href) => ALL_NAV_ITEMS[href])
-        .map((href) => ({
-          name: t(ALL_NAV_ITEMS[href].nameKey),
-          href,
-          icon: ALL_NAV_ITEMS[href].icon,
-        }));
-    };
+  const handleRenameSession = useCallback(
+    async (sessionId: string, title: string) => {
+      const updated = await updateSessionTitle(sessionId, title);
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.session_id === sessionId
+            ? { ...session, title: updated.title, updated_at: updated.updated_at }
+            : session,
+        ),
+      );
+    },
+    [],
+  );
 
-    return [
-      {
-        id: "start" as const,
-        name: t("Workspace"),
-        items: buildNavItems(sidebarNavOrder.start),
-      },
-      {
-        id: "learnResearch" as const,
-        name: t("Learn & Research"),
-        items: buildNavItems(sidebarNavOrder.learnResearch),
-      },
-    ];
-  }, [sidebarNavOrder, t]);
-
-  // Handle description edit
-  const handleDescriptionEdit = () => {
-    setEditingDescriptionValue(sidebarDescription);
-    setIsEditingDescription(true);
-  };
-
-  const handleDescriptionSave = () => {
-    setSidebarDescription(
-      editingDescriptionValue.trim() || t("✨ Your description here"),
-    );
-    setIsEditingDescription(false);
-  };
-
-  const handleDescriptionCancel = () => {
-    setEditingDescriptionValue(sidebarDescription);
-    setIsEditingDescription(false);
-  };
-
-  const handleDescriptionKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleDescriptionSave();
-    } else if (e.key === "Escape") {
-      handleDescriptionCancel();
-    }
-  };
-
-  // Focus input when editing starts
-  useEffect(() => {
-    if (isEditingDescription && descriptionInputRef.current) {
-      descriptionInputRef.current.focus();
-      descriptionInputRef.current.select();
-    }
-  }, [isEditingDescription]);
-
-  // Drag and drop handlers
-  const handleDragStart = (
-    e: React.DragEvent,
-    href: string,
-    groupId: "start" | "learnResearch",
-  ) => {
-    setDraggedItem(href);
-    setDragGroup(groupId);
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", href);
-  };
-
-  const handleDragOver = (
-    e: React.DragEvent,
-    href: string,
-    groupId: "start" | "learnResearch",
-  ) => {
-    e.preventDefault();
-    if (dragGroup !== groupId) return; // Only allow drag within same group
-    if (draggedItem !== href) {
-      setDragOverItem(href);
-    }
-  };
-
-  const handleDragLeave = () => {
-    setDragOverItem(null);
-  };
-
-  const handleDrop = (
-    e: React.DragEvent,
-    targetHref: string,
-    groupId: "start" | "learnResearch",
-  ) => {
-    e.preventDefault();
-    if (!draggedItem || dragGroup !== groupId) return;
-
-    const groupKey = groupId;
-    const currentOrder = [...sidebarNavOrder[groupKey]];
-    const draggedIndex = currentOrder.indexOf(draggedItem);
-    const targetIndex = currentOrder.indexOf(targetHref);
-
-    if (
-      draggedIndex !== -1 &&
-      targetIndex !== -1 &&
-      draggedIndex !== targetIndex
-    ) {
-      // Remove dragged item and insert at new position
-      currentOrder.splice(draggedIndex, 1);
-      currentOrder.splice(targetIndex, 0, draggedItem);
-
-      setSidebarNavOrder({
-        ...sidebarNavOrder,
-        [groupKey]: currentOrder,
-      });
-    }
-
-    setDraggedItem(null);
-    setDragOverItem(null);
-    setDragGroup(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-    setDragOverItem(null);
-    setDragGroup(null);
-  };
-
-  const currentWidth = sidebarCollapsed
-    ? SIDEBAR_COLLAPSED_WIDTH
-    : SIDEBAR_EXPANDED_WIDTH;
+  const handleDeleteSession = useCallback(
+    async (sessionId: string) => {
+      if (!window.confirm("Delete this chat history?")) return;
+      await deleteSession(sessionId);
+      setSessions((prev) => prev.filter((session) => session.session_id !== sessionId));
+      if (selectedSessionId === sessionId) {
+        newSession();
+        if (pathname !== "/") router.push("/");
+      }
+    },
+    [newSession, pathname, router, selectedSessionId],
+  );
 
   return (
-    <div
-      className="relative flex-shrink-0 bg-slate-50/80 dark:bg-slate-800/80 h-full border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all duration-300 ease-in-out overflow-hidden"
-      style={{ width: currentWidth }}
+    <aside
+      className={`${collapsed ? "w-[56px]" : "w-[216px]"} flex h-screen shrink-0 flex-col bg-[var(--accent)] transition-all duration-200 dark:bg-[var(--card)]`}
     >
-      {/* Header */}
-      <div
-        className={`border-b border-slate-100 dark:border-slate-700 transition-all duration-300 ${
-          sidebarCollapsed ? "px-2 py-3" : "px-4 py-3"
-        }`}
-      >
-        <div className="flex flex-col gap-2">
-          <div
-            className={`flex items-center ${sidebarCollapsed ? "justify-center" : "justify-between"}`}
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-                <Image
-                  src="/logo.png"
-                  alt={t("DeepTutor Logo")}
-                  width={32}
-                  height={32}
-                  className="object-contain"
-                  priority
-                />
-              </div>
-              <h1
-                className={`font-bold text-slate-900 dark:text-slate-100 tracking-tight text-base whitespace-nowrap transition-all duration-300 ${
-                  sidebarCollapsed
-                    ? "opacity-0 w-0 overflow-hidden"
-                    : "opacity-100"
-                }`}
-              >
+      {/* Logo & collapse */}
+      <div className={`flex h-14 items-center ${collapsed ? "justify-center px-2" : "justify-between px-4"}`}>
+        {collapsed ? (
+          <Link href="/">
+            <Image src="/logo-ver2.png" alt="DeepTutor" width={22} height={22} />
+          </Link>
+        ) : (
+          <>
+            <Link href="/" className="flex items-center gap-2">
+              <Image src="/logo-ver2.png" alt="DeepTutor" width={22} height={22} />
+              <span className="text-[13px] font-semibold text-[var(--foreground)]">
                 DeepTutor
-              </h1>
-            </div>
-            <div
-              className={`flex items-center gap-0.5 transition-all duration-300 ${
-                sidebarCollapsed
-                  ? "opacity-0 w-0 overflow-hidden"
-                  : "opacity-100"
-              }`}
+              </span>
+            </Link>
+            <button
+              onClick={() => setCollapsed(true)}
+              className="rounded-md p-1 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+              aria-label="Collapse sidebar"
             >
-              {/* Collapse button */}
-              <button
-                onClick={toggleSidebar}
-                className="text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
-                title={t("Collapse sidebar")}
-              >
-                <ChevronsLeft className="w-4 h-4" />
-              </button>
-              <a
-                href="https://hkuds.github.io/DeepTutor/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
-                title={t("Visit DeepTutor Homepage")}
-              >
-                <Globe className="w-4 h-4" />
-              </a>
-              <a
-                href="https://github.com/HKUDS/DeepTutor"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
-                title={t("View on GitHub")}
-              >
-                <Github className="w-4 h-4" />
-              </a>
-            </div>
-          </div>
-
-          {/* Editable Description - only show when expanded */}
-          <div
-            className={`transition-all duration-300 ${
-              sidebarCollapsed ? "opacity-0 h-0 overflow-hidden" : "opacity-100"
-            }`}
-          >
-            {isEditingDescription ? (
-              <div className="flex items-center gap-1">
-                <input
-                  ref={descriptionInputRef}
-                  type="text"
-                  value={editingDescriptionValue}
-                  onChange={(e) => setEditingDescriptionValue(e.target.value)}
-                  onKeyDown={handleDescriptionKeyDown}
-                  className="flex-1 text-[10px] font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-600 px-2 py-1.5 rounded-md border border-blue-300 dark:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  placeholder={t("Enter your description...")}
-                />
-                <button
-                  onClick={handleDescriptionSave}
-                  className="p-1 text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300"
-                  title={t("Save")}
-                >
-                  <Check className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={handleDescriptionCancel}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                  title={t("Cancel")}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={handleDescriptionEdit}
-                className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100/50 dark:bg-slate-700/50 px-2 py-1.5 rounded-md border border-slate-100 dark:border-slate-600 truncate cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-200 dark:hover:border-slate-500 transition-colors group"
-                title={t("Click to edit")}
-              >
-                <span className="group-hover:hidden">{sidebarDescription}</span>
-                <span className="hidden group-hover:inline text-blue-500 dark:text-blue-400">
-                  ✏️ {t("Click to edit")}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
+              <PanelLeftClose size={15} />
+            </button>
+          </>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav
-        className={`flex-1 overflow-y-auto py-2 space-y-4 transition-all duration-300 ${
-          sidebarCollapsed ? "px-2" : "px-2"
-        }`}
-      >
-        {navGroups.map((group, idx) => (
-          <div key={group.id}>
-            {/* Group title - only show when expanded */}
-            <div
-              className={`text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 truncate transition-all duration-300 ${
-                sidebarCollapsed
-                  ? "opacity-0 h-0 overflow-hidden px-0"
-                  : "opacity-100 px-1"
-              }`}
-            >
-              {group.name}
-            </div>
-            <div className="space-y-1">
-              {group.items.map((item) => {
-                const isActive = pathname === item.href;
-                const isDragging = draggedItem === item.href;
-                const isDragOver =
-                  dragOverItem === item.href && dragGroup === group.id;
+      {/* New chat */}
+      <div className={`${collapsed ? "px-1.5" : "px-2"} pb-1`}>
+        <button
+          onClick={handleNewChat}
+          className={`flex w-full items-center gap-2 rounded-lg px-3 py-[7px] text-[13px] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] ${
+            collapsed ? "justify-center px-0" : ""
+          }`}
+        >
+          <Plus size={15} strokeWidth={2} />
+          {!collapsed && <span>New chat</span>}
+        </button>
+      </div>
 
-                return (
-                  <div
-                    key={item.href}
-                    draggable={!sidebarCollapsed}
-                    onDragStart={(e) =>
-                      !sidebarCollapsed &&
-                      handleDragStart(e, item.href, group.id)
-                    }
-                    onDragOver={(e) =>
-                      !sidebarCollapsed &&
-                      handleDragOver(e, item.href, group.id)
-                    }
-                    onDragLeave={handleDragLeave}
-                    onDrop={(e) =>
-                      !sidebarCollapsed && handleDrop(e, item.href, group.id)
-                    }
-                    onDragEnd={handleDragEnd}
-                    className={`group relative ${isDragging ? "opacity-50" : ""} ${
-                      isDragOver ? "border-t-2 border-blue-500" : ""
-                    }`}
-                  >
-                    <Link
-                      href={item.href}
-                      className={`flex items-center rounded-md border transition-all duration-200 ${
-                        sidebarCollapsed
-                          ? "justify-center p-2"
-                          : "gap-2.5 pl-2 pr-1.5 py-2"
-                      } ${
-                        isActive
-                          ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border-slate-100 dark:border-slate-600"
-                          : "text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm border-transparent hover:border-slate-100 dark:hover:border-slate-600"
-                      }`}
-                      onMouseEnter={() =>
-                        sidebarCollapsed && setShowTooltip(item.href)
-                      }
-                      onMouseLeave={() => setShowTooltip(null)}
-                    >
-                      <item.icon
-                        className={`w-5 h-5 flex-shrink-0 transition-colors ${
-                          isActive
-                            ? "text-blue-500 dark:text-blue-400"
-                            : "text-slate-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400"
-                        }`}
-                      />
-                      <span
-                        className={`font-medium text-sm whitespace-nowrap flex-1 transition-all duration-300 ${
-                          sidebarCollapsed
-                            ? "opacity-0 w-0 overflow-hidden"
-                            : "opacity-100"
-                        }`}
-                      >
-                        {item.name}
-                      </span>
-                      {/* Drag handle - only show when expanded and hovering, now on right */}
-                      <div
-                        className={`flex-shrink-0 transition-all duration-300 ${
-                          sidebarCollapsed
-                            ? "w-0 opacity-0 overflow-hidden"
-                            : "opacity-0 group-hover:opacity-100"
-                        }`}
-                      >
-                        <GripVertical className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 cursor-grab active:cursor-grabbing" />
-                      </div>
-                    </Link>
-                    {/* Tooltip for collapsed state */}
-                    {sidebarCollapsed && showTooltip === item.href && (
-                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50 px-2.5 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-lg whitespace-nowrap pointer-events-none">
-                        {item.name}
-                        <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-900 dark:border-r-slate-700" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {/* Divider between groups in collapsed mode */}
-            {sidebarCollapsed && idx < navGroups.length - 1 && (
-              <div className="h-px bg-slate-200 dark:bg-slate-700 my-2 mx-1" />
-            )}
+      {!collapsed && (
+        <div className="px-2 pb-2">
+          <div className="max-h-[38vh] overflow-y-auto">
+            <SessionList
+              sessions={orderedSessions}
+              activeSessionId={selectedSessionId}
+              loading={loadingSessions}
+              onSelect={handleSelectSession}
+              onRename={handleRenameSession}
+              onDelete={handleDeleteSession}
+            />
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Nav */}
+      <nav className={`flex-1 ${collapsed ? "px-1.5" : "px-2"} pt-2`}>
+        <div className="space-y-px">
+          {PRIMARY_NAV.map((item) => {
+            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] transition-colors ${
+                  active
+                    ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/60 hover:text-[var(--foreground)]"
+                } ${collapsed ? "justify-center px-0" : ""}`}
+              >
+                <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
+                {!collapsed && <span>{item.label}</span>}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       {/* Footer */}
-      <div
-        className={`border-t border-slate-100 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/30 transition-all duration-300 ${
-          sidebarCollapsed ? "px-2 py-2" : "px-2 py-2"
-        }`}
-      >
-        <div className="relative">
-          <Link
-            href="/settings"
-            className={`flex items-center rounded-md text-sm transition-all duration-200 ${
-              sidebarCollapsed
-                ? "justify-center p-2"
-                : "gap-2.5 pl-2 pr-1.5 py-2"
-            } ${
-              pathname === "/settings"
-                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-100 dark:border-slate-600"
-                : "text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
-            }`}
-            onMouseEnter={() => sidebarCollapsed && setShowTooltip("/settings")}
-            onMouseLeave={() => setShowTooltip(null)}
-          >
-            <Settings
-              className={`w-5 h-5 flex-shrink-0 transition-colors ${
-                pathname === "/settings"
-                  ? "text-blue-500 dark:text-blue-400"
-                  : "text-slate-400 dark:text-slate-500"
-              }`}
-            />
-            <span
-              className={`whitespace-nowrap flex-1 transition-all duration-300 ${
-                sidebarCollapsed
-                  ? "opacity-0 w-0 overflow-hidden"
-                  : "opacity-100"
-              }`}
+      <div className={`${collapsed ? "px-1.5" : "px-2"} pb-3`}>
+        {SECONDARY_NAV.map((item) => {
+          const active = pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] transition-colors ${
+                active
+                  ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
+                  : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/60 hover:text-[var(--foreground)]"
+              } ${collapsed ? "justify-center px-0" : ""}`}
             >
-              {t("Settings")}
-            </span>
-          </Link>
-          {/* Tooltip for collapsed state */}
-          {sidebarCollapsed && showTooltip === "/settings" && (
-            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50 px-2.5 py-1.5 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-lg whitespace-nowrap pointer-events-none">
-              {t("Settings")}
-              <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-900 dark:border-r-slate-700" />
-            </div>
-          )}
-        </div>
+              <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
+              {!collapsed && <span>{item.label}</span>}
+            </Link>
+          );
+        })}
 
-        {/* Expand/Collapse button at bottom */}
-        <button
-          onClick={toggleSidebar}
-          className={`w-full mt-2 flex items-center rounded-md text-slate-400 dark:text-slate-500 hover:bg-white dark:hover:bg-slate-700 hover:text-blue-500 dark:hover:text-blue-400 hover:shadow-sm border border-transparent hover:border-slate-100 dark:hover:border-slate-600 transition-all duration-200 ${
-            sidebarCollapsed ? "justify-center p-2" : "gap-2.5 pl-2 pr-1.5 py-2"
-          }`}
-          title={sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")}
-        >
-          <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-            {sidebarCollapsed ? (
-              <ChevronsRight className="w-4 h-4" />
-            ) : (
-              <ChevronsLeft className="w-4 h-4" />
-            )}
-          </div>
-          <span
-            className={`text-sm whitespace-nowrap flex-1 transition-all duration-300 ${
-              sidebarCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
-            }`}
+        {collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="mt-1 flex w-full items-center justify-center rounded-lg py-[7px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+            aria-label="Expand sidebar"
           >
-            {t("Collapse sidebar")}
-          </span>
-        </button>
+            <PanelLeftOpen size={15} />
+          </button>
+        )}
       </div>
-    </div>
+    </aside>
   );
 }

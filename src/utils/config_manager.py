@@ -2,7 +2,7 @@ import logging
 import os
 from pathlib import Path
 import tempfile
-from threading import Lock
+from threading import RLock
 from typing import Any, Dict, List, Optional
 
 from dotenv import dotenv_values, load_dotenv
@@ -10,10 +10,11 @@ from pydantic import ValidationError
 import yaml
 
 from ..config.defaults import DEFAULTS
+from ..services.config.loader import get_runtime_settings_dir
 
 # Use package-relative imports to avoid PYTHONPATH issues
 from ..config.schema import AppConfig, migrate_config
-from ..core.errors import ConfigError
+from ..core.errors import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class ConfigManager:
     """
 
     _instance: Optional["ConfigManager"] = None
-    _lock = Lock()
+    _lock = RLock()
 
     def __new__(cls, project_root: Optional[Path] = None):
         if cls._instance is None:
@@ -48,7 +49,7 @@ class ConfigManager:
             return
 
         self.project_root = project_root or Path(__file__).parent.parent.parent
-        self.config_path = self.project_root / "config" / "main.yaml"
+        self.config_path = get_runtime_settings_dir(self.project_root) / "main.yaml"
         self._config_cache: Dict[str, Any] = {}
         self._last_mtime: float = 0.0
         self._initialized = True
@@ -77,15 +78,25 @@ class ConfigManager:
             else:
                 target[key] = value
 
+    def _merge_missing_keys(self, target: Dict[str, Any], source: Dict[str, Any]) -> None:
+        """Preserve forward-compatible config keys outside the strict schema."""
+        for key, value in source.items():
+            if key not in target:
+                target[key] = value
+            elif isinstance(value, dict) and isinstance(target.get(key), dict):
+                self._merge_missing_keys(target[key], value)
+
     def _validate_and_migrate(self, raw: Dict[str, Any]) -> Dict[str, Any]:
         merged: Dict[str, Any] = {}
         self._deep_update(merged, DEFAULTS)
         self._deep_update(merged, raw)
         migrated = migrate_config(merged)
         try:
-            return AppConfig(**migrated).dict()
+            validated = AppConfig(**migrated).dict()
+            self._merge_missing_keys(validated, migrated)
+            return validated
         except ValidationError as e:
-            raise ConfigError("Config validation failed", details={"errors": e.errors()})
+            raise ConfigurationError("Config validation failed", details={"errors": e.errors()})
 
     def load_config(self, force_reload: bool = False) -> Dict[str, Any]:
         """
@@ -106,7 +117,7 @@ class ConfigManager:
                     validated = self._validate_and_migrate(raw)
                     self._config_cache = validated
                     self._last_mtime = current_mtime
-                except ConfigError as ce:
+                except ConfigurationError as ce:
                     logger.error("%s", ce, extra={"context": getattr(ce, "context", {})})
                     return {}
                 except Exception as e:
@@ -161,7 +172,7 @@ class ConfigManager:
                             os.remove(tmp_path)
                         except Exception:
                             pass
-        except ConfigError as ce:
+        except ConfigurationError as ce:
             logger.error(
                 "Refusing to save invalid config: %s",
                 ce,

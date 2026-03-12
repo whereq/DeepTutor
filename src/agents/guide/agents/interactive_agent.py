@@ -59,6 +59,21 @@ class InteractiveAgent(BaseAgent):
             or "<div" in html.lower()
         )
 
+    def _is_retryable_error(self, error: str) -> bool:
+        lowered = error.lower()
+        return any(
+            marker in lowered
+            for marker in (
+                "429",
+                "rate limit",
+                "rate_limit",
+                "too many requests",
+                "resource exhausted",
+                "resource has been exhausted",
+                "quota",
+            )
+        )
+
     def _generate_fallback_html(self, knowledge: dict[str, Any]) -> str:
         """Generate fallback HTML page"""
         title = knowledge.get("knowledge_title", "Knowledge Point")
@@ -213,11 +228,20 @@ Original knowledge point information:
             return {"success": True, "html": html_code, "is_fallback": False}
 
         except Exception as e:
+            error_message = str(e)
+            if self._is_retryable_error(error_message):
+                return {
+                    "success": False,
+                    "retryable": True,
+                    "error": error_message,
+                    "html": "",
+                }
+
             html_code = self._generate_fallback_html(knowledge)
             return {
                 "success": True,
                 "html": html_code,
                 "is_fallback": True,
-                "error": str(e),
+                "error": error_message,
                 "message": "Error occurred, used fallback template",
             }

@@ -21,6 +21,7 @@ from src.services.config import (
 )
 from src.services.llm import complete as llm_complete
 from src.services.llm import sanitize_url
+from src.services.setup import get_backend_port, get_frontend_port
 
 router = APIRouter()
 
@@ -182,8 +183,8 @@ async def get_config_status():
 async def get_ports():
     """Get current port configuration (read-only)."""
     return PortsResponse(
-        backend_port=int(os.environ.get("BACKEND_PORT", 8000)),
-        frontend_port=int(os.environ.get("FRONTEND_PORT", 3000)),
+        backend_port=get_backend_port(),
+        frontend_port=get_frontend_port(),
     )
 
 

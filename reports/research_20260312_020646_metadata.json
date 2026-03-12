@@ -1,0 +1,15 @@
+{
+  "research_id": "research_20260312_020646",
+  "topic": "what is agentic rag",
+  "optimized_topic": "An analysis of Agentic RAG: Evaluating the architectural shift from static retrieval to autonomous, multi-step reasoning systems, including key components, operational workflows, and comparative advantages over traditional RAG frameworks.",
+  "statistics": {
+    "total_blocks": 2,
+    "pending": 0,
+    "researching": 0,
+    "completed": 2,
+    "failed": 0,
+    "total_tool_calls": 2
+  },
+  "report_word_count": 9365,
+  "completed_at": "2026-03-12T02:07:38.380509"
+}

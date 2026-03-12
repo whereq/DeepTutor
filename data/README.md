@@ -136,11 +136,11 @@ interface_file = path_service.get_settings_file("interface")
 ### Clean Old Data
 
 ```bash
-# Clean old task directories (customize based on retention policy)
-find data/user/agent -type d -name "*_20*" -mtime +30 -exec rm -rf {} \;
+# Clean old chat task directories (customize based on retention policy)
+find data/user/workspace/chat -type d -name "*_20*" -mtime +30 -exec rm -rf {} \;
 
-# Clean temporary workspace files
-find data/user/agent/run_code_workspace -type f -mtime +7 -delete
+# Clean detached debug code runs only
+find data/user/workspace/chat/_detached_code_execution -type f -mtime +7 -delete
 ```
 
 ### Backup Knowledge Base

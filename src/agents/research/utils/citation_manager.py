@@ -9,11 +9,9 @@ import asyncio
 from datetime import datetime
 import json
 from pathlib import Path
-import sys
 from typing import Any
 
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
+from src.services.path_service import get_path_service
 
 
 class CitationManager:
@@ -29,7 +27,7 @@ class CitationManager:
         """
         self.research_id = research_id
         if cache_dir is None:
-            cache_dir = Path("./cache") / research_id
+            cache_dir = get_path_service().get_task_workspace("deep_research", research_id)
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -254,7 +252,7 @@ class CitationManager:
         try:
             tool_type_lower = tool_type.lower()
 
-            if tool_type_lower in ("rag_naive", "rag_hybrid", "query_item"):
+            if tool_type_lower in ("rag_naive", "rag_hybrid"):
                 citation_info = self._extract_rag_citation(
                     citation_id, tool_type, raw_answer, tool_trace
                 )
@@ -431,7 +429,6 @@ class CitationManager:
             citation_info["papers"] = processed_papers
             citation_info["total_papers"] = len(processed_papers)
 
-            # Keep primary paper info at top level for backward compatibility
             if processed_papers:
                 primary = processed_papers[0]
                 citation_info["title"] = primary["title"]
@@ -527,7 +524,7 @@ class CitationManager:
 
             return " ".join(parts) if parts else None
 
-        if tool_type in ("rag_naive", "rag_hybrid", "query_item"):
+        if tool_type in ("rag_naive", "rag_hybrid"):
             # RAG citation with source info
             query = citation.get("query", "")
             kb_name = citation.get("kb_name", "")
@@ -536,7 +533,6 @@ class CitationManager:
             tool_type_display = {
                 "rag_naive": "RAG Retrieval",
                 "rag_hybrid": "Hybrid RAG Retrieval",
-                "query_item": "Knowledge Base Query",
             }.get(tool_type, tool_type)
 
             parts = [f"{tool_type_display}: {query}"]

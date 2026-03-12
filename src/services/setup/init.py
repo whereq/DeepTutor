@@ -8,6 +8,7 @@ Combines user directory initialization and port configuration management.
 import json
 import os
 from pathlib import Path
+import shutil
 
 from src.logging import get_logger
 from src.services.path_service import get_path_service
@@ -41,25 +42,24 @@ def init_user_directories(project_root: Path | None = None) -> None:
 
     Directory structure (created on-demand by each module):
     data/user/
-    ├── agent/                    # All Agent interaction history
-    │   ├── solve/
-    │   ├── chat/
-    │   ├── question/
-    │   ├── research/
-    │   │   └── reports/
-    │   ├── co-writer/
-    │   │   ├── audio/
-    │   │   └── tool_calls/
-    │   ├── guide/
-    │   ├── run_code_workspace/
-    │   └── logs/
-    │
-    ├── workspace/
-    │   ├── notebook/
-    │   └── memory/               # Personalization memory storage
-    │
-    └── settings/
-        └── interface.json
+    ├── chat_history.db
+    ├── logs/
+    ├── settings/
+    │   ├── interface.json
+    │   ├── main.yaml
+    │   └── agents.yaml
+    └── workspace/
+        ├── notebook/
+        ├── memory/
+        ├── co-writer/
+        ├── guide/
+        └── chat/
+            ├── chat/
+            ├── deep_solve/
+            ├── deep_question/
+            ├── deep_research/
+            ├── math_animator/
+            └── _detached_code_execution/
 
     Args:
         project_root: Project root directory (ignored, kept for API compatibility)
@@ -81,6 +81,7 @@ def _ensure_essential_settings(path_service) -> None:
     """
     # Only create settings/interface.json if it doesn't exist
     # This is needed because it contains default UI settings
+    _bootstrap_runtime_yaml_configs(path_service)
     interface_file = path_service.get_settings_file("interface")
     if not interface_file.exists():
         try:
@@ -95,6 +96,28 @@ def _ensure_essential_settings(path_service) -> None:
         except Exception as e:
             logger = _get_setup_logger()
             logger.warning(f"Failed to create settings/interface.json: {e}")
+
+
+def _bootstrap_runtime_yaml_configs(path_service) -> None:
+    """Copy legacy YAML configs into ``data/user/settings`` on first run."""
+    settings_dir = path_service.get_settings_dir()
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    project_root = path_service.project_root
+    legacy_config_dir = project_root / "config"
+    for filename in ("main.yaml", "agents.yaml", "memory.yaml"):
+        target = settings_dir / filename
+        if target.exists():
+            continue
+        source = legacy_config_dir / filename
+        if not source.exists():
+            continue
+        try:
+            shutil.copy2(source, target)
+            logger = _get_setup_logger()
+            logger.info(f"Bootstrapped runtime config: {target}")
+        except Exception as exc:
+            logger = _get_setup_logger()
+            logger.warning(f"Failed to bootstrap runtime config {filename}: {exc}")
 
 
 # ============================================================================

@@ -27,6 +27,7 @@ async def rag_search(
     mode: str = "hybrid",
     provider: Optional[str] = None,
     kb_base_dir: Optional[str] = None,
+    event_sink=None,
     **kwargs,
 ) -> dict:
     """
@@ -64,7 +65,13 @@ async def rag_search(
     service = RAGService(kb_base_dir=kb_base_dir, provider=provider)
 
     try:
-        return await service.search(query=query, kb_name=kb_name, mode=mode, **kwargs)
+        return await service.search(
+            query=query,
+            kb_name=kb_name,
+            mode=mode,
+            event_sink=event_sink,
+            **kwargs,
+        )
     except Exception as e:
         raise Exception(f"RAG search failed: {e}")
 

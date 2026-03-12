@@ -6,23 +6,16 @@ WebSocket endpoint for lightweight chat with session management.
 REST endpoints for session operations.
 """
 
-from pathlib import Path
-import sys
-
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-
-_project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(_project_root))
 
 from src.agents.chat import ChatAgent, SessionManager
 from src.logging import get_logger
-from src.services.config import load_config_with_main
+from src.services.config import PROJECT_ROOT, load_config_with_main
 from src.services.llm.config import get_llm_config
 from src.services.settings.interface_settings import get_ui_language
 
 # Initialize logger
-project_root = Path(__file__).parent.parent.parent.parent
-config = load_config_with_main("solve_config.yaml", project_root)
+config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = get_logger("ChatAPI", level="INFO", log_dir=log_dir)
 

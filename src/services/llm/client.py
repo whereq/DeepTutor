@@ -16,6 +16,7 @@ from src.logging import get_logger
 
 from .capabilities import system_in_messages
 from .config import LLMConfig, get_llm_config
+from .utils import sanitize_url
 
 
 class LLMClient:
@@ -62,8 +63,10 @@ class LLMClient:
                 self.logger.debug("Set OPENAI_API_KEY env var for LightRAG compatibility")
 
             if self.config.base_url:
-                os.environ["OPENAI_BASE_URL"] = self.config.base_url
-                self.logger.debug("Set OPENAI_BASE_URL env var to %s" % self.config.base_url)
+                from .utils import sanitize_url as _sanitize
+                clean_url = _sanitize(self.config.base_url)
+                os.environ["OPENAI_BASE_URL"] = clean_url
+                self.logger.debug(f"Set OPENAI_BASE_URL env var to {clean_url}")
 
     async def complete(
         self,
@@ -165,18 +168,20 @@ class LLMClient:
         # Note: Environment variables are already set in __init__ via _setup_openai_env_vars()
         from lightrag.llm.openai import openai_complete_if_cache
 
+        # Sanitize once so LightRAG never receives a URL with /chat/completions appended
+        sanitized_base = sanitize_url(self.config.base_url) if self.config.base_url else self.config.base_url
+
         def llm_model_func(
             prompt: str,
             system_prompt: str | None = None,
             history_messages: list[dict[str, object]] | None = None,
             **kwargs: object,
         ) -> object:
-            # Only pass api_version if set (for Azure OpenAI)
             lightrag_kwargs: dict[str, object] = {
                 "system_prompt": system_prompt,
                 "history_messages": history_messages or [],
                 "api_key": self.config.api_key,
-                "base_url": self.config.base_url,
+                "base_url": sanitized_base,
                 **kwargs,
             }
             api_version = getattr(self.config, "api_version", None)
@@ -231,6 +236,8 @@ class LLMClient:
         # Note: Environment variables are already set in __init__ via _setup_openai_env_vars()
         from lightrag.llm.openai import openai_complete_if_cache
 
+        # Sanitize once so LightRAG never receives a URL with /chat/completions appended
+        sanitized_base = sanitize_url(self.config.base_url) if self.config.base_url else self.config.base_url
         # Get api_version once for reuse
         api_version = getattr(self.config, "api_version", None)
 
@@ -242,15 +249,7 @@ class LLMClient:
             messages: list[dict[str, object]] | None = None,
             **kwargs: object,
         ) -> object:
-            # openai_complete_if_cache builds its own messages array internally
-            # from (system_prompt, history_messages, prompt) and passes **kwargs
-            # through to chat.completions.create(). Passing 'messages' in kwargs
-            # causes "multiple values for keyword argument 'messages'".
-            # Solution: pass multimodal content via the 'prompt' parameter.
-
-            # Handle multimodal messages (pre-built message array from RAG-Anything)
             if messages:
-                # Extract content from the user message to pass as prompt
                 user_content = None
                 sys_content = None
                 for msg in messages:
@@ -268,7 +267,7 @@ class LLMClient:
                     "system_prompt": sys_content,
                     "history_messages": [],
                     "api_key": self.config.api_key,
-                    "base_url": self.config.base_url,
+                    "base_url": sanitized_base,
                     **clean_kwargs,
                 }
                 if api_version:
@@ -299,7 +298,7 @@ class LLMClient:
                     "system_prompt": None,
                     "history_messages": [],
                     "api_key": self.config.api_key,
-                    "base_url": self.config.base_url,
+                    "base_url": sanitized_base,
                     **clean_kwargs,
                 }
                 if api_version:
@@ -316,7 +315,7 @@ class LLMClient:
                 "system_prompt": system_prompt,
                 "history_messages": history_messages or [],
                 "api_key": self.config.api_key,
-                "base_url": self.config.base_url,
+                "base_url": sanitized_base,
                 **kwargs,
             }
             if api_version:

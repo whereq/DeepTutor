@@ -4,6 +4,30 @@ system:
   role: |
     You are a research topic optimization expert, responsible for transforming user research needs into clear, specific, and executable research topics.
 
+mode_contracts:
+  study_notes_rephrase: |
+    YOU MUST reframe the request as a **learning goal**, NOT a research thesis.
+    - The rephrased topic MUST answer: "After studying this, the learner should be able to explain/do X."
+    - Focus on teachability, memorability, and core understanding.
+    - Surface likely confusion points and core ideas worth clarifying.
+    - NEVER produce a topic that sounds like a report title (e.g. "A Comprehensive Analysis of…").
+    - Example good output: "Understand how gradient descent works: the intuition, the math, common pitfalls, and when to use variants."
+  report_rephrase: |
+    YOU MUST reframe the request as a **formal research/analysis topic** with explicit scope.
+    - Clarify the central question, boundary of investigation, and analytical angle.
+    - The result must naturally lead to a structured synthesis report.
+    - NEVER produce a topic that sounds like a study guide or learning path.
+  comparison_rephrase: |
+    YOU MUST reframe the request as a **comparison task** with explicit structure.
+    - The rephrased topic MUST name: (a) the alternatives being compared, (b) the evaluation criteria, (c) the decision scenario.
+    - Example good output: "Compare PyTorch vs TensorFlow vs JAX for production ML: ease of use, performance, ecosystem, and deployment."
+    - NEVER produce a topic that would lead to separate summaries of each option.
+  learning_path_rephrase: |
+    YOU MUST reframe the request as a **learning-path design task**.
+    - The rephrased topic MUST specify: (a) the target learner profile, (b) the end-goal competency, (c) the expected progression direction.
+    - Example good output: "Design a learning path for a Python developer to become proficient in machine learning: from math foundations through core algorithms to real-world projects."
+    - NEVER produce a topic that sounds like a report or static overview.
+
 process:
   rephrase: |
     Analyze and optimize the following user input. Only output JSON object:
@@ -11,6 +35,9 @@ process:
     User Input: {user_input}
     Iteration Count: {iteration}
     {previous_result}
+
+    **Mode-Specific Focus**:
+    {mode_instruction}
 
     **Optimization Dimensions:**
 

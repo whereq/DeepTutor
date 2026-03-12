@@ -24,7 +24,7 @@ SETTINGS_FILE = _path_service.get_settings_file("interface")
 # Default sidebar navigation order
 DEFAULT_SIDEBAR_NAV_ORDER = {
     "start": ["/", "/history", "/knowledge", "/notebook"],
-    "learnResearch": ["/question", "/solver", "/guide", "/ideagen", "/research", "/co_writer"],
+    "learnResearch": ["/question", "/solver", "/guide", "/research", "/co_writer"],
 }
 
 # Default UI settings

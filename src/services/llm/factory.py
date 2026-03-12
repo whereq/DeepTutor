@@ -139,7 +139,7 @@ async def complete(
     base_url: str | None = None,
     api_version: str | None = None,
     binding: str | None = None,
-    messages: list[dict[str, str]] | None = None,
+    messages: list[dict[str, object]] | None = None,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_delay: float = DEFAULT_RETRY_DELAY,
     exponential_backoff: bool = DEFAULT_EXPONENTIAL_BACKOFF,
@@ -233,7 +233,7 @@ async def complete(
         api_version_value: str | None,
         binding_value: str | None,
         extra_kwargs: CallKwargs,
-        messages_value: list[dict[str, str]] | None,
+        messages_value: list[dict[str, object]] | None,
     ) -> str:
         try:
             if use_local:
@@ -306,7 +306,7 @@ async def stream(
     base_url: str | None = None,
     api_version: str | None = None,
     binding: str | None = None,
-    messages: list[dict[str, str]] | None = None,
+    messages: list[dict[str, object]] | None = None,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_delay: float = DEFAULT_RETRY_DELAY,
     exponential_backoff: bool = DEFAULT_EXPONENTIAL_BACKOFF,

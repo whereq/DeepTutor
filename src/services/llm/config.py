@@ -72,10 +72,12 @@ def _setup_openai_env_vars_early() -> None:
             logger.debug("Set OPENAI_API_KEY env var for LightRAG compatibility (early init)")
 
         if base_url and not os.getenv("OPENAI_BASE_URL"):
-            os.environ["OPENAI_BASE_URL"] = base_url
+            from .utils import sanitize_url
+            clean_url = sanitize_url(base_url)
+            os.environ["OPENAI_BASE_URL"] = clean_url
             logger.debug(
                 "Set OPENAI_BASE_URL env var to %s (early init)",
-                base_url,
+                clean_url,
             )
 
 
@@ -137,8 +139,10 @@ def initialize_environment() -> None:
             logger.debug("Set OPENAI_API_KEY env var (LightRAG compatibility)")
 
         if base_url and not os.getenv("OPENAI_BASE_URL"):
-            os.environ["OPENAI_BASE_URL"] = base_url
-            logger.debug("Set OPENAI_BASE_URL env var to %s", base_url)
+            from .utils import sanitize_url
+            clean_url = sanitize_url(base_url)
+            os.environ["OPENAI_BASE_URL"] = clean_url
+            logger.debug("Set OPENAI_BASE_URL env var to %s", clean_url)
 
 
 def _strip_value(value: str | None) -> str | None:

@@ -126,7 +126,7 @@ class PersonalizationRunner:
     
     async def start(self) -> None:
         """Start the personalization service."""
-        from src.core.event_bus import Event, EventType
+        from src.events.event_bus import Event, EventType
         from src.personalization import get_personalization_service
         from src.personalization.event_queue import QueuedEvent, get_event_queue
         
@@ -161,7 +161,7 @@ class PersonalizationRunner:
     
     async def _process_queue(self) -> None:
         """Process events from the queue."""
-        from src.core.event_bus import Event, EventType
+        from src.events.event_bus import Event, EventType
         from src.personalization.event_queue import QueuedEvent
         
         # Consume events from the queue

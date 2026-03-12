@@ -1,21 +1,19 @@
-"""
-Question Generation Agents
+"""Question generation agents."""
 
-Specialized agents for question generation workflow:
-- IdeaAgent: Topic-driven idea generation
-- Evaluator: Idea scoring and top-k selection
-- Generator: Q-A generation with tools
-- Validator: Approval/reject loop with feedback
-"""
+from importlib import import_module
+from typing import Any
 
-from .evaluator import Evaluator
-from .generator import Generator
-from .idea_agent import IdeaAgent
-from .validator import Validator
+__all__ = ["IdeaAgent", "Generator", "FollowupAgent"]
 
-__all__ = [
-    "IdeaAgent",
-    "Evaluator",
-    "Generator",
-    "Validator",
-]
+
+def __getattr__(name: str) -> Any:
+    if name == "Generator":
+        module = import_module("src.agents.question.agents.generator")
+        return getattr(module, name)
+    if name == "IdeaAgent":
+        module = import_module("src.agents.question.agents.idea_agent")
+        return getattr(module, name)
+    if name == "FollowupAgent":
+        module = import_module("src.agents.question.agents.followup_agent")
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

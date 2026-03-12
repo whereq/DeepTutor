@@ -1,0 +1,15 @@
+{
+  "research_id": "research_20260312_101817",
+  "topic": "difference between basic rag and agentic rag",
+  "optimized_topic": "A comparative analysis of Basic RAG and Agentic RAG architectures, focusing on their operational mechanisms, decision-making capabilities, and performance trade-offs in handling complex, multi-step information retrieval tasks.",
+  "statistics": {
+    "total_blocks": 2,
+    "pending": 0,
+    "researching": 0,
+    "completed": 2,
+    "failed": 0,
+    "total_tool_calls": 2
+  },
+  "report_word_count": 6631,
+  "completed_at": "2026-03-12T10:19:42.147615"
+}

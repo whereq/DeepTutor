@@ -30,7 +30,7 @@
 <div align="center">
 
 📚 **Massive Document Knowledge Q&A** &nbsp;•&nbsp; 🎨 **Interactive Learning Visualization**<br>
-🎯 **Knowledge Reinforcement** &nbsp;•&nbsp; 🔍 **Deep Research & Idea Generation**
+🎯 **Knowledge Reinforcement** &nbsp;•&nbsp; 🔍 **Deep Research & Co-Writer**
 
 </div>
 
@@ -81,9 +81,9 @@
 • **Intelligent Exercise Creation**: Generate targeted quizzes, practice problems, and customized assessments tailored to your current knowledge level and specific learning objectives.<br>
 • **Authentic Exam Simulation**: Upload reference exams to generate practice questions that perfectly match the original style, format, and difficulty—giving you realistic preparation for the actual test.
 
-### 🔍 Deep Research & Idea Generation
+### 🔍 Deep Research & Co-Writer
 • **Comprehensive Research & Literature Review**: Conduct in-depth topic exploration with systematic analysis. Identify patterns, connect related concepts across disciplines, and synthesize existing research findings.<br>
-• **Novel Insight Discovery**: Generate structured learning materials and uncover knowledge gaps. Identify promising new research directions through intelligent cross-domain knowledge synthesis.
+• **Structured Research Output**: Review stepwise research traces, generate cited reports, and continue into Co-Writer workflows for drafting and refinement.
 
 ---
 
@@ -149,11 +149,11 @@
 
 <!-- ━━━━━━━━━━━━━━━━ Research & Creation ━━━━━━━━━━━━━━━━ -->
 
-<h3 align="center">🔍 Deep Research & Idea Generation</h3>
+<h3 align="center">🔍 Deep Research & Co-Writer</h3>
 
 <table>
 <tr>
-<td width="33%" align="center">
+<td width="50%" align="center">
 
 <a href="#deep-research">
 <img src="assets/gifs/deepresearch.gif" width="100%">
@@ -163,17 +163,7 @@
 <sub>Knowledge Extension from Textbook with RAG, Web and Paper-search</sub>
 
 </td>
-<td width="33%" align="center">
-
-<a href="#idea-generation">
-<img src="assets/gifs/ideagen.gif" width="100%">
-</a>
-
-**Automated IdeaGen**  
-<sub>Brainstorming and Concept Synthesis with Dual-filter Workflow</sub>
-
-</td>
-<td width="33%" align="center">
+<td width="50%" align="center">
 
 <a href="#co-writer">
 <img src="assets/gifs/co-writer.gif" width="100%">
@@ -233,12 +223,11 @@
 
 ### 🤖 Intelligent Agent Modules
 • **Problem Solving & Assessment**: Step-by-step problem solving and custom assessment generation.<br>
-• **Research & Learning**: Deep Research for topic exploration and Guided Learning with visualization.<br>
-• **Idea Generation**: Automated and interactive concept development with multi-source insights.
+• **Research & Learning**: Deep Research for topic exploration, Co-Writer drafting, and Guided Learning with visualization.
 
 ### 🔧 Tool Integration Layer
 • **Information Retrieval**: RAG hybrid retrieval, real-time web search, and academic paper databases.<br>
-• **Processing & Analysis**: Python code execution, query item lookup, and PDF parsing for document analysis.
+• **Processing & Analysis**: Python code execution and PDF parsing for document analysis.
 
 ### 🧠 Knowledge & Memory Foundation
 • **Knowledge Graph**: Entity-relation mapping for semantic connections and knowledge discovery.<br>
@@ -899,31 +888,12 @@ When `execution_mode: "parallel"` is enabled, multiple topic blocks are research
 
 **Usage**
 
-1. Visit http://localhost:{frontend_port}/research
+1. Visit the main chat page at http://localhost:{frontend_port}
 2. Enter research topic
-3. Select research mode (quick/medium/deep/auto)
-4. Watch real-time progress with parallel/series execution
-5. View structured report with clickable inline citations
-6. Export as Markdown or PDF (with proper page splitting and Mermaid diagram support)
-
-<details>
-<summary><b>CLI</b></summary>
-
-```bash
-# Quick mode (fast research)
-python src/agents/research/main.py --topic "Deep Learning Basics" --preset quick
-
-# Medium mode (balanced)
-python src/agents/research/main.py --topic "Transformer Architecture" --preset medium
-
-# Deep mode (thorough research)
-python src/agents/research/main.py --topic "Graph Neural Networks" --preset deep
-
-# Auto mode (agent decides depth)
-python src/agents/research/main.py --topic "Reinforcement Learning" --preset auto
-```
-
-</details>
+3. Switch capability to `deep_research`
+4. Fill the explicit research config panel before sending
+5. Watch stepwise progress cards for each LLM/tool stage
+6. View structured report with citations and exported artifacts
 
 <details>
 <summary><b>Python API</b></summary>
@@ -931,11 +901,13 @@ python src/agents/research/main.py --topic "Reinforcement Learning" --preset aut
 ```python
 import asyncio
 from src.agents.research import ResearchPipeline
-from src.core.core import get_llm_config, load_config_with_main
+from src.services.config import load_config_with_main
+from src.services.llm import get_llm_config
 
 async def main():
-    # Load configuration (main.yaml merged with any module-specific overrides)
-    config = load_config_with_main("research_config.yaml")
+    # Shared runtime settings come from main.yaml.
+    # Interactive deep_research requests should pass explicit config from the frontend.
+    config = load_config_with_main("main.yaml")
     llm_config = get_llm_config()
 
     # Create pipeline (agent parameters loaded from agents.yaml automatically)
@@ -997,110 +969,26 @@ data/user/research/
 <details>
 <summary><b>Configuration Options</b></summary>
 
-Key configuration in `config/main.yaml` (research section) and `config/agents.yaml`:
+Key runtime configuration in `data/user/settings/main.yaml` (research section) and `data/user/settings/agents.yaml`:
 
 ```yaml
-# config/agents.yaml - Agent LLM parameters
+# data/user/settings/agents.yaml - Agent LLM parameters
 research:
   temperature: 0.5
   max_tokens: 12000
 
-# config/main.yaml - Research settings
+# data/user/settings/main.yaml - Research settings
 research:
-  # Execution Mode
   researching:
-    execution_mode: "parallel"    # "series" or "parallel"
-    max_parallel_topics: 5        # Max concurrent topics
-    max_iterations: 5             # Max iterations per topic
-
-  # Tool Switches
-    enable_rag_hybrid: true       # Hybrid RAG retrieval
-    enable_rag_naive: true        # Basic RAG retrieval
-    enable_paper_search: true     # Academic paper search
-    enable_web_search: true       # Web search (also controlled by tools.web_search.enabled)
-    enable_run_code: true         # Code execution
-
-  # Queue Limits
-  queue:
-    max_length: 5                 # Maximum topics in queue
-
-  # Reporting
-  reporting:
-    enable_inline_citations: true # Enable clickable [N] citations in report
-
-  # Presets: quick, medium, deep, auto
+    note_agent_mode: auto         # Summary strategy for tool outputs
+    tool_timeout: 60              # Tool timeout ceiling
+    tool_max_retries: 2           # Retry ceiling
+    paper_search_years_limit: 3   # Optional narrowing for paper search
 
 # Global tool switches in tools section
 tools:
   web_search:
     enabled: true                 # Global web search switch (higher priority)
-```
-
-</details>
-
-</details>
-
----
-
-<details>
-<summary><b>💡 Automated IdeaGen</b></summary>
-
-<details>
-<summary><b>Architecture Diagram</b></summary>
-
-![Automated IdeaGen Architecture](assets/figs/ideagen.png)
-
-</details>
-
-> **Research idea generation system** that extracts knowledge points from notebook records and generates research ideas through multi-stage filtering.
-
-**Core Features**
-
-| Feature | Description |
-|:---:|:---|
-| MaterialOrganizerAgent | Extracts knowledge points from notebook records |
-| Multi-Stage Filtering | **Loose Filter** → **Explore Ideas** (5+ per point) → **Strict Filter** → **Generate Markdown** |
-| Idea Exploration | Innovative thinking from multiple dimensions |
-| Structured Output | Organized markdown with knowledge points and ideas |
-| Progress Callbacks | Real-time updates for each stage |
-
-**Usage**
-
-1. Visit http://localhost:{frontend_port}/ideagen
-2. Select a notebook with records
-3. Optionally provide user thoughts/preferences
-4. Click "Generate Ideas"
-5. View generated research ideas organized by knowledge points
-
-<details>
-<summary><b>Python API</b></summary>
-
-```python
-import asyncio
-from src.agents.ideagen import IdeaGenerationWorkflow, MaterialOrganizerAgent
-from src.core.core import get_llm_config
-
-async def main():
-    llm_config = get_llm_config()
-
-    # Step 1: Extract knowledge points from materials
-    organizer = MaterialOrganizerAgent(
-        api_key=llm_config["api_key"],
-        base_url=llm_config["base_url"]
-    )
-    knowledge_points = await organizer.extract_knowledge_points(
-        "Your learning materials or notebook content here"
-    )
-
-    # Step 2: Generate research ideas
-    workflow = IdeaGenerationWorkflow(
-        api_key=llm_config["api_key"],
-        base_url=llm_config["base_url"]
-    )
-    result = await workflow.process(knowledge_points)
-    print(result)  # Markdown formatted research ideas
-
-asyncio.run(main())
 ```
 
 </details>
@@ -1176,11 +1064,10 @@ asyncio.run(main())
 <tr>
 <td align="center"><a href="src/agents/question/README.md">Question Module</a></td>
 <td align="center"><a href="src/agents/research/README.md">Research Module</a></td>
-<td align="center"><a href="src/agents/co_writer/README.md">Interactive IdeaGen Module</a></td>
+<td align="center"><a href="src/agents/co_writer/README.md">Co-Writer Module</a></td>
 <td align="center"><a href="src/agents/guide/README.md">Guide Module</a></td>
 </tr>
 <tr>
-<td align="center" colspan="4"><a href="src/agents/ideagen/README.md">Automated IdeaGen Module</a></td>
 </tr>
 </table>
 

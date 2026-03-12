@@ -1,0 +1,15 @@
+{
+  "research_id": "research_20260312_015929",
+  "topic": "what is agentic rag",
+  "optimized_topic": "what is agentic rag",
+  "statistics": {
+    "total_blocks": 2,
+    "pending": 0,
+    "researching": 0,
+    "completed": 2,
+    "failed": 0,
+    "total_tool_calls": 2
+  },
+  "report_word_count": 4423,
+  "completed_at": "2026-03-12T01:59:59.704029"
+}

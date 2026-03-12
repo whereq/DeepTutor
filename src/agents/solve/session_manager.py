@@ -21,7 +21,7 @@ class SolverSessionManager(BaseSessionManager):
     """
     Manages persistent storage of solver sessions.
 
-    Sessions are stored in a JSON file at data/user/agent/solve/sessions.json.
+    Legacy JSON sessions are stored under ``data/user/workspace/chat/deep_solve/sessions.json``.
     Each session contains:
     - session_id: Unique identifier
     - title: Session title (usually first user question)

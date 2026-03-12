@@ -6,7 +6,6 @@ Tools Package - Unified tool collection
 Includes:
 - rag_tool: RAG retrieval tool
 - web_search: Web search tool
-- query_item_tool: Query item tool
 - paper_search_tool: Paper search tool
 - tex_downloader: LaTeX source download tool
 - tex_chunker: LaTeX text chunking tool
@@ -14,81 +13,85 @@ Includes:
 """
 
 # Patch lightrag.utils BEFORE any imports that use lightrag
+import importlib
 import importlib.util
 import sys
 
-try:
-    # Directly load lightrag.utils module without triggering lightrag/__init__.py
-    _spec = importlib.util.find_spec("lightrag.utils")
-    if _spec and _spec.origin:
-        _utils = importlib.util.module_from_spec(_spec)
-        sys.modules["lightrag.utils"] = _utils
-        _spec.loader.exec_module(_utils)
+def _patch_lightrag_utils() -> None:
+    try:
+        if importlib.util.find_spec("lightrag") is None:
+            return
 
-        # Apply patches
-        for _k, _v in {
+        spec = importlib.util.find_spec("lightrag.utils")
+        if not spec or not spec.origin or spec.loader is None:
+            return
+
+        utils = importlib.util.module_from_spec(spec)
+        sys.modules["lightrag.utils"] = utils
+        spec.loader.exec_module(utils)
+
+        for key, value in {
             "verbose_debug": lambda *args, **kwargs: None,
             "VERBOSE_DEBUG": False,
             "get_env_value": lambda key, default=None: default,
-            "safe_unicode_decode": lambda t: (
-                t.decode("utf-8", errors="ignore") if isinstance(t, bytes) else t
+            "safe_unicode_decode": lambda text: (
+                text.decode("utf-8", errors="ignore") if isinstance(text, bytes) else text
             ),
         }.items():
-            if not hasattr(_utils, _k):
-                setattr(_utils, _k, _v)
+            if not hasattr(utils, key):
+                setattr(utils, key, value)
 
-        if not hasattr(_utils, "wrap_embedding_func_with_attrs"):
+        if not hasattr(utils, "wrap_embedding_func_with_attrs"):
 
             def _wrap(**attrs):
-                def dec(f):
-                    for k, v in attrs.items():
-                        setattr(f, k, v)
-                    return f
+                def dec(func):
+                    for key, value in attrs.items():
+                        setattr(func, key, value)
+                    return func
 
                 return dec
 
-            _utils.wrap_embedding_func_with_attrs = _wrap
-except Exception as e:
-    import traceback
+            utils.wrap_embedding_func_with_attrs = _wrap
+    except Exception as exc:
+        print(f"Warning: Failed to patch lightrag.utils: {exc}")
 
-    print(f"Warning: Failed to patch lightrag.utils: {e}")
-    traceback.print_exc()
 
-from .code_executor import run_code, run_code_sync
-from .query_item_tool import query_numbered_item
-from .rag_tool import rag_search
-from .reason import reason
-from .web_search import web_search
+_patch_lightrag_utils()
 
-# Paper research related tools
-try:
-    from .paper_search_tool import PaperSearchTool
-    from .tex_chunker import TexChunker
-    from .tex_downloader import TexDownloader, read_tex_file
+_LAZY_EXPORTS = {
+    "brainstorm": (".brainstorm", "brainstorm"),
+    "run_code": (".code_executor", "run_code"),
+    "run_code_sync": (".code_executor", "run_code_sync"),
+    "rag_search": (".rag_tool", "rag_search"),
+    "reason": (".reason", "reason"),
+    "web_search": (".web_search", "web_search"),
+    "PaperSearchTool": (".paper_search_tool", "PaperSearchTool"),
+    "TexChunker": (".tex_chunker", "TexChunker"),
+    "TexDownloader": (".tex_downloader", "TexDownloader"),
+    "read_tex_file": (".tex_downloader", "read_tex_file"),
+    "BrainstormTool": (".builtin", "BrainstormTool"),
+    "CodeExecutionTool": (".builtin", "CodeExecutionTool"),
+    "GeoGebraAnalysisTool": (".builtin", "GeoGebraAnalysisTool"),
+    "PaperSearchToolWrapper": (".builtin", "PaperSearchToolWrapper"),
+    "RAGTool": (".builtin", "RAGTool"),
+    "ReasonTool": (".builtin", "ReasonTool"),
+    "WebSearchTool": (".builtin", "WebSearchTool"),
+    "ToolPromptComposer": (".prompting", "ToolPromptComposer"),
+    "load_prompt_hints": (".prompting", "load_prompt_hints"),
+}
 
-    __all__ = [
-        "PaperSearchTool",
-        "TexChunker",
-        "TexDownloader",
-        "query_numbered_item",
-        "rag_search",
-        "reason",
-        "read_tex_file",
-        "run_code",
-        "run_code_sync",
-        "web_search",
-    ]
-except ImportError as e:
-    # If import fails (e.g., missing tiktoken), only export basic tools
-    print(f"⚠️  Some paper tools import failed: {e}")
-    __all__ = [
-        "query_numbered_item",
-        "rag_search",
-        "reason",
-        "run_code",
-        "run_code_sync",
-        "web_search",
-    ]
+__all__ = sorted(_LAZY_EXPORTS)
+
+
+def __getattr__(name: str):
+    if name not in _LAZY_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module_name, attr_name = _LAZY_EXPORTS[name]
+    module = importlib.import_module(module_name, __name__)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
 
 # Question generation tools (lazy import to avoid circular dependencies)
 # Access via: from src.tools.question import parse_pdf_with_mineru, etc.

@@ -11,23 +11,30 @@ ReportingAgent - Report generation Agent (DR-in-KG 2.0)
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
 import re
 from string import Template
-import sys
 from typing import Any
-
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from src.agents.base_agent import BaseAgent
 from src.agents.research.data_structures import DynamicTopicQueue, TopicBlock
+from src.core.trace import build_trace_metadata, new_call_id
 
 from ..utils.json_utils import ensure_json_dict, ensure_keys, extract_json_from_text
 
 
 class ReportingAgent(BaseAgent):
     """Report generation Agent"""
+
+    @staticmethod
+    def _build_trace_meta(label: str, trace_kind: str = "llm_generation") -> dict[str, Any]:
+        return build_trace_metadata(
+            call_id=new_call_id("research-report"),
+            phase="reporting",
+            label=label,
+            call_kind=trace_kind,
+            trace_role="response",
+            trace_kind=trace_kind,
+        )
 
     @staticmethod
     def _escape_braces(text: str) -> str:
@@ -82,10 +89,40 @@ class ReportingAgent(BaseAgent):
         # Citation configuration: read from config, default off
         self.enable_citation_list = self.reporting_config.get("enable_citation_list", False)
         self.enable_inline_citations = self.reporting_config.get("enable_inline_citations", False)
+        self.deduplicate_enabled = self.reporting_config.get("deduplicate_enabled", False)
+        self.single_pass_threshold = int(self.reporting_config.get("report_single_pass_threshold", 0))
+        self.report_style = str(self.reporting_config.get("style", "report") or "report")
 
     def set_citation_manager(self, citation_manager):
         """Set citation manager"""
         self.citation_manager = citation_manager
+
+    @staticmethod
+    def _append_contract(prompt: str, heading: str, contract: str) -> str:
+        contract = str(contract or "").strip()
+        if not contract:
+            return prompt
+        return f"{prompt}\n\n{heading}:\n{contract}\n"
+
+    def _get_mode_contract(self, stage: str) -> str:
+        return (
+            self.get_prompt("mode_contracts", f"{self.report_style}_{stage}", "")
+            or ""
+        ).strip()
+
+    def _get_mode_process_prompt(self, base_key: str, default: str = "") -> str:
+        """Select mode-specific process template, falling back to the generic one.
+
+        Tries ``process.{base_key}_{report_style}`` first (e.g.
+        ``generate_outline_study_notes``).  If the YAML has no such key the
+        generic ``process.{base_key}`` is returned instead.
+        """
+        if self.report_style and self.report_style != "report":
+            mode_key = f"{base_key}_{self.report_style}"
+            mode_prompt = self.get_prompt("process", mode_key, "")
+            if mode_prompt:
+                return mode_prompt
+        return self.get_prompt("process", base_key, default)
 
     async def process(
         self,
@@ -116,10 +153,15 @@ class ReportingAgent(BaseAgent):
             progress_callback, "reporting_started", topic=topic, total_blocks=len(queue.blocks)
         )
 
-        # 1) Deduplication
-        print("🔄 Step 1: Deduplication and cleaning...")
-        cleaned_blocks = await self._deduplicate_blocks(queue.blocks)
-        print(f"✓ Cleaning completed: {len(cleaned_blocks)} topic blocks")
+        candidate_blocks = queue.get_all_completed_blocks() or queue.blocks
+
+        # 1) Optional deduplication
+        print("🔄 Step 1: Preparing topic blocks...")
+        if self.deduplicate_enabled:
+            cleaned_blocks = await self._deduplicate_blocks(candidate_blocks)
+        else:
+            cleaned_blocks = candidate_blocks
+        print(f"✓ Preparation completed: {len(cleaned_blocks)} topic blocks")
         self._notify_progress(
             progress_callback, "deduplicate_completed", kept_blocks=len(cleaned_blocks)
         )
@@ -188,7 +230,13 @@ class ReportingAgent(BaseAgent):
             [f"{i + 1}. {b.sub_topic}: {b.overview[:200]}" for i, b in enumerate(blocks)]
         )
         filled = self._safe_format(user_prompt, topics=topics_text, total_topics=len(blocks))
-        resp = await self.call_llm(filled, system_prompt, stage="deduplicate", verbose=False)
+        resp = await self.call_llm(
+            filled,
+            system_prompt,
+            stage="deduplicate",
+            verbose=False,
+            trace_meta=self._build_trace_meta("Deduplicate topics"),
+        )
         data = extract_json_from_text(resp)
         try:
             obj = ensure_json_dict(data)
@@ -211,7 +259,7 @@ class ReportingAgent(BaseAgent):
             raise ValueError(
                 "ReportingAgent missing system prompt, please configure system.role in prompts/{lang}/reporting_agent.yaml"
             )
-        user_prompt = self.get_prompt("process", "generate_outline")
+        user_prompt = self._get_mode_process_prompt("generate_outline")
         if not user_prompt:
             raise ValueError(
                 "ReportingAgent missing generate_outline prompt, please configure process.generate_outline in prompts/{lang}/reporting_agent.yaml"
@@ -238,8 +286,19 @@ class ReportingAgent(BaseAgent):
         filled = self._safe_format(
             user_prompt, topic=topic, topics_json=topics_json, total_topics=len(blocks)
         )
+        filled = self._append_contract(
+            filled,
+            "Mode-specific outline contract",
+            self._get_mode_contract("outline"),
+        )
 
-        resp = await self.call_llm(filled, system_prompt, stage="generate_outline", verbose=False)
+        resp = await self.call_llm(
+            filled,
+            system_prompt,
+            stage="generate_outline",
+            verbose=False,
+            trace_meta=self._build_trace_meta("Generate outline"),
+        )
         data = extract_json_from_text(resp)
         try:
             obj = ensure_json_dict(data)
@@ -270,32 +329,117 @@ class ReportingAgent(BaseAgent):
 
     def _create_default_outline(self, topic: str, blocks: list[TopicBlock]) -> dict[str, Any]:
         """Create a default outline with three-level heading structure"""
+        intro_title = "## Introduction"
+        intro_instruction = "Present the research background, motivation, objectives, and report structure"
+        conclusion_title = "## Conclusion and Future Directions"
+        conclusion_instruction = (
+            "Summarize core findings, research contributions, limitations, and future directions"
+        )
+
+        if self.report_style == "study_notes":
+            intro_title = "## Study Overview"
+            intro_instruction = "Orient the learner, define the scope, and state the main learning goals"
+            conclusion_title = "## Key Takeaways"
+            conclusion_instruction = "Summarize the most important concepts, mechanisms, and memory anchors"
+        elif self.report_style == "comparison":
+            intro_title = "## Comparison Setup"
+            intro_instruction = "Define the comparison target, criteria, and evaluation lens"
+            conclusion_title = "## Recommendation by Scenario"
+            conclusion_instruction = "Summarize the trade-offs and recommend which option fits which scenario"
+        elif self.report_style == "learning_path":
+            intro_title = "## Learning Goal and Scope"
+            intro_instruction = "Clarify the learner profile, expected progression, and prerequisite assumptions"
+            conclusion_title = "## Milestones and Next Steps"
+            conclusion_instruction = "Summarize stage milestones, practice checkpoints, and how to keep progressing"
+
         sections = []
         for i, b in enumerate(blocks, 1):
+            section_instruction = (
+                f"Provide detailed introduction to {b.sub_topic}, including core concepts, key mechanisms, and practical applications"
+            )
+            section_title = f"## {i}. {b.sub_topic}"
+            subsections = [
+                {
+                    "title": f"### {i}.1 Core Concepts and Definitions",
+                    "instruction": f"Explain the fundamental concepts and definitions related to {b.sub_topic}",
+                },
+                {
+                    "title": f"### {i}.2 Key Mechanisms and Principles",
+                    "instruction": f"Analyze the underlying mechanisms and theoretical principles of {b.sub_topic}",
+                },
+            ]
+            if self.report_style == "study_notes":
+                section_title = f"## Note {i}. {b.sub_topic}"
+                section_instruction = (
+                    f"Write compact study notes for {b.sub_topic}, focusing on definitions, mechanisms, examples, and takeaways"
+                )
+                subsections = [
+                    {
+                        "title": f"### {i}.1 What It Means",
+                        "instruction": f"State the definition, intuition, and key idea of {b.sub_topic}",
+                    },
+                    {
+                        "title": f"### {i}.2 Why It Matters",
+                        "instruction": f"Explain the mechanism, a quick example, and the main takeaway for {b.sub_topic}",
+                    },
+                    {
+                        "title": f"### {i}.3 Common Pitfalls",
+                        "instruction": f"List typical misunderstandings or mistakes related to {b.sub_topic}",
+                    },
+                ]
+            elif self.report_style == "comparison":
+                section_title = f"## Dimension {i}. {b.sub_topic}"
+                section_instruction = (
+                    f"Compare {b.sub_topic} across key dimensions, trade-offs, strengths, weaknesses, and best-fit scenarios"
+                )
+                subsections = [
+                    {
+                        "title": f"### {i}.1 Side-by-Side Contrast",
+                        "instruction": f"Compare the relevant options under the dimension of {b.sub_topic}",
+                    },
+                    {
+                        "title": f"### {i}.2 Trade-offs",
+                        "instruction": f"Explain strengths, weaknesses, and trade-offs under {b.sub_topic}",
+                    },
+                    {
+                        "title": f"### {i}.3 Best-Fit Scenarios",
+                        "instruction": f"Recommend which option fits which scenario for the dimension {b.sub_topic}",
+                    },
+                ]
+            elif self.report_style == "learning_path":
+                section_title = f"## Stage {i}. {b.sub_topic}"
+                section_instruction = (
+                    f"Explain how {b.sub_topic} fits into a learning roadmap, including prerequisites, what to practice, and what comes next"
+                )
+                subsections = [
+                    {
+                        "title": f"### {i}.1 Learn First",
+                        "instruction": f"Explain the prerequisite ideas and what the learner should understand before tackling {b.sub_topic}",
+                    },
+                    {
+                        "title": f"### {i}.2 Practice Plan",
+                        "instruction": f"Describe how to practice {b.sub_topic}, including exercise focus and progression",
+                    },
+                    {
+                        "title": f"### {i}.3 Checkpoint",
+                        "instruction": f"Define what counts as finishing this stage and what should come next after {b.sub_topic}",
+                    },
+                ]
             section = {
-                "title": f"## {i}. {b.sub_topic}",
-                "instruction": f"Provide detailed introduction to {b.sub_topic}, including core concepts, key mechanisms, and practical applications",
+                "title": section_title,
+                "instruction": section_instruction,
                 "block_id": b.block_id,
-                "subsections": [
-                    {
-                        "title": f"### {i}.1 Core Concepts and Definitions",
-                        "instruction": f"Explain the fundamental concepts and definitions related to {b.sub_topic}",
-                    },
-                    {
-                        "title": f"### {i}.2 Key Mechanisms and Principles",
-                        "instruction": f"Analyze the underlying mechanisms and theoretical principles of {b.sub_topic}",
-                    },
-                ],
+                "subsections": subsections,
             }
             sections.append(section)
 
         return {
             "title": f"# {topic}",
-            "introduction": "## Introduction",
-            "introduction_instruction": "Present the research background, motivation, objectives, and report structure",
+            "introduction": intro_title,
+            "introduction_instruction": intro_instruction,
             "sections": sections,
-            "conclusion": "## Conclusion and Future Directions",
-            "conclusion_instruction": "Summarize core findings, research contributions, limitations, and future directions",
+            "conclusion": conclusion_title,
+            "conclusion_instruction": conclusion_instruction,
         }
 
     def _ser_block(self, b: TopicBlock) -> dict[str, Any]:
@@ -359,7 +503,6 @@ class ReportingAgent(BaseAgent):
             tool_display = {
                 "rag_naive": "RAG",
                 "rag_hybrid": "Hybrid RAG",
-                "query_item": "KB Query",
                 "paper_search": "Paper",
                 "web_search": "Web",
                 "run_code": "Code",
@@ -382,7 +525,7 @@ class ReportingAgent(BaseAgent):
             "role",
             "You are an academic writing expert specializing in writing the introduction section of research reports.",
         )
-        tmpl = self.get_prompt("process", "write_introduction", "")
+        tmpl = self._get_mode_process_prompt("write_introduction")
         if not tmpl:
             raise ValueError(
                 "Cannot get introduction writing prompt template, report generation failed"
@@ -411,8 +554,19 @@ class ReportingAgent(BaseAgent):
             topics_summary=topics_summary_json,
             total_topics=len(blocks),
         )
+        filled = self._append_contract(
+            filled,
+            "Mode-specific introduction contract",
+            self._get_mode_contract("introduction"),
+        )
 
-        resp = await self.call_llm(filled, system_prompt, stage="write_introduction", verbose=False)
+        resp = await self.call_llm(
+            filled,
+            system_prompt,
+            stage="write_introduction",
+            verbose=False,
+            trace_meta=self._build_trace_meta("Write introduction"),
+        )
         data = extract_json_from_text(resp)
 
         try:
@@ -436,7 +590,7 @@ class ReportingAgent(BaseAgent):
             "role",
             "You are an academic writing expert specializing in writing chapter content for research reports.",
         )
-        tmpl = self.get_prompt("process", "write_section_body", "")
+        tmpl = self._get_mode_process_prompt("write_section_body")
         if not tmpl:
             raise ValueError("Cannot get section writing prompt template, report generation failed")
 
@@ -474,8 +628,19 @@ class ReportingAgent(BaseAgent):
             citation_instruction=citation_instruction,
             citation_output_hint=citation_output_hint,
         )
+        filled = self._append_contract(
+            filled,
+            "Mode-specific section contract",
+            self._get_mode_contract("section"),
+        )
 
-        resp = await self.call_llm(filled, system_prompt, stage="write_section_body", verbose=False)
+        resp = await self.call_llm(
+            filled,
+            system_prompt,
+            stage="write_section_body",
+            verbose=False,
+            trace_meta=self._build_trace_meta("Write section"),
+        )
         data = extract_json_from_text(resp)
 
         try:
@@ -499,7 +664,7 @@ class ReportingAgent(BaseAgent):
             "role",
             "You are an academic writing expert specializing in writing the conclusion section of research reports.",
         )
-        tmpl = self.get_prompt("process", "write_conclusion", "")
+        tmpl = self._get_mode_process_prompt("write_conclusion")
         if not tmpl:
             raise ValueError(
                 "Cannot get conclusion writing prompt template, report generation failed"
@@ -533,8 +698,19 @@ class ReportingAgent(BaseAgent):
             topics_findings=topics_findings_json,
             total_topics=len(blocks),
         )
+        filled = self._append_contract(
+            filled,
+            "Mode-specific conclusion contract",
+            self._get_mode_contract("conclusion"),
+        )
 
-        resp = await self.call_llm(filled, system_prompt, stage="write_conclusion", verbose=False)
+        resp = await self.call_llm(
+            filled,
+            system_prompt,
+            stage="write_conclusion",
+            verbose=False,
+            trace_meta=self._build_trace_meta("Write conclusion"),
+        )
         data = extract_json_from_text(resp)
 
         try:
@@ -710,7 +886,7 @@ class ReportingAgent(BaseAgent):
             elif tool_type == "web_search":
                 formatted = self._format_web_search_citation(citation)
                 parts.append(formatted)
-            elif tool_type in ("rag_naive", "rag_hybrid", "query_item"):
+            elif tool_type in ("rag_naive", "rag_hybrid"):
                 formatted = self._format_rag_citation(citation)
                 parts.append(formatted)
             elif tool_type == "run_code":
@@ -763,7 +939,6 @@ class ReportingAgent(BaseAgent):
 
         Format: Authors (Year). *Title*. Venue. arXiv:ID. URL
         """
-        # Use top-level fields (backward compatibility)
         authors = citation.get("authors", "Unknown Author")
         year = citation.get("year", "n.d.")
         title = citation.get("title", "Untitled")
@@ -828,7 +1003,6 @@ class ReportingAgent(BaseAgent):
         tool_display = {
             "rag_naive": "RAG Retrieval",
             "rag_hybrid": "Hybrid RAG Retrieval",
-            "query_item": "Knowledge Base Query",
         }.get(tool_type, tool_type)
 
         result = f"**{tool_display}**"
@@ -967,7 +1141,6 @@ class ReportingAgent(BaseAgent):
             tool_display = {
                 "rag_naive": "RAG Retrieval",
                 "rag_hybrid": "Hybrid RAG Retrieval",
-                "query_item": "Knowledge Base Query",
                 "paper_search": "Paper Search",
                 "web_search": "Web Search",
                 "run_code": "Code Execution",
@@ -1093,14 +1266,42 @@ class ReportingAgent(BaseAgent):
         self, topic: str, blocks: list[TopicBlock], outline: dict[str, Any]
     ) -> str:
         """Write complete report using step-by-step method with three-level heading support"""
-        parts = []
-
         # Build citation number map before writing (for consistent ref_number in traces)
         if self.enable_inline_citations:
             self._citation_map = self._build_citation_number_map(blocks)
             print(f"  📋 Built citation map with {len(self._citation_map)} entries")
         else:
             self._citation_map = {}
+
+        if self.single_pass_threshold > 0 and len(blocks) <= self.single_pass_threshold:
+            print("  ⚡ Using single-pass report writing mode...")
+            report = await self._write_report_single_pass(topic, blocks, outline)
+        else:
+            report = await self._write_report_step_by_step(topic, blocks, outline)
+
+        # 6. Post-process citations (convert [N] to [[N]](#ref-N) format)
+        if self.enable_inline_citations:
+            print("  🔗 Converting citation format...")
+            report = self._convert_citation_format(report)
+
+            # Validate and fix invalid citations
+            print("  ✓ Validating citations...")
+            report, validation = self._validate_and_fix_citations(report)
+
+            if not validation["is_valid"]:
+                print(
+                    f"  ⚠️  Removed {len(validation['invalid_citations'])} invalid citations: {validation['invalid_citations']}"
+                )
+            else:
+                print(f"  ✓ All {validation['total_found']} citations are valid")
+
+        return report
+
+    async def _write_report_step_by_step(
+        self, topic: str, blocks: list[TopicBlock], outline: dict[str, Any]
+    ) -> str:
+        """Write complete report using the original multi-call chapter flow."""
+        parts = []
 
         # 1. Add main title (from outline, or use topic if not available)
         title = outline.get("title", f"# {topic}")
@@ -1193,23 +1394,71 @@ class ReportingAgent(BaseAgent):
             print("  ℹ️  Citation list disabled, skipping generation")
 
         # Combine all parts
-        report = "".join(parts)
+        return "".join(parts)
 
-        # 6. Post-process citations (convert [N] to [[N]](#ref-N) format)
+    async def _write_report_single_pass(
+        self, topic: str, blocks: list[TopicBlock], outline: dict[str, Any]
+    ) -> str:
+        """Write the full report in one LLM call for lightweight runs."""
+        import json as _json
+
+        system_prompt = self.get_prompt(
+            "system",
+            "role",
+            "You are an academic writing expert specializing in concise, high-quality research reports.",
+        )
+        tmpl = self._get_mode_process_prompt("write_full_report")
+        if not tmpl:
+            raise ValueError("Cannot get single-pass report prompt template, report generation failed")
+
+        blocks_data = [self._ser_block(block) for block in blocks]
+        outline_json = _json.dumps(outline, ensure_ascii=False, indent=2)
+        blocks_json = _json.dumps(blocks_data, ensure_ascii=False, indent=2)
+
         if self.enable_inline_citations:
-            print("  🔗 Converting citation format...")
-            report = self._convert_citation_format(report)
+            citation_instruction = (
+                "Use inline citations in [N] format whenever a trace provides a ref_number. "
+                "Do not invent citation numbers and do not add a References section."
+            )
+        else:
+            citation_instruction = (
+                "Do not add inline citations and do not add a References section."
+            )
 
-            # Validate and fix invalid citations
-            print("  ✓ Validating citations...")
-            report, validation = self._validate_and_fix_citations(report)
+        filled = self._safe_format(
+            tmpl,
+            topic=topic,
+            outline_json=outline_json,
+            blocks_json=blocks_json,
+            total_topics=len(blocks),
+            citation_instruction=citation_instruction,
+        )
+        filled = self._append_contract(
+            filled,
+            "Mode-specific full-report contract",
+            self._get_mode_contract("single_pass"),
+        )
 
-            if not validation["is_valid"]:
-                print(
-                    f"  ⚠️  Removed {len(validation['invalid_citations'])} invalid citations: {validation['invalid_citations']}"
-                )
-            else:
-                print(f"  ✓ All {validation['total_found']} citations are valid")
+        resp = await self.call_llm(
+            filled,
+            system_prompt,
+            stage="write_full_report",
+            verbose=False,
+            trace_meta=self._build_trace_meta("Write full report"),
+        )
+        data = extract_json_from_text(resp)
+
+        try:
+            obj = ensure_json_dict(data)
+            ensure_keys(obj, ["report"])
+            report = obj.get("report", "")
+            if not isinstance(report, str) or not report.strip():
+                raise ValueError("LLM returned empty report field")
+        except Exception as e:
+            raise ValueError(f"Unable to parse single-pass report content: {e!s}.") from e
+
+        if self.enable_citation_list:
+            report = report.rstrip() + "\n\n" + self._generate_references(blocks)
 
         return report
 
@@ -1253,7 +1502,7 @@ class ReportingAgent(BaseAgent):
             "role",
             "You are an academic writing expert specializing in writing comprehensive research report sections with structured subsections.",
         )
-        tmpl = self.get_prompt("process", "write_section_body", "")
+        tmpl = self._get_mode_process_prompt("write_section_body")
         if not tmpl:
             raise ValueError("Cannot get section writing prompt template, report generation failed")
 
@@ -1295,6 +1544,11 @@ class ReportingAgent(BaseAgent):
             citation_instruction=citation_instruction,
             citation_output_hint=citation_output_hint,
         )
+        filled = self._append_contract(
+            filled,
+            "Mode-specific section contract",
+            self._get_mode_contract("section"),
+        )
 
         # TODO Implement retry logic for LLM calls when JSON parsing or post-processing fails (e.g., malformed output, schema violations).
         resp = await self.call_llm(
@@ -1302,6 +1556,7 @@ class ReportingAgent(BaseAgent):
             system_prompt,
             stage="write_section_with_subsections",
             verbose=False,
+            trace_meta=self._build_trace_meta("Write section"),
         )
         data = extract_json_from_text(resp)
 

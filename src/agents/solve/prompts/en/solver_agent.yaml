@@ -17,9 +17,9 @@ system: |
   ```json
   {{
     "thought": "My reasoning about what to do next...",
-    "action": "rag_search",
-    "action_input": "linear convolution definition formula",
-    "self_note": "Found the definition: y[n] = sum of x[k]*h[n-k]"
+    "action": "<one available action>",
+    "action_input": "The concrete input for that action",
+    "self_note": "One factual sentence summarising what this round established"
   }}
   ```
 

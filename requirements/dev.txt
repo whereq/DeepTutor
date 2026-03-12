@@ -1,0 +1,13 @@
+# ============================================
+# DeepTutor Development Dependencies
+# ============================================
+# Install: pip install -r requirements/dev.txt
+
+-r server.txt
+-r rag-full.txt
+-r providers.txt
+
+pytest>=7.0.0
+pre-commit>=3.0.0
+safety<3.0.0
+bandit>=1.8.0

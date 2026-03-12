@@ -76,20 +76,16 @@ src/agents/research/
 
 ## Quick Start
 
-### CLI Usage
+### Unified Runtime Usage
 
 ```bash
-# Quick mode (fast research, ~5-10 min)
-python src/agents/research/main.py --topic "Deep Learning Basics" --preset quick
+# Chat page:
+# 1. Select `deep_research`
+# 2. Fill the floating config panel with explicit research parameters
+# 3. Send the topic through unified ws / Python capability runtime
 
-# Medium mode (balanced depth)
-python src/agents/research/main.py --topic "Transformer Architecture" --preset medium
-
-# Deep mode (thorough research)
-python src/agents/research/main.py --topic "Graph Neural Networks" --preset deep
-
-# Auto mode (agent decides depth)
-python src/agents/research/main.py --topic "Reinforcement Learning" --preset auto
+# Playground:
+# Use the deep_research capability tester and provide the same explicit config.
 ```
 
 ### Python API
@@ -381,7 +377,6 @@ Available tools (configurable via `researching.enable_*`):
 |:---:|:---:|:---|:---|
 | `rag_hybrid` | RAG | Natural language | Comprehensive knowledge retrieval |
 | `rag_naive` | RAG | Natural language | Basic vector search |
-| `query_item` | Entity | Item ID (e.g., "Theorem 3.1") | Specific entity lookup |
 | `paper_search` | External | English keywords | Academic research |
 | `web_search` | External | Natural language | Real-time information |
 | `run_code` | Code | Python code | Calculations, visualization |
@@ -481,15 +476,14 @@ research:
 ## Output Files
 
 ```
-data/user/research/
+data/user/workspace/chat/deep_research/
 ├── reports/
 │   ├── research_YYYYMMDD_HHMMSS.md      # Final Markdown report
-│   └── research_*_metadata.json          # Statistics and metadata
-└── cache/
-    └── research_YYYYMMDD_HHMMSS/
-        ├── queue.json                    # DynamicTopicQueue state
-        ├── citations.json                # Citation registry
-        ├── step1_planning.json           # Planning results
+│   └── research_*_metadata.json         # Statistics and metadata
+└── research_YYYYMMDD_HHMMSS/
+    ├── queue.json                       # DynamicTopicQueue state
+    ├── citations.json                   # Citation registry
+    ├── step1_planning.json              # Planning results
         ├── planning_progress.json        # Planning events
         ├── researching_progress.json     # Research events
         ├── reporting_progress.json       # Reporting events
@@ -512,12 +506,10 @@ data/user/research/
 
 ## FAQ
 
-**Q: ModuleNotFoundError: research_pipeline**
+**Q: How do I run deep research now?**
 
-Run from project root:
-```bash
-python src/agents/research/main.py --topic "..." --preset quick
-```
+Use the unified runtime entry points (`chat` page, unified websocket, or capability execute-stream).
+The legacy standalone CLI entry has been removed.
 
 **Q: How to use a different knowledge base?**
 

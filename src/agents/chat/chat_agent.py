@@ -11,17 +11,10 @@ This agent provides:
 Uses the unified LLM factory from BaseAgent for both cloud and local LLM support.
 """
 
-from pathlib import Path
-import sys
 from typing import Any, AsyncGenerator
 
-# Add project root to path
-_project_root = Path(__file__).parent.parent.parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-
 from src.agents.base_agent import BaseAgent
-from src.tools import rag_search, web_search
+from src.runtime.registry.tool_registry import get_tool_registry
 
 
 class ChatAgent(BaseAgent):
@@ -66,6 +59,7 @@ class ChatAgent(BaseAgent):
         self.max_history_tokens = max_history_tokens or self.agent_config.get(
             "max_history_tokens", self.DEFAULT_MAX_HISTORY_TOKENS
         )
+        self._tool_registry = get_tool_registry()
 
         self.logger.info(f"ChatAgent initialized: model={self.model}, base_url={self.base_url}")
 
@@ -186,12 +180,13 @@ class ChatAgent(BaseAgent):
         if enable_rag and kb_name:
             try:
                 self.logger.info(f"RAG search: {message[:50]}...")
-                rag_result = await rag_search(
+                rag_result = await self._tool_registry.execute(
+                    "rag",
                     query=message,
                     kb_name=kb_name,
                     mode="hybrid",
                 )
-                rag_answer = rag_result.get("answer", "")
+                rag_answer = rag_result.content
                 if rag_answer:
                     context_parts.append(f"[Knowledge Base: {kb_name}]\n{rag_answer}")
                     sources["rag"].append(
@@ -210,9 +205,13 @@ class ChatAgent(BaseAgent):
         if enable_web_search:
             try:
                 self.logger.info(f"Web search: {message[:50]}...")
-                web_result = web_search(query=message, verbose=False)
-                web_answer = web_result.get("answer", "")
-                web_citations = web_result.get("citations", [])
+                web_result = await self._tool_registry.execute(
+                    "web_search",
+                    query=message,
+                    verbose=False,
+                )
+                web_answer = web_result.content
+                web_citations = web_result.sources
 
                 if web_answer:
                     context_parts.append(f"[Web Search Results]\n{web_answer}")
@@ -270,7 +269,8 @@ class ChatAgent(BaseAgent):
 
     async def generate_stream(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
+        attachments: list[Any] | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Generate streaming response from LLM.
@@ -280,11 +280,11 @@ class ChatAgent(BaseAgent):
 
         Args:
             messages: Messages array for OpenAI API
+            attachments: Image/file attachments for multimodal input
 
         Yields:
             Response chunks as strings
         """
-        # Extract system prompt from messages
         system_prompt = ""
         user_prompt = ""
         for msg in messages:
@@ -292,18 +292,18 @@ class ChatAgent(BaseAgent):
                 system_prompt = msg.get("content", "")
                 break
 
-        # Get the last user message as user_prompt (for logging/tracking)
         for msg in reversed(messages):
             if msg.get("role") == "user":
-                user_prompt = msg.get("content", "")
+                content = msg.get("content", "")
+                user_prompt = content if isinstance(content, str) else str(content)
                 break
 
-        # Use BaseAgent's stream_llm which routes through the factory
         async for chunk in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             messages=messages,
             stage="chat_stream",
+            attachments=attachments,
         ):
             yield chunk
 
@@ -368,6 +368,7 @@ class ChatAgent(BaseAgent):
         enable_rag: bool = False,
         enable_web_search: bool = False,
         stream: bool = False,
+        attachments: list[Any] | None = None,
     ) -> dict[str, Any] | AsyncGenerator[dict[str, Any], None]:
         """
         Process a chat message with optional context retrieval.
@@ -379,6 +380,7 @@ class ChatAgent(BaseAgent):
             enable_rag: Whether to enable RAG retrieval
             enable_web_search: Whether to enable web search
             stream: Whether to stream the response
+            attachments: Image/file attachments for multimodal input
 
         Returns:
             If stream=False: Dict with 'response', 'sources', 'truncated_history'
@@ -386,10 +388,8 @@ class ChatAgent(BaseAgent):
         """
         history = history or []
 
-        # Truncate history to fit token limit
         truncated_history = self.truncate_history(history)
 
-        # Retrieve context if needed
         context, sources = await self.retrieve_context(
             message=message,
             kb_name=kb_name,
@@ -397,7 +397,6 @@ class ChatAgent(BaseAgent):
             enable_web_search=enable_web_search,
         )
 
-        # Build messages for LLM
         messages = self.build_messages(
             message=message,
             history=truncated_history,
@@ -405,14 +404,12 @@ class ChatAgent(BaseAgent):
         )
 
         if stream:
-            # Return async generator for streaming
             async def stream_generator():
                 full_response = ""
-                async for chunk in self.generate_stream(messages):
+                async for chunk in self.generate_stream(messages, attachments=attachments):
                     full_response += chunk
                     yield {"type": "chunk", "content": chunk}
 
-                # Yield final result with sources
                 yield {
                     "type": "complete",
                     "response": full_response,
@@ -422,7 +419,6 @@ class ChatAgent(BaseAgent):
 
             return stream_generator()
         else:
-            # Generate complete response
             response = await self.generate(messages)
 
             return {

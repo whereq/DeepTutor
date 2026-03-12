@@ -4,6 +4,28 @@ system:
   role: |
     You are a knowledge base-based deep research strategy expert, responsible for systematically mining content related to topics from the knowledge base and expanding to external resources as needed.
 
+mode_contracts:
+  study_notes_research: |
+    YOU MUST prioritize evidence that helps a learner **understand and remember**.
+    - Seek: clear definitions, intuitive explanations, representative examples, common misunderstandings, memory anchors.
+    - SKIP peripheral branches that don't improve teachability — depth on core ideas beats broad coverage.
+    - Ask yourself: "Would this help a student prepare for an exam?" If not, deprioritize it.
+  report_research: |
+    YOU MUST prioritize evidence that supports **analysis, synthesis, and argumentation**.
+    - Seek: authoritative sources, contrasting viewpoints, methodological details, implications, limitations.
+    - The research path must strengthen a formal analytical report. NEVER optimize for quick study or comparison.
+  comparison_research: |
+    YOU MUST prioritize evidence that enables **side-by-side comparison across dimensions**.
+    - Every query should target a specific comparison dimension (e.g. "performance comparison of A vs B", "cost analysis A vs B").
+    - NEVER collect information that only profiles one option in isolation.
+    - Seek: dimension-specific benchmarks, trade-offs, strengths, weaknesses, scenario-dependent judgments.
+    - If a query doesn't help compare, it's the wrong query.
+  learning_path_research: |
+    YOU MUST prioritize evidence that supports **learning sequencing and pedagogy**.
+    - Seek: prerequisite relationships, "learn X before Y" evidence, typical bottlenecks, recommended exercises, completion signals.
+    - Every query should help answer: "What should be learned first? Next? Why this order?"
+    - NEVER collect encyclopedic information that doesn't inform the learning sequence.
+
 # Guidance templates for dynamic content
 guidance:
   # Online search instruction when both web_search and paper_search are enabled
@@ -87,6 +109,77 @@ guidance:
       - The goal is thorough exploration, not quick completion.
 
 process:
+  plan_next_step: |
+    Evaluate whether the current knowledge is sufficient and, if not, formulate the next query plan. Only output JSON object:
+
+    Topic: {topic}
+    Topic Overview: {overview}
+    Current Knowledge: {current_knowledge}
+    Iteration Count: {iteration}
+    Existing Topics:
+    {existing_topics}
+    {online_search_instruction}
+    {research_depth_guidance}
+    {iteration_mode_criteria}
+
+    **Mode-Specific Focus**:
+    {mode_instruction}
+
+    **Available Tools (ONLY use these tools)**:
+    {available_tools}
+
+    {tool_phase_guidance}
+
+    **Important Principle: Depth over Breadth**
+
+    You must first decide whether the current knowledge already meets deep-research quality, and only generate a new query when it does not.
+
+    **Step 1: Sufficiency Evaluation**
+    Evaluate at least these 6 dimensions:
+    - □ Concept Definition
+    - □ Core Principles
+    - □ Key Formulas/Algorithms
+    - □ Application Scenarios
+    - □ Relationships
+    - □ Limitations and Development
+
+    Sufficiency criteria:
+    - is_sufficient=true only when all conditions hold:
+      1. At least 5 dimensions are substantially covered
+      2. Covered dimensions contain real evidence, not superficial mentions
+      3. Iteration count is sufficient for the current mode
+    - Otherwise set is_sufficient=false
+
+    **Step 2: If insufficient, plan the next query**
+    - Choose ONLY from the available tools listed above
+    - Each query must target a specific knowledge gap
+    - Avoid repeating current knowledge
+    - If using paper_search, query must be English keywords
+    - If no tools are available, still produce a useful query and set `tool_type` to `llm_self_research`
+
+    **Step 3: New Topic Evaluation**
+    Only suggest a new topic when it is highly related, clearly distinct from existing topics, and important enough to justify extra exploration (score ≥ 0.85).
+
+    Output JSON:
+    {{
+      "is_sufficient": true/false,
+      "covered_dimensions": ["List of covered dimensions"],
+      "missing_dimensions": ["List of missing or insufficiently deep dimensions"],
+      "coverage_score": 0.0-1.0,
+      "sufficiency_reason": "Explain why the knowledge is or is not sufficient",
+      "query": "Specific query statement, empty string if sufficient",
+      "tool_type": "Tool name from the available tools list; use llm_self_research when no tools are available; empty string if sufficient",
+      "target_dimension": "Knowledge dimension targeted by this query, empty string if sufficient",
+      "rationale": "Tool selection reason and query objective, empty string if sufficient",
+      "parallel": false,
+      "fallback": ["rag_hybrid", "rag_naive"],
+      "should_add_new_topic": false,
+      "new_sub_topic": null,
+      "new_overview": null,
+      "new_topic_reason": null,
+      "new_topic_score": 0.0
+    }}
+
   check_sufficiency: |
     Determine whether the current knowledge for the following topic is sufficient. Only output JSON object:
 

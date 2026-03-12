@@ -17,9 +17,9 @@ system: |
   ```json
   {{
     "thought": "我对下一步该做什么的推理...",
-    "action": "rag_search",
-    "action_input": "线性卷积的定义和公式",
-    "self_note": "找到了定义：y[n] = sum of x[k]*h[n-k]"
+    "action": "<一个可用操作>",
+    "action_input": "该操作对应的具体输入",
+    "self_note": "一句事实性总结，说明这一轮确认了什么"
   }}
   ```
 

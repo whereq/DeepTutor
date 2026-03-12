@@ -25,9 +25,11 @@ from .knowledge_base_config import (
 from .loader import (
     PROJECT_ROOT,
     get_agent_params,
+    get_runtime_settings_dir,
     get_path_from_config,
     load_config_with_main,
     parse_language,
+    resolve_config_path,
 )
 
 # Export new unified config service
@@ -44,7 +46,9 @@ from .unified_config import (
 __all__ = [
     # From loader.py
     "PROJECT_ROOT",
+    "get_runtime_settings_dir",
     "load_config_with_main",
+    "resolve_config_path",
     "get_path_from_config",
     "parse_language",
     "get_agent_params",

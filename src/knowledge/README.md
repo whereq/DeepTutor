@@ -444,6 +444,5 @@ python -m src.knowledge.start_kb init kb_name --docs-dir ./documents/
 ## 🔗 Related Tools
 
 - `src/tools/rag_tool.py` - RAG query tool
-- `src/tools/query_item_tool.py` - Query numbered items
 - `src/agents/solve/` - Problem solving system
 - `src/agents/research/` - Deep research system

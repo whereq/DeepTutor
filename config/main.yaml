@@ -24,9 +24,6 @@ tools:
     consolidation: template
     consolidation_template: ''
     provider: jina
-  query_item:
-    enabled: true
-    max_results: 5
 logging:
   # Global log level for the entire system (DEBUG, INFO, WARNING, ERROR)
   # This controls both DeepTutor logs and RAG module logs
@@ -59,80 +56,12 @@ solve:
   save_intermediate_results: true
   detailed_answer: true        # true = iterative step-by-step writing; false = single-shot
 research:
-  planning:
-    rephrase:
-      enabled: true
-      max_iterations: 3
-    decompose:
-      enabled: true
-      mode: auto
-      initial_subtopics: 5
-      auto_max_subtopics: 8
   researching:
-    max_iterations: 5
-    new_topic_min_score: 0.85
-    execution_mode: series
-    max_parallel_topics: 1
-    enable_rag_naive: true
-    enable_rag_hybrid: true
-    enable_paper_search: true
-    enable_web_search: true
-    enable_run_code: true
+    note_agent_mode: auto
     tool_timeout: 60
     tool_max_retries: 2
     paper_search_years_limit: 3
-  reporting:
-    min_section_length: 800
-    enable_citation_list: true
-    enable_inline_citations: false
   rag:
     kb_name: DE-all
     default_mode: hybrid
     fallback_mode: naive
-  queue:
-    max_length: 5
-  presets:
-    quick:
-      description: Quick mode - fast research with minimal depth
-      planning:
-        decompose:
-          mode: manual
-          initial_subtopics: 1
-      researching:
-        max_iterations: 1
-        iteration_mode: fixed
-      reporting:
-        min_section_length: 300
-    medium:
-      description: Medium mode - balanced research depth
-      planning:
-        decompose:
-          mode: manual
-          initial_subtopics: 5
-      researching:
-        max_iterations: 4
-        iteration_mode: fixed
-      reporting:
-        min_section_length: 500
-    deep:
-      description: Deep mode - thorough research with maximum depth
-      planning:
-        decompose:
-          mode: manual
-          initial_subtopics: 8
-      researching:
-        max_iterations: 7
-        iteration_mode: fixed
-      reporting:
-        min_section_length: 800
-    auto:
-      description: Auto mode - agent decides depth within limits
-      planning:
-        decompose:
-          mode: auto
-          auto_max_subtopics: 8
-      researching:
-        max_iterations: 6
-        iteration_mode: flexible
-      reporting:
-        min_section_length: 500

@@ -1,0 +1,9 @@
+# ============================================
+# DeepTutor Optional LLM Provider SDKs
+# ============================================
+# Install: pip install -r requirements/providers.txt
+# Only needed if using native SDKs instead of OpenAI-compatible endpoints
+
+anthropic>=0.30.0
+dashscope>=1.14.0
+perplexityai>=0.1.0

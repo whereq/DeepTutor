@@ -2,7 +2,7 @@
 PlannerAgent — Decomposes the user question into ordered solving steps.
 
 Called once at the start (Phase 1) and optionally on replan requests.
-Before planning, performs parallel RAG pre-retrieval and LLM aggregation
+Before planning, it can perform tool-driven pre-retrieval and LLM aggregation
 to provide the planner with relevant knowledge context.
 """
 
@@ -14,9 +14,10 @@ import logging
 from typing import Any
 
 from src.agents.base_agent import BaseAgent
+from src.core.trace import build_trace_metadata, derive_trace_metadata, new_call_id
 
 from ..memory.scratchpad import Plan, PlanStep, Scratchpad
-from ..tools import ToolRegistry
+from ..tool_runtime import SolveToolRuntime
 from ..utils.json_utils import extract_json_from_text
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ class PlannerAgent(BaseAgent):
         api_version: str | None = None,
         token_tracker: Any | None = None,
         language: str = "en",
-        tool_registry: ToolRegistry | None = None,
+        tool_runtime: SolveToolRuntime | None = None,
         enable_pre_retrieve: bool = True,
     ) -> None:
         super().__init__(
@@ -70,7 +71,7 @@ class PlannerAgent(BaseAgent):
             token_tracker=token_tracker,
             language=language,
         )
-        self._tool_registry = tool_registry or ToolRegistry.create_default(language)
+        self._tool_runtime = tool_runtime or SolveToolRuntime([], language=language)
         self._enable_pre_retrieve = enable_pre_retrieve
 
     async def process(
@@ -95,8 +96,9 @@ class PlannerAgent(BaseAgent):
         Returns:
             A Plan object with ordered steps.
         """
-        rag_context = (
-            await self._pre_retrieve(question, kb_name)
+        trace_root = "replan" if replan else "plan"
+        retrieved_context = (
+            await self._pre_retrieve(question, kb_name, trace_root=trace_root)
             if self._enable_pre_retrieve
             else "(retrieval disabled)"
         )
@@ -108,7 +110,7 @@ class PlannerAgent(BaseAgent):
             kb_name=kb_name,
             replan=replan,
             memory_context=memory_context,
-            rag_context=rag_context,
+            retrieved_context=retrieved_context,
         )
 
         llm_kwargs: dict[str, Any] = {
@@ -116,6 +118,16 @@ class PlannerAgent(BaseAgent):
             "system_prompt": system_prompt,
             "response_format": {"type": "json_object"},
             "stage": "plan" if not replan else "replan",
+            "trace_meta": build_trace_metadata(
+                call_id=new_call_id(trace_root),
+                phase="planning",
+                label="Revise plan" if replan else "Create plan",
+                call_kind="llm_planning",
+                trace_id=trace_root,
+                trace_role="plan",
+                trace_group="plan",
+                replan=replan,
+            ),
         }
 
         if image_url:
@@ -128,27 +140,39 @@ class PlannerAgent(BaseAgent):
         return self._parse_plan(response, scratchpad if replan else None)
 
     # ------------------------------------------------------------------
-    # RAG pre-retrieval pipeline
+    # Retrieval pre-processing pipeline
     # ------------------------------------------------------------------
 
-    async def _pre_retrieve(self, question: str, kb_name: str) -> str:
+    async def _pre_retrieve(
+        self,
+        question: str,
+        kb_name: str,
+        trace_root: str = "plan",
+    ) -> str:
         """Run the full pre-retrieval pipeline: generate queries → parallel
-        RAG search → LLM aggregation.  Returns the aggregated knowledge
+        retrieval → LLM aggregation. Returns the aggregated knowledge
         context string, or a fallback placeholder on any failure."""
-        if not kb_name:
+        if not kb_name or not self._tool_runtime.has_tool("rag"):
             return "(no knowledge base available)"
         try:
-            queries = await self._generate_search_queries(question)
-            retrievals = await self._parallel_rag_search(queries, kb_name)
+            queries = await self._generate_search_queries(question, trace_root=trace_root)
+            retrievals = await self._parallel_retrieve(
+                queries,
+                kb_name,
+                trace_root=trace_root,
+            )
             if not any(r.get("answer") for r in retrievals):
                 return "(no relevant knowledge retrieved)"
-            return await self._aggregate_rag_results(retrievals)
+            return await self._aggregate_retrieval_results(retrievals, trace_root=trace_root)
         except Exception as exc:
             logger.warning("Pre-retrieval pipeline failed: %s", exc)
             return "(knowledge retrieval failed)"
 
     async def _generate_search_queries(
-        self, question: str, num_queries: int = _NUM_QUERIES,
+        self,
+        question: str,
+        num_queries: int = _NUM_QUERIES,
+        trace_root: str = "plan",
     ) -> list[str]:
         """Use a lightweight LLM call to derive multiple search queries from
         the user question."""
@@ -174,6 +198,15 @@ class PlannerAgent(BaseAgent):
                 system_prompt="",
                 response_format={"type": "json_object"},
                 stage="plan_generate_queries",
+                trace_meta=build_trace_metadata(
+                    call_id=new_call_id(f"{trace_root}-queries"),
+                    phase="planning",
+                    label="Generate search queries",
+                    call_kind="llm_query_planning",
+                    trace_id=trace_root,
+                    trace_role="plan",
+                    trace_group="plan",
+                ),
             )
             payload = json.loads(response)
             queries = payload.get("queries", [])
@@ -187,32 +220,103 @@ class PlannerAgent(BaseAgent):
             logger.warning("Query generation failed, fallback to raw question: %s", exc)
             return [question]
 
-    async def _parallel_rag_search(
-        self, queries: list[str], kb_name: str,
+    async def _parallel_retrieve(
+        self,
+        queries: list[str],
+        kb_name: str,
+        trace_root: str = "plan",
     ) -> list[dict[str, Any]]:
-        """Execute RAG searches for all queries in parallel."""
-        from src.tools.rag_tool import rag_search
+        """Execute retrieval tool calls for all queries in parallel."""
+        async def _single_search(query: str, index: int) -> dict[str, Any]:
+            trace_meta = build_trace_metadata(
+                call_id=new_call_id(f"{trace_root}-retrieve"),
+                phase="planning",
+                label=f"Retrieve {index}",
+                call_kind="rag_retrieval",
+                trace_role="retrieve",
+                trace_group="retrieve",
+                trace_id=f"{trace_root}-retrieve-{index}",
+                query=query,
+                query_index=index,
+                tool_name="rag",
+            )
 
-        async def _single_search(query: str) -> dict[str, Any]:
-            try:
-                result = await rag_search(
-                    query=query, kb_name=kb_name,
-                    mode="hybrid", only_need_context=True, top_k=8,
+            async def _event_sink(
+                event_type: str,
+                message: str = "",
+                metadata: dict[str, Any] | None = None,
+            ) -> None:
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_log",
+                        "message": message,
+                        **derive_trace_metadata(
+                            trace_meta,
+                            trace_kind=str(event_type or "tool_log"),
+                            **(metadata or {}),
+                        ),
+                    }
                 )
-                return {"query": query, "answer": result.get("answer", "") or result.get("content", "")}
+
+            await self._emit_trace_event(
+                {
+                    "event": "tool_log",
+                    "message": f"Query: {query}",
+                    **derive_trace_metadata(
+                        trace_meta,
+                        trace_kind="call_status",
+                        call_state="running",
+                    ),
+                }
+            )
+            try:
+                result = await self._tool_runtime.execute(
+                    "rag",
+                    query,
+                    kb_name=kb_name,
+                    event_sink=_event_sink,
+                )
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_log",
+                        "message": f"Retrieve complete ({len(result.content)} chars)",
+                        **derive_trace_metadata(
+                            trace_meta,
+                            trace_kind="call_status",
+                            call_state="complete",
+                        ),
+                    }
+                )
+                return {"query": query, "answer": result.content}
             except Exception as exc:
-                logger.warning("RAG search failed for query '%s': %s", query[:60], exc)
+                logger.warning("Retrieval failed for query '%s': %s", query[:60], exc)
+                await self._emit_trace_event(
+                    {
+                        "event": "tool_log",
+                        "message": f"Retrieve failed: {exc}",
+                        **derive_trace_metadata(
+                            trace_meta,
+                            trace_kind="call_status",
+                            call_state="error",
+                            error=str(exc),
+                        ),
+                    }
+                )
                 return {"query": query, "answer": ""}
 
-        results = await asyncio.gather(*[_single_search(q) for q in queries])
+        results = await asyncio.gather(
+            *[_single_search(query, index + 1) for index, query in enumerate(queries)]
+        )
         logger.info(
-            "Parallel RAG search: %d/%d returned content",
+            "Parallel retrieval: %d/%d returned content",
             sum(1 for r in results if r.get("answer")), len(results),
         )
         return list(results)
 
-    async def _aggregate_rag_results(
-        self, retrievals: list[dict[str, Any]],
+    async def _aggregate_retrieval_results(
+        self,
+        retrievals: list[dict[str, Any]],
+        trace_root: str = "plan",
     ) -> str:
         """Use an LLM call to aggregate raw retrieval results into a
         structured knowledge summary.  The user question is NOT passed
@@ -258,11 +362,20 @@ class PlannerAgent(BaseAgent):
                 user_prompt=user_prompt,
                 system_prompt="You are a knowledge organizer. Consolidate the provided passages into a clean, structured summary.",
                 stage="plan_aggregate_context",
+                trace_meta=build_trace_metadata(
+                    call_id=new_call_id(f"{trace_root}-aggregate"),
+                    phase="planning",
+                    label="Aggregate retrieval context",
+                    call_kind="llm_summary",
+                    trace_id=trace_root,
+                    trace_role="plan",
+                    trace_group="plan",
+                ),
             )
-            logger.info("Aggregated RAG context: %d chars", len(result))
+            logger.info("Aggregated retrieved context: %d chars", len(result))
             return result.strip() or raw_text
         except Exception as exc:
-            logger.warning("RAG aggregation failed, using raw text: %s", exc)
+            logger.warning("Retrieval aggregation failed, using raw text: %s", exc)
             return raw_text
 
     # ------------------------------------------------------------------
@@ -290,7 +403,7 @@ class PlannerAgent(BaseAgent):
         kb_name: str,
         replan: bool,
         memory_context: str = "",
-        rag_context: str = "",
+        retrieved_context: str = "",
     ) -> str:
         template = self.get_prompt("user_template") if self.has_prompts() else None
 
@@ -312,12 +425,12 @@ class PlannerAgent(BaseAgent):
                     parts.append(f"\nReplan reason: {last.action_input}")
             scratchpad_summary = "\n".join(parts)
 
-        tools_desc = self._tool_registry.build_planner_description(kb_name=kb_name)
+        tools_desc = self._tool_runtime.build_planner_description(kb_name=kb_name)
 
         if template:
             return template.format(
                 question=question,
-                rag_context=rag_context or "(no retrieved knowledge)",
+                retrieved_context=retrieved_context or "(no retrieved knowledge)",
                 tools_description=tools_desc,
                 scratchpad_summary=scratchpad_summary,
                 memory_context=memory_context or "(no historical memory)",
@@ -326,7 +439,7 @@ class PlannerAgent(BaseAgent):
         # Fallback
         return (
             f"## Question\n{question}\n\n"
-            f"## Retrieved Knowledge\n{rag_context or '(none)'}\n\n"
+            f"## Retrieved Knowledge\n{retrieved_context or '(none)'}\n\n"
             f"## Available Tools\n{tools_desc}\n\n"
             f"## Progress So Far\n{scratchpad_summary}\n\n"
             f"## Memory Context\n{memory_context or '(none)'}"

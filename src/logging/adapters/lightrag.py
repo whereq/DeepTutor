@@ -62,12 +62,11 @@ def get_lightrag_forwarding_config() -> dict:
         dict: Configuration dictionary with defaults if not found
     """
     try:
-        from src.services.config import load_config_with_main
+        from src.services.config import PROJECT_ROOT, load_config_with_main
 
         from ..config import get_global_log_level
 
-        project_root = Path(__file__).resolve().parent.parent.parent.parent
-        config = load_config_with_main("solve_config.yaml", project_root)
+        config = load_config_with_main("main.yaml", PROJECT_ROOT)
         logging_config = config.get("logging", {})
 
         # Use the unified global log level

@@ -34,11 +34,6 @@ AGENT_REGISTRY = {
         "color": "indigo",
         "label_key": "Guided Learning",
     },
-    "ideagen": {
-        "icon": "Lightbulb",
-        "color": "yellow",
-        "label_key": "Idea Generated",
-    },
 }
 
 

@@ -48,10 +48,9 @@ def get_global_log_level() -> str:
     Default: DEBUG
     """
     try:
-        from src.services.config import load_config_with_main
+        from src.services.config import PROJECT_ROOT, load_config_with_main
 
-        project_root = Path(__file__).resolve().parent.parent.parent
-        config = load_config_with_main("solve_config.yaml", project_root)
+        config = load_config_with_main("main.yaml", PROJECT_ROOT)
         logging_config = config.get("logging", {})
         return logging_config.get("level", "DEBUG").upper()
     except Exception:
@@ -66,10 +65,9 @@ def load_logging_config() -> LoggingConfig:
         LoggingConfig instance with loaded or default values.
     """
     try:
-        from src.services.config import get_path_from_config, load_config_with_main
+        from src.services.config import PROJECT_ROOT, get_path_from_config, load_config_with_main
 
-        project_root = Path(__file__).resolve().parent.parent.parent
-        config = load_config_with_main("solve_config.yaml", project_root)
+        config = load_config_with_main("main.yaml", PROJECT_ROOT)
 
         logging_config = config.get("logging", {})
         level = get_global_log_level()

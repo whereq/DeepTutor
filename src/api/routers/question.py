@@ -1,9 +1,7 @@
 import asyncio
 import base64
 from datetime import datetime
-from pathlib import Path
 import re
-import sys
 import traceback
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -16,18 +14,13 @@ from src.tools.question import mimic_exam_questions
 from src.utils.document_validator import DocumentValidator
 from src.utils.error_utils import format_exception_message
 
-# Add project root for imports
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
 from src.logging import get_logger
-from src.services.config import load_config_with_main
+from src.services.config import PROJECT_ROOT, load_config_with_main
 from src.services.llm.config import get_llm_config
 from src.services.settings.interface_settings import get_ui_language
 
 # Setup module logger with unified logging system (from config)
-project_root = Path(__file__).parent.parent.parent.parent
-config = load_config_with_main("question_config.yaml", project_root)
+config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = get_logger("QuestionAPI", log_dir=log_dir)
 
@@ -365,7 +358,7 @@ async def websocket_question_generate(websocket: WebSocket):
 
         # 2. Initialize Coordinator
         path_service = get_path_service()
-        output_base = path_service.get_question_dir()
+        output_base = path_service.get_question_batch_dir(task_id)
 
         try:
             llm_config = get_llm_config()

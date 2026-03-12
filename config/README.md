@@ -43,11 +43,6 @@ question:
   temperature: 0.7
   max_tokens: 4096
 
-# IdeaGen Module - Idea generation agents
-ideagen:
-  temperature: 0.7
-  max_tokens: 4096
-
 # CoWriter Module - Collaborative writing agents
 co_writer:
   temperature: 0.7
@@ -80,11 +75,11 @@ max_tokens = params["max_tokens"]    # 8192
 - **Server Configuration**: Backend and frontend port settings
 - **System Settings**: System-wide language configuration
 - **Path Configuration**: Data directory paths for all modules
-- **Tool Configuration**: General tool settings (RAG, code execution, web search, query item)
+- **Tool Configuration**: General tool settings (RAG, code execution, web search)
 - **Logging Configuration**: Logging levels, file output, console output, LightRAG forwarding
 - **TTS Configuration**: Text-to-speech default voice
 - **Question Module**: Question generation settings (max_rounds, agent-specific non-LLM parameters)
-- **Research Module**: Planning, researching, reporting, RAG, queue, and preset configurations
+- **Research Module**: Planning, researching, reporting, RAG, queue, and runtime safety settings
 - **Solve Module**: Iteration limits, citation settings, agent-specific non-LLM parameters
 
 **Key sections:**
@@ -102,26 +97,23 @@ paths:
   user_log_dir: ./data/user/logs
   performance_log_dir: ./data/user/performance
   # Module-specific output directories
-  guide_output_dir: ./data/user/guide
-  question_output_dir: ./data/user/question
-  research_output_dir: ./data/user/research/cache
-  research_reports_dir: ./data/user/research/reports
-  solve_output_dir: ./data/user/solve
+  guide_output_dir: ./data/user/workspace/guide
+  question_output_dir: ./data/user/workspace/chat/deep_question
+  research_output_dir: ./data/user/workspace/chat/deep_research/cache
+  research_reports_dir: ./data/user/workspace/chat/deep_research/reports
+  solve_output_dir: ./data/user/workspace/chat/deep_solve
 
 tools:
   rag_tool:
     kb_base_dir: ./data/knowledge_bases
     default_kb: ai_textbook
   run_code:
-    workspace: ./data/user/run_code_workspace
+    workspace: ./data/user/workspace/chat/_detached_code_execution
     allowed_roots:
       - ./data/user
       - ./src/tools
   web_search:
     enabled: true  # Global switch for web search (affects all modules)
-  query_item:
-    enabled: true
-    max_results: 5  # Max results returned by query_item tool
 
 logging:
   level: DEBUG
@@ -141,7 +133,7 @@ question:
     question_validation:
       strict_mode: true
 
-# Research module settings (non-LLM parameters)
+# Research module settings (non-LLM parameters and runtime ceilings)
 research:
   planning:
     # ... planning settings
@@ -151,11 +143,6 @@ research:
     # ... other settings
   reporting:
     # ... reporting settings
-  presets:
-    quick: # ...
-    medium: # ...
-    deep: # ...
-    auto: # ...
 
 # Solve module settings (non-LLM parameters)
 solve:
@@ -178,12 +165,12 @@ Configuration files follow a hierarchy:
    - Model names
    - Override all other settings
 
-2. **agents.yaml**
+2. **`data/user/settings/agents.yaml`**
    - **SINGLE source of truth** for agent `temperature` and `max_tokens`
    - One set of parameters per module
    - Never hardcode these values in code
 
-3. **main.yaml**
+3. **`data/user/settings/main.yaml`**
    - System-wide shared settings
    - Path configurations
    - All module-specific settings
@@ -191,7 +178,7 @@ Configuration files follow a hierarchy:
 
 ## 📝 Configuration Loading
 
-Configuration files are loaded using `src/core/core.py`:
+Runtime configuration files are loaded from `data/user/settings/`:
 
 ```python
 from src.core.core import load_config_with_main, get_agent_params
@@ -206,11 +193,12 @@ max_tokens = params["max_tokens"]
 ```
 
 **`load_config_with_main` function:**
-1. Loads `config/main.yaml` as base configuration
-2. Returns the configuration dictionary
+1. Loads `data/user/settings/main.yaml` as base configuration
+2. Bootstraps from `config/` once only if the runtime file is missing
+3. Returns the configuration dictionary
 
 **`get_agent_params` function:**
-1. Loads `config/agents.yaml`
+1. Loads `data/user/settings/agents.yaml`
 2. Returns the temperature and max_tokens for the specified module
 3. Uses defaults if config not found
 
@@ -235,7 +223,7 @@ PERPLEXITY_API_KEY=your_perplexity_key  # For web search
 3. **Use main.yaml for all other settings**: Paths, logging, tools, module-specific settings
 4. **Environment variables for secrets**: Never commit API keys to config files
 5. **Relative paths**: Use relative paths from project root for portability
-6. **Presets for common scenarios**: Use presets (e.g., in main.yaml research section) for different use cases
+6. **Keep runtime contracts explicit**: Capability-specific user inputs should be passed from the frontend request instead of relying on silent config fallbacks
 
 ## 🔗 Related Modules
 
@@ -265,7 +253,7 @@ PERPLEXITY_API_KEY=your_perplexity_key  # For web search
 2. **Model configuration**: LLM model names should only be set via environment variables (`.env` or `DeepTutor.env`), not in config files.
 3. **Path consistency**: All modules use paths from `main.yaml` to ensure consistency. Use relative paths from project root for portability.
 4. **Language setting**: System language is set in `main.yaml` (`system.language`) and shared by all modules. Individual modules should not override this.
-5. **Research presets**: Use presets in `main.yaml` (research.presets: quick/medium/deep/auto) for different research depth requirements.
+5. **Deep research request contract**: The chat/playground `deep_research` flow now requires explicit request config from the frontend; `main.yaml` is only for shared infrastructure values and safety ceilings.
 6. **Code execution safety**: The `run_code` tool in `main.yaml` has restricted `allowed_roots` for security.
 7. **Narrator independence**: The `narrator` agent in `agents.yaml` has independent settings because it integrates with TTS API which has specific character limits.
 8. **Web search global switch**: The `tools.web_search.enabled` setting in `main.yaml` is a global switch that affects all modules (research, solve). Module-specific enable flags work in conjunction with this global switch.

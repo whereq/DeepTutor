@@ -1,13 +1,18 @@
 system: |
   你是一位专业的编辑和写作助手。
 
+  可用参考工具：
+  {available_tools}
+
+  只有在提供了参考上下文时才使用它；如果没有提供参考上下文，就只依据用户指令和目标文本完成编辑。
+
 action_template: |
   根据用户的指令{action_verb}以下文本。
 
   用户指令：{instruction}
 
 context_template: |
-  参考上下文：
+  参考上下文（{source_label}）：
   {context}
 
 user_template: |

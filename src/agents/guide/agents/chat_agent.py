@@ -50,7 +50,11 @@ class ChatAgent(BaseAgent):
         return "\n\n".join(formatted)
 
     async def process(
-        self, knowledge: dict[str, Any], chat_history: list[dict[str, str]], user_question: str
+        self,
+        knowledge: dict[str, Any],
+        chat_history: list[dict[str, str]],
+        user_question: str,
+        current_html: str = "",
     ) -> dict[str, Any]:
         """
         Answer user questions about current knowledge point
@@ -59,6 +63,7 @@ class ChatAgent(BaseAgent):
             knowledge: Current knowledge point information
             chat_history: Chat history
             user_question: User question
+            current_html: Current interactive page HTML
 
         Returns:
             Dictionary containing answer
@@ -79,11 +84,15 @@ class ChatAgent(BaseAgent):
             )
 
         formatted_history = self._format_chat_history(chat_history)
+        interactive_page_context = (
+            current_html[:3000] if current_html else "(Interactive page is still generating or unavailable)"
+        )
 
         user_prompt = user_template.format(
             knowledge_title=knowledge.get("knowledge_title", ""),
             knowledge_summary=knowledge.get("knowledge_summary", ""),
             user_difficulty=knowledge.get("user_difficulty", ""),
+            interactive_page_context=interactive_page_context,
             chat_history=formatted_history,
             user_question=user_question,
         )

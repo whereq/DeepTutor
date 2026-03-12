@@ -1,5 +1,10 @@
 system: |
   You are an expert editor and writing assistant.
+  
+  Available reference tools:
+  {available_tools}
+
+  Use reference context only when it is provided. If no reference context is provided, rely only on the user's instruction and target text.
 
 action_template: |
   {action_verb} the following text based on the user's instruction.
@@ -7,7 +12,7 @@ action_template: |
   User Instruction: {instruction}
 
 context_template: |
-  Reference Context:
+  Reference Context ({source_label}):
   {context}
 
 user_template: |

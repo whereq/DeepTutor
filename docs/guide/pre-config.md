@@ -124,18 +124,13 @@ guide:
   temperature: 0.5
   max_tokens: 16192
 
-# IdeaGen Module - Idea generation agents
-ideagen:
-  temperature: 0.7
-  max_tokens: 4096
-
 # CoWriter Module - Collaborative writing agents
 co_writer:
   temperature: 0.7
   max_tokens: 4096
 ```
 
-### `config/main.yaml` - System Settings
+### `data/user/settings/main.yaml` - System Settings
 
 This file controls paths, tools, and module-specific settings:
 
@@ -155,12 +150,9 @@ tools:
     kb_base_dir: ./data/knowledge_bases
     default_kb: ai_textbook
   run_code:
-    workspace: ./data/user/run_code_workspace
+    workspace: ./data/user/workspace/chat/_detached_code_execution
   web_search:
     enabled: true
-  query_item:
-    enabled: true
-    max_results: 5
 
 # Module-specific settings
 research:

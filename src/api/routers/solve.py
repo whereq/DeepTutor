@@ -6,28 +6,24 @@ WebSocket endpoint for real-time problem solving with streaming logs.
 """
 
 import asyncio
-from pathlib import Path
 import re
-import sys
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from src.agents.solve import MainSolver, SolverSessionManager
 from src.api.utils.log_interceptor import LogInterceptor
+from src.capabilities.deep_solve import DeepSolveCapability
 from src.api.utils.task_id_manager import TaskIDManager
 from src.services.path_service import get_path_service
 
-_project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(_project_root))
 from src.logging import get_logger
-from src.services.config import load_config_with_main
+from src.services.config import PROJECT_ROOT, load_config_with_main
 from src.services.llm import get_llm_config
 from src.services.settings.interface_settings import get_ui_language
 
 # Initialize logger with config
-project_root = Path(__file__).parent.parent.parent.parent
-config = load_config_with_main("solve_config.yaml", project_root)
+config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = get_logger("SolveAPI", level="INFO", log_dir=log_dir)
 
@@ -148,7 +144,14 @@ async def websocket_solve(websocket: WebSocket):
         # 1. Wait for the initial message with the question and config
         data = await websocket.receive_json()
         question = data.get("question")
-        kb_name = data.get("kb_name", "ai-textbook")
+        tools = data.get("tools")
+        enabled_tools = (
+            list(DeepSolveCapability.manifest.tools_used)
+            if tools is None
+            else [str(name) for name in tools]
+        )
+        rag_enabled = "rag" in enabled_tools
+        kb_name = data.get("kb_name", "ai-textbook") if rag_enabled else None
         session_id = data.get("session_id")  # Optional session ID
         detailed_answer = data.get("detailed_answer", False)  # Iterative detailed mode
 
@@ -163,14 +166,14 @@ async def websocket_solve(websocket: WebSocket):
                 # Session not found, create new one
                 session = solver_session_manager.create_session(
                     title=question[:50] + ("..." if len(question) > 50 else ""),
-                    kb_name=kb_name,
+                    kb_name=kb_name or "",
                 )
                 session_id = session["session_id"]
         else:
             # Create new session
             session = solver_session_manager.create_session(
                 title=question[:50] + ("..." if len(question) > 50 else ""),
-                kb_name=kb_name,
+                kb_name=kb_name or "",
             )
             session_id = session["session_id"]
 
@@ -211,6 +214,8 @@ async def websocket_solve(websocket: WebSocket):
             base_url=base_url,
             api_version=api_version,
             language=ui_language,
+            enabled_tools=enabled_tools,
+            disable_planner_retrieve=not (rag_enabled and kb_name),
         )
 
         # Complete async initialization

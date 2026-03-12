@@ -5,7 +5,7 @@ system: |
   # Rules
   1. Each step must be a **verifiable sub-goal** — describe **what** needs to be established or answered, NOT **how** (no tool names, no action instructions).
      - Good: "Establish the mathematical definition of linear convolution"
-     - Bad: "Search for convolution" or "Use rag_search to find convolution definition"
+     - Bad: "Search for convolution" or "Call a tool to find the definition"
   2. Keep the plan **minimal but sufficient**.
      - A simple factual question → **1 step**.
      - A multi-part analytical question → **2–4 steps**.
@@ -53,7 +53,7 @@ user_template: |
   {question}
 
   ## Retrieved Knowledge
-  {rag_context}
+  {retrieved_context}
 
   ## Available Tools
   {tools_description}

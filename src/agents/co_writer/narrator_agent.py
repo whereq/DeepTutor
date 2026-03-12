@@ -342,8 +342,8 @@ class NarratorAgent(BaseAgent):
 
             self.logger.info(f"Audio saved to: {audio_path}")
 
-            # Use correct path: co-writer/audio (matching the actual storage directory)
-            relative_path = f"co-writer/audio/{audio_filename}"
+            # Public outputs are served from data/user/.
+            relative_path = f"workspace/co-writer/audio/{audio_filename}"
             audio_access_url = f"/api/outputs/{relative_path}"
 
             return {

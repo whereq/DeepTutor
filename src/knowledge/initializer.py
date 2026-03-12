@@ -196,7 +196,7 @@ class KnowledgeBaseInitializer:
         use_mineru_api: bool = False,
         mineru_api_token: str | None = None,
         mineru_model_version: str = "vlm",
-    ):
+    ) -> bool:
         """Process documents using RAGService with dynamic provider selection.
 
         Args:
@@ -227,7 +227,7 @@ class KnowledgeBaseInitializer:
             self.progress_tracker.update(
                 ProgressStage.ERROR, "No documents found to process", error="No documents found"
             )
-            return
+            raise ValueError("No documents found to process")
 
         logger.info(f"Found {len(doc_files)} document(s) to process")
         self.progress_tracker.update(
@@ -248,6 +248,7 @@ class KnowledgeBaseInitializer:
         # Convert Path objects to strings for file paths
         file_paths = [str(doc_file) for doc_file in doc_files]
 
+        processing_error: str | None = None
         try:
             # Process all documents using the RAGService
             success = await rag_service.initialize(
@@ -278,6 +279,7 @@ class KnowledgeBaseInitializer:
                     "Document processing failed",
                     error="RAG pipeline returned failure",
                 )
+                processing_error = "RAG pipeline returned failure"
 
         except asyncio.TimeoutError:
             error_msg = "Processing timeout (>10 minutes)"
@@ -288,6 +290,7 @@ class KnowledgeBaseInitializer:
                 "Timeout processing documents",
                 error=error_msg,
             )
+            processing_error = error_msg
         except Exception as e:
             error_msg = str(e)
             logger.error(f"✗ Error processing documents: {error_msg}")
@@ -299,12 +302,18 @@ class KnowledgeBaseInitializer:
                 "Failed to process documents",
                 error=error_msg,
             )
+            processing_error = error_msg
 
         # Fix structure: flatten nested content_list directories (for RAGAnything compatibility)
         await self.fix_structure()
 
         # Display statistics
         await self.display_statistics_generic()
+
+        if processing_error:
+            raise RuntimeError(processing_error)
+
+        return True
 
     async def fix_structure(self):
         """

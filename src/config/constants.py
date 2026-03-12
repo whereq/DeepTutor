@@ -10,7 +10,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Valid tools for investigate agent
-VALID_INVESTIGATE_TOOLS = ["rag_naive", "rag_hybrid", "web_search", "query_item", "none"]
+VALID_INVESTIGATE_TOOLS = ["rag_naive", "rag_hybrid", "web_search", "none"]
 
 # Valid tools for solve agent
 VALID_SOLVE_TOOLS = [
@@ -18,7 +18,6 @@ VALID_SOLVE_TOOLS = [
     "code_execution",
     "rag_naive",
     "rag_hybrid",
-    "query_item",
     "none",
     "finish",
 ]

@@ -5,30 +5,24 @@ Guided Learning API Router
 Provides session creation, learning progress management, and chat interaction.
 """
 
-from pathlib import Path
-import sys
-
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-project_root = Path(__file__).parent.parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
+from src.agents.notebook import NotebookAnalysisAgent
 from src.agents.base_agent import BaseAgent
 from src.agents.guide.guide_manager import GuideManager
 from src.api.utils.notebook_manager import notebook_manager
 from src.api.utils.task_id_manager import TaskIDManager
 from src.logging import get_logger
-from src.services.config import load_config_with_main
+from src.services.config import PROJECT_ROOT, load_config_with_main
 from src.services.llm import get_llm_config
 from src.services.settings.interface_settings import get_ui_language
 
 router = APIRouter()
+_guide_manager: GuideManager | None = None
 
 # Initialize logger with config
-project_root = Path(__file__).parent.parent.parent.parent
-config = load_config_with_main("guide_config.yaml", project_root)
+config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = get_logger("Guide", level="INFO", log_dir=log_dir)
 
@@ -39,8 +33,10 @@ logger = get_logger("Guide", level="INFO", log_dir=log_dir)
 class CreateSessionRequest(BaseModel):
     """Create session request"""
 
+    user_input: str = ""
     notebook_id: str | None = None  # Optional, single notebook mode
     records: list[dict] | None = None  # Optional, cross-notebook mode with direct records
+    notebook_references: list[dict] | None = None
 
 
 class ChatRequest(BaseModel):
@@ -48,6 +44,7 @@ class ChatRequest(BaseModel):
 
     session_id: str
     message: str
+    knowledge_index: int | None = None
 
 
 class FixHtmlRequest(BaseModel):
@@ -57,10 +54,24 @@ class FixHtmlRequest(BaseModel):
     bug_description: str
 
 
-class NextKnowledgeRequest(BaseModel):
-    """Next knowledge point request"""
+class SessionActionRequest(BaseModel):
+    """Session action request"""
 
     session_id: str
+
+
+class NavigateRequest(BaseModel):
+    """Navigate to a knowledge point."""
+
+    session_id: str
+    knowledge_index: int
+
+
+class RetryPageRequest(BaseModel):
+    """Retry a failed page generation."""
+
+    session_id: str
+    page_index: int
 
 
 # === Helper Functions ===
@@ -68,6 +79,10 @@ class NextKnowledgeRequest(BaseModel):
 
 def get_guide_manager():
     """Get GuideManager instance"""
+    global _guide_manager
+    if _guide_manager is not None:
+        return _guide_manager
+
     try:
         llm_config = get_llm_config()
         api_key = llm_config.api_key
@@ -78,13 +93,29 @@ def get_guide_manager():
         raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
 
     ui_language = get_ui_language(default=config.get("system", {}).get("language", "en"))
-    return GuideManager(
+    _guide_manager = GuideManager(
         api_key=api_key,
         base_url=base_url,
         api_version=api_version,
         language=ui_language,
         binding=binding,
     )  # Read from config file
+    return _guide_manager
+
+
+def _build_user_input_from_records(records: list[dict]) -> str:
+    """Build a compact user input string from legacy record payloads."""
+    parts: list[str] = []
+    for record in records:
+        user_query = str(record.get("user_query", "")).strip()
+        if user_query:
+            parts.append(user_query)
+
+    if not parts:
+        return ""
+
+    joined = "\n".join(f"- {part}" for part in parts)
+    return f"Please design a guided learning plan based on these learner requests:\n{joined}"
 
 
 # === REST API Endpoints ===
@@ -101,35 +132,44 @@ async def create_session(request: CreateSessionRequest):
     task_manager = TaskIDManager.get_instance()
 
     try:
-        records = []
-        notebook_name = "Unknown"
+        user_input = request.user_input.strip()
 
-        # Mode 1: Cross-notebook mode - use provided records directly
-        if request.records and isinstance(request.records, list):
-            records = request.records
-            notebook_name = f"Cross-notebook ({len(records)} records)"
-        # Mode 2: Single notebook mode - get records from notebook
-        elif request.notebook_id:
+        if not user_input and request.records and isinstance(request.records, list):
+            user_input = _build_user_input_from_records(request.records)
+        elif not user_input and request.notebook_id:
             notebook = notebook_manager.get_notebook(request.notebook_id)
             if not notebook:
                 raise HTTPException(status_code=404, detail="Notebook not found")
+            user_input = _build_user_input_from_records(notebook.get("records", []))
 
-            records = notebook.get("records", [])
-            notebook_name = notebook.get("name", "Unknown")
-        else:
-            raise HTTPException(status_code=400, detail="Must provide notebook_id or records")
+        if not user_input:
+            raise HTTPException(
+                status_code=400, detail="Must provide user_input, notebook_id, or records"
+            )
 
-        if not records:
-            raise HTTPException(status_code=400, detail="No available records")
+        raw_user_input = user_input
+        notebook_context = ""
+        if request.notebook_references:
+            selected_records = notebook_manager.get_records_by_references(request.notebook_references)
+            if selected_records:
+                analysis_agent = NotebookAnalysisAgent(language=get_ui_language(default="en"))
+                notebook_context = await analysis_agent.analyze(
+                    user_question=raw_user_input,
+                    records=selected_records,
+                )
+                user_input = (
+                    f"[Notebook Context]\n{notebook_context}\n\n"
+                    f"[User Question]\n{raw_user_input}"
+                )
 
         # Reset LLM stats for new session
         BaseAgent.reset_stats("guide")
 
         manager = get_guide_manager()
         result = await manager.create_session(
-            notebook_id=request.notebook_id or "cross_notebook",
-            notebook_name=notebook_name,
-            records=records,
+            user_input=user_input,
+            display_title=raw_user_input,
+            notebook_context=notebook_context,
         )
 
         if result and "session_id" in result:
@@ -147,7 +187,7 @@ async def create_session(request: CreateSessionRequest):
 
 
 @router.post("/start")
-async def start_learning(request: NextKnowledgeRequest):
+async def start_learning(request: SessionActionRequest):
     """
     Start learning (get the first knowledge point).
     """
@@ -160,22 +200,32 @@ async def start_learning(request: NextKnowledgeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/next")
-async def next_knowledge(request: NextKnowledgeRequest):
+@router.post("/navigate")
+async def navigate_to_knowledge(request: NavigateRequest):
     """
-    Move to the next knowledge point.
+    Navigate to any knowledge point.
     """
     try:
         manager = get_guide_manager()
-        result = await manager.next_knowledge(request.session_id)
-
-        # Print stats if learning completed
-        if result.get("learning_complete", False):
-            BaseAgent.print_stats("guide")
-
+        result = await manager.navigate_to_knowledge(request.session_id, request.knowledge_index)
         return result
     except Exception as e:
-        logger.error(f"Next knowledge failed: {e}")
+        logger.error(f"Navigate knowledge failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/complete")
+async def complete_learning(request: SessionActionRequest):
+    """
+    Complete guided learning and generate a summary.
+    """
+    try:
+        manager = get_guide_manager()
+        result = await manager.complete_learning(request.session_id)
+        BaseAgent.print_stats("guide")
+        return result
+    except Exception as e:
+        logger.error(f"Complete learning failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -186,7 +236,7 @@ async def chat(request: ChatRequest):
     """
     try:
         manager = get_guide_manager()
-        result = await manager.chat(request.session_id, request.message)
+        result = await manager.chat(request.session_id, request.message, request.knowledge_index)
         return result
     except Exception as e:
         logger.error(f"Chat failed: {e}")
@@ -204,6 +254,62 @@ async def fix_html(request: FixHtmlRequest):
         return result
     except Exception as e:
         logger.error(f"Fix HTML failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/retry_page")
+async def retry_page(request: RetryPageRequest):
+    """
+    Retry a failed page generation.
+    """
+    try:
+        manager = get_guide_manager()
+        result = await manager.retry_page(request.session_id, request.page_index)
+        return result
+    except Exception as e:
+        logger.error(f"Retry page failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reset")
+async def reset_session(request: SessionActionRequest):
+    """
+    Reset the current guided learning session.
+    """
+    try:
+        manager = get_guide_manager()
+        result = await manager.reset_session(request.session_id)
+        return result
+    except Exception as e:
+        logger.error(f"Reset session failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/session/{session_id}")
+async def delete_session(session_id: str):
+    """
+    Permanently delete a guided learning session.
+    """
+    try:
+        manager = get_guide_manager()
+        result = await manager.delete_session(session_id)
+        return result
+    except Exception as e:
+        logger.error(f"Delete session failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions")
+async def list_sessions():
+    """
+    List all guided learning sessions (summary only, no HTML).
+    """
+    try:
+        manager = get_guide_manager()
+        sessions = manager.list_sessions()
+        return {"sessions": sessions}
+    except Exception as e:
+        logger.error(f"List sessions failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -240,6 +346,24 @@ async def get_current_html(session_id: str):
         raise
     except Exception as e:
         logger.error(f"Get HTML failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/session/{session_id}/pages")
+async def get_session_pages(session_id: str):
+    """
+    Get page generation status and ready HTML pages.
+    """
+    try:
+        manager = get_guide_manager()
+        pages = manager.get_session_pages(session_id)
+        if not pages:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return pages
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get session pages failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -291,16 +415,23 @@ async def websocket_guide(websocket: WebSocket, session_id: str):
                     result = await manager.start_learning(session_id)
                     await websocket.send_json({"type": "start_result", "data": result})
 
-                elif msg_type == "next":
-                    logger.debug(f"[{task_id}] Next knowledge point")
-                    result = await manager.next_knowledge(session_id)
-                    await websocket.send_json({"type": "next_result", "data": result})
+                elif msg_type == "navigate":
+                    knowledge_index = int(data.get("knowledge_index", 0))
+                    logger.debug(f"[{task_id}] Navigate to knowledge point {knowledge_index}")
+                    result = await manager.navigate_to_knowledge(session_id, knowledge_index)
+                    await websocket.send_json({"type": "navigate_result", "data": result})
+
+                elif msg_type == "complete":
+                    logger.debug(f"[{task_id}] Complete learning")
+                    result = await manager.complete_learning(session_id)
+                    await websocket.send_json({"type": "complete_result", "data": result})
 
                 elif msg_type == "chat":
                     message = data.get("message", "")
+                    knowledge_index = data.get("knowledge_index")
                     if message:
                         logger.debug(f"[{task_id}] User message: {message[:50]}...")
-                        result = await manager.chat(session_id, message)
+                        result = await manager.chat(session_id, message, knowledge_index)
                         await websocket.send_json({"type": "chat_result", "data": result})
 
                 elif msg_type == "fix_html":
@@ -312,6 +443,21 @@ async def websocket_guide(websocket: WebSocket, session_id: str):
                 elif msg_type == "get_session":
                     session = manager.get_session(session_id)
                     await websocket.send_json({"type": "session_info", "data": session})
+
+                elif msg_type == "get_pages":
+                    pages = manager.get_session_pages(session_id)
+                    await websocket.send_json({"type": "pages_info", "data": pages})
+
+                elif msg_type == "retry_page":
+                    page_index = int(data.get("page_index", 0))
+                    result = await manager.retry_page(session_id, page_index)
+                    await websocket.send_json({"type": "retry_result", "data": result})
+
+                elif msg_type == "reset":
+                    result = await manager.reset_session(session_id)
+                    await websocket.send_json({"type": "reset_result", "data": result})
+                    await websocket.close()
+                    return
 
                 else:
                     await websocket.send_json(

@@ -1,0 +1,15 @@
+{
+  "research_id": "research_20260312_112237",
+  "topic": "agentic rag",
+  "optimized_topic": "A comparative performance analysis of Agentic RAG versus standard Naive RAG architectures, evaluating retrieval accuracy, reasoning capability, and latency across complex multi-step query scenarios in enterprise knowledge management.",
+  "statistics": {
+    "total_blocks": 2,
+    "pending": 0,
+    "researching": 0,
+    "completed": 2,
+    "failed": 0,
+    "total_tool_calls": 2
+  },
+  "report_word_count": 8669,
+  "completed_at": "2026-03-12T11:23:18.303991"
+}

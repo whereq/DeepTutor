@@ -28,6 +28,9 @@ user_template: |
   **User's Potential Difficulties**:
   {user_difficulty}
 
+  ## Current Interactive Page Context
+  {interactive_page_context}
+
   ## Conversation History
   {chat_history}
 
@@ -37,5 +40,6 @@ user_template: |
   ## Task
   Please answer the user's question based on the content of the current knowledge point and context.
   - Ensure the answer is relevant to the current knowledge point
+  - If the question refers to the current interactive page, include its structure, content, visuals, or behavior in your answer
   - If the question involves the user's potential difficulties, give special attention
   - The answer should be clear and well-organized

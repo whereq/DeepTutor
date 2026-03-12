@@ -7,7 +7,7 @@ This module provides a unified interface for web search across multiple provider
 Usage:
     from src.services.search import web_search
 
-    # Simple usage (uses config/main.yaml or SEARCH_PROVIDER env var)
+    # Simple usage (uses runtime settings or SEARCH_PROVIDER env var)
     result = web_search("What is AI?")
 
     # Specify provider
@@ -17,7 +17,7 @@ Usage:
     result = web_search(
         query="What is AI?",
         provider="serper",
-        output_dir="./cache",
+        output_dir="./data/user/workspace/chat/deep_research/<task>/web_search",
         verbose=True,
         num=20,  # Provider-specific option
     )
@@ -61,7 +61,7 @@ _logger = get_logger("Search", level="INFO")
 
 def _get_web_search_config() -> dict[str, Any]:
     """
-    Load web search configuration from config/main.yaml using the standard config loader.
+    Load web search configuration from runtime settings using the standard config loader.
 
     Returns:
         dict with web_search config from tools.web_search section

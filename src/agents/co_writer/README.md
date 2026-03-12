@@ -122,10 +122,10 @@ print(f"Audio URL: {result['audio_url']}")
 
 ## 📁 Data Storage
 
-All Co-Writer outputs are stored in `data/user/co-writer/`:
+All Co-Writer outputs are stored in `data/user/workspace/co-writer/`:
 
 ```
-data/user/co-writer/
+data/user/workspace/co-writer/
 ├── audio/                    # TTS audio files
 │   └── {operation_id}.mp3
 ├── tool_calls/               # Tool call history
@@ -137,7 +137,7 @@ data/user/co-writer/
 
 ### TTS Configuration
 
-TTS settings are configured in `config/main.yaml`:
+TTS settings are configured in `data/user/settings/main.yaml`:
 
 ```yaml
 tts:
@@ -299,12 +299,12 @@ To add support for new TTS voices:
 
 1. Check DashScope TTS API documentation for available voices
 2. Update voice validation in `narrator_agent.py`
-3. Update `config/main.yaml` if needed
+3. Update `data/user/settings/main.yaml` if needed
 
 ## ⚠️ Notes
 
 1. **TTS API Key**: NarratorAgent requires DashScope API key (different from LLM API key)
-2. **Audio Storage**: Audio files are stored in `data/user/co-writer/audio/` and served via `/api/outputs/`
+2. **Audio Storage**: Audio files are stored in `data/user/workspace/co-writer/audio/` and served via `/api/outputs/`
 3. **Tool Call History**: All RAG/web search calls are logged in `tool_calls/` directory
 4. **History Management**: Edit history is automatically saved to `history.json`
 

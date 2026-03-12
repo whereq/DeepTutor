@@ -365,9 +365,8 @@ class KnowledgeBaseManager:
     def get_metadata(self, name: str | None = None) -> dict:
         """Get knowledge base metadata.
         
-        Priority:
+        Source:
         1. kb_config.json (authoritative source)
-        2. metadata.json (backward compatibility fallback)
         """
         kb_name = name
         if kb_name is None:
@@ -392,16 +391,6 @@ class KnowledgeBaseManager:
             metadata = {k: v for k, v in metadata.items() if v is not None}
             return metadata
         
-        # Fallback: try metadata.json (backward compatibility)
-        try:
-            kb_dir = self.get_knowledge_base_path(name)
-            metadata_file = kb_dir / "metadata.json"
-            if metadata_file.exists():
-                with open(metadata_file, encoding="utf-8") as f:
-                    return json.load(f)
-        except ValueError:
-            pass
-
         return {}
 
     def get_info(self, name: str | None = None) -> dict:

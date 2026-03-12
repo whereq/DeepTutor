@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -12,14 +13,16 @@ from src.api.routers import (
     config,
     dashboard,
     guide,
-    ideagen,
     knowledge,
+    memory,
     notebook,
+    plugins_api,
     question,
-    research,
+    sessions,
     settings,
     solve,
     system,
+    unified_ws,
     vision_solver,
 )
 from src.logging import get_logger
@@ -29,89 +32,44 @@ from src.services.path_service import get_path_service
 logger = get_logger("API")
 
 CONFIG_DRIFT_ERROR_TEMPLATE = (
-    "Configuration Drift Detected: Tools {drift} found in agents.yaml "
-    "investigate.valid_tools but missing from main.yaml solve.valid_tools. "
-    "Add these tools to main.yaml solve.valid_tools or remove them from "
-    "agents.yaml investigate.valid_tools."
+    "Configuration Drift Detected: Capability tool references {drift} are not "
+    "registered in the runtime tool registry. Register the missing tools or "
+    "remove the stale tool names from the capability manifests."
 )
+
+
+class SafeOutputStaticFiles(StaticFiles):
+    """Static file mount that only exposes explicitly whitelisted artifacts."""
+
+    def __init__(self, *args, path_service, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._path_service = path_service
+
+    async def get_response(self, path: str, scope):
+        if not self._path_service.is_public_output_path(path):
+            raise HTTPException(status_code=404, detail="Output not found")
+        return await super().get_response(path, scope)
 
 
 def validate_tool_consistency():
     """
-    Validate that the tools configured for agents are consistent with the main application
-    configuration.
-
-    This function loads the main configuration (``main.yaml``) and the agents configuration
-    (``agents.yaml``) from the project root and compares:
-
-    * ``solve.valid_tools`` in ``main.yaml``
-    * ``investigate.valid_tools`` in ``agents.yaml``
-
-    All tools referenced by agents must be present in the main configuration. If any tools are
-    defined for agents that are not listed in the main configuration, a ``RuntimeError`` is
-    raised describing the drift. The error is logged and re-raised, which causes the FastAPI
-    application startup to fail when this function is called from the ``lifespan`` handler.
-
-    Impact on startup
-    ------------------
-    This validation runs during application startup. Any configuration drift will:
-
-    * Be logged as an error with details about the unknown tools.
-    * Prevent the API from starting until the configuration is corrected.
-
-    How to resolve configuration drift
-    ----------------------------------
-    If startup fails with a configuration drift error:
-
-    1. Inspect the set of tools reported in the error message.
-    2. Either:
-       * Add the missing tools to ``solve.valid_tools`` in ``main.yaml``, **or**
-       * Remove or rename the offending tools from ``investigate.valid_tools`` in ``agents.yaml``.
-    3. Restart the application after updating the configuration files.
-
-    Example of aligned configuration
-    --------------------------------
-    ``main.yaml``::
-
-        solve:
-          valid_tools:
-            - web_search
-            - code_execution
-
-    ``agents.yaml``::
-
-        investigate:
-          valid_tools:
-            - web_search
-
-    In this case, validation passes because ``investigate.valid_tools`` is a subset of
-    ``solve.valid_tools``.
-
-    Example of configuration drift
-    ------------------------------
-    ``agents.yaml``::
-
-        investigate:
-          valid_tools:
-            - web_search
-            - unknown_tool
-
-    Here, ``unknown_tool`` is not present in ``solve.valid_tools`` in ``main.yaml``, so
-    validation will fail and prevent the application from starting until the configurations
-    are aligned.
+    Validate that capability manifests only reference tools that are actually
+    registered in the runtime ``ToolRegistry``.
     """
     try:
-        from src.services.config import load_config_with_main
+        from src.runtime.registry.capability_registry import get_capability_registry
+        from src.runtime.registry.tool_registry import get_tool_registry
 
-        project_root = Path(__file__).parent.parent.parent
-        main_config = load_config_with_main("main.yaml", project_root)
-        agent_config_data = load_config_with_main("agents.yaml", project_root)
+        capability_registry = get_capability_registry()
+        tool_registry = get_tool_registry()
+        available_tools = set(tool_registry.list_tools())
 
-        main_tools = set(main_config.get("solve", {}).get("valid_tools", []))
-        agent_tools = set(agent_config_data.get("investigate", {}).get("valid_tools", []))
+        referenced_tools = set()
+        for manifest in capability_registry.get_manifests():
+            referenced_tools.update(manifest.get("tools_used", []) or [])
 
-        if not agent_tools.issubset(main_tools):
-            drift = agent_tools - main_tools
+        drift = referenced_tools - available_tools
+        if drift:
             raise RuntimeError(CONFIG_DRIFT_ERROR_TEMPLATE.format(drift=drift))
     except RuntimeError:
         logger.exception("Configuration validation failed")
@@ -146,7 +104,7 @@ async def lifespan(app: FastAPI):
 
     # Start EventBus for personalization
     try:
-        from src.core.event_bus import get_event_bus
+        from src.events.event_bus import get_event_bus
 
         event_bus = get_event_bus()
         await event_bus.start()
@@ -154,62 +112,32 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to start EventBus: {e}")
 
-    # Check if personalization should run externally
-    # Set PERSONALIZATION_EXTERNAL=true to run personalization in a separate process
-    # via: python scripts/start_personalization.py
-    import os
-    personalization_external = os.environ.get("PERSONALIZATION_EXTERNAL", "").lower() in ("true", "1", "yes")
-    
-    if personalization_external:
-        # External mode: Enable file queue for cross-process communication
-        # Personalization service will be started separately via start_personalization.py
-        try:
-            from src.core.event_bus import enable_file_queue
-            
-            enable_file_queue()
-            logger.info("Personalization running in external mode - file queue enabled")
-            logger.info("Start personalization service with: python scripts/start_personalization.py")
-        except Exception as e:
-            logger.warning(f"Failed to enable file queue for external personalization: {e}")
-    else:
-        # Internal mode: Start PersonalizationService in-process
-        try:
-            from src.personalization.service import get_personalization_service
+    try:
+        from src.personalization.service import get_personalization_service
 
-            personalization_service = get_personalization_service()
-            await personalization_service.start()
-            logger.info("PersonalizationService started (internal mode)")
-        except Exception as e:
-            logger.warning(f"Failed to start PersonalizationService: {e}")
+        personalization_service = get_personalization_service()
+        await personalization_service.start()
+        logger.info("PersonalizationService started")
+    except Exception as e:
+        logger.warning(f"Failed to start PersonalizationService: {e}")
 
     yield
 
     # Execute on shutdown
     logger.info("Application shutdown")
 
-    # Stop PersonalizationService (only if running in internal mode)
-    if not personalization_external:
-        try:
-            from src.personalization.service import get_personalization_service
+    try:
+        from src.personalization.service import get_personalization_service
 
-            personalization_service = get_personalization_service()
-            await personalization_service.stop()
-            logger.info("PersonalizationService stopped")
-        except Exception as e:
-            logger.warning(f"Failed to stop PersonalizationService: {e}")
-    else:
-        # In external mode, just disable file queue
-        try:
-            from src.core.event_bus import disable_file_queue
-            
-            disable_file_queue()
-            logger.info("File queue disabled")
-        except Exception as e:
-            logger.warning(f"Failed to disable file queue: {e}")
+        personalization_service = get_personalization_service()
+        await personalization_service.stop()
+        logger.info("PersonalizationService stopped")
+    except Exception as e:
+        logger.warning(f"Failed to stop PersonalizationService: {e}")
 
     # Stop EventBus
     try:
-        from src.core.event_bus import get_event_bus
+        from src.events.event_bus import get_event_bus
 
         event_bus = get_event_bus()
         await event_bus.stop()
@@ -238,12 +166,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount user directory as static root for generated artifacts
-# This allows frontend to access generated artifacts (images, PDFs, etc.)
-# URL: /api/outputs/agent/solve/solve_xxx/artifacts/image.png
-# Physical Path: DeepTutor/data/user/agent/solve/solve_xxx/artifacts/image.png
+# Mount a filtered view over user outputs.
+# Only whitelisted artifact paths are readable through the static handler.
 path_service = get_path_service()
-user_dir = path_service.user_data_dir
+user_dir = path_service.get_public_outputs_root()
 
 # Initialize user directories on startup
 try:
@@ -255,24 +181,32 @@ except Exception:
     if not user_dir.exists():
         user_dir.mkdir(parents=True)
 
-app.mount("/api/outputs", StaticFiles(directory=str(user_dir)), name="outputs")
+app.mount(
+    "/api/outputs",
+    SafeOutputStaticFiles(directory=str(user_dir), path_service=path_service),
+    name="outputs",
+)
 
 # Include routers
 app.include_router(solve.router, prefix="/api/v1", tags=["solve"])
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 app.include_router(question.router, prefix="/api/v1/question", tags=["question"])
-app.include_router(research.router, prefix="/api/v1/research", tags=["research"])
 app.include_router(knowledge.router, prefix="/api/v1/knowledge", tags=["knowledge"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(co_writer.router, prefix="/api/v1/co_writer", tags=["co_writer"])
 app.include_router(notebook.router, prefix="/api/v1/notebook", tags=["notebook"])
 app.include_router(guide.router, prefix="/api/v1/guide", tags=["guide"])
-app.include_router(ideagen.router, prefix="/api/v1/ideagen", tags=["ideagen"])
+app.include_router(memory.router, prefix="/api/v1/memory", tags=["memory"])
+app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["sessions"])
 app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
+app.include_router(plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"])
 app.include_router(config.router, prefix="/api/v1/config", tags=["config"])
 app.include_router(agent_config.router, prefix="/api/v1/agent-config", tags=["agent-config"])
 app.include_router(vision_solver.router, prefix="/api/v1", tags=["vision-solver"])
+
+# Unified WebSocket endpoint
+app.include_router(unified_ws.router, prefix="/api/v1", tags=["unified-ws"])
 
 
 @app.get("/")
@@ -281,44 +215,6 @@ async def root():
 
 
 if __name__ == "__main__":
-    from pathlib import Path
+    from src.api.run_server import main as run_server_main
 
-    import uvicorn
-
-    # Get project root directory
-    project_root = Path(__file__).parent.parent.parent
-
-    # Ensure project root is in Python path
-    import sys
-
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-
-    # Get port from configuration
-    from src.services.setup import get_backend_port
-
-    backend_port = get_backend_port(project_root)
-
-    # Configure reload_excludes with absolute paths to properly exclude directories
-    venv_dir = project_root / "venv"
-    data_dir = project_root / "data"
-    reload_excludes = [
-        str(d)
-        for d in [
-            venv_dir,
-            project_root / ".venv",
-            data_dir,
-            project_root / "web" / "node_modules",
-            project_root / "web" / ".next",
-            project_root / ".git",
-        ]
-        if d.exists()
-    ]
-
-    uvicorn.run(
-        "api.main:app",
-        host="0.0.0.0",
-        port=backend_port,
-        reload=True,
-        reload_excludes=reload_excludes,
-    )
+    run_server_main()

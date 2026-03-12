@@ -1,0 +1,17 @@
+short_description: "Search the knowledge base for relevant passages and grounded answers."
+when_to_use: "Use when the answer is likely covered by the uploaded knowledge base, such as definitions, formulas, concepts, or textbook explanations."
+input_format: "Natural-language query."
+guideline: "Prefer RAG before external search when the task is course-aligned or knowledge-base-specific."
+note: "If the first retrieval is weak, revise the query from another angle instead of giving up immediately."
+phase: "exploration"
+aliases:
+  - name: rag_hybrid
+    description: "Comprehensive retrieval across the knowledge base."
+    input_format: "Natural-language query."
+    when_to_use: "Use for broad exploration, relationships, or concept synthesis."
+    phase: "exploration"
+  - name: rag_naive
+    description: "Direct retrieval for precise definitions or facts."
+    input_format: "Natural-language query."
+    when_to_use: "Use for targeted lookups such as a definition, formula, or exact concept."
+    phase: "verification"

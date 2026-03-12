@@ -2,12 +2,12 @@
 
 ## Overview
 
-Guided Learning is a personalized learning system based on notebook content. The system analyzes all records in the notebook, generates a progressive knowledge point learning plan, and helps users gradually master all content through interactive pages and intelligent Q&A.
+Guided Learning is a personalized learning system driven by the user's learning request. The system designs a progressive knowledge point learning plan from the user's input, then helps users gradually master the topic through interactive pages and intelligent Q&A.
 
 ## Features
 
-1. **Intelligent Knowledge Point Location** (LocateAgent)
-   - Analyzes all records in the notebook (solve, question, research, Co-Writer)
+1. **Intelligent Learning Plan Design** (DesignAgent)
+   - Analyzes the user's learning request
    - Identifies core knowledge points and organizes them in progressive relationships
    - Generates 3-5 structured knowledge point learning plans
 
@@ -40,13 +40,13 @@ guide/
 ├── agents/
 │   ├── __init__.py
 │   ├── base_guide_agent.py   # Agent base class
-│   ├── locate_agent.py        # Knowledge point location agent
+│   ├── design_agent.py        # Learning plan design agent
 │   ├── interactive_agent.py    # Interactive page generation agent
 │   ├── chat_agent.py          # Q&A agent
 │   └── summary_agent.py       # Summary generation agent
 └── prompts/
     ├── zh/                    # Chinese prompts
-    │   ├── locate_agent.yaml
+│   ├── design_agent.yaml
     │   ├── interactive_agent.yaml
     │   ├── chat_agent.yaml
     │   └── summary_agent.yaml
@@ -71,12 +71,12 @@ guide/
 
 ## Usage Flow
 
-1. **Select Notebook**
-   - User selects a notebook containing records in the frontend
+1. **Describe Learning Goal**
+   - User describes what they want to learn in the frontend
    - System calls `create_session` to create a learning session
 
 2. **Generate Learning Plan**
-   - LocateAgent analyzes notebook content
+   - DesignAgent analyzes the user's learning request
    - Generates 3-5 progressive knowledge points
    - Displays learning plan to user
 
@@ -103,7 +103,7 @@ All session data is stored in the `user/guide/` directory, with each session sav
 ## Configuration Requirements
 
 - LLM environment variables must be configured (LLM_MODEL, LLM_API_KEY, LLM_HOST)
-- Ensure notebook has sufficient records (at least 1)
+- Ensure the user provides a clear enough learning request
 - Recommend using LLM models that support JSON format output
 
 ## Notes

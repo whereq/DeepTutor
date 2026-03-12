@@ -666,7 +666,7 @@ def get_logger(
         try:
             from src.services.config import get_path_from_config, load_config_with_main
 
-            config = load_config_with_main("solve_config.yaml", PROJECT_ROOT)
+            config = load_config_with_main("main.yaml", PROJECT_ROOT)
 
             # Get log_dir from config
             if log_dir is None:

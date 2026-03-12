@@ -5,20 +5,35 @@ RephraseAgent - Topic rephrasing Agent
 Responsible for rephrasing and optimizing user input
 """
 
-from pathlib import Path
-import sys
 from typing import Any
 
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
 from src.agents.base_agent import BaseAgent
+from src.core.trace import build_trace_metadata, new_call_id
 
 from ..utils.json_utils import extract_json_from_text
 
 
 class RephraseAgent(BaseAgent):
     """Topic rephrasing Agent"""
+
+    _MODE_TO_STYLE = {
+        "notes": "study_notes",
+        "report": "report",
+        "comparison": "comparison",
+        "learning_path": "learning_path",
+    }
+
+    @staticmethod
+    def _build_trace_meta(iteration: int) -> dict[str, Any]:
+        return build_trace_metadata(
+            call_id=new_call_id("research-rephrase"),
+            phase="rephrasing",
+            label="Rephrase topic",
+            call_kind="llm_generation",
+            trace_role="thought",
+            trace_kind="llm_generation",
+            iteration=iteration,
+        )
 
     def __init__(
         self,
@@ -39,10 +54,19 @@ class RephraseAgent(BaseAgent):
         )
         # Store complete conversation history for multi-turn optimization
         self.conversation_history: list[dict[str, Any]] = []
+        intent_mode = str(config.get("intent", {}).get("mode", "") or "")
+        reporting_style = str(config.get("reporting", {}).get("style", "") or "")
+        self._research_style = reporting_style or self._MODE_TO_STYLE.get(intent_mode, "report")
 
     def reset_history(self):
         """Reset conversation history for a new research session"""
         self.conversation_history = []
+
+    def _get_mode_contract(self, stage: str) -> str:
+        return (
+            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "")
+            or ""
+        ).strip()
 
     def _format_conversation_history(self) -> str:
         """Format conversation history for prompt"""
@@ -70,13 +94,12 @@ class RephraseAgent(BaseAgent):
         self, user_input: str, iteration: int = 0, previous_result: dict[str, Any] = None
     ) -> dict[str, Any]:
         """
-        Rephrase and optimize user input, supports user interaction confirmation
-        Uses complete conversation history for better context understanding
+        Rephrase and optimize user input using the accumulated planning context.
 
         Args:
-            user_input: User's original input (first time) or feedback (subsequent iterations)
+            user_input: Research topic or the latest rephrased topic
             iteration: Iteration count (for tracking rephrasing rounds)
-            previous_result: Previous rephrasing result (for backward compatibility)
+            previous_result: Previous rephrasing result
 
         Returns:
             Dictionary containing rephrasing results
@@ -128,12 +151,16 @@ class RephraseAgent(BaseAgent):
             user_input=user_input,
             iteration=iteration,
             conversation_history=history_text,
-            previous_result=history_text,  # For backward compatibility with old templates
+            previous_result=history_text,
+            mode_instruction=self._get_mode_contract("rephrase"),
         )
 
         # Call LLM
         response = await self.call_llm(
-            user_prompt=user_prompt, system_prompt=system_prompt, stage="rephrase"
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            stage="rephrase",
+            trace_meta=self._build_trace_meta(iteration),
         )
 
         # Parse JSON output
@@ -167,95 +194,6 @@ class RephraseAgent(BaseAgent):
 
         print("\n✓ Rephrasing Completed:")
         print(f"  Optimized Research Topic: {result.get('topic', '')}")
-
-        return result
-
-    async def check_user_satisfaction(
-        self, rephrase_result: dict[str, Any], user_feedback: str
-    ) -> dict[str, Any]:
-        """
-        Determine user satisfaction with rephrasing result
-
-        Args:
-            rephrase_result: Current rephrasing result
-            user_feedback: User feedback
-
-        Returns:
-            Dictionary containing judgment results
-            {
-                "user_satisfied": bool,        # Whether user is satisfied
-                "should_continue": bool,       # Whether to continue rephrasing
-                "interpretation": str,         # Interpretation of user intent
-                "suggested_action": str        # Suggested next action
-            }
-        """
-        print(f"\n{'=' * 70}")
-        print("🤔 RephraseAgent - Judging User Intent")
-        print(f"{'=' * 70}")
-        print(f"User Feedback: {user_feedback}\n")
-
-        system_prompt = self.get_prompt("system", "role")
-        if not system_prompt:
-            raise ValueError(
-                "RephraseAgent missing system prompt, please configure system.role in prompts/{lang}/rephrase_agent.yaml"
-            )
-
-        user_prompt_template = self.get_prompt("process", "check_satisfaction")
-        if not user_prompt_template:
-            raise ValueError(
-                "RephraseAgent missing check_satisfaction prompt, please configure process.check_satisfaction in prompts/{lang}/rephrase_agent.yaml"
-            )
-
-        user_prompt = user_prompt_template.format(
-            topic=rephrase_result.get("topic", ""), user_feedback=user_feedback
-        )
-
-        response = await self.call_llm(
-            user_prompt=user_prompt,
-            system_prompt=system_prompt,
-            stage="check_satisfaction",
-            verbose=False,
-        )
-
-        # Parse JSON output
-        data = extract_json_from_text(response)
-        from ..utils.json_utils import ensure_json_dict, ensure_keys
-
-        try:
-            result = ensure_json_dict(data)
-            ensure_keys(result, ["user_satisfied", "should_continue", "interpretation"])
-        except Exception:
-            # Fallback: judge based on keywords
-            feedback_lower = user_feedback.lower()
-            satisfied_keywords = ["ok", "yes", "satisfied", "good", "fine", "agree", "approved"]
-            continue_keywords = [
-                "modify",
-                "change",
-                "adjust",
-                "no",
-                "need",
-                "want",
-                "should",
-                "hope",
-            ]
-
-            user_satisfied = any(kw in feedback_lower for kw in satisfied_keywords) and not any(
-                kw in feedback_lower for kw in continue_keywords
-            )
-
-            result = {
-                "user_satisfied": user_satisfied,
-                "should_continue": not user_satisfied,
-                "interpretation": "Judged based on keywords",
-                "suggested_action": (
-                    "Continue rephrasing" if not user_satisfied else "Proceed to next stage"
-                ),
-            }
-
-        print("\n📊 Judgment Result:")
-        print(f"  User Satisfied: {'Yes' if result.get('user_satisfied') else 'No'}")
-        print(f"  Continue Rephrasing: {'Yes' if result.get('should_continue') else 'No'}")
-        print(f"  Intent Interpretation: {result.get('interpretation', '')}")
 
         return result
 

@@ -13,14 +13,12 @@ import inspect
 import json
 import os
 from pathlib import Path
-import sys
 from typing import Any
-
-sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from dotenv import load_dotenv
 
 from src.services.llm import get_llm_client, get_llm_config
+from src.services.config import PROJECT_ROOT, load_config_with_main
 
 load_dotenv(dotenv_path=".env", override=False)
 
@@ -31,15 +29,11 @@ import logging as std_logging
 logger: Any  # Use Any to allow both types
 
 try:
-    from pathlib import Path
-
     from src.logging import get_logger
-    from src.services.config import load_config_with_main
 
-    project_root = Path(__file__).parent.parent.parent.parent
     config = load_config_with_main(
-        "solve_config.yaml", project_root
-    )  # Use any config to get main.yaml
+        "main.yaml", PROJECT_ROOT
+    )
     log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get(
         "log_dir"
     )

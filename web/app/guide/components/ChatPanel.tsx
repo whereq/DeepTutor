@@ -2,24 +2,24 @@
 
 import { useRef, useEffect, useState } from "react";
 import { MessageSquare, Send, Loader2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
+import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import "katex/dist/katex.min.css";
 import { useTranslation } from "react-i18next";
-import { processLatexContent } from "@/lib/latex";
 import { ChatMessage } from "../types";
 
 interface ChatPanelProps {
   messages: ChatMessage[];
   isLearning: boolean;
+  currentKnowledgeTitle?: string;
+  currentKnowledgeIndex?: number;
   onSendMessage: (message: string) => void;
 }
 
 export default function ChatPanel({
   messages,
   isLearning,
+  currentKnowledgeTitle,
+  currentKnowledgeIndex,
   onSendMessage,
 }: ChatPanelProps) {
   const { t } = useTranslation();
@@ -27,7 +27,6 @@ export default function ChatPanel({
   const [sendingMessage, setSendingMessage] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll chat
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTo({
@@ -51,45 +50,20 @@ export default function ChatPanel({
     }
   };
 
-  // Table components for ReactMarkdown
-  const tableComponents = {
-    table: ({ node, ...props }: any) => (
-      <div className="overflow-x-auto my-4 rounded-lg border border-slate-200 shadow-sm">
-        <table
-          className="min-w-full divide-y divide-slate-200 text-sm"
-          {...props}
-        />
-      </div>
-    ),
-    thead: ({ node, ...props }: any) => (
-      <thead className="bg-slate-50" {...props} />
-    ),
-    th: ({ node, ...props }: any) => (
-      <th
-        className="px-3 py-2 text-left font-semibold text-slate-700 whitespace-nowrap border-b border-slate-200"
-        {...props}
-      />
-    ),
-    tbody: ({ node, ...props }: any) => (
-      <tbody className="divide-y divide-slate-100 bg-white" {...props} />
-    ),
-    td: ({ node, ...props }: any) => (
-      <td
-        className="px-3 py-2 text-slate-600 border-b border-slate-100"
-        {...props}
-      />
-    ),
-    tr: ({ node, ...props }: any) => (
-      <tr className="hover:bg-slate-50/50 transition-colors" {...props} />
-    ),
-  };
-
   return (
     <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
       <div className="p-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
         <MessageSquare className="w-4 h-4" />
         {t("Learning Assistant")}
       </div>
+
+      {isLearning && currentKnowledgeTitle && (
+        <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700 bg-indigo-50/60 text-xs text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-200">
+          {t("Current page")}: {currentKnowledgeIndex !== undefined ? currentKnowledgeIndex + 1 : ""}
+          {currentKnowledgeIndex !== undefined ? ". " : ""}
+          {currentKnowledgeTitle}
+        </div>
+      )}
 
       <div
         ref={chatContainerRef}
@@ -111,16 +85,17 @@ export default function ChatPanel({
                       : "bg-white border border-slate-200 text-slate-700 rounded-tl-none shadow-sm"
               }`}
             >
-              {msg.role === "system" || msg.role === "assistant" ? (
-                <div className="prose prose-sm max-w-none prose-slate">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    components={tableComponents}
-                  >
-                    {processLatexContent(msg.content)}
-                  </ReactMarkdown>
+              {typeof msg.knowledge_index === "number" && (
+                <div className="mb-2 text-[11px] font-semibold opacity-70">
+                  {t("Knowledge Point")} {msg.knowledge_index + 1}
                 </div>
+              )}
+              {msg.role === "system" || msg.role === "assistant" ? (
+                <MarkdownRenderer
+                  content={msg.content}
+                  variant="compact"
+                  className="prose-slate text-sm"
+                />
               ) : (
                 <p>{msg.content}</p>
               )}
@@ -129,7 +104,6 @@ export default function ChatPanel({
         ))}
       </div>
 
-      {/* Input Area */}
       {isLearning && (
         <div className="p-3 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700">
           <div className="relative flex items-center gap-2">

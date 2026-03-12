@@ -6,14 +6,16 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-tutor"
-version = "0.5.0"
-description = "An intelligent learning companion with multi-agent collaboration and RAG"
+name = "deeptutor"
+version = "0.6.0"
+description = "An agent-native intelligent learning companion with multi-agent collaboration and RAG"
 requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 
-# Optional dependencies for different LLM providers
+[project.scripts]
+deeptutor = "src.cli.main:main"
+
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.30.0"]
 dashscope = ["dashscope>=1.14.0"]
@@ -21,7 +23,7 @@ search = ["perplexityai>=0.1.0"]
 all = [
     "anthropic>=0.30.0",
     "dashscope>=1.14.0",
-    "perplexityai>=0.1.0"
+    "perplexityai>=0.1.0",
 ]
 
 # ============================================

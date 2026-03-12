@@ -10,6 +10,7 @@ Provides YAML configuration loading, path resolution, and language parsing.
 
 import asyncio
 from pathlib import Path
+import shutil
 from typing import Any
 
 import yaml
@@ -21,6 +22,43 @@ import yaml
 # .parent.parent.parent = src/
 # .parent.parent.parent.parent = DeepTutor/ (project root)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+
+def get_runtime_settings_dir(project_root: Path | None = None) -> Path:
+    """Return the canonical runtime settings directory under ``data/user/settings``."""
+    root = project_root or PROJECT_ROOT
+    return root / "data" / "user" / "settings"
+
+
+def _legacy_config_dir(project_root: Path | None = None) -> Path:
+    root = project_root or PROJECT_ROOT
+    return root / "config"
+
+
+def _bootstrap_runtime_config_file(config_file: str, project_root: Path | None = None) -> Path:
+    """
+    Ensure a runtime YAML config exists under ``data/user/settings``.
+
+    Runtime settings are the only supported live source. If the file is missing,
+    bootstrap it once from the legacy ``config/`` directory for compatibility.
+    """
+    root = project_root or PROJECT_ROOT
+    settings_dir = get_runtime_settings_dir(root)
+    settings_dir.mkdir(parents=True, exist_ok=True)
+
+    runtime_path = settings_dir / config_file
+    if runtime_path.exists():
+        return runtime_path
+
+    legacy_path = _legacy_config_dir(root) / config_file
+    if legacy_path.exists():
+        shutil.copy2(legacy_path, runtime_path)
+        return runtime_path
+
+    raise FileNotFoundError(
+        f"Configuration file not found: {config_file} "
+        f"(runtime settings dir: {settings_dir})"
+    )
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -53,9 +91,62 @@ def _load_yaml_file(file_path: Path) -> dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
+def _normalize_runtime_paths(config: dict[str, Any], project_root: Path | None = None) -> dict[str, Any]:
+    """Force all runtime path config values into the canonical ``data/user`` layout."""
+    root = project_root or PROJECT_ROOT
+    normalized = dict(config or {})
+    paths = dict(normalized.get("paths", {}) or {})
+    tools = dict(normalized.get("tools", {}) or {})
+    run_code = dict(tools.get("run_code", {}) or {})
+
+    user_root = root / "data" / "user"
+    workspace_root = user_root / "workspace"
+    chat_root = workspace_root / "chat"
+
+    paths.update(
+        {
+            "user_data_dir": "./data/user",
+            "knowledge_bases_dir": "./data/knowledge_bases",
+            "user_log_dir": str(user_root / "logs"),
+            "performance_log_dir": str(user_root / "logs" / "performance"),
+            "guide_output_dir": str(workspace_root / "guide"),
+            "question_output_dir": str(chat_root / "deep_question"),
+            "research_output_dir": str(chat_root / "deep_research" / "cache"),
+            "research_reports_dir": str(chat_root / "deep_research" / "reports"),
+            "solve_output_dir": str(chat_root / "deep_solve"),
+        }
+    )
+
+    run_code["workspace"] = str(chat_root / "_detached_code_execution")
+    tools["run_code"] = run_code
+
+    normalized["paths"] = paths
+    normalized["tools"] = tools
+    return normalized
+
+
 async def _load_yaml_file_async(file_path: Path) -> dict[str, Any]:
     """Async version of _load_yaml_file."""
     return await asyncio.to_thread(_load_yaml_file, file_path)
+
+
+def resolve_config_path(
+    config_file: str,
+    project_root: Path | None = None,
+) -> tuple[Path, bool]:
+    """
+    Resolve *config_file* inside ``data/user/settings/``.
+
+    Returns:
+        ``(path, False)``
+
+    Raises:
+        FileNotFoundError: If the requested config does not exist.
+    """
+    if project_root is None:
+        project_root = PROJECT_ROOT
+
+    return _bootstrap_runtime_config_file(config_file, project_root), False
 
 
 def load_config_with_main(config_file: str, project_root: Path | None = None) -> dict[str, Any]:
@@ -63,7 +154,7 @@ def load_config_with_main(config_file: str, project_root: Path | None = None) ->
     Load configuration file, automatically merge with main.yaml common configuration
 
     Args:
-        config_file: Sub-module configuration file name (e.g., "solve_config.yaml")
+        config_file: Configuration file name (e.g., "main.yaml")
         project_root: Project root directory (if None, will try to auto-detect)
 
     Returns:
@@ -72,30 +163,30 @@ def load_config_with_main(config_file: str, project_root: Path | None = None) ->
     if project_root is None:
         project_root = PROJECT_ROOT
 
-    config_dir = project_root / "config"
-
     # 1. Load main.yaml (common configuration)
     main_config = {}
-    main_config_path = config_dir / "main.yaml"
-    if main_config_path.exists():
-        try:
-            main_config = _load_yaml_file(main_config_path)
-        except Exception as e:
-            print(f"⚠️ Failed to load main.yaml: {e}")
+    try:
+        main_config_path = _bootstrap_runtime_config_file("main.yaml", project_root)
+        main_config = _load_yaml_file(main_config_path)
+    except Exception as e:
+        print(f"⚠️ Failed to load runtime main.yaml: {e}")
 
     # 2. Load sub-module configuration file
     module_config = {}
-    module_config_path = config_dir / config_file
-    if module_config_path.exists():
+    if config_file != "main.yaml":
         try:
-            module_config = _load_yaml_file(module_config_path)
+            module_config_path, _ = resolve_config_path(config_file, project_root)
+            if module_config_path.name != "main.yaml":
+                module_config = _load_yaml_file(module_config_path)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"{e}. Add the file under data/user/settings/.") from e
         except Exception as e:
             print(f"⚠️ Failed to load {config_file}: {e}")
 
     # 3. Merge configurations: main.yaml as base, sub-module config overrides
     merged_config = _deep_merge(main_config, module_config)
 
-    return merged_config
+    return _normalize_runtime_paths(merged_config, project_root)
 
 
 async def load_config_with_main_async(
@@ -107,7 +198,7 @@ async def load_config_with_main_async(
     Load configuration file, automatically merge with main.yaml common configuration
 
     Args:
-        config_file: Sub-module configuration file name (e.g., "solve_config.yaml")
+        config_file: Configuration file name (e.g., "main.yaml")
         project_root: Project root directory (if None, will try to auto-detect)
 
     Returns:
@@ -116,35 +207,35 @@ async def load_config_with_main_async(
     if project_root is None:
         project_root = PROJECT_ROOT
 
-    config_dir = project_root / "config"
-
     # 1. Load main.yaml (common configuration)
     main_config = {}
-    main_config_path = config_dir / "main.yaml"
-    if main_config_path.exists():
-        try:
-            main_config = await _load_yaml_file_async(main_config_path)
-        except Exception as e:
-            print(f"⚠️ Failed to load main.yaml: {e}")
+    try:
+        main_config_path = _bootstrap_runtime_config_file("main.yaml", project_root)
+        main_config = await _load_yaml_file_async(main_config_path)
+    except Exception as e:
+        print(f"⚠️ Failed to load runtime main.yaml: {e}")
 
     # 2. Load sub-module configuration file
     module_config = {}
-    module_config_path = config_dir / config_file
-    if module_config_path.exists():
+    if config_file != "main.yaml":
         try:
-            module_config = await _load_yaml_file_async(module_config_path)
+            module_config_path, _ = resolve_config_path(config_file, project_root)
+            if module_config_path.name != "main.yaml":
+                module_config = await _load_yaml_file_async(module_config_path)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"{e}. Add the file under data/user/settings/.") from e
         except Exception as e:
             print(f"⚠️ Failed to load {config_file}: {e}")
 
     # 3. Merge configurations: main.yaml as base, sub-module config overrides
     merged_config = _deep_merge(main_config, module_config)
 
-    return merged_config
+    return _normalize_runtime_paths(merged_config, project_root)
 
 
 def get_path_from_config(config: dict[str, Any], path_key: str, default: str = None) -> str:
     """
-    Get path from configuration, supports searching in paths and system
+    Get path from configuration.
 
     Args:
         config: Configuration dictionary
@@ -157,10 +248,6 @@ def get_path_from_config(config: dict[str, Any], path_key: str, default: str = N
     # Priority: search in paths
     if "paths" in config and path_key in config["paths"]:
         return config["paths"][path_key]
-
-    # Search in system (backward compatibility)
-    if "system" in config and path_key in config["system"]:
-        return config["system"][path_key]
 
     # Search in tools (e.g., run_code.workspace)
     if "tools" in config:
@@ -210,7 +297,7 @@ def get_agent_params(module_name: str) -> dict:
             - "solve": Solve module agents
             - "research": Research module agents
             - "question": Question module agents
-            - "ideagen": IdeaGen module agents
+            - "brainstorm": Brainstorm tool settings
             - "co_writer": CoWriter module agents
             - "narrator": Narrator agent (independent, for TTS)
 
@@ -230,9 +317,9 @@ def get_agent_params(module_name: str) -> dict:
         "max_tokens": 4096,
     }
 
-    # Try to load from agents.yaml
+    # Try to load from runtime agents.yaml
     try:
-        config_path = PROJECT_ROOT / "config" / "agents.yaml"
+        config_path = _bootstrap_runtime_config_file("agents.yaml", PROJECT_ROOT)
 
         if config_path.exists():
             with open(config_path, encoding="utf-8") as f:
@@ -252,6 +339,7 @@ def get_agent_params(module_name: str) -> dict:
 
 __all__ = [
     "PROJECT_ROOT",
+    "get_runtime_settings_dir",
     "load_config_with_main",
     "get_path_from_config",
     "parse_language",

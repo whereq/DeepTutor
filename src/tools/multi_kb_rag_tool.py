@@ -32,7 +32,7 @@ load_dotenv(project_root / "DeepTutor.env", override=False)
 load_dotenv(project_root / ".env", override=False)
 
 # Initialize logger
-config = load_config_with_main("solve_config.yaml", project_root)
+config = load_config_with_main("main.yaml", project_root)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = get_logger("MultiKBRAG", level="INFO", log_dir=log_dir)
 
@@ -40,7 +40,7 @@ logger = get_logger("MultiKBRAG", level="INFO", log_dir=log_dir)
 def _get_multi_kb_config() -> dict:
     """Get multi-KB RAG configuration from main.yaml"""
     try:
-        config = load_config_with_main("solve_config.yaml", project_root)
+        config = load_config_with_main("main.yaml", project_root)
         return config.get("multi_kb_rag", {})
     except Exception:
         return {}
@@ -443,7 +443,7 @@ async def multi_kb_rag_search(
     # Determine KB base directory
     if kb_base_dir is None:
         try:
-            config = load_config_with_main("solve_config.yaml", project_root)
+            config = load_config_with_main("main.yaml", project_root)
             kb_base_dir = config.get("paths", {}).get("knowledge_bases_dir")
             if kb_base_dir:
                 kb_base_dir = str(project_root / kb_base_dir)

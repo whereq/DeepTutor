@@ -26,6 +26,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": True,
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,
         "system_in_messages": True,  # System prompt goes in messages array
         "newer_models_use_max_completion_tokens": True,
     },
@@ -33,6 +34,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": True,
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,
         "system_in_messages": True,
         "newer_models_use_max_completion_tokens": True,
         "requires_api_version": True,
@@ -42,6 +44,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": False,  # Anthropic uses different format
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,
         "system_in_messages": False,  # System is a separate parameter
         "has_thinking_tags": False,
     },
@@ -49,6 +52,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": False,
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,
         "system_in_messages": False,
         "has_thinking_tags": False,
     },
@@ -57,6 +61,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": False,  # DeepSeek doesn't support strict JSON schema yet
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": False,
         "system_in_messages": True,
         "has_thinking_tags": True,  # DeepSeek reasoner has thinking tags
     },
@@ -65,6 +70,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": True,  # Depends on underlying model
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,  # Depends on underlying model
         "system_in_messages": True,
     },
     # Groq (fast inference)
@@ -72,6 +78,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": True,
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,
         "system_in_messages": True,
     },
     # Together AI
@@ -79,12 +86,14 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": True,
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,
         "system_in_messages": True,
     },
     "together_ai": {  # Alias
         "supports_response_format": True,
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,
         "system_in_messages": True,
     },
     # Mistral
@@ -92,6 +101,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": True,
         "supports_streaming": True,
         "supports_tools": True,
+        "supports_vision": True,
         "system_in_messages": True,
     },
     # Local providers (generally OpenAI-compatible)
@@ -99,24 +109,28 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_response_format": True,  # Ollama supports JSON mode
         "supports_streaming": True,
         "supports_tools": False,  # Limited tool support
+        "supports_vision": False,  # Depends on model; set True via model overrides
         "system_in_messages": True,
     },
     "lm_studio": {
         "supports_response_format": True,
         "supports_streaming": True,
         "supports_tools": False,
+        "supports_vision": False,
         "system_in_messages": True,
     },
     "vllm": {
         "supports_response_format": True,
         "supports_streaming": True,
         "supports_tools": False,
+        "supports_vision": False,
         "system_in_messages": True,
     },
     "llama_cpp": {
         "supports_response_format": True,  # llama.cpp server supports JSON grammar
         "supports_streaming": True,
         "supports_tools": False,
+        "supports_vision": False,
         "system_in_messages": True,
     },
 }
@@ -126,6 +140,7 @@ DEFAULT_CAPABILITIES: dict[str, object] = {
     "supports_response_format": True,
     "supports_streaming": True,
     "supports_tools": False,
+    "supports_vision": False,
     "system_in_messages": True,
     "has_thinking_tags": False,
     "forced_temperature": None,  # None means no forced value, use requested temperature
@@ -138,17 +153,17 @@ MODEL_OVERRIDES: dict[str, dict[str, object]] = {
     "deepseek": {
         "supports_response_format": False,
         "has_thinking_tags": True,
+        "supports_vision": False,
     },
     "deepseek-reasoner": {
         "supports_response_format": False,
         "has_thinking_tags": True,
+        "supports_vision": False,
     },
     "qwen": {
-        # Qwen models may have thinking tags
         "has_thinking_tags": True,
     },
     "qwq": {
-        # QwQ is Qwen's reasoning model with thinking tags
         "has_thinking_tags": True,
     },
     # NOTE: supports_response_format and system_in_messages are binding-level
@@ -168,6 +183,19 @@ MODEL_OVERRIDES: dict[str, dict[str, object]] = {
     "o3": {
         "forced_temperature": 1.0,
     },
+    # Vision-capable model families
+    "gpt-4o": {"supports_vision": True},
+    "gpt-4-turbo": {"supports_vision": True},
+    "gpt-4-vision": {"supports_vision": True},
+    "claude-3": {"supports_vision": True},
+    "claude-4": {"supports_vision": True},
+    "gemini": {"supports_vision": True},
+    "gemma": {"supports_vision": False},
+    "llava": {"supports_vision": True},
+    "bakllava": {"supports_vision": True},
+    "moondream": {"supports_vision": True},
+    "minicpm-v": {"supports_vision": True},
+    "gpt-3.5": {"supports_vision": False},
 }
 
 
@@ -297,6 +325,21 @@ def supports_tools(binding: str, model: str | None = None) -> bool:
     return bool(value)
 
 
+def supports_vision(binding: str, model: str | None = None) -> bool:
+    """
+    Check if the provider/model supports multimodal (image) input.
+
+    Args:
+        binding: Provider binding name
+        model: Optional model name for model-specific overrides
+
+    Returns:
+        True if the model can accept image content in messages
+    """
+    value = get_capability(binding, "supports_vision", model, default=False)
+    return bool(value)
+
+
 def requires_api_version(binding: str, model: str | None = None) -> bool:
     """
     Check if the provider requires an API version parameter (e.g., Azure OpenAI).
@@ -347,6 +390,7 @@ __all__ = [
     "system_in_messages",
     "has_thinking_tags",
     "supports_tools",
+    "supports_vision",
     "requires_api_version",
     "get_effective_temperature",
 ]

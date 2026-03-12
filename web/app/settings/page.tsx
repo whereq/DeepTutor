@@ -1,321 +1,431 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Settings as SettingsIcon,
   Brain,
   Database,
-  Volume2,
-  Search,
-  Loader2,
-  Sun,
-  Moon,
   Globe,
-  Trash2,
-  AlertTriangle,
+  Loader2,
+  Search,
+  Settings as SettingsIcon,
+  Sparkles,
+  Volume2,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api";
-import { useGlobal } from "@/context/GlobalContext";
-import { useTranslation } from "react-i18next";
-import { OverviewTab, ConfigTab } from "./components";
-import { FullStatus, PortsInfo, TabType } from "./types";
-import { LANGUAGE_OPTIONS } from "./constants";
-import { getStorageStats } from "@/lib/persistence";
 
-export default function SettingsPage() {
-  const { uiSettings, updateTheme, updateLanguage, clearAllPersistence } =
-    useGlobal();
-  const { t } = useTranslation();
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [storageStats, setStorageStats] = useState<{
-    totalSize: number;
-    items: { key: string; size: number }[];
-  } | null>(null);
+type ConfigType = "llm" | "embedding" | "tts" | "search";
 
-  // Load storage stats
-  useEffect(() => {
-    setStorageStats(getStorageStats());
-  }, []);
+interface StoredConfig {
+  id: string;
+  name: string;
+  provider: string;
+  model?: string;
+  base_url?: string | { use_env: string };
+  api_key?: string | { use_env: string };
+  voice?: string;
+  dimensions?: number;
+  is_active?: boolean;
+}
 
-  const [activeTab, setActiveTab] = useState<TabType>("overview");
-  const [status, setStatus] = useState<FullStatus | null>(null);
-  const [ports, setPorts] = useState<PortsInfo | null>(null);
+interface ConfigSectionProps {
+  type: ConfigType;
+  title: string;
+  icon: React.ReactNode;
+  fields: Array<"name" | "provider" | "model" | "base_url" | "api_key" | "voice" | "dimensions">;
+}
+
+const THEME_KEY = "deeptutor-theme";
+const LANGUAGE_KEY = "deeptutor-language";
+
+function ConfigSection({ type, title, icon, fields }: ConfigSectionProps) {
+  const [configs, setConfigs] = useState<StoredConfig[]>([]);
+  const [providerOptions, setProviderOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({
+    name: "",
+    provider: "openai",
+    model: "",
+    base_url: "",
+    api_key: "",
+    voice: "alloy",
+    dimensions: "3072",
+  });
 
-  // Load initial data
-  useEffect(() => {
-    loadStatus();
-    loadPorts();
-  }, []);
-
-  const loadStatus = async () => {
+  const load = async () => {
+    setLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/v1/config/status"));
-      if (res.ok) {
-        const data = await res.json();
-        setStatus(data);
-      }
-    } catch (e) {
-      console.error("Failed to load config status:", e);
+      const [configsRes, providersRes] = await Promise.all([
+        fetch(apiUrl(`/api/v1/config/${type}`)),
+        fetch(apiUrl(`/api/v1/config/providers/${type}`)),
+      ]);
+      const data = await configsRes.json();
+      const providersData = await providersRes.json();
+      setConfigs(data.configs || []);
+      setProviderOptions(Array.isArray(providersData.providers) ? providersData.providers : []);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadPorts = async () => {
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
+
+  const createConfig = async () => {
+    setSubmitting(true);
     try {
-      const res = await fetch(apiUrl("/api/v1/config/ports"));
-      if (res.ok) {
-        const data = await res.json();
-        setPorts(data);
+      const payload: Record<string, unknown> = {};
+      for (const field of fields) {
+        if (field === "dimensions") {
+          payload[field] = Number(form[field] || "3072");
+        } else {
+          payload[field] = form[field];
+        }
       }
-    } catch (e) {
-      console.error("Failed to load ports:", e);
+
+      const res = await fetch(apiUrl(`/api/v1/config/${type}`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || `Failed to create ${type} config`);
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        name: "",
+        model: "",
+        base_url: "",
+        api_key: "",
+      }));
+      await load();
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
-    {
-      id: "overview",
-      label: t("Overview"),
-      icon: <SettingsIcon className="w-4 h-4" />,
-    },
-    { id: "llm", label: t("LLM"), icon: <Brain className="w-4 h-4" /> },
-    {
-      id: "embedding",
-      label: t("Embedding"),
-      icon: <Database className="w-4 h-4" />,
-    },
-    { id: "tts", label: t("TTS"), icon: <Volume2 className="w-4 h-4" /> },
-    { id: "search", label: t("Search"), icon: <Search className="w-4 h-4" /> },
-  ];
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-      </div>
-    );
-  }
+  const activateConfig = async (configId: string) => {
+    await fetch(apiUrl(`/api/v1/config/${type}/${configId}/active`), {
+      method: "POST",
+    });
+    await load();
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-      <div className="max-w-6xl mx-auto p-6">
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
+      <div className="mb-4 flex items-center gap-2.5">
+        <div className="rounded-lg bg-[var(--muted)] p-2 text-[var(--muted-foreground)]">
+          {icon}
+        </div>
+        <div>
+          <h2 className="text-[14px] font-semibold text-[var(--foreground)]">{title}</h2>
+          <p className="text-[12px] text-[var(--muted-foreground)]">
+            Manage saved {type} configurations.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+        {fields.includes("name") && (
+          <input
+            value={form.name}
+            onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+            placeholder="Name"
+            className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+          />
+        )}
+        {fields.includes("provider") && (
+          providerOptions.length > 0 ? (
+            <select
+              value={form.provider}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, provider: event.target.value }))
+              }
+              className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+            >
+              {providerOptions.map((provider) => (
+                <option key={provider} value={provider}>
+                  {provider}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={form.provider}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, provider: event.target.value }))
+              }
+              placeholder="Provider"
+              className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+            />
+          )
+        )}
+        {fields.includes("model") && (
+          <input
+            value={form.model}
+            onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))}
+            placeholder="Model"
+            className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+          />
+        )}
+        {fields.includes("base_url") && (
+          <input
+            value={form.base_url}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, base_url: event.target.value }))
+            }
+            placeholder="Base URL"
+            className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+          />
+        )}
+        {fields.includes("api_key") && (
+          <input
+            value={form.api_key}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, api_key: event.target.value }))
+            }
+            placeholder="API Key"
+            className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+          />
+        )}
+        {fields.includes("voice") && (
+          <input
+            value={form.voice}
+            onChange={(event) => setForm((prev) => ({ ...prev, voice: event.target.value }))}
+            placeholder="Voice"
+            className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+          />
+        )}
+        {fields.includes("dimensions") && (
+          <input
+            value={form.dimensions}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, dimensions: event.target.value }))
+            }
+            placeholder="Dimensions"
+            className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+          />
+        )}
+      </div>
+
+      <div className="mt-3">
+        <button
+          onClick={createConfig}
+          disabled={submitting || !form.name || !form.provider}
+          className="rounded-lg bg-[var(--primary)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {submitting ? "Saving..." : "Add configuration"}
+        </button>
+      </div>
+
+      <div className="mt-5 space-y-2">
+        {loading ? (
+          <div className="flex items-center gap-2 text-[13px] text-[var(--muted-foreground)]">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Loading...
+          </div>
+        ) : configs.length ? (
+          configs.map((config) => (
+            <div
+              key={config.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-[var(--foreground)]">
+                    {config.name}
+                  </span>
+                  {config.is_active && (
+                    <span className="rounded-md bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
+                  {config.provider}
+                  {config.model ? ` · ${config.model}` : ""}
+                </div>
+              </div>
+              {!config.is_active && (
+                <button
+                  onClick={() => activateConfig(config.id)}
+                  className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+                >
+                  Set active
+                </button>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-lg border border-dashed border-[var(--border)] px-4 py-8 text-center text-[13px] text-[var(--muted-foreground)]">
+            No saved configurations yet.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export default function SettingsPage() {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light";
+    try {
+      const storedTheme = window.localStorage.getItem(THEME_KEY);
+      return storedTheme === "dark" || storedTheme === "light" ? storedTheme : "light";
+    } catch {
+      return "light";
+    }
+  });
+  const [language, setLanguage] = useState<"en" | "zh">(() => {
+    if (typeof window === "undefined") return "en";
+    try {
+      const storedLanguage = window.localStorage.getItem(LANGUAGE_KEY);
+      return storedLanguage === "zh" || storedLanguage === "en" ? storedLanguage : "en";
+    } catch {
+      return "en";
+    }
+  });
+
+  const updateTheme = async (nextTheme: "light" | "dark") => {
+    setTheme(nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+    try {
+      window.localStorage.setItem(THEME_KEY, nextTheme);
+    } catch {}
+    await fetch(apiUrl("/api/v1/settings/theme"), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: nextTheme }),
+    });
+  };
+
+  const updateLanguage = async (nextLanguage: "en" | "zh") => {
+    setLanguage(nextLanguage);
+    try {
+      window.localStorage.setItem(LANGUAGE_KEY, nextLanguage);
+    } catch {}
+    await fetch(apiUrl("/api/v1/settings/language"), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: nextLanguage }),
+    });
+    window.location.reload();
+  };
+
+  const sections = useMemo<ConfigSectionProps[]>(
+    () => [
+      {
+        type: "llm",
+        title: "LLM",
+        icon: <Brain className="h-4 w-4" />,
+        fields: ["name", "provider", "model", "base_url", "api_key"],
+      },
+      {
+        type: "embedding",
+        title: "Embedding",
+        icon: <Database className="h-4 w-4" />,
+        fields: ["name", "provider", "model", "base_url", "api_key", "dimensions"],
+      },
+      {
+        type: "tts",
+        title: "TTS",
+        icon: <Volume2 className="h-4 w-4" />,
+        fields: ["name", "provider", "model", "base_url", "api_key", "voice"],
+      },
+      {
+        type: "search",
+        title: "Search",
+        icon: <Search className="h-4 w-4" />,
+        fields: ["name", "provider", "api_key"],
+      },
+    ],
+    [],
+  );
+
+  return (
+    <div className="min-h-screen bg-[var(--background)]">
+      <div className="mx-auto max-w-5xl px-6 py-8">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-            <SettingsIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              {t("Settings")}
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {t("Configure your AI services and preferences")}
-            </p>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
+            Settings
+          </h1>
+          <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
+            Configure API keys, active providers, theme, and language.
+          </p>
         </div>
 
-        {/* General Settings - Theme & Language */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 mb-6">
-          <div className="flex flex-wrap items-center gap-6">
-            {/* Theme Toggle */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                {uiSettings.theme === "dark" ? (
-                  <Moon className="w-4 h-4" />
-                ) : (
-                  <Sun className="w-4 h-4" />
-                )}
-                <span>{t("Theme")}</span>
-              </div>
-              <div className="flex p-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                <button
-                  onClick={() => updateTheme("light")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
-                    uiSettings.theme === "light"
-                      ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                  }`}
-                >
-                  <Sun className="w-3.5 h-3.5" />
-                  {t("Light")}
-                </button>
-                <button
-                  onClick={() => updateTheme("dark")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-all ${
-                    uiSettings.theme === "dark"
-                      ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                  }`}
-                >
-                  <Moon className="w-3.5 h-3.5" />
-                  {t("Dark")}
-                </button>
-              </div>
+        {/* Interface section */}
+        <section className="mb-5 rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2.5">
+            <div className="rounded-lg bg-[var(--muted)] p-2 text-[var(--muted-foreground)]">
+              <Sparkles className="h-4 w-4" />
             </div>
+            <div>
+              <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
+                Interface
+              </h2>
+              <p className="text-[12px] text-[var(--muted-foreground)]">
+                Personalize the look and language of DeepTutor.
+              </p>
+            </div>
+          </div>
 
-            {/* Separator */}
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
-
-            {/* Language Selector */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <Globe className="w-4 h-4" />
-                <span>{t("Language")}</span>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3.5">
+              <div className="mb-2.5 text-[13px] font-medium text-[var(--foreground)]">
+                Theme
               </div>
-              <div className="flex p-1 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                {LANGUAGE_OPTIONS.map((lang) => (
+              <div className="flex gap-1.5">
+                {(["light", "dark"] as const).map((value) => (
                   <button
-                    key={lang.value}
-                    onClick={() => updateLanguage(lang.value)}
-                    className={`px-3 py-1.5 rounded-md text-sm transition-all ${
-                      uiSettings.language === lang.value
-                        ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                    key={value}
+                    onClick={() => updateTheme(value)}
+                    className={`rounded-md px-3 py-1.5 text-[12px] font-medium transition-all ${
+                      theme === value
+                        ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
+                        : "border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]"
                     }`}
                   >
-                    {lang.label}
+                    {value === "light" ? "Light" : "Dark"}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Separator */}
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
-
-            {/* Clear Data */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <Trash2 className="w-4 h-4" />
-                <span>{t("Local Data")}</span>
-                {storageStats && (
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
-                    ({(storageStats.totalSize / 1024).toFixed(1)} KB)
-                  </span>
-                )}
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3.5">
+              <div className="mb-2.5 flex items-center gap-1.5 text-[13px] font-medium text-[var(--foreground)]">
+                <Globe className="h-3.5 w-3.5" />
+                Language
               </div>
-              <button
-                onClick={() => setShowClearConfirm(true)}
-                className="px-3 py-1.5 rounded-md text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
-              >
-                {t("Clear Cache")}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Clear Confirmation Modal */}
-        {showClearConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 max-w-md mx-4 shadow-2xl">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
-                  <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                    {t("Confirm Clear")}
-                  </h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {t("This will clear all locally cached data")}
-                  </p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
-                {t(
-                  "Including: chat history, solver history, question results, research reports, idea generation, guided learning progress, Co-Writer content, etc. This action cannot be undone.",
-                )}
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowClearConfirm(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
-                >
-                  {t("Cancel")}
-                </button>
-                <button
-                  onClick={() => {
-                    clearAllPersistence();
-                    setShowClearConfirm(false);
-                    setStorageStats(getStorageStats());
-                  }}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all"
-                >
-                  {t("Clear All")}
-                </button>
+              <div className="flex gap-1.5">
+                {(["en", "zh"] as const).map((value) => (
+                  <button
+                    key={value}
+                    onClick={() => updateLanguage(value)}
+                    className={`rounded-md px-3 py-1.5 text-[12px] font-medium transition-all ${
+                      language === value
+                        ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
+                        : "border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                    }`}
+                  >
+                    {value === "en" ? "English" : "中文"}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab.id
-                  ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
+        <div className="space-y-5">
+          {sections.map((section) => (
+            <ConfigSection key={section.type} {...section} />
           ))}
-        </div>
-
-        {/* Content */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-          {activeTab === "overview" && (
-            <OverviewTab
-              status={status}
-              ports={ports}
-              onRefresh={loadStatus}
-              t={t}
-            />
-          )}
-          {activeTab === "llm" && (
-            <ConfigTab
-              configType="llm"
-              title={t("LLM Configuration")}
-              description={t("Configure language model providers")}
-              onUpdate={loadStatus}
-              t={t}
-            />
-          )}
-          {activeTab === "embedding" && (
-            <ConfigTab
-              configType="embedding"
-              title={t("Embedding Configuration")}
-              description={t("Configure embedding model providers")}
-              onUpdate={loadStatus}
-              showDimensions
-              t={t}
-            />
-          )}
-          {activeTab === "tts" && (
-            <ConfigTab
-              configType="tts"
-              title={t("TTS Configuration")}
-              description={t("Configure text-to-speech providers")}
-              onUpdate={loadStatus}
-              showVoice
-              t={t}
-            />
-          )}
-          {activeTab === "search" && (
-            <ConfigTab
-              configType="search"
-              title={t("Search Configuration")}
-              description={t("Configure web search providers")}
-              onUpdate={loadStatus}
-              isSearchConfig
-              t={t}
-            />
-          )}
         </div>
       </div>
     </div>

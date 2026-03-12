@@ -5,22 +5,39 @@ NoteAgent - Recording Agent
 Responsible for information compression and summary generation, converting raw data returned by tools into usable knowledge summaries
 """
 
-from pathlib import Path
+import json
 from string import Template
-import sys
 from typing import Any, Optional
-
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from src.agents.base_agent import BaseAgent
 from src.agents.research.data_structures import ToolTrace
+from src.core.trace import build_trace_metadata, new_call_id
 
 from ..utils.json_utils import extract_json_from_text
 
 
 class NoteAgent(BaseAgent):
     """Recording Agent"""
+
+    _MODE_TO_STYLE = {
+        "notes": "study_notes",
+        "report": "report",
+        "comparison": "comparison",
+        "learning_path": "learning_path",
+    }
+
+    @staticmethod
+    def _build_trace_meta(tool_type: str, query: str) -> dict[str, Any]:
+        return build_trace_metadata(
+            call_id=new_call_id("research-note"),
+            phase="researching",
+            label="Summarize evidence",
+            call_kind="llm_observation",
+            trace_role="observe",
+            trace_kind="llm_generation",
+            tool_name=tool_type,
+            query=query,
+        )
 
     def __init__(
         self,
@@ -39,6 +56,11 @@ class NoteAgent(BaseAgent):
             language=language,
             config=config,
         )
+        researching_cfg = config.get("researching", {})
+        self.summary_mode = researching_cfg.get("note_agent_mode", "auto")
+        intent_mode = str(config.get("intent", {}).get("mode", "") or "")
+        reporting_style = str(config.get("reporting", {}).get("style", "") or "")
+        self._research_style = reporting_style or self._MODE_TO_STYLE.get(intent_mode, "report")
 
     async def process(
         self,
@@ -75,10 +97,19 @@ class NoteAgent(BaseAgent):
         print(f"Citation ID: {citation_id}")
         print(f"Raw Answer Length: {len(raw_answer)} characters\n")
 
-        # Generate summary
-        summary = await self._generate_summary(
-            tool_type=tool_type, query=query, raw_answer=raw_answer, topic=topic, context=context
-        )
+        summary = ""
+        use_rule = self.summary_mode in ("rule", "auto")
+        use_llm_fallback = self.summary_mode in ("llm", "auto")
+
+        if use_rule:
+            summary = self._extract_summary_by_rule(tool_type=tool_type, raw_answer=raw_answer)
+
+        if (not summary or len(summary) < 50) and use_llm_fallback:
+            summary = await self._generate_summary(
+                tool_type=tool_type, query=query, raw_answer=raw_answer, topic=topic, context=context
+            )
+        elif not summary:
+            summary = raw_answer[:1000]
 
         print(f"✓ Summary generation completed ({len(summary)} characters)")
 
@@ -105,6 +136,99 @@ class NoteAgent(BaseAgent):
 
         # Only convert simple {var_name} patterns, not nested or complex ones
         return re.sub(r"\{(\w+)\}", r"$\1", template_str)
+
+    @staticmethod
+    def _truncate_text(text: str, limit: int = 800) -> str:
+        """Keep summaries compact for iterative accumulation."""
+        text = (text or "").strip()
+        if len(text) <= limit:
+            return text
+        return text[: limit - 3].rstrip() + "..."
+
+    def _get_mode_contract(self, stage: str) -> str:
+        return (
+            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "")
+            or ""
+        ).strip()
+
+    def _get_mode_instruction_text(self, stage: str) -> str:
+        instruction = self._get_mode_contract(stage)
+        if not instruction:
+            return ""
+        return f"Mode-specific note focus:\n{instruction}\n"
+
+    def _extract_summary_by_rule(self, tool_type: str, raw_answer: str) -> str:
+        """Extract a concise summary from structured tool output without LLM."""
+        try:
+            data = json.loads(raw_answer)
+        except Exception:
+            return ""
+
+        tool_type = (tool_type or "").lower()
+
+        if tool_type in {"rag_hybrid", "rag_naive", "rag"}:
+            answer = data.get("answer") or data.get("content") or ""
+            return self._truncate_text(answer)
+
+        if tool_type == "web_search":
+            answer = data.get("answer") or ""
+            snippets: list[str] = []
+            for item in (data.get("search_results") or data.get("results") or [])[:3]:
+                if not isinstance(item, dict):
+                    continue
+                title = (item.get("title") or "").strip()
+                snippet = (item.get("snippet") or item.get("content") or "").strip()
+                piece = " - ".join(part for part in [title, snippet] if part)
+                if piece:
+                    snippets.append(piece)
+            combined = "\n".join(part for part in [answer.strip(), *snippets] if part)
+            return self._truncate_text(combined)
+
+        if tool_type == "paper_search":
+            papers = data.get("papers") or []
+            formatted: list[str] = []
+            for paper in papers[:3]:
+                if not isinstance(paper, dict):
+                    continue
+                title = (paper.get("title") or "").strip()
+                authors = paper.get("authors") or []
+                if isinstance(authors, list):
+                    authors_text = ", ".join(authors[:3])
+                else:
+                    authors_text = str(authors)
+                year = paper.get("year")
+                abstract = (paper.get("abstract") or "").strip()
+                parts = [title]
+                if authors_text:
+                    parts.append(authors_text)
+                if year:
+                    parts.append(str(year))
+                header = " | ".join(part for part in parts if part)
+                body = "\n".join(part for part in [header, abstract] if part)
+                if body:
+                    formatted.append(body)
+            return self._truncate_text("\n\n".join(formatted))
+
+        if tool_type in {"run_code", "code_execution", "code_execute"}:
+            stdout = (data.get("stdout") or "").strip()
+            stderr = (data.get("stderr") or "").strip()
+            artifacts = data.get("artifacts") or []
+            parts = []
+            if stdout:
+                parts.append(f"stdout:\n{stdout}")
+            if stderr:
+                parts.append(f"stderr:\n{stderr}")
+            if artifacts:
+                parts.append(f"artifacts: {', '.join(str(item) for item in artifacts)}")
+            return self._truncate_text("\n\n".join(parts))
+
+        if isinstance(data, dict):
+            for key in ("answer", "content", "summary", "message"):
+                value = data.get(key)
+                if isinstance(value, str) and value.strip():
+                    return self._truncate_text(value)
+
+        return ""
 
     async def _generate_summary(
         self, tool_type: str, query: str, raw_answer: str, topic: str = "", context: str = ""
@@ -144,6 +268,7 @@ class NoteAgent(BaseAgent):
             raw_answer=raw_answer,
             topic=topic,
             context=context,
+            mode_instruction=self._get_mode_instruction_text("note"),
         )
 
         response = await self.call_llm(
@@ -151,6 +276,7 @@ class NoteAgent(BaseAgent):
             system_prompt=system_prompt,
             stage="generate_summary",
             verbose=False,
+            trace_meta=self._build_trace_meta(tool_type, query),
         )
 
         # Parse JSON output (strict validation)

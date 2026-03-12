@@ -1,34 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Generator - Generate Q-A pairs from QuestionTemplate with dynamic tool selection.
-
-The Generator uses a two-step process:
-1. Plan which tools to use (LLM-driven decision)
-2. Execute only the planned tools and generate the Q-A pair
+Generator - Generate Q-A pairs from QuestionTemplate in a single LLM call.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from typing import Any
 
 from src.agents.base_agent import BaseAgent
 from src.agents.question.models import QAPair, QuestionTemplate
-from src.tools.code_executor import run_code
-from src.tools.rag_tool import rag_search
-from src.tools.web_search import web_search
+from src.core.trace import build_trace_metadata, new_call_id
+from src.runtime.registry.tool_registry import get_tool_registry
 
 
 class Generator(BaseAgent):
     """
-    Generate a question/answer pair with LLM-driven tool selection.
+    Generate a question/answer pair from one template.
 
-    Instead of always calling all tools, the Generator first asks the LLM
-    which tools would be helpful for the given template, then only executes
-    those tools before generating the final Q-A pair.
+    The simplified pipeline injects the user's enabled tools as prompt guidance
+    and relies on the knowledge context already prepared upstream.
     """
 
     def __init__(
@@ -48,44 +41,37 @@ class Generator(BaseAgent):
         self.kb_name = kb_name
         self.rag_mode = rag_mode
         self.tool_flags = tool_flags or {}
+        self._tool_registry = get_tool_registry()
 
     async def process(
         self,
         template: QuestionTemplate,
         user_topic: str = "",
         preference: str = "",
-        validator_feedback: str = "",
+        history_context: str = "",
     ) -> QAPair:
         """
-        Generate one Q-A pair from a template.
-
-        Flow:
-        1. Ask LLM which tools to use (plan_tools)
-        2. Execute only the planned tools
-        3. Generate the Q-A pair with tool context
-        4. Optionally run verification code if the plan included write_code
+        Generate one Q-A pair from a template in a single call.
         """
-        # Step 1: Plan tools
-        tool_plan = await self._plan_tools(template, user_topic, preference)
-
-        # Step 2: Execute planned tools
-        tool_context = await self._execute_tools(template, user_topic, tool_plan)
-
-        # Step 3: Generate Q-A pair
+        available_tools = self._build_available_tools_text()
+        knowledge_context = str(template.metadata.get("knowledge_context", "")).strip()
         payload = await self._generate_payload(
             template=template,
             user_topic=user_topic,
             preference=preference,
-            validator_feedback=validator_feedback,
-            tool_context=tool_context,
+            history_context=history_context,
+            knowledge_context=knowledge_context,
+            available_tools=available_tools,
         )
-
-        # Step 4: Optionally verify with code (only if planned)
-        code_result: dict[str, Any] = {}
-        if tool_plan.get("use_code") and payload.get("verification_code"):
-            code_result = await self._execute_verification_code(
-                payload["verification_code"]
-            )
+        payload, validation = await self._validate_and_repair_payload(
+            template=template,
+            payload=payload,
+            user_topic=user_topic,
+            preference=preference,
+            history_context=history_context,
+            knowledge_context=knowledge_context,
+            available_tools=available_tools,
+        )
 
         return QAPair(
             question_id=template.question_id,
@@ -100,149 +86,35 @@ class Generator(BaseAgent):
             ),
             concentration=template.concentration,
             difficulty=template.difficulty,
+            validation=validation,
             metadata={
                 "source": template.source,
                 "reference_question": template.reference_question,
-                "tool_plan": tool_plan,
-                "tool_context_keys": [k for k, v in tool_context.items() if v],
-                "code_result": code_result,
-                "verification_code": payload.get("verification_code", ""),
-                "validator_feedback": validator_feedback,
+                "enabled_tools": self._enabled_tool_names(),
+                "available_tools": available_tools,
+                "knowledge_context": knowledge_context,
             },
         )
 
-    # ------------------------------------------------------------------
-    # Step 1: Tool Planning
-    # ------------------------------------------------------------------
-
-    async def _plan_tools(
-        self,
-        template: QuestionTemplate,
-        user_topic: str,
-        preference: str,
-    ) -> dict[str, Any]:
-        """Ask LLM which tools to use for this specific template."""
-        plan_prompt_template = self.get_prompt("plan_tools", "")
-        if not plan_prompt_template:
-            # No prompt available — fall back to conservative defaults
-            return self._default_tool_plan()
-
-        try:
-            prompt = plan_prompt_template.format(
-                template=json.dumps(template.__dict__, ensure_ascii=False, indent=2),
-                user_topic=user_topic,
-                preference=preference or "(none)",
-                available_tools=self._describe_available_tools(),
-            )
-
-            response = await self.call_llm(
-                user_prompt=prompt,
-                system_prompt=self.get_prompt("system", "") or "",
-                response_format={"type": "json_object"},
-                stage="generator_plan_tools",
-            )
-            plan = self._parse_json_like(response)
-
-            # Respect config-level tool flags (config can disable tools globally)
-            plan["use_rag"] = bool(plan.get("use_rag", True)) and self.tool_flags.get(
-                "rag_tool", True
-            )
-            plan["use_web"] = bool(
-                plan.get("use_web", False)
-            ) and self.tool_flags.get("web_search", True)
-            plan["use_code"] = bool(
-                plan.get("use_code", False)
-            ) and self.tool_flags.get("write_code", True)
-            return plan
-
-        except Exception as exc:
-            self.logger.warning(f"Tool planning failed, using defaults: {exc}")
-            return self._default_tool_plan()
-
-    def _default_tool_plan(self) -> dict[str, Any]:
-        """Conservative default: only RAG if available."""
-        return {
-            "use_rag": self.tool_flags.get("rag_tool", True),
-            "use_web": False,
-            "use_code": False,
-            "reasoning": "default plan (no LLM planning)",
-        }
-
-    def _describe_available_tools(self) -> str:
-        tools: list[str] = []
-        if self.tool_flags.get("rag_tool", True):
-            tools.append(
-                "rag_tool: Retrieve relevant knowledge from the course knowledge base. "
-                "Useful for factual, conceptual, and curriculum-aligned questions."
-            )
-        if self.tool_flags.get("web_search", True):
-            tools.append(
-                "web_search: Search the web for up-to-date or supplementary information. "
-                "Useful when the topic requires current data, real-world examples, or goes beyond the KB."
-            )
-        if self.tool_flags.get("write_code", True):
-            tools.append(
-                "write_code: Execute Python code to compute or verify answers. "
-                "Useful for coding questions, mathematical computations, and algorithm verification."
-            )
-        return "\n".join(f"- {t}" for t in tools) or "(no tools available)"
-
-    # ------------------------------------------------------------------
-    # Step 2: Execute Tools
-    # ------------------------------------------------------------------
-
-    async def _execute_tools(
-        self,
-        template: QuestionTemplate,
-        user_topic: str,
-        tool_plan: dict[str, Any],
-    ) -> dict[str, str]:
-        """Execute only the tools chosen by the tool plan."""
-        context: dict[str, str] = {}
-
-        if tool_plan.get("use_rag"):
-            try:
-                query = (
-                    tool_plan.get("rag_query")
-                    or template.concentration
-                    or user_topic
-                )
-                rag_result = await rag_search(
-                    query=query,
-                    kb_name=self.kb_name,
-                    mode=self.rag_mode,
-                    only_need_context=True,
-                )
-                context["rag"] = (rag_result.get("answer", "") or "")[:4000]
-            except Exception as exc:
-                self.logger.warning(f"RAG tool failed: {exc}")
-
-        if tool_plan.get("use_web"):
-            try:
-                query = (
-                    tool_plan.get("web_query")
-                    or template.concentration
-                    or user_topic
-                )
-                # web_search is synchronous — run in thread to avoid blocking
-                web_result = await asyncio.to_thread(web_search, query=query)
-                context["web"] = (web_result.get("answer", "") or "")[:2000]
-            except Exception as exc:
-                self.logger.warning(f"Web search tool failed: {exc}")
-
-        return context
-
-    # ------------------------------------------------------------------
-    # Step 3: Generate Q-A Pair
-    # ------------------------------------------------------------------
+    def _build_available_tools_text(self) -> str:
+        enabled_tools = self._enabled_tool_names()
+        if not enabled_tools:
+            return "(no tools available)"
+        return self._tool_registry.build_prompt_text(
+            enabled_tools,
+            format="list",
+            language=self.language,
+            kb_name=self.kb_name or "",
+        )
 
     async def _generate_payload(
         self,
         template: QuestionTemplate,
         user_topic: str,
         preference: str,
-        validator_feedback: str,
-        tool_context: dict[str, str],
+        history_context: str,
+        knowledge_context: str,
+        available_tools: str,
     ) -> dict[str, Any]:
         system_prompt = self.get_prompt("system", "")
         user_prompt_template = self.get_prompt("generate", "")
@@ -251,26 +123,19 @@ class Generator(BaseAgent):
                 "Template: {template}\n"
                 "User topic: {user_topic}\n"
                 "Preference: {preference}\n"
-                "Validator feedback: {validator_feedback}\n"
-                "Tool context: {tool_context}\n\n"
-                'Return JSON {{"question_type":"","question":"","options":{{}},"correct_answer":"","explanation":"","verification_code":""}}'
+                "Conversation context: {history_context}\n"
+                "Knowledge context: {knowledge_context}\n"
+                "Enabled tools: {available_tools}\n\n"
+                'Return JSON {{"question_type":"","question":"","options":{{}},"correct_answer":"","explanation":""}}'
             )
-
-        # Build a concise tool context description
-        tool_summary = {}
-        if tool_context.get("rag"):
-            tool_summary["rag_knowledge"] = tool_context["rag"]
-        if tool_context.get("web"):
-            tool_summary["web_results"] = tool_context["web"]
-        if not tool_summary:
-            tool_summary["note"] = "No external tool context was used for this question."
 
         user_prompt = user_prompt_template.format(
             template=json.dumps(template.__dict__, ensure_ascii=False, indent=2),
             user_topic=user_topic,
             preference=preference or "(none)",
-            validator_feedback=validator_feedback or "(none)",
-            tool_context=json.dumps(tool_summary, ensure_ascii=False, indent=2),
+            history_context=history_context or "(none)",
+            knowledge_context=knowledge_context or "(none)",
+            available_tools=available_tools,
         )
 
         response = await self.call_llm(
@@ -278,6 +143,14 @@ class Generator(BaseAgent):
             system_prompt=system_prompt or "",
             response_format={"type": "json_object"},
             stage="generator_build_qa",
+            trace_meta=build_trace_metadata(
+                call_id=new_call_id(f"quiz-{template.question_id}"),
+                phase="generation",
+                label=f"Generate {template.question_id}",
+                call_kind="llm_generation",
+                trace_id=template.question_id,
+                question_id=template.question_id,
+            ),
         )
         payload = self._parse_json_like(response)
 
@@ -295,27 +168,217 @@ class Generator(BaseAgent):
 
         return payload
 
-    # ------------------------------------------------------------------
-    # Step 4: Optional Code Verification
-    # ------------------------------------------------------------------
+    async def _validate_and_repair_payload(
+        self,
+        template: QuestionTemplate,
+        payload: dict[str, Any],
+        user_topic: str,
+        preference: str,
+        history_context: str,
+        knowledge_context: str,
+        available_tools: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        expected_type = self._normalize_question_type(template.question_type)
+        normalized = self._normalize_payload_shape(expected_type, payload)
+        issues = self._collect_payload_issues(expected_type, normalized)
+        repaired = False
 
-    async def _execute_verification_code(self, code: str) -> dict[str, Any]:
-        if not code or not isinstance(code, str):
-            return {}
-        try:
-            result = await run_code(language="python", code=code, timeout=10)
-            return {
-                "stdout": (result.get("stdout", "") or "")[:800],
-                "stderr": (result.get("stderr", "") or "")[:800],
-                "exit_code": result.get("exit_code", -1),
-            }
-        except Exception as exc:
-            self.logger.warning(f"write_code tool failed: {exc}")
-            return {"stderr": str(exc), "exit_code": -1}
+        if issues:
+            repaired_payload = await self._repair_payload(
+                template=template,
+                payload=normalized,
+                issues=issues,
+                user_topic=user_topic,
+                preference=preference,
+                history_context=history_context,
+                knowledge_context=knowledge_context,
+                available_tools=available_tools,
+            )
+            if repaired_payload:
+                candidate = self._normalize_payload_shape(expected_type, repaired_payload)
+                candidate_issues = self._collect_payload_issues(expected_type, candidate)
+                if not candidate_issues or len(candidate_issues) <= len(issues):
+                    normalized = candidate
+                    issues = candidate_issues
+                    repaired = True
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
+        validation = {
+            "requested_question_type": expected_type,
+            "schema_ok": not issues,
+            "repaired": repaired,
+            "issues": issues,
+        }
+        return normalized, validation
+
+    async def _repair_payload(
+        self,
+        template: QuestionTemplate,
+        payload: dict[str, Any],
+        issues: list[str],
+        user_topic: str,
+        preference: str,
+        history_context: str,
+        knowledge_context: str,
+        available_tools: str,
+    ) -> dict[str, Any]:
+        expected_type = self._normalize_question_type(template.question_type)
+        repair_prompt = (
+            "You are repairing an invalid quiz question JSON.\n\n"
+            f"QuestionTemplate:\n{json.dumps(template.__dict__, ensure_ascii=False, indent=2)}\n\n"
+            f"User topic:\n{user_topic or '(none)'}\n\n"
+            f"User preference:\n{preference or '(none)'}\n\n"
+            f"Conversation context:\n{history_context or '(none)'}\n\n"
+            f"Knowledge context:\n{knowledge_context or '(none)'}\n\n"
+            f"Enabled tools:\n{available_tools}\n\n"
+            f"Invalid payload:\n{json.dumps(payload, ensure_ascii=False, indent=2)}\n\n"
+            f"Detected issues:\n{json.dumps(issues, ensure_ascii=False)}\n\n"
+            f"Rewrite the payload so it strictly matches question_type='{expected_type}'.\n"
+            "Hard rules:\n"
+            "- Keep the same concentration and difficulty intent.\n"
+            "- question_type must exactly match the template.\n"
+            "- If question_type is choice: provide exactly 4 options (A-D), and correct_answer must be the correct option key.\n"
+            "- If question_type is written: do not provide options, and the learner must write an explanation or short answer.\n"
+            "- If question_type is coding: do not provide options, and the learner must write code, pseudocode, or an algorithmic solution.\n"
+            "- For written/coding questions, never ask the learner to select, choose, or pick among options.\n"
+            "- Return JSON only with keys: question_type, question, options, correct_answer, explanation.\n"
+        )
+
+        response = await self.call_llm(
+            user_prompt=repair_prompt,
+            system_prompt="You fix malformed quiz payloads and return valid JSON only.",
+            response_format={"type": "json_object"},
+            stage="generator_repair_qa",
+            trace_meta=build_trace_metadata(
+                call_id=new_call_id(f"quiz-repair-{template.question_id}"),
+                phase="generation",
+                label=f"Repair question {self._humanize_question_id(template.question_id)} format",
+                call_kind="llm_generation",
+                trace_id=template.question_id,
+                question_id=template.question_id,
+            ),
+        )
+        return self._parse_json_like(response)
+
+    @classmethod
+    def _normalize_question_type(cls, question_type: str) -> str:
+        normalized = str(question_type or "").strip().lower()
+        return normalized if normalized in {"choice", "written", "coding"} else "written"
+
+    @classmethod
+    def _normalize_payload_shape(
+        cls,
+        expected_type: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        normalized = dict(payload or {})
+        normalized["question_type"] = expected_type
+        normalized["question"] = str(normalized.get("question", "") or "").strip()
+        normalized["correct_answer"] = str(
+            normalized.get("correct_answer", "") or ""
+        ).strip()
+        normalized["explanation"] = str(normalized.get("explanation", "") or "").strip()
+
+        raw_options = normalized.get("options")
+        if expected_type == "choice":
+            clean_options: dict[str, str] = {}
+            if isinstance(raw_options, dict):
+                for key, value in raw_options.items():
+                    option_key = str(key or "").strip().upper()[:1]
+                    option_value = str(value or "").strip()
+                    if option_key in {"A", "B", "C", "D"} and option_value:
+                        clean_options[option_key] = option_value
+            normalized["options"] = clean_options if clean_options else None
+            if normalized["correct_answer"] and clean_options:
+                answer_upper = normalized["correct_answer"].upper()
+                if answer_upper in clean_options:
+                    normalized["correct_answer"] = answer_upper
+                else:
+                    for key, value in clean_options.items():
+                        if normalized["correct_answer"].strip().lower() == value.lower():
+                            normalized["correct_answer"] = key
+                            break
+        else:
+            normalized["options"] = None
+
+        return normalized
+
+    @classmethod
+    def _collect_payload_issues(
+        cls,
+        expected_type: str,
+        payload: dict[str, Any],
+    ) -> list[str]:
+        issues: list[str] = []
+        question = str(payload.get("question", "") or "")
+        correct_answer = str(payload.get("correct_answer", "") or "").strip()
+        options = payload.get("options")
+
+        if expected_type == "choice":
+            option_keys = set(options.keys()) if isinstance(options, dict) else set()
+            if not option_keys:
+                issues.append("choice_missing_options")
+            elif option_keys != {"A", "B", "C", "D"}:
+                issues.append("choice_options_must_be_a_to_d")
+            if correct_answer.upper() not in {"A", "B", "C", "D"}:
+                issues.append("choice_correct_answer_must_be_option_key")
+        else:
+            if cls._payload_looks_like_choice(question=question, correct_answer=correct_answer, options=options):
+                issues.append("non_choice_payload_looks_like_multiple_choice")
+
+        if not question:
+            issues.append("missing_question")
+        if not correct_answer:
+            issues.append("missing_correct_answer")
+        if not str(payload.get("explanation", "") or "").strip():
+            issues.append("missing_explanation")
+        return issues
+
+    @staticmethod
+    def _payload_looks_like_choice(
+        question: str,
+        correct_answer: str,
+        options: Any,
+    ) -> bool:
+        if isinstance(options, dict) and bool(options):
+            return True
+        lowered = question.lower()
+        if re.search(
+            r"\b(select|choose|pick|which of the following|which option|multiple[- ]choice)\b",
+            lowered,
+        ):
+            return True
+        if re.search(r"(^|\n)\s*[A-D][\.\):]\s+", question):
+            return True
+        return correct_answer.upper() in {"A", "B", "C", "D"}
+
+    @staticmethod
+    def _humanize_question_id(question_id: str) -> str:
+        match = re.fullmatch(r"q_(\d+)", str(question_id or "").strip().lower())
+        if match:
+            return f"question {match.group(1)}"
+        return str(question_id or "question").strip() or "question"
+
+    def _is_tool_enabled(self, tool_name: str) -> bool:
+        aliases = {
+            "rag": ["rag", "rag_tool"],
+            "web_search": ["web_search"],
+            "code_execution": ["code_execution", "write_code"],
+        }
+        keys = aliases.get(tool_name, [tool_name])
+        present = [key for key in keys if key in self.tool_flags]
+        if not present:
+            return True
+        return any(bool(self.tool_flags.get(key)) for key in present)
+
+    def _enabled_tool_names(self) -> list[str]:
+        enabled_tools: list[str] = []
+        if self._is_tool_enabled("rag"):
+            enabled_tools.append("rag")
+        if self._is_tool_enabled("web_search"):
+            enabled_tools.append("web_search")
+        if self._is_tool_enabled("code_execution"):
+            enabled_tools.append("code_execution")
+        return enabled_tools
 
     @staticmethod
     def _parse_json_like(content: str) -> dict[str, Any]:

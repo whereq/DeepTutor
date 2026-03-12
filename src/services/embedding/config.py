@@ -34,7 +34,7 @@ class EmbeddingConfig:
     api_version: Optional[str] = None
     dim: int = 3072
     max_tokens: int = 8192
-    request_timeout: int = 30
+    request_timeout: int = 60
     batch_size: int = 10
     input_type: Optional[str] = None  # For task-aware embeddings (Cohere, Jina)
 
@@ -133,7 +133,7 @@ def get_embedding_config() -> EmbeddingConfig:
     # Get optional configuration
     dim = _to_int(dim_str, 3072)
     max_tokens = _to_int(_strip_value(os.getenv("EMBEDDING_MAX_TOKENS")), 8192)
-    request_timeout = _to_int(_strip_value(os.getenv("EMBEDDING_REQUEST_TIMEOUT")), 30)
+    request_timeout = _to_int(_strip_value(os.getenv("EMBEDDING_REQUEST_TIMEOUT")), 60)
     batch_size = _to_int(_strip_value(os.getenv("EMBEDDING_BATCH_SIZE")), 10)
     input_type = _strip_value(os.getenv("EMBEDDING_INPUT_TYPE"))  # Optional
 

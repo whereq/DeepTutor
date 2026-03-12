@@ -78,7 +78,7 @@ class BaseEmbeddingAdapter(ABC):
         self.api_version = config.get("api_version")
         self.model = config.get("model")
         self.dimensions = config.get("dimensions")
-        self.request_timeout = config.get("request_timeout", 30)
+        self.request_timeout = config.get("request_timeout", 60)
 
     @abstractmethod
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:

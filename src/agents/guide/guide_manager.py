@@ -5,6 +5,7 @@ GuideManager - Guided Learning Session Manager
 Manages the complete lifecycle of learning sessions
 """
 
+import asyncio
 from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
@@ -18,7 +19,7 @@ from src.logging import get_logger
 from src.services.config import load_config_with_main, parse_language
 from src.services.path_service import get_path_service
 
-from .agents import ChatAgent, InteractiveAgent, LocateAgent, SummaryAgent
+from .agents import ChatAgent, DesignAgent, InteractiveAgent, SummaryAgent
 
 
 @dataclass
@@ -30,18 +31,40 @@ class GuidedSession:
     notebook_name: str
     created_at: float
     knowledge_points: list[dict[str, Any]] = field(default_factory=list)
-    current_index: int = 0
+    current_index: int = -1
     chat_history: list[dict[str, Any]] = field(default_factory=list)
     status: str = "initialized"  # initialized, learning, completed
-    current_html: str = ""
+    html_pages: dict[str, str] = field(default_factory=dict)
+    page_statuses: dict[str, str] = field(default_factory=dict)
+    page_errors: dict[str, str] = field(default_factory=dict)
     summary: str = ""
+    notebook_context: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GuidedSession":
-        return cls(**data)
+        session_data = dict(data)
+
+        current_html = str(session_data.pop("current_html", "") or "")
+        current_index = int(session_data.get("current_index", -1))
+        html_pages = dict(session_data.get("html_pages") or {})
+        page_statuses = dict(session_data.get("page_statuses") or {})
+        page_errors = dict(session_data.get("page_errors") or {})
+
+        if current_html and not html_pages and current_index >= 0:
+            html_pages[str(current_index)] = current_html
+            page_statuses[str(current_index)] = "ready"
+
+        session_data.setdefault("current_index", current_index)
+        session_data.setdefault("chat_history", [])
+        session_data.setdefault("status", "initialized")
+        session_data.setdefault("summary", "")
+        session_data["html_pages"] = html_pages
+        session_data["page_statuses"] = page_statuses
+        session_data["page_errors"] = page_errors
+        return cls(**session_data)
 
 
 class GuideManager:
@@ -75,8 +98,9 @@ class GuideManager:
         self.binding = binding
 
         if config_path is None:
-            project_root = Path(__file__).parent.parent.parent.parent
-            config = load_config_with_main("guide_config.yaml", project_root)
+            from src.services.config import PROJECT_ROOT
+
+            config = load_config_with_main("main.yaml", PROJECT_ROOT)
         else:
             config_path = Path(config_path)
             if config_path.exists():
@@ -117,7 +141,7 @@ class GuideManager:
                 self.output_dir = path_service.get_guide_dir()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.locate_agent = LocateAgent(
+        self.design_agent = DesignAgent(
             api_key,
             base_url,
             language=self.language,
@@ -147,6 +171,8 @@ class GuideManager:
         )
 
         self._sessions: dict[str, GuidedSession] = {}
+        self._generation_tasks: dict[str, asyncio.Task[None]] = {}
+        self.max_parallel_generations = 2
 
     def _get_session_file(self, session_id: str) -> Path:
         """Get session file path"""
@@ -158,6 +184,13 @@ class GuideManager:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(session.to_dict(), f, indent=2, ensure_ascii=False)
         self._sessions[session.session_id] = session
+
+    def _delete_session(self, session_id: str):
+        """Delete a session from memory and disk."""
+        self._sessions.pop(session_id, None)
+        filepath = self._get_session_file(session_id)
+        if filepath.exists():
+            filepath.unlink()
 
     def _load_session(self, session_id: str) -> GuidedSession | None:
         """Load session from file"""
@@ -173,51 +206,191 @@ class GuideManager:
             return session
         return None
 
+    def _initialize_page_statuses(self, session: GuidedSession):
+        """Ensure every knowledge point has an initial page status."""
+        for index, _knowledge in enumerate(session.knowledge_points):
+            key = str(index)
+            session.page_statuses.setdefault(key, "pending")
+            session.page_errors.setdefault(key, "")
+
+    def _count_ready_pages(self, session: GuidedSession) -> int:
+        return sum(1 for status in session.page_statuses.values() if status == "ready")
+
+    def _calculate_progress(self, session: GuidedSession) -> int:
+        total_points = len(session.knowledge_points)
+        if total_points == 0:
+            return 0
+        return int((self._count_ready_pages(session) / total_points) * 100)
+
+    def _has_active_generation_task(self, session_id: str) -> bool:
+        task = self._generation_tasks.get(session_id)
+        return bool(task and not task.done())
+
+    def _clear_generation_task(self, session_id: str):
+        task = self._generation_tasks.pop(session_id, None)
+        if task and not task.done():
+            task.cancel()
+
+    async def _generate_single_page(self, session_id: str, knowledge_index: int) -> dict[str, Any]:
+        session = self._load_session(session_id)
+        if not session:
+            return {"success": False, "error": "Session does not exist"}
+
+        if knowledge_index < 0 or knowledge_index >= len(session.knowledge_points):
+            return {"success": False, "error": "Knowledge point does not exist"}
+
+        key = str(knowledge_index)
+        knowledge = session.knowledge_points[knowledge_index]
+        session.page_statuses[key] = "generating"
+        session.page_errors[key] = ""
+        self._save_session(session)
+
+        result = await self.interactive_agent.process(knowledge=knowledge)
+        session = self._load_session(session_id)
+        if not session:
+            return {"success": False, "error": "Session does not exist"}
+
+        if result.get("success"):
+            html = result.get("html", "")
+            if html:
+                session.html_pages[key] = html
+            session.page_statuses[key] = "ready"
+            session.page_errors[key] = result.get("error", "")
+            self._save_session(session)
+            return result
+
+        retryable = bool(result.get("retryable"))
+        session.page_statuses[key] = "pending" if retryable else "failed"
+        session.page_errors[key] = result.get("error", "Failed to generate page")
+        self._save_session(session)
+        return result
+
+    async def _generate_all_pages_background(
+        self, session_id: str, indices: list[int] | None = None
+    ) -> None:
+        session = self._load_session(session_id)
+        if not session:
+            return
+
+        if indices is None:
+            page_indices = list(range(len(session.knowledge_points)))
+        else:
+            page_indices = sorted({index for index in indices if 0 <= index < len(session.knowledge_points)})
+
+        if not page_indices:
+            return
+
+        queue: asyncio.PriorityQueue[tuple[int, int]] = asyncio.PriorityQueue()
+        for index in page_indices:
+            await queue.put((index, 0))
+
+        shared_state = {"backoff_until": 0.0}
+
+        async def worker():
+            while True:
+                index, attempt = await queue.get()
+                try:
+                    delay = shared_state["backoff_until"] - time.time()
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+
+                    result = await self._generate_single_page(session_id, index)
+                    if result.get("retryable") and attempt < 2:
+                        backoff_seconds = 2**attempt
+                        shared_state["backoff_until"] = max(
+                            shared_state["backoff_until"], time.time() + backoff_seconds
+                        )
+                        await queue.put((index, attempt + 1))
+                    elif result.get("retryable"):
+                        failed_session = self._load_session(session_id)
+                        if failed_session:
+                            key = str(index)
+                            failed_session.page_statuses[key] = "failed"
+                            failed_session.page_errors[key] = result.get(
+                                "error", "Failed after retries"
+                            )
+                            self._save_session(failed_session)
+                finally:
+                    queue.task_done()
+
+        workers = [
+            asyncio.create_task(worker()) for _ in range(min(self.max_parallel_generations, len(page_indices)))
+        ]
+
+        try:
+            await queue.join()
+        finally:
+            for worker_task in workers:
+                worker_task.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
+
+    def _schedule_generation_task(self, session_id: str, indices: list[int] | None = None):
+        if self._has_active_generation_task(session_id):
+            return
+
+        task = asyncio.create_task(self._generate_all_pages_background(session_id, indices))
+        self._generation_tasks[session_id] = task
+
+        def _cleanup(_task: asyncio.Task[None]):
+            self._generation_tasks.pop(session_id, None)
+
+        task.add_done_callback(_cleanup)
+
     async def create_session(
-        self, notebook_id: str, notebook_name: str, records: list[dict[str, Any]]
+        self,
+        user_input: str,
+        display_title: str | None = None,
+        notebook_context: str = "",
     ) -> dict[str, Any]:
         """
         Create new learning session
 
         Args:
-            notebook_id: Notebook ID
-            notebook_name: Notebook name
-            records: Notebook records
+            user_input: User's learning request
 
         Returns:
             Session creation result
         """
-        session_id = str(uuid.uuid4())[:8]
-
-        locate_result = await self.locate_agent.process(
-            notebook_id=notebook_id, notebook_name=notebook_name, records=records
-        )
-
-        if not locate_result.get("success"):
+        if not user_input.strip():
             return {
                 "success": False,
-                "error": locate_result.get("error", "Failed to analyze knowledge points"),
+                "error": "User input cannot be empty",
                 "session_id": None,
             }
 
-        knowledge_points = locate_result.get("knowledge_points", [])
+        session_id = str(uuid.uuid4())[:8]
+
+        design_result = await self.design_agent.process(user_input=user_input)
+
+        if not design_result.get("success"):
+            return {
+                "success": False,
+                "error": design_result.get("error", "Failed to design learning plan"),
+                "session_id": None,
+            }
+
+        knowledge_points = design_result.get("knowledge_points", [])
 
         if not knowledge_points:
             return {
                 "success": False,
-                "error": "No knowledge points identified from notebook",
+                "error": "No knowledge points identified from user input",
                 "session_id": None,
             }
 
+        session_title = (display_title or user_input).strip().replace("\n", " ")[:50]
+
         session = GuidedSession(
             session_id=session_id,
-            notebook_id=notebook_id,
-            notebook_name=notebook_name,
+            notebook_id="user_input",
+            notebook_name=session_title or "Guided Learning",
             created_at=time.time(),
             knowledge_points=knowledge_points,
-            current_index=0,
+            current_index=-1,
             status="initialized",
+            notebook_context=notebook_context,
         )
+        self._initialize_page_statuses(session)
 
         self._save_session(session)
 
@@ -288,124 +461,102 @@ class GuideManager:
         if not session:
             return {"success": False, "error": "Session does not exist"}
 
-        state = self._get_learning_state(session.knowledge_points, 0)
-
-        if not state.get("success"):
-            return state
-
-        current_knowledge = state.get("current_knowledge")
-
-        interactive_result = await self.interactive_agent.process(knowledge=current_knowledge)
-
         session.current_index = 0
         session.status = "learning"
-        session.current_html = interactive_result.get("html", "")
+        self._initialize_page_statuses(session)
 
         session.chat_history.append(
             {
                 "role": "system",
-                "content": state.get("message", ""),
+                "content": "Started guided learning. Interactive pages are now generating in parallel.",
                 "knowledge_index": 0,
                 "timestamp": time.time(),
             }
         )
 
         self._save_session(session)
+        self._schedule_generation_task(session_id)
 
         return {
             "success": True,
             "current_index": 0,
-            "current_knowledge": current_knowledge,
-            "html": interactive_result.get("html", ""),
-            "progress": state.get("progress_percentage", 0),
+            "current_knowledge": session.knowledge_points[0] if session.knowledge_points else None,
+            "html": session.html_pages.get("0", ""),
+            "page_statuses": session.page_statuses,
+            "progress": self._calculate_progress(session),
             "total_points": len(session.knowledge_points),
-            "message": state.get("message", ""),
+            "message": "Interactive pages are generating in parallel. Open any page as soon as it is ready.",
         }
 
-    async def next_knowledge(self, session_id: str) -> dict[str, Any]:
-        """
-        Move to next knowledge point
-
-        Args:
-            session_id: Session ID
-
-        Returns:
-            Next knowledge point information and interactive page, or completion summary
-        """
+    async def navigate_to_knowledge(self, session_id: str, knowledge_index: int) -> dict[str, Any]:
+        """Navigate to any knowledge point."""
         session = self._load_session(session_id)
         if not session:
             return {"success": False, "error": "Session does not exist"}
 
-        new_index = session.current_index + 1
+        if knowledge_index < 0 or knowledge_index >= len(session.knowledge_points):
+            return {"success": False, "error": "Knowledge point does not exist"}
 
-        state = self._get_learning_state(session.knowledge_points, new_index)
+        self._initialize_page_statuses(session)
+        session.current_index = knowledge_index
+        self._save_session(session)
 
-        if not state.get("success"):
-            return state
+        if not self._has_active_generation_task(session_id):
+            pending_indices = [
+                index
+                for index, _knowledge in enumerate(session.knowledge_points)
+                if session.page_statuses.get(str(index)) in {"pending", "generating"}
+            ]
+            if pending_indices:
+                self._schedule_generation_task(session_id, pending_indices)
 
-        if state.get("status") == "completed":
-            summary_result = await self.summary_agent.process(
-                notebook_name=session.notebook_name,
-                knowledge_points=session.knowledge_points,
-                chat_history=session.chat_history,
-            )
+        key = str(knowledge_index)
+        return {
+            "success": True,
+            "current_index": knowledge_index,
+            "current_knowledge": session.knowledge_points[knowledge_index],
+            "html": session.html_pages.get(key, ""),
+            "page_status": session.page_statuses.get(key, "pending"),
+            "page_error": session.page_errors.get(key, ""),
+            "progress": self._calculate_progress(session),
+            "total_points": len(session.knowledge_points),
+            "message": f"Viewing knowledge point {knowledge_index + 1}.",
+        }
 
-            session.status = "completed"
-            session.summary = summary_result.get("summary", "")
-            session.current_index = new_index
+    async def complete_learning(self, session_id: str) -> dict[str, Any]:
+        """Generate the final learning summary."""
+        session = self._load_session(session_id)
+        if not session:
+            return {"success": False, "error": "Session does not exist"}
 
-            session.chat_history.append(
-                {
-                    "role": "system",
-                    "content": state.get(
-                        "message", "Congratulations on completing all knowledge points!"
-                    ),
-                    "timestamp": time.time(),
-                }
-            )
+        summary_result = await self.summary_agent.process(
+            notebook_name=session.notebook_name,
+            knowledge_points=session.knowledge_points,
+            chat_history=session.chat_history,
+        )
 
-            self._save_session(session)
-
-            return {
-                "success": True,
-                "status": "completed",
-                "summary": session.summary,
-                "progress": 100,
-                "message": state.get("message", ""),
-            }
-
-        current_knowledge = state.get("current_knowledge")
-
-        interactive_result = await self.interactive_agent.process(knowledge=current_knowledge)
-
-        session.current_index = new_index
-        session.current_html = interactive_result.get("html", "")
-
-        message = f"→ Entering knowledge point {new_index + 1}: {current_knowledge.get('knowledge_title', '')}"
-
+        session.status = "completed"
+        session.summary = summary_result.get("summary", "")
         session.chat_history.append(
             {
                 "role": "system",
-                "content": message,
-                "knowledge_index": new_index,
+                "content": "Congratulations on completing guided learning!",
                 "timestamp": time.time(),
             }
         )
-
         self._save_session(session)
 
         return {
             "success": True,
-            "current_index": new_index,
-            "current_knowledge": current_knowledge,
-            "html": interactive_result.get("html", ""),
-            "progress": state.get("progress_percentage", 0),
-            "total_points": len(session.knowledge_points),
-            "remaining_points": state.get("remaining_points", 0),
-            "message": message,
+            "status": "completed",
+            "summary": session.summary,
+            "progress": 100,
+            "message": "Guided learning completed.",
         }
 
-    async def chat(self, session_id: str, user_message: str) -> dict[str, Any]:
+    async def chat(
+        self, session_id: str, user_message: str, knowledge_index: int | None = None
+    ) -> dict[str, Any]:
         """
         Process user chat message
 
@@ -423,30 +574,38 @@ class GuideManager:
         if session.status != "learning":
             return {"success": False, "error": "Not currently in learning state"}
 
-        current_knowledge = session.knowledge_points[session.current_index]
+        current_index = session.current_index if knowledge_index is None else knowledge_index
+        if current_index < 0 or current_index >= len(session.knowledge_points):
+            return {"success": False, "error": "Knowledge point does not exist"}
+
+        current_knowledge = session.knowledge_points[current_index]
+        current_html = session.html_pages.get(str(current_index), "")
 
         current_history = [
             msg
             for msg in session.chat_history
-            if msg.get("knowledge_index") == session.current_index
+            if msg.get("knowledge_index") == current_index
         ]
 
         user_msg = {
             "role": "user",
             "content": user_message,
-            "knowledge_index": session.current_index,
+            "knowledge_index": current_index,
             "timestamp": time.time(),
         }
         session.chat_history.append(user_msg)
 
         chat_result = await self.chat_agent.process(
-            knowledge=current_knowledge, chat_history=current_history, user_question=user_message
+            knowledge=current_knowledge,
+            chat_history=current_history,
+            user_question=user_message,
+            current_html=current_html,
         )
 
         assistant_msg = {
             "role": "assistant",
             "content": chat_result.get("answer", ""),
-            "knowledge_index": session.current_index,
+            "knowledge_index": current_index,
             "timestamp": time.time(),
         }
         session.chat_history.append(assistant_msg)
@@ -456,7 +615,7 @@ class GuideManager:
         return {
             "success": True,
             "answer": chat_result.get("answer", ""),
-            "knowledge_index": session.current_index,
+            "knowledge_index": current_index,
         }
 
     async def fix_html(self, session_id: str, bug_description: str) -> dict[str, Any]:
@@ -474,6 +633,9 @@ class GuideManager:
         if not session:
             return {"success": False, "error": "Session does not exist"}
 
+        if session.current_index < 0:
+            return {"success": False, "error": "No active knowledge point selected"}
+
         current_knowledge = session.knowledge_points[session.current_index]
 
         result = await self.interactive_agent.process(
@@ -481,7 +643,8 @@ class GuideManager:
         )
 
         if result.get("success"):
-            session.current_html = result.get("html", "")
+            session.html_pages[str(session.current_index)] = result.get("html", "")
+            session.page_statuses[str(session.current_index)] = "ready"
             self._save_session(session)
 
         return result
@@ -490,12 +653,102 @@ class GuideManager:
         """Get session information"""
         session = self._load_session(session_id)
         if session:
+            self._initialize_page_statuses(session)
+            self._save_session(session)
             return session.to_dict()
         return None
+
+    def get_session_pages(self, session_id: str) -> dict[str, Any] | None:
+        """Get page generation status for a session."""
+        session = self._load_session(session_id)
+        if not session:
+            return None
+
+        self._initialize_page_statuses(session)
+        if session.status == "learning" and not self._has_active_generation_task(session_id):
+            pending_indices = [
+                index
+                for index, _knowledge in enumerate(session.knowledge_points)
+                if session.page_statuses.get(str(index)) in {"pending", "generating"}
+            ]
+            if pending_indices:
+                self._schedule_generation_task(session_id, pending_indices)
+
+        return {
+            "session_id": session.session_id,
+            "current_index": session.current_index,
+            "status": session.status,
+            "page_statuses": session.page_statuses,
+            "page_errors": session.page_errors,
+            "html_pages": session.html_pages,
+            "progress": self._calculate_progress(session),
+            "total_points": len(session.knowledge_points),
+        }
 
     def get_current_html(self, session_id: str) -> str | None:
         """Get current HTML page"""
         session = self._load_session(session_id)
-        if session:
-            return session.current_html
-        return None
+        if not session or session.current_index < 0:
+            return None
+        return session.html_pages.get(str(session.current_index))
+
+    async def retry_page(self, session_id: str, page_index: int) -> dict[str, Any]:
+        """Retry a failed or pending page generation."""
+        session = self._load_session(session_id)
+        if not session:
+            return {"success": False, "error": "Session does not exist"}
+
+        if page_index < 0 or page_index >= len(session.knowledge_points):
+            return {"success": False, "error": "Knowledge point does not exist"}
+
+        key = str(page_index)
+        session.page_statuses[key] = "pending"
+        session.page_errors[key] = ""
+        self._save_session(session)
+        self._schedule_generation_task(session_id, [page_index])
+
+        return {
+            "success": True,
+            "page_index": page_index,
+            "page_status": session.page_statuses.get(key, "pending"),
+            "message": f"Retrying knowledge point {page_index + 1}.",
+        }
+
+    def list_sessions(self) -> list[dict[str, Any]]:
+        """List all sessions with summary metadata (no html_pages / chat_history)."""
+        summaries: list[dict[str, Any]] = []
+        for filepath in self.output_dir.glob("session_*.json"):
+            try:
+                with open(filepath, encoding="utf-8") as f:
+                    data = json.load(f)
+                page_statuses = data.get("page_statuses") or {}
+                ready_count = sum(1 for v in page_statuses.values() if v == "ready")
+                total_points = len(data.get("knowledge_points") or [])
+                progress = int((ready_count / total_points) * 100) if total_points else 0
+                summaries.append(
+                    {
+                        "session_id": data.get("session_id", ""),
+                        "topic": data.get("notebook_name", ""),
+                        "status": data.get("status", "initialized"),
+                        "created_at": data.get("created_at", 0),
+                        "total_points": total_points,
+                        "ready_count": ready_count,
+                        "progress": progress,
+                    }
+                )
+            except Exception:
+                continue
+        summaries.sort(key=lambda s: s["created_at"], reverse=True)
+        return summaries
+
+    async def reset_session(self, session_id: str) -> dict[str, Any]:
+        """Detach from a session (cancel tasks, clear cache, but keep the file for history)."""
+        self._clear_generation_task(session_id)
+        self._sessions.pop(session_id, None)
+        return {"success": True, "message": "Session reset"}
+
+    async def delete_session(self, session_id: str) -> dict[str, Any]:
+        """Permanently delete a session from memory and disk."""
+        self._clear_generation_task(session_id)
+        self._delete_session(session_id)
+        return {"success": True, "message": "Session deleted"}

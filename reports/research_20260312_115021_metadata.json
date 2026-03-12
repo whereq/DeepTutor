@@ -1,0 +1,15 @@
+{
+  "research_id": "research_20260312_115021",
+  "topic": "agentic rag",
+  "optimized_topic": "agentic rag",
+  "statistics": {
+    "total_blocks": 2,
+    "pending": 0,
+    "researching": 0,
+    "completed": 2,
+    "failed": 0,
+    "total_tool_calls": 2
+  },
+  "report_word_count": 6378,
+  "completed_at": "2026-03-12T11:52:52.938875"
+}

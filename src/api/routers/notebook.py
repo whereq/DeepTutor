@@ -3,18 +3,15 @@ Notebook API Router
 Provides notebook creation, querying, updating, deletion, and record management functions
 """
 
-from pathlib import Path
-import sys
+import json
+from typing import AsyncGenerator
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-# Ensure module can be imported
-project_root = Path(__file__).parent.parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
+from src.agents.notebook import NotebookSummarizeAgent
 from src.api.utils.notebook_manager import notebook_manager
 
 router = APIRouter()
@@ -45,8 +42,9 @@ class AddRecordRequest(BaseModel):
     """Add record request"""
 
     notebook_ids: list[str]
-    record_type: Literal["solve", "question", "research", "co_writer", "chat"]
+    record_type: Literal["solve", "question", "research", "co_writer", "chat", "guided_learning"]
     title: str
+    summary: str = ""
     user_query: str
     output: str
     metadata: dict = {}
@@ -60,6 +58,65 @@ class RemoveRecordRequest(BaseModel):
 
 
 # === API Endpoints ===
+
+
+async def _build_record_summary(request: AddRecordRequest) -> str:
+    if request.summary.strip():
+        return request.summary.strip()
+    agent = NotebookSummarizeAgent(language=str(request.metadata.get("ui_language", "en")))
+    return await agent.summarize(
+        title=request.title,
+        record_type=request.record_type,
+        user_query=request.user_query,
+        output=request.output,
+        metadata=request.metadata,
+    )
+
+
+async def _stream_add_record_with_summary(
+    request: AddRecordRequest,
+) -> AsyncGenerator[str, None]:
+    try:
+        agent = NotebookSummarizeAgent(language=str(request.metadata.get("ui_language", "en")))
+        summary_parts: list[str] = []
+        if request.summary.strip():
+            summary_parts.append(request.summary.strip())
+            yield f"data: {json.dumps({'type': 'summary_chunk', 'content': request.summary.strip()}, ensure_ascii=False)}\n\n"
+        else:
+            async for chunk in agent.stream_summary(
+                title=request.title,
+                record_type=request.record_type,
+                user_query=request.user_query,
+                output=request.output,
+                metadata=request.metadata,
+            ):
+                if not chunk:
+                    continue
+                summary_parts.append(chunk)
+                yield f"data: {json.dumps({'type': 'summary_chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+
+        summary = "".join(summary_parts).strip()
+        result = notebook_manager.add_record(
+            notebook_ids=request.notebook_ids,
+            record_type=request.record_type,
+            title=request.title,
+            summary=summary,
+            user_query=request.user_query,
+            output=request.output,
+            metadata=request.metadata,
+            kb_name=request.kb_name,
+        )
+        payload = {
+            "type": "result",
+            "success": True,
+            "summary": summary,
+            "record": result["record"],
+            "added_to_notebooks": result["added_to_notebooks"],
+        }
+        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    except Exception as exc:
+        payload = {"type": "error", "detail": str(exc)}
+        yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 @router.get("/list")
@@ -200,10 +257,12 @@ async def add_record(request: AddRecordRequest):
         Addition result
     """
     try:
+        summary = await _build_record_summary(request)
         result = notebook_manager.add_record(
             notebook_ids=request.notebook_ids,
             record_type=request.record_type,
             title=request.title,
+            summary=summary,
             user_query=request.user_query,
             output=request.output,
             metadata=request.metadata,
@@ -211,11 +270,22 @@ async def add_record(request: AddRecordRequest):
         )
         return {
             "success": True,
+            "summary": summary,
             "record": result["record"],
             "added_to_notebooks": result["added_to_notebooks"],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/add_record_with_summary")
+async def add_record_with_summary(request: AddRecordRequest):
+    """Add record to notebook and stream generated summary."""
+    return StreamingResponse(
+        _stream_add_record_with_summary(request),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.delete("/{notebook_id}/records/{record_id}")

@@ -1,0 +1,15 @@
+{
+  "research_id": "research_20260312_014514",
+  "topic": "what is agentic rag and how can i learn it?",
+  "optimized_topic": "An investigation into the architecture, core components, and implementation strategies of Agentic Retrieval-Augmented Generation (RAG), including a structured learning roadmap for building autonomous, reasoning-based information retrieval systems.",
+  "statistics": {
+    "total_blocks": 2,
+    "pending": 0,
+    "researching": 0,
+    "completed": 2,
+    "failed": 0,
+    "total_tool_calls": 2
+  },
+  "report_word_count": 5534,
+  "completed_at": "2026-03-12T01:45:48.857062"
+}

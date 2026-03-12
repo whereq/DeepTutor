@@ -7,43 +7,11 @@ Coordinates three stages: Planning -> Researching -> Reporting
 
 import asyncio
 from datetime import datetime
+import inspect
 import json
 from pathlib import Path
 import sys
 from typing import Any, Callable
-
-
-def _get_project_root() -> Path:
-    """
-    Get project root directory robustly by looking for marker files.
-    Works regardless of how the script is invoked.
-    """
-    # Start from current file's directory
-    current = Path(__file__).resolve().parent
-
-    # Walk up looking for project markers (pyproject.toml, requirements.txt, or src/ directory)
-    markers = ["pyproject.toml", "requirements.txt", ".git"]
-
-    for _ in range(10):  # Limit to 10 levels up
-        for marker in markers:
-            if (current / marker).exists():
-                return current
-        parent = current.parent
-        if parent == current:  # Reached filesystem root
-            break
-        current = parent
-
-    # Fallback: use relative path from this file
-    # This file is at: src/agents/research/research_pipeline.py
-    # So project root is: ../../../
-    return Path(__file__).resolve().parent.parent.parent.parent
-
-
-# Get project root
-PROJECT_ROOT = _get_project_root()
-
-# Add project root to path for imports
-sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.agents.research.agents import (
     DecomposeAgent,
@@ -55,12 +23,10 @@ from src.agents.research.agents import (
 )
 from src.agents.research.data_structures import DynamicTopicQueue
 from src.agents.research.utils.citation_manager import CitationManager
+from src.core.trace import new_call_id
 from src.logging import get_logger
-from src.tools.code_executor import run_code, DEFAULT_SAFE_IMPORTS
-from src.tools.paper_search_tool import PaperSearchTool
-from src.tools.query_item_tool import query_numbered_item
-from src.tools.rag_tool import rag_search
-from src.tools.web_search import web_search
+from src.runtime.registry.tool_registry import get_tool_registry
+from src.services.config import PROJECT_ROOT
 
 
 class ResearchPipeline:
@@ -75,6 +41,7 @@ class ResearchPipeline:
         research_id: str | None = None,
         kb_name: str | None = None,
         progress_callback: Callable | None = None,
+        trace_callback: Callable[[dict[str, Any]], Any] | None = None,
     ):
         """
         Initialize research workflow
@@ -90,6 +57,7 @@ class ResearchPipeline:
         """
         self.config = config
         self.progress_callback = progress_callback
+        self.trace_callback = trace_callback
 
         # If kb_name is provided, override config
         if kb_name is not None:
@@ -111,8 +79,18 @@ class ResearchPipeline:
 
         # Set directories
         system_config = config.get("system", {})
-        self.cache_dir = Path(system_config.get("output_base_dir", "./cache")) / self.research_id
-        self.reports_dir = Path(system_config.get("reports_dir", "./reports"))
+        self.cache_dir = Path(
+            system_config.get(
+                "output_base_dir",
+                "./data/user/workspace/chat/deep_research",
+            )
+        ) / self.research_id
+        self.reports_dir = Path(
+            system_config.get(
+                "reports_dir",
+                "./data/user/workspace/chat/deep_research/reports",
+            )
+        )
 
         # Create directories
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -141,7 +119,7 @@ class ResearchPipeline:
         self._init_agents()
 
         # Tool instances
-        self._paper_tool: PaperSearchTool | None = None
+        self._tool_registry = get_tool_registry()
 
         # Citation manager
         self.citation_manager = CitationManager(self.research_id, self.cache_dir)
@@ -187,11 +165,24 @@ class ResearchPipeline:
             ),
         }
 
+        if self.trace_callback is not None:
+            for agent in self.agents.values():
+                if hasattr(agent, "set_trace_callback"):
+                    agent.set_trace_callback(self.trace_callback)
+
         # Set Manager's queue
         self.agents["manager"].set_queue(self.queue)
 
         if self.logger:
             self.logger.success(f"Initialized {len(self.agents)} Agents")
+
+    async def _emit_trace_event(self, payload: dict[str, Any]) -> None:
+        callback = self.trace_callback
+        if callback is None:
+            return
+        result = callback(payload)
+        if inspect.isawaitable(result):
+            await result
 
     async def _call_tool_with_timeout(
         self, coro, timeout: float = 60.0, tool_name: str = "tool"
@@ -279,6 +270,19 @@ class ResearchPipeline:
     async def _call_tool(self, tool_type: str, query: str) -> str:
         """Call tool and return raw string answer (JSON string or text)"""
         tool_type = (tool_type or "").lower()
+        call_id = new_call_id("research-tool")
+        await self._emit_trace_event(
+            {
+                "event": "tool_call",
+                "phase": "researching",
+                "call_id": call_id,
+                "label": f"Use {tool_type or 'tool'}",
+                "call_kind": "tool_execution",
+                "tool_name": tool_type or "tool",
+                "tool_args": {"query": query},
+                "query": query,
+            }
+        )
 
         # Get timeout and retry settings from config
         tool_config = self.config.get("researching", {})
@@ -298,57 +302,42 @@ class ResearchPipeline:
                 else:
                     mode = default_mode
                 try:
-                    res = await self._call_tool_with_retry(
-                        rag_search,
+                    result = await self._call_tool_with_retry(
+                        self._tool_registry.execute,
+                        tool_type,
                         query=query,
                         kb_name=kb_name,
                         mode=mode,
                         max_retries=max_retries,
                         timeout=default_timeout,
-                        tool_name=f"rag_search({mode})",
+                        tool_name=f"{tool_type}({mode})",
                     )
                 except Exception:
-                    # Retry with fallback mode
-                    res = await self._call_tool_with_retry(
-                        rag_search,
+                    result = await self._call_tool_with_retry(
+                        self._tool_registry.execute,
+                        tool_type,
                         query=query,
                         kb_name=kb_name,
                         mode=fallback_mode,
                         max_retries=1,
                         timeout=default_timeout,
-                        tool_name=f"rag_search({fallback_mode})",
+                        tool_name=f"{tool_type}({fallback_mode})",
                     )
-                return json.dumps(res, ensure_ascii=False)
-
-            if tool_type == "web_search":
-                res = await self._call_tool_with_retry(
-                    web_search,
+            elif tool_type == "web_search":
+                result = await self._call_tool_with_retry(
+                    self._tool_registry.execute,
+                    tool_type,
                     query=query,
                     output_dir=str(self.cache_dir),
                     max_retries=max_retries,
                     timeout=default_timeout,
                     tool_name="web_search",
                 )
-                return json.dumps(res, ensure_ascii=False)
-
-            if tool_type == "query_item":
-                kb_name = self.config.get("rag", {}).get("kb_name", "ai_textbook")
-                res = await self._call_tool_with_retry(
-                    query_numbered_item,
-                    identifier=query,
-                    kb_name=kb_name,
-                    max_retries=max_retries,
-                    timeout=default_timeout,
-                    tool_name="query_item",
-                )
-                return json.dumps(res, ensure_ascii=False)
-
-            if tool_type == "paper_search":
-                if self._paper_tool is None:
-                    self._paper_tool = PaperSearchTool()
+            elif tool_type == "paper_search":
                 years_limit = self.config.get("researching", {}).get("paper_search_years_limit", 3)
-                papers = await self._call_tool_with_retry(
-                    self._paper_tool.search_papers,
+                result = await self._call_tool_with_retry(
+                    self._tool_registry.execute,
+                    tool_type,
                     query=query,
                     max_results=3,
                     years_limit=years_limit,
@@ -356,38 +345,74 @@ class ResearchPipeline:
                     timeout=default_timeout,
                     tool_name="paper_search",
                 )
-                return json.dumps({"papers": papers}, ensure_ascii=False)
-
-            if tool_type == "run_code":
-                # Code execution has its own internal timeout (10s), wrapper timeout is 30s
+            elif tool_type in {"run_code", "code_execution", "code_execute"}:
                 result = await self._call_tool_with_retry(
-                    run_code,
-                    language="python",
-                    code=query,
-                    allowed_imports=DEFAULT_SAFE_IMPORTS,
+                    self._tool_registry.execute,
+                    tool_type,
+                    intent=query,
+                    feature="deep_research",
+                    task_id=self.research_id,
                     max_retries=1,
-                    timeout=30,  # Wrapper timeout
+                    timeout=30,
                     tool_name="run_code",
                 )
-                return json.dumps(result, ensure_ascii=False)
-
-            # Default fallback to RAG hybrid
-            kb_name = self.config.get("rag", {}).get("kb_name", "ai_textbook")
-            res = await self._call_tool_with_retry(
-                rag_search,
-                query=query,
-                kb_name=kb_name,
-                mode="hybrid",
-                max_retries=max_retries,
-                timeout=default_timeout,
-                tool_name=f"rag_search(hybrid)",
-            )
-            return json.dumps(res, ensure_ascii=False)
+            else:
+                kb_name = self.config.get("rag", {}).get("kb_name", "ai_textbook")
+                result = await self._call_tool_with_retry(
+                    self._tool_registry.execute,
+                    "rag",
+                    query=query,
+                    kb_name=kb_name,
+                    mode="hybrid",
+                    max_retries=max_retries,
+                    timeout=default_timeout,
+                    tool_name="rag(hybrid)",
+                )
         except Exception as e:
-            return json.dumps(
+            failure = json.dumps(
                 {"status": "failed", "error": str(e), "tool": tool_type, "query": query},
                 ensure_ascii=False,
             )
+            await self._emit_trace_event(
+                {
+                    "event": "tool_result",
+                    "phase": "researching",
+                    "call_id": call_id,
+                    "label": f"Use {tool_type or 'tool'}",
+                    "call_kind": "tool_execution",
+                    "tool_name": tool_type or "tool",
+                    "result": failure,
+                    "state": "error",
+                    "query": query,
+                }
+            )
+            return failure
+
+        serialized = self._serialise_tool_result(result)
+        await self._emit_trace_event(
+            {
+                "event": "tool_result",
+                "phase": "researching",
+                "call_id": call_id,
+                "label": f"Use {tool_type or 'tool'}",
+                "call_kind": "tool_execution",
+                "tool_name": tool_type or "tool",
+                "result": serialized,
+                "state": "complete",
+                "query": query,
+            }
+        )
+        return serialized
+
+    @staticmethod
+    def _serialise_tool_result(result) -> str:
+        payload = dict(result.metadata or {})
+        if "content" not in payload:
+            payload["content"] = result.content
+        if result.sources:
+            payload["sources"] = result.sources
+        payload.setdefault("success", result.success)
+        return json.dumps(payload, ensure_ascii=False)
 
     async def run(self, topic: str) -> dict[str, Any]:
         """
@@ -490,6 +515,7 @@ class ResearchPipeline:
             return {
                 "research_id": self.research_id,
                 "topic": topic,
+                "report": report_result["report"],
                 "final_report_path": str(report_file),
                 "metadata": metadata,
             }
@@ -522,95 +548,27 @@ class ResearchPipeline:
 
         if rephrase_enabled:
             self.logger.info("\n【Step 1】Topic Rephrasing...")
-
-            # Use RephraseAgent to optimize topic (supports user interaction)
             max_iterations = rephrase_config.get("max_iterations", 3)
-
-            rephrase_result = None
+            rephrase_result = {"topic": topic}
+            current_topic = topic
             iteration = 0
-            user_feedback = None  # Initialize user feedback variable
-
-            # Check if running in frontend mode (has progress_callback)
-            # In frontend mode, skip interactive input loop - user controls via frontend UI
-            is_frontend_mode = self.progress_callback is not None
 
             while iteration < max_iterations:
-                # Execute rephrasing
-                if iteration == 0:
-                    rephrase_result = await self.agents["rephrase"].process(
-                        topic, iteration=iteration
-                    )
-                # Continue rephrasing based on user feedback
-                elif user_feedback:
-                    rephrase_result = await self.agents["rephrase"].process(
-                        user_feedback, iteration=iteration, previous_result=rephrase_result
-                    )
-                else:
-                    # If no feedback, use previous result
-                    break
-
+                rephrase_result = await self.agents["rephrase"].process(
+                    current_topic,
+                    iteration=iteration,
+                    previous_result=rephrase_result,
+                )
                 iteration += 1
-
-                # In frontend mode, only do one iteration and exit
-                # User will control further iterations via frontend UI (/optimize_topic API)
-                if is_frontend_mode:
-                    self.logger.info(f"\n{'=' * 70}")
-                    self.logger.info("📋 Rephrase Result (Frontend Mode):")
-                    self.logger.info(f"{'=' * 70}")
-                    self.logger.info(
-                        f"Optimized Research Topic: {rephrase_result.get('topic', '')}"
-                    )
-                    self.logger.info(f"{'=' * 70}")
-                    self.logger.success(
-                        "Frontend mode: Using current result, proceeding to next stage"
-                    )
+                next_topic = str(rephrase_result.get("topic", "") or "").strip()
+                if not next_topic:
                     break
+                if next_topic == current_topic.strip():
+                    current_topic = next_topic
+                    break
+                current_topic = next_topic
 
-                # CLI mode: Ask user opinion (unless max iterations reached)
-                if iteration < max_iterations:
-                    self.logger.info(f"\n{'=' * 70}")
-                    self.logger.info("📋 Current Rephrasing Result:")
-                    self.logger.info(f"{'=' * 70}")
-                    self.logger.info(
-                        f"Optimized Research Topic: {rephrase_result.get('topic', '')}"
-                    )
-                    self.logger.info(f"{'=' * 70}")
-                    self.logger.info("\n💬 Are you satisfied with this rephrasing result?")
-                    self.logger.info(
-                        "   - Enter 'satisfied', 'ok', etc. to indicate satisfaction, will proceed to next stage"
-                    )
-                    self.logger.info(
-                        "   - Enter specific modification suggestions, will continue optimizing based on your feedback"
-                    )
-                    self.logger.info("   - Press Enter directly to use current result")
-
-                    user_input = input("\nYour choice: ").strip()
-
-                    if not user_input:
-                        self.logger.success("Using current result, proceeding to next stage")
-                        break
-
-                    # Determine user intent
-                    satisfaction = await self.agents["rephrase"].check_user_satisfaction(
-                        rephrase_result, user_input
-                    )
-
-                    if satisfaction.get("user_satisfied", False):
-                        self.logger.success("User satisfied, proceeding to next stage")
-                        break
-
-                    if not satisfaction.get("should_continue", True):
-                        self.logger.success("Proceeding to next stage")
-                        break
-
-                    # Continue iteration, use user input as feedback
-                    user_feedback = user_input
-
-            # Ensure there is a result
-            if rephrase_result is None:
-                rephrase_result = {"topic": topic}
-
-            optimized_topic = rephrase_result.get("topic", topic)
+            optimized_topic = current_topic or topic
             self._log_progress(
                 "planning",
                 "rephrase_completed",
@@ -1305,6 +1263,4 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 
-# Backward compatibility alias: old code can use ResearchPipeline, new code referencing ResearchPipeline2 won't error
-ResearchPipeline2 = ResearchPipeline
-__all__ = ["ResearchPipeline", "ResearchPipeline2"]
+__all__ = ["ResearchPipeline"]

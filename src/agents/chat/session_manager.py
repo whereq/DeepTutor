@@ -21,7 +21,7 @@ class SessionManager(BaseSessionManager):
     """
     Manages persistent storage of chat sessions.
 
-    Sessions are stored in a JSON file at data/user/agent/chat/sessions.json.
+    Legacy JSON sessions are stored under ``data/user/workspace/chat/chat/sessions.json``.
     Each session contains:
     - session_id: Unique identifier
     - title: Session title (usually first user message)

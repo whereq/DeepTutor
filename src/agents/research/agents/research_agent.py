@@ -6,16 +6,14 @@ Responsible for executing research logic and tool call decisions
 """
 
 from collections.abc import Awaitable, Callable
-from pathlib import Path
+import json
 import re
 from string import Template
-import sys
 from typing import Any
 
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
 from src.agents.base_agent import BaseAgent
+from src.core.trace import build_trace_metadata, new_call_id
+from src.runtime.registry.tool_registry import get_tool_registry
 from src.agents.research.data_structures import DynamicTopicQueue, TopicBlock
 
 from ..utils.json_utils import extract_json_from_text
@@ -23,6 +21,33 @@ from ..utils.json_utils import extract_json_from_text
 
 class ResearchAgent(BaseAgent):
     """Research Agent"""
+
+    _MODE_TO_STYLE = {
+        "notes": "study_notes",
+        "report": "report",
+        "comparison": "comparison",
+        "learning_path": "learning_path",
+    }
+
+    @staticmethod
+    def _build_trace_meta(
+        *,
+        label: str,
+        iteration: int,
+        block_id: str = "",
+        trace_role: str = "thought",
+    ) -> dict[str, Any]:
+        return build_trace_metadata(
+            call_id=new_call_id("research-step"),
+            phase="researching",
+            label=label,
+            call_kind="llm_reasoning",
+            trace_role=trace_role,
+            trace_kind="llm_reasoning",
+            iteration=iteration,
+            block_id=block_id or None,
+            trace_group="research_round" if block_id else None,
+        )
 
     def __init__(
         self,
@@ -62,6 +87,10 @@ class ResearchAgent(BaseAgent):
         self.enable_run_code = self.researching_config.get("enable_run_code", True)
         # Store enabled tools list for prompt generation
         self.enabled_tools = self.researching_config.get("enabled_tools", ["RAG"])
+        self._tool_registry = get_tool_registry()
+        intent_mode = str(config.get("intent", {}).get("mode", "") or "")
+        reporting_style = str(config.get("reporting", {}).get("style", "") or "")
+        self._research_style = reporting_style or self._MODE_TO_STYLE.get(intent_mode, "report")
 
     @staticmethod
     def _convert_to_template_format(template_str: str) -> str:
@@ -79,121 +108,168 @@ class ResearchAgent(BaseAgent):
         converted = self._convert_to_template_format(template_str)
         return Template(converted).safe_substitute(**kwargs)
 
+    def _get_mode_contract(self, stage: str) -> str:
+        return (
+            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "")
+            or ""
+        ).strip()
+
     def _generate_available_tools_text(self) -> str:
-        """
-        Generate available tools list based on enabled_tools configuration
-
-        Returns:
-            Available tools text for prompt
-        """
-        tools = []
-        if self.enable_rag:
-            tools.append(
-                "- rag_hybrid: Hybrid RAG retrieval (knowledge base) | Query format: Natural language"
-            )
-            tools.append(
-                "- rag_naive: Basic RAG retrieval (knowledge base) | Query format: Natural language"
-            )
-            tools.append(
-                "- query_item: Entity/item query (e.g., Theorem 3.1, Fig 2.1) | Query format: Entry number"
-            )
-        if self.enable_paper_search:
-            tools.append(
-                "- paper_search: Academic paper search | Query format: 3-5 English keywords, space-separated"
-            )
-        if self.enable_web_search:
-            tools.append(
-                "- web_search: Web search for latest information | Query format: Natural language"
-            )
-        if self.enable_run_code:
-            tools.append(
-                "- run_code: Code execution for calculation/visualization | Query format: Python code"
-            )
-
-        if not tools:
-            tools.append(
-                "- rag_hybrid: Hybrid RAG retrieval (default) | Query format: Natural language"
-            )
-
-        return "\n".join(tools)
+        """Generate available tools list based on enabled tool configuration."""
+        tool_names = self._get_enabled_prompt_tools()
+        if not tool_names:
+            return "(no tools available)"
+        return self._tool_registry.build_prompt_text(
+            tool_names,
+            format="aliases",
+            language=self.language,
+        )
 
     def _generate_tool_phase_guidance(self) -> str:
-        """
-        Generate phased tool selection guidance based on enabled tools.
-        Only includes guidance for tools that are actually enabled.
+        """Generate phased tool guidance based on enabled tools."""
+        tool_names = self._get_enabled_prompt_tools()
+        guidance = self._tool_registry.build_prompt_text(
+            tool_names,
+            format="phased",
+            language=self.language,
+        )
+        if guidance:
+            return guidance
+        if self.language == "zh":
+            return "当前没有额外工具可用，请围绕现有知识继续分析。"
+        return "No extra tools are currently enabled; continue reasoning with the knowledge already gathered."
 
-        Returns:
-            Tool phase guidance text for prompt
-        """
-        # Determine which tool categories are enabled
-        has_rag = self.enable_rag
-        has_paper = self.enable_paper_search
-        has_web = self.enable_web_search
-        has_code = self.enable_run_code
+    def _get_enabled_prompt_tools(self) -> list[str]:
+        tool_names: list[str] = []
+        if self.enable_rag:
+            tool_names.append("rag")
+        if self.enable_paper_search:
+            tool_names.append("paper_search")
+        if self.enable_web_search:
+            tool_names.append("web_search")
+        if self.enable_run_code:
+            tool_names.append("code_execution")
+        deduped: list[str] = []
+        for name in tool_names:
+            if name not in deduped:
+                deduped.append(name)
+        return deduped
 
-        # Build phase guidance dynamically based on enabled tools
-        guidance_parts = []
+    def _is_llm_only_mode(self) -> bool:
+        return not self._get_enabled_prompt_tools()
 
-        # Phase 1: Basic exploration (always includes RAG if enabled)
-        phase1_tools = []
-        if has_rag:
-            phase1_tools.append(
-                "- `rag_hybrid`: Get comprehensive information, core concepts, mechanism principles"
+    async def _run_llm_self_research(
+        self,
+        *,
+        topic: str,
+        overview: str,
+        query: str,
+        current_knowledge: str,
+        iteration: int,
+        block_id: str,
+    ) -> str:
+        """Research internally with the model when no external tool is enabled."""
+        if self.language == "zh":
+            system_prompt = (
+                "你是一个深度研究助理。在没有任何外部工具可用时，你需要只基于模型已有知识，"
+                "围绕给定查询做谨慎、结构化的内部研究。不要假装访问了网页、论文或知识库。"
+                "如果某些内容是常识性推断或可能存在不确定性，请明确说明。"
             )
-            phase1_tools.append("- `rag_naive`: Query specific definitions, precise formulas")
-            phase1_tools.append(
-                "- `query_item`: Get content with specific entry numbers (if known)"
+            user_prompt = self._safe_format(
+                """
+请对下面的研究查询进行一次“纯 LLM 内部研究”。
+
+主话题：{topic}
+话题概览：{overview}
+当前研究轮次：{iteration}
+本轮查询：{query}
+已有知识：
+{current_knowledge}
+
+模式聚焦：
+{mode_instruction}
+
+要求：
+1. 只能基于模型已有知识进行分析，不要声称使用了外部来源。
+2. 直接产出可被后续笔记/报告阶段吸收的研究内容。
+3. 优先回答本轮查询对应的知识缺口，并保持结构化、信息密度高。
+4. 如果存在不确定点，单独列出“Known Uncertainties”。
+
+仅输出 JSON：
+{{
+  "content": "结构化研究内容",
+  "confidence": "high/medium/low",
+  "limitations": ["不确定点1", "不确定点2"]
+}}
+""",
+                topic=topic,
+                overview=overview or "(无)",
+                iteration=iteration,
+                query=query,
+                current_knowledge=current_knowledge[:3000] if current_knowledge else "(无)",
+                mode_instruction=self._get_mode_contract("research") or "(无额外模式指令)",
+            )
+        else:
+            system_prompt = (
+                "You are a deep-research assistant. When no external tools are enabled, "
+                "you must research using only the model's internal knowledge. Do not claim "
+                "to have searched the web, papers, or a knowledge base. Explicitly note uncertainty "
+                "when needed."
+            )
+            user_prompt = self._safe_format(
+                """
+Perform one round of LLM-only internal research for the following query.
+
+Main Topic: {topic}
+Topic Overview: {overview}
+Current Iteration: {iteration}
+This Round's Query: {query}
+Current Knowledge:
+{current_knowledge}
+
+Mode-Specific Focus:
+{mode_instruction}
+
+Requirements:
+1. Use only the model's internal knowledge; do not pretend to access outside sources.
+2. Produce content that can be directly absorbed by the later note/report stages.
+3. Focus on the specific knowledge gap behind this query and keep the result structured and information-dense.
+4. If anything is uncertain, list it under "Known Uncertainties".
+
+Only output JSON:
+{{
+  "content": "Structured research content",
+  "confidence": "high/medium/low",
+  "limitations": ["uncertainty 1", "uncertainty 2"]
+}}
+""",
+                topic=topic,
+                overview=overview or "(none)",
+                iteration=iteration,
+                query=query,
+                current_knowledge=current_knowledge[:3000] if current_knowledge else "(none)",
+                mode_instruction=self._get_mode_contract("research") or "(no extra mode instruction)",
             )
 
-        if phase1_tools:
-            guidance_parts.append(f"""**Phase 1: Basic Exploration (early iterations)**
-Focus on building foundational knowledge:
-{chr(10).join(phase1_tools)}""")
+        response = await self.call_llm(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            stage="llm_self_research",
+            verbose=False,
+            trace_meta=self._build_trace_meta(
+                label="LLM self research",
+                iteration=iteration,
+                block_id=block_id,
+            ),
+        )
 
-        # Phase 2: Deep mining (introduce external tools if enabled)
-        phase2_tools = []
-        if has_rag:
-            phase2_tools.append(
-                "- Continue using `rag_hybrid` to explore different angles (applications, relationships, comparisons)"
-            )
-        if has_paper:
-            phase2_tools.append(
-                "- `paper_search`: Get cutting-edge academic research (if topic involves academic fields)"
-            )
-        if has_web:
-            phase2_tools.append("- `web_search`: Get practical application cases, industry trends")
-
-        if phase2_tools:
-            guidance_parts.append(f"""**Phase 2: Deep Mining (middle iterations)**
-Deep dive and expand knowledge:
-{chr(10).join(phase2_tools)}""")
-
-        # Phase 3: Completion (all available external tools)
-        phase3_tools = []
-        if has_paper:
-            phase3_tools.append(
-                "- `paper_search`: Cutting-edge research, specific methods, experimental results"
-            )
-        if has_web:
-            phase3_tools.append(
-                "- `web_search`: Latest developments, practical cases, industry applications"
-            )
-        if has_code:
-            phase3_tools.append(
-                "- `run_code`: Algorithm verification, numerical calculation, visualization"
-            )
-
-        if phase3_tools:
-            guidance_parts.append(f"""**Phase 3: Completion and Supplement (late iterations)**
-Fill gaps and expand horizons:
-{chr(10).join(phase3_tools)}""")
-
-        # If no external tools enabled, add a note
-        if not has_paper and not has_web:
-            guidance_parts.append("""**Note**: Only knowledge base tools (RAG) are available.
-Focus on thoroughly exploring the knowledge base from multiple angles.""")
-
-        return "\n\n".join(guidance_parts)
+        try:
+            data = extract_json_from_text(response)
+        except Exception:
+            data = None
+        if isinstance(data, dict):
+            return json.dumps(data, ensure_ascii=False)
+        return json.dumps({"content": response}, ensure_ascii=False)
 
     def _generate_research_depth_guidance(self, iteration: int, used_tools: list[str]) -> str:
         """
@@ -229,10 +305,8 @@ Focus on thoroughly exploring the knowledge base from multiple angles.""")
         # Tool diversity analysis
         unique_tools = set(used_tools)
         available_tools = []
-        if self.enable_rag and not any(
-            t in unique_tools for t in ["rag_hybrid", "rag_naive", "query_item"]
-        ):
-            available_tools.append("RAG tools (rag_hybrid/rag_naive/query_item)")
+        if self.enable_rag and not any(t in unique_tools for t in ["rag_hybrid", "rag_naive", "rag"]):
+            available_tools.append("RAG tools (rag_hybrid/rag_naive)")
         if self.enable_paper_search and "paper_search" not in unique_tools:
             available_tools.append("paper_search")
         if self.enable_web_search and "web_search" not in unique_tools:
@@ -322,62 +396,7 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
             # Fallback if YAML not configured
             return f"- **FIXED mode**: Be CONSERVATIVE about declaring sufficiency. Early threshold: {early_threshold}"
 
-    async def check_sufficiency(
-        self,
-        topic: str,
-        overview: str,
-        current_knowledge: str,
-        iteration: int,
-        used_tools: list[str] | None = None,
-    ) -> dict[str, Any]:
-        system_prompt = self.get_prompt("system", "role")
-        if not system_prompt:
-            raise ValueError(
-                "ResearchAgent missing system prompt, please configure system.role in prompts/{lang}/research_agent.yaml"
-            )
-        user_prompt_template = self.get_prompt("process", "check_sufficiency")
-        if not user_prompt_template:
-            raise ValueError(
-                "ResearchAgent missing check_sufficiency prompt, please configure process.check_sufficiency in prompts/{lang}/research_agent.yaml"
-            )
-
-        # Generate online search guidance (if web_search or paper_search is enabled)
-        online_search_instruction = self._generate_online_search_instruction()
-
-        # Generate research depth guidance
-        research_depth_guidance = self._generate_research_depth_guidance(
-            iteration, used_tools or []
-        )
-
-        # Generate iteration mode specific criteria
-        iteration_mode_criteria = self._generate_iteration_mode_criteria(iteration)
-
-        # Use safe_format to avoid conflicts with LaTeX braces like {\rho}
-        user_prompt = self._safe_format(
-            user_prompt_template,
-            topic=topic,
-            overview=overview,
-            current_knowledge=current_knowledge if current_knowledge else "(None)",
-            iteration=iteration,
-            max_iterations=self.max_iterations,
-            online_search_instruction=online_search_instruction,
-            research_depth_guidance=research_depth_guidance,
-            iteration_mode_criteria=iteration_mode_criteria,
-        )
-        response = await self.call_llm(
-            user_prompt=user_prompt,
-            system_prompt=system_prompt,
-            stage="check_sufficiency",
-            verbose=False,
-        )
-        from ..utils.json_utils import ensure_json_dict, ensure_keys
-
-        data = extract_json_from_text(response)
-        obj = ensure_json_dict(data)
-        ensure_keys(obj, ["is_sufficient", "reason"])
-        return obj
-
-    async def generate_query_plan(
+    async def plan_next_step(
         self,
         topic: str,
         overview: str,
@@ -386,55 +405,60 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
         existing_topics: list[str] | None = None,
         used_tools: list[str] | None = None,
     ) -> dict[str, Any]:
+        """Evaluate sufficiency and plan the next tool call in one LLM round."""
         system_prompt = self.get_prompt("system", "role")
         if not system_prompt:
             raise ValueError(
                 "ResearchAgent missing system prompt, please configure system.role in prompts/{lang}/research_agent.yaml"
             )
-        user_prompt_template = self.get_prompt("process", "generate_query_plan")
+        user_prompt_template = self.get_prompt("process", "plan_next_step")
         if not user_prompt_template:
             raise ValueError(
-                "ResearchAgent missing generate_query_plan prompt, please configure process.generate_query_plan in prompts/{lang}/research_agent.yaml"
+                "ResearchAgent missing plan_next_step prompt, please configure process.plan_next_step in prompts/{lang}/research_agent.yaml"
             )
+
         topics_text = "(No other topics)"
         if existing_topics:
             topics_text = "\n".join([f"- {t}" for t in existing_topics])
 
-        # Generate available tools list based on configuration (only enabled tools)
+        online_search_instruction = self._generate_online_search_instruction()
+        research_depth_guidance = self._generate_research_depth_guidance(iteration, used_tools or [])
+        iteration_mode_criteria = self._generate_iteration_mode_criteria(iteration)
         available_tools_text = self._generate_available_tools_text()
-
-        # Generate tool phase guidance based on enabled tools
         tool_phase_guidance = self._generate_tool_phase_guidance()
 
-        # Generate research depth guidance
-        research_depth_guidance = self._generate_research_depth_guidance(
-            iteration, used_tools or []
-        )
-
-        # Use safe_format to avoid conflicts with LaTeX braces like {\rho}
         user_prompt = self._safe_format(
             user_prompt_template,
             topic=topic,
             overview=overview,
-            current_knowledge=current_knowledge[:2000] if current_knowledge else "(None)",
+            current_knowledge=current_knowledge[:3000] if current_knowledge else "(None)",
             iteration=iteration,
             max_iterations=self.max_iterations,
             existing_topics=topics_text,
             available_tools=available_tools_text,
             tool_phase_guidance=tool_phase_guidance,
             research_depth_guidance=research_depth_guidance,
+            online_search_instruction=online_search_instruction,
+            iteration_mode_criteria=iteration_mode_criteria,
+            mode_instruction=self._get_mode_contract("research"),
         )
         response = await self.call_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
-            stage="generate_query_plan",
+            stage="plan_next_step",
             verbose=False,
+            trace_meta=self._build_trace_meta(
+                label="Plan next step",
+                iteration=iteration,
+                trace_role="plan",
+            ),
         )
+
         from ..utils.json_utils import ensure_json_dict, ensure_keys
 
         data = extract_json_from_text(response)
         obj = ensure_json_dict(data)
-        ensure_keys(obj, ["query", "tool_type", "rationale"])
+        ensure_keys(obj, ["is_sufficient", "sufficiency_reason"])
         return obj
 
     async def process(
@@ -486,6 +510,7 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
         current_knowledge = ""
         tools_used = []
         queries_used = []  # Track all queries for progress display
+        llm_only_mode = self._is_llm_only_mode()
 
         # Helper to send progress updates
         def send_progress(event_type: str, **data):
@@ -511,15 +536,16 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
             send_progress(
                 "checking_sufficiency", iteration=iteration, max_iterations=self.max_iterations
             )
-            suff = await self.check_sufficiency(
+            plan = await self.plan_next_step(
                 topic=topic_block.sub_topic,
                 overview=topic_block.overview,
                 current_knowledge=current_knowledge,
                 iteration=iteration,
+                existing_topics=queue.list_topics(),
                 used_tools=tools_used,
             )
 
-            if suff.get("is_sufficient", False):
+            if plan.get("is_sufficient", False):
                 print(
                     f"{block_id_prefix}   ✓ Current topic is sufficient, ending research for this topic"
                 )
@@ -527,21 +553,15 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
                     "knowledge_sufficient",
                     iteration=iteration,
                     max_iterations=self.max_iterations,
-                    reason=suff.get("reason", ""),
+                    reason=plan.get("sufficiency_reason", plan.get("reason", "")),
                 )
                 break
 
-            # Step 2: Generate query plan
             send_progress(
-                "generating_query", iteration=iteration, max_iterations=self.max_iterations
-            )
-            plan = await self.generate_query_plan(
-                topic=topic_block.sub_topic,
-                overview=topic_block.overview,
-                current_knowledge=current_knowledge,
+                "generating_query",
                 iteration=iteration,
-                existing_topics=queue.list_topics(),
-                used_tools=tools_used,
+                max_iterations=self.max_iterations,
+                merged_planning=True,
             )
 
             # Dynamic splitting: if new topic is discovered, add to queue tail
@@ -584,7 +604,7 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
                     print(f"{block_id_prefix}     Reason: {new_topic_reason}")
 
             query = plan.get("query", "").strip()
-            tool_type = plan.get("tool_type", "rag_hybrid")
+            tool_type = "llm_self_research" if llm_only_mode else plan.get("tool_type", "rag_hybrid")
             rationale = plan.get("rationale", "")
 
             if not query:
@@ -614,7 +634,17 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
             )
 
             # Step 3: Call tool
-            raw_answer = await call_tool_callback(tool_type, query)
+            if llm_only_mode:
+                raw_answer = await self._run_llm_self_research(
+                    topic=topic_block.sub_topic,
+                    overview=topic_block.overview,
+                    query=query,
+                    current_knowledge=current_knowledge,
+                    iteration=iteration,
+                    block_id=topic_block.block_id,
+                )
+            else:
+                raw_answer = await call_tool_callback(tool_type, query)
 
             # Send progress after tool call
             send_progress(

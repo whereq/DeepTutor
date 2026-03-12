@@ -55,8 +55,3 @@ class EnvironmentConfigError(ConfigurationError):
     """Raised when there's an environment-related configuration error."""
 
     pass
-
-
-# Aliases for backward compatibility
-ConfigError = ConfigurationError
-EnvError = EnvironmentConfigError

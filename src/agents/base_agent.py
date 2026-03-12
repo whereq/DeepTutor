@@ -6,28 +6,22 @@ This is the single source of truth for agent base functionality across:
 - solve module
 - research module
 - guide module
-- ideagen module
 - co_writer module
 - question module (unified in Jan 2026 refactor)
 """
 
 from abc import ABC, abstractmethod
 import os
-from pathlib import Path
-import sys
 import time
-from typing import Any, AsyncGenerator
-
-# Add project root to path
-_project_root = Path(__file__).parent.parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
+import inspect
+from typing import Any, AsyncGenerator, Awaitable, Callable
 
 from src.config.settings import settings
 from src.logging import LLMStats, get_logger
 from src.services.config import get_agent_params
 from src.services.llm import complete as llm_complete
 from src.services.llm import get_llm_config, get_token_limit_kwargs, supports_response_format
+from src.services.llm import prepare_multimodal_messages, supports_vision
 from src.services.llm import stream as llm_stream
 from src.services.prompt import get_prompt_manager
 
@@ -49,6 +43,7 @@ class BaseAgent(ABC):
 
     # Shared LLMStats tracker for each module (class-level)
     _shared_stats: dict[str, LLMStats] = {}
+    TraceCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
 
     def __init__(
         self,
@@ -68,7 +63,7 @@ class BaseAgent(ABC):
         Initialize base Agent.
 
         Args:
-            module_name: Module name (solve/research/guide/ideagen/co_writer)
+            module_name: Module name (solve/research/guide/co_writer/question)
             agent_name: Agent name (e.g., "solve_agent", "note_agent")
             api_key: API key (optional, defaults to environment variable)
             base_url: API endpoint (optional, defaults to environment variable)
@@ -83,6 +78,7 @@ class BaseAgent(ABC):
         self.module_name = module_name
         self.agent_name = agent_name
         self.language = language
+        self._trace_callback: BaseAgent.TraceCallback | None = None
         # Ensure config is always a dict (not a dataclass like LLMConfig)
         if config is None:
             self.config = {}
@@ -237,6 +233,21 @@ class BaseAgent(ABC):
         except Exception as e:
             self.logger.warning(f"Failed to refresh config: {e}")
 
+    def set_trace_callback(self, callback: TraceCallback | None) -> None:
+        """Register a trace callback that receives structured LLM call events."""
+        self._trace_callback = callback
+
+    async def _emit_trace_event(self, payload: dict[str, Any]) -> None:
+        callback = self._trace_callback
+        if callback is None:
+            return
+        try:
+            result = callback(payload)
+            if inspect.isawaitable(result):
+                await result
+        except Exception as exc:
+            self.logger.debug(f"Trace callback failed: {exc}")
+
     # -------------------------------------------------------------------------
     # Token Tracking
     # -------------------------------------------------------------------------
@@ -341,13 +352,15 @@ class BaseAgent(ABC):
         self,
         user_prompt: str,
         system_prompt: str,
-        messages: list[dict[str, str]] | None = None,
+        messages: list[dict[str, Any]] | None = None,
         response_format: dict[str, str] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
         model: str | None = None,
         verbose: bool = True,
         stage: str | None = None,
+        attachments: list[Any] | None = None,
+        trace_meta: dict[str, Any] | None = None,
     ) -> str:
         """
         Unified interface for calling LLM (non-streaming).
@@ -365,6 +378,7 @@ class BaseAgent(ABC):
             model: Model name (optional, uses config by default)
             verbose: Whether to print raw LLM output (default True)
             stage: Stage marker for logging and tracking
+            attachments: Image/file attachments for multimodal input (optional)
 
         Returns:
             LLM response text
@@ -400,10 +414,27 @@ class BaseAgent(ABC):
                 self.logger.debug(f"response_format not supported for {binding}/{model}, skipping")
 
         if messages:
+            if attachments:
+                mm_result = prepare_multimodal_messages(
+                    messages, attachments, binding=self.binding, model=model
+                )
+                messages = mm_result.messages
             kwargs["messages"] = messages
 
         # Log input
         stage_label = stage or self.agent_name
+        trace_payload_base = {
+            "event": "llm_call",
+            "state": "running",
+            "agent_name": self.agent_name,
+            "stage": stage_label,
+            "model": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "streaming": False,
+            **(trace_meta or {}),
+        }
+        await self._emit_trace_event(trace_payload_base)
         if hasattr(self.logger, "log_llm_input"):
             self.logger.log_llm_input(
                 agent_name=self.agent_name,
@@ -428,6 +459,13 @@ class BaseAgent(ABC):
                 **kwargs,
             )
         except Exception as e:
+            await self._emit_trace_event(
+                {
+                    **trace_payload_base,
+                    "state": "error",
+                    "response": str(e),
+                }
+            )
             self.logger.error(f"LLM call failed: {e}")
             raise
 
@@ -444,6 +482,14 @@ class BaseAgent(ABC):
         )
 
         # Log output
+        await self._emit_trace_event(
+            {
+                **trace_payload_base,
+                "state": "complete",
+                "response": response,
+                "duration": call_duration,
+            }
+        )
         if hasattr(self.logger, "log_llm_output"):
             self.logger.log_llm_output(
                 agent_name=self.agent_name,
@@ -462,11 +508,13 @@ class BaseAgent(ABC):
         self,
         user_prompt: str,
         system_prompt: str,
-        messages: list[dict[str, str]] | None = None,
+        messages: list[dict[str, Any]] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
         model: str | None = None,
         stage: str | None = None,
+        attachments: list[Any] | None = None,
+        trace_meta: dict[str, Any] | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Unified interface for streaming LLM responses.
@@ -482,6 +530,7 @@ class BaseAgent(ABC):
             max_tokens: Maximum tokens (optional, uses config by default)
             model: Model name (optional, uses config by default)
             stage: Stage marker for logging
+            attachments: Image/file attachments for multimodal input (optional)
 
         Yields:
             Response chunks as strings
@@ -499,8 +548,27 @@ class BaseAgent(ABC):
         if max_tokens:
             kwargs.update(get_token_limit_kwargs(model, max_tokens))
 
+        # Inject image attachments into messages when provided
+        if messages and attachments:
+            mm_result = prepare_multimodal_messages(
+                messages, attachments, binding=self.binding, model=model
+            )
+            messages = mm_result.messages
+
         # Log input
         stage_label = stage or self.agent_name
+        trace_payload_base = {
+            "event": "llm_call",
+            "state": "running",
+            "agent_name": self.agent_name,
+            "stage": stage_label,
+            "model": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "streaming": True,
+            **(trace_meta or {}),
+        }
+        await self._emit_trace_event(trace_payload_base)
         if hasattr(self.logger, "log_llm_input"):
             self.logger.log_llm_input(
                 agent_name=self.agent_name,
@@ -528,6 +596,13 @@ class BaseAgent(ABC):
                 **kwargs,
             ):
                 full_response += chunk
+                await self._emit_trace_event(
+                    {
+                        **trace_payload_base,
+                        "state": "streaming",
+                        "chunk": chunk,
+                    }
+                )
                 yield chunk
 
             # Track token usage after streaming completes
@@ -541,6 +616,14 @@ class BaseAgent(ABC):
 
             # Log output
             call_duration = time.time() - start_time
+            await self._emit_trace_event(
+                {
+                    **trace_payload_base,
+                    "state": "complete",
+                    "response": full_response,
+                    "duration": call_duration,
+                }
+            )
             if hasattr(self.logger, "log_llm_output"):
                 self.logger.log_llm_output(
                     agent_name=self.agent_name,
@@ -556,6 +639,13 @@ class BaseAgent(ABC):
                 )
 
         except Exception as e:
+            await self._emit_trace_event(
+                {
+                    **trace_payload_base,
+                    "state": "error",
+                    "response": str(e),
+                }
+            )
             self.logger.error(f"LLM streaming failed: {e}")
             raise
 

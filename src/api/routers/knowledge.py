@@ -9,9 +9,8 @@ import asyncio
 from datetime import datetime
 import os
 from pathlib import Path
-import shutil
-import sys
 import traceback
+from uuid import uuid4
 
 from fastapi import (
     APIRouter,
@@ -23,10 +22,12 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.api.utils.progress_broadcaster import ProgressBroadcaster
 from src.api.utils.task_id_manager import TaskIDManager
+from src.api.utils.task_log_stream import capture_task_logs, get_task_stream_manager
 from src.knowledge.add_documents import DocumentAdder
 from src.knowledge.initializer import KnowledgeBaseInitializer
 from src.knowledge.manager import KnowledgeBaseManager
@@ -34,15 +35,12 @@ from src.knowledge.progress_tracker import ProgressStage, ProgressTracker
 from src.utils.document_validator import DocumentValidator
 from src.utils.error_utils import format_exception_message
 
-_project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(_project_root))
 from src.logging import get_logger
-from src.services.config import load_config_with_main
+from src.services.config import PROJECT_ROOT, load_config_with_main
 from src.services.llm import get_llm_config
 
 # Initialize logger with config
-project_root = Path(__file__).parent.parent.parent.parent
-config = load_config_with_main("solve_config.yaml", project_root)  # Use any config to get main.yaml
+config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = get_logger("Knowledge", level="INFO", log_dir=log_dir)
 
@@ -63,7 +61,7 @@ def format_bytes_human_readable(size_bytes: int) -> str:
         return f"{size_bytes} bytes"
 
 
-_kb_base_dir = _project_root / "data" / "knowledge_bases"
+_kb_base_dir = PROJECT_ROOT / "data" / "knowledge_bases"
 
 # Lazy initialization
 kb_manager = None
@@ -81,6 +79,8 @@ class KnowledgeBaseInfo(BaseModel):
     name: str
     is_default: bool
     statistics: dict
+    status: str | None = None
+    progress: dict | None = None
 
 
 class LinkFolderRequest(BaseModel):
@@ -98,41 +98,98 @@ class LinkedFolderInfo(BaseModel):
     file_count: int
 
 
-async def run_initialization_task(initializer: KnowledgeBaseInitializer):
+def _build_unique_task_id(task_type: str, task_key_prefix: str) -> str:
+    task_manager = TaskIDManager.get_instance()
+    task_key = f"{task_key_prefix}_{datetime.now().isoformat()}_{uuid4().hex[:8]}"
+    return task_manager.generate_task_id(task_type, task_key)
+
+
+def _save_uploaded_files(files: list[UploadFile], target_dir: Path) -> tuple[list[str], list[str]]:
+    uploaded_files: list[str] = []
+    uploaded_file_paths: list[str] = []
+
+    for file in files:
+        file_path = None
+        original_filename = file.filename or "upload"
+        try:
+            sanitized_filename = DocumentValidator.validate_upload_safety(original_filename, None)
+            file.filename = sanitized_filename
+
+            file_path = target_dir / sanitized_filename
+            max_size = DocumentValidator.MAX_FILE_SIZE
+            written_bytes = 0
+
+            with open(file_path, "wb") as buffer:
+                for chunk in iter(lambda: file.file.read(8192), b""):
+                    written_bytes += len(chunk)
+                    if written_bytes > max_size:
+                        size_str = format_bytes_human_readable(max_size)
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"File '{sanitized_filename}' exceeds maximum size limit of {size_str}",
+                        )
+                    buffer.write(chunk)
+
+            DocumentValidator.validate_upload_safety(sanitized_filename, written_bytes)
+            uploaded_files.append(sanitized_filename)
+            uploaded_file_paths.append(str(file_path))
+        except Exception as e:
+            if file_path and file_path.exists():
+                try:
+                    os.unlink(file_path)
+                except OSError:
+                    pass
+
+            error_message = (
+                f"Validation failed for file '{original_filename}': {format_exception_message(e)}"
+            )
+            logger.error(error_message, exc_info=True)
+            raise HTTPException(status_code=400, detail=error_message) from e
+
+    return uploaded_files, uploaded_file_paths
+
+
+async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id: str):
     """Background task for knowledge base initialization"""
     task_manager = TaskIDManager.get_instance()
-    task_id = task_manager.generate_task_id("kb_init", initializer.kb_name)
+    task_stream_manager = get_task_stream_manager()
+    task_stream_manager.ensure_task(task_id)
 
-    try:
-        if not initializer.progress_tracker:
-            initializer.progress_tracker = ProgressTracker(
-                initializer.kb_name, initializer.base_dir
-            )
+    with capture_task_logs(task_id):
+        try:
+            if not initializer.progress_tracker:
+                initializer.progress_tracker = ProgressTracker(
+                    initializer.kb_name, initializer.base_dir
+                )
 
-        initializer.progress_tracker.task_id = task_id
+            initializer.progress_tracker.task_id = task_id
 
-        logger.info(f"[{task_id}] Initializing KB: {initializer.kb_name}")
+            logger.info(f"[{task_id}] Initializing KB: {initializer.kb_name}")
 
-        await initializer.process_documents()
-        initializer.extract_numbered_items()
+            await initializer.process_documents()
+            initializer.extract_numbered_items()
 
-        initializer.progress_tracker.update(
-            ProgressStage.COMPLETED, "Knowledge base initialization complete!", current=1, total=1
-        )
-
-        logger.success(f"[{task_id}] KB '{initializer.kb_name}' initialized")
-        task_manager.update_task_status(task_id, "completed")
-    except Exception as e:
-        error_msg = str(e)
-
-        logger.error(f"[{task_id}] KB '{initializer.kb_name}' init failed: {error_msg}")
-
-        task_manager.update_task_status(task_id, "error", error=error_msg)
-
-        if initializer.progress_tracker:
             initializer.progress_tracker.update(
-                ProgressStage.ERROR, f"Initialization failed: {error_msg}", error=error_msg
+                ProgressStage.COMPLETED, "Knowledge base initialization complete!", current=1, total=1
             )
+
+            logger.success(f"[{task_id}] KB '{initializer.kb_name}' initialized")
+            task_manager.update_task_status(task_id, "completed")
+            task_stream_manager.emit_complete(
+                task_id, f"Knowledge base '{initializer.kb_name}' initialization complete"
+            )
+        except Exception as e:
+            error_msg = str(e)
+
+            logger.error(f"[{task_id}] KB '{initializer.kb_name}' init failed: {error_msg}")
+
+            task_manager.update_task_status(task_id, "error", error=error_msg)
+
+            if initializer.progress_tracker:
+                initializer.progress_tracker.update(
+                    ProgressStage.ERROR, f"Initialization failed: {error_msg}", error=error_msg
+                )
+            task_stream_manager.emit_failed(task_id, error_msg)
 
 
 async def run_upload_processing_task(
@@ -141,6 +198,7 @@ async def run_upload_processing_task(
     api_key: str,
     base_url: str,
     uploaded_file_paths: list[str],
+    task_id: str,
     rag_provider: str = None,
     folder_id: str = None,
 ):
@@ -156,88 +214,93 @@ async def run_upload_processing_task(
         folder_id: Optional folder ID for sync state update
     """
     task_manager = TaskIDManager.get_instance()
-    task_key = f"{kb_name}_upload_{len(uploaded_file_paths)}"
-    task_id = task_manager.generate_task_id("kb_upload", task_key)
+    task_stream_manager = get_task_stream_manager()
+    task_stream_manager.ensure_task(task_id)
 
     progress_tracker = ProgressTracker(kb_name, Path(base_dir))
     progress_tracker.task_id = task_id
 
-    try:
-        logger.info(f"[{task_id}] Processing {len(uploaded_file_paths)} files to KB '{kb_name}'")
-        progress_tracker.update(
-            ProgressStage.PROCESSING_DOCUMENTS,
-            f"Processing {len(uploaded_file_paths)} files...",
-            current=0,
-            total=len(uploaded_file_paths),
-        )
+    with capture_task_logs(task_id):
+        try:
+            logger.info(f"[{task_id}] Processing {len(uploaded_file_paths)} files to KB '{kb_name}'")
+            progress_tracker.update(
+                ProgressStage.PROCESSING_DOCUMENTS,
+                f"Processing {len(uploaded_file_paths)} files...",
+                current=0,
+                total=len(uploaded_file_paths),
+            )
 
-        adder = DocumentAdder(
-            kb_name=kb_name,
-            base_dir=base_dir,
-            api_key=api_key,
-            base_url=base_url,
-            progress_tracker=progress_tracker,
-            rag_provider=rag_provider,
-        )
+            adder = DocumentAdder(
+                kb_name=kb_name,
+                base_dir=base_dir,
+                api_key=api_key,
+                base_url=base_url,
+                progress_tracker=progress_tracker,
+                rag_provider=rag_provider,
+            )
 
-        # Stage files and check for duplicates
-        staged_files = adder.add_documents(uploaded_file_paths, allow_duplicates=False)
+            staged_files = adder.add_documents(uploaded_file_paths, allow_duplicates=False)
 
-        if not staged_files:
-            logger.info(f"[{task_id}] No new files to process (all duplicates or invalid)")
+            if not staged_files:
+                logger.info(f"[{task_id}] No new files to process (all duplicates or invalid)")
+                progress_tracker.update(
+                    ProgressStage.COMPLETED,
+                    "No new files to process (all duplicates or invalid)",
+                    current=0,
+                    total=0,
+                )
+                task_manager.update_task_status(task_id, "completed")
+                task_stream_manager.emit_complete(
+                    task_id, "No new files to process (all duplicates or invalid)"
+                )
+                return
+
+            processed_files = await adder.process_new_documents(staged_files)
+
+            if processed_files:
+                progress_tracker.update(
+                    ProgressStage.EXTRACTING_ITEMS,
+                    "Extracting numbered items...",
+                    current=0,
+                    total=len(processed_files),
+                )
+                adder.extract_numbered_items_for_new_docs(processed_files, batch_size=20)
+
+            adder.update_metadata(len(processed_files) if processed_files else 0)
+
+            if folder_id and processed_files:
+                try:
+                    manager = get_kb_manager()
+                    manager.update_folder_sync_state(
+                        kb_name, folder_id, [str(f) for f in processed_files]
+                    )
+                    logger.info(f"[{task_id}] Updated folder sync state for folder '{folder_id}'")
+                except Exception as sync_err:
+                    logger.warning(f"[{task_id}] Failed to update folder sync state: {sync_err}")
+
+            num_processed = len(processed_files) if processed_files else 0
             progress_tracker.update(
                 ProgressStage.COMPLETED,
-                "No new files to process (all duplicates or invalid)",
-                current=0,
-                total=0,
+                f"Successfully processed {num_processed} files!",
+                current=num_processed,
+                total=num_processed,
             )
+
+            logger.success(f"[{task_id}] Processed {num_processed} files to KB '{kb_name}'")
             task_manager.update_task_status(task_id, "completed")
-            return
-
-        # Process staged files
-        processed_files = await adder.process_new_documents(staged_files)
-
-        if processed_files:
-            progress_tracker.update(
-                ProgressStage.EXTRACTING_ITEMS,
-                "Extracting numbered items...",
-                current=0,
-                total=len(processed_files),
+            task_stream_manager.emit_complete(
+                task_id, f"Successfully processed {num_processed} files for '{kb_name}'"
             )
-            adder.extract_numbered_items_for_new_docs(processed_files, batch_size=20)
+        except Exception as e:
+            error_msg = f"Upload processing failed (KB '{kb_name}'): {e}"
+            logger.error(f"[{task_id}] {error_msg}")
 
-        adder.update_metadata(len(processed_files) if processed_files else 0)
+            task_manager.update_task_status(task_id, "error", error=error_msg)
 
-        # Update folder sync state if this was a folder sync
-        if folder_id and processed_files:
-            try:
-                manager = get_kb_manager()
-                manager.update_folder_sync_state(
-                    kb_name, folder_id, [str(f) for f in processed_files]
-                )
-                logger.info(f"[{task_id}] Updated folder sync state for folder '{folder_id}'")
-            except Exception as sync_err:
-                logger.warning(f"[{task_id}] Failed to update folder sync state: {sync_err}")
-
-        num_processed = len(processed_files) if processed_files else 0
-        progress_tracker.update(
-            ProgressStage.COMPLETED,
-            f"Successfully processed {num_processed} files!",
-            current=num_processed,
-            total=num_processed,
-        )
-
-        logger.success(f"[{task_id}] Processed {num_processed} files to KB '{kb_name}'")
-        task_manager.update_task_status(task_id, "completed")
-    except Exception as e:
-        error_msg = f"Upload processing failed (KB '{kb_name}'): {e}"
-        logger.error(f"[{task_id}] {error_msg}")
-
-        task_manager.update_task_status(task_id, "error", error=error_msg)
-
-        progress_tracker.update(
-            ProgressStage.ERROR, f"Processing failed: {error_msg}", error=error_msg
-        )
+            progress_tracker.update(
+                ProgressStage.ERROR, f"Processing failed: {error_msg}", error=error_msg
+            )
+            task_stream_manager.emit_failed(task_id, error_msg)
 
 
 @router.get("/health")
@@ -383,6 +446,8 @@ async def list_knowledge_bases():
                         name=info["name"],
                         is_default=info["is_default"],
                         statistics=info.get("statistics", {}),
+                        status=info.get("status"),
+                        progress=info.get("progress"),
                     )
                 )
             except Exception as e:
@@ -403,6 +468,8 @@ async def list_knowledge_bases():
                                     "content_lists": 0,
                                     "rag_initialized": False,
                                 },
+                                status="unknown",
+                                progress=None,
                             )
                         )
                 except Exception as fallback_err:
@@ -456,6 +523,18 @@ async def delete_knowledge_base(kb_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/tasks/{task_id}/stream")
+async def stream_task_logs(task_id: str):
+    """Stream task-specific logs for knowledge-base operations."""
+    manager = get_task_stream_manager()
+    manager.ensure_task(task_id)
+    return StreamingResponse(
+        manager.stream(task_id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.post("/{kb_name}/upload")
 async def upload_files(
     kb_name: str,
@@ -477,52 +556,9 @@ async def upload_files(
         except ValueError as e:
             raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
 
-        uploaded_files = []
-        uploaded_file_paths = []
-
-        # 1. Save files and validate size during streaming
-        for file in files:
-            file_path = None
-            try:
-                # Sanitize filename first (without size validation)
-                sanitized_filename = DocumentValidator.validate_upload_safety(file.filename, None)
-                file.filename = sanitized_filename
-
-                # Save file to disk with size checking during streaming
-                file_path = raw_dir / file.filename
-                max_size = DocumentValidator.MAX_FILE_SIZE
-                written_bytes = 0
-                with open(file_path, "wb") as buffer:
-                    for chunk in iter(lambda: file.file.read(8192), b""):
-                        written_bytes += len(chunk)
-                        if written_bytes > max_size:
-                            # Format size in human-readable format
-                            size_str = format_bytes_human_readable(max_size)
-                            raise HTTPException(
-                                status_code=400,
-                                detail=f"File '{file.filename}' exceeds maximum size limit of {size_str}",
-                            )
-                        buffer.write(chunk)
-
-                # Validate with actual size (additional checks)
-                DocumentValidator.validate_upload_safety(file.filename, written_bytes)
-
-                uploaded_files.append(file.filename)
-                uploaded_file_paths.append(str(file_path))
-
-            except Exception as e:
-                # Clean up partially saved file
-                if file_path and file_path.exists():
-                    try:
-                        os.unlink(file_path)
-                    except OSError:
-                        pass
-
-                error_message = (
-                    f"Validation failed for file '{file.filename}': {format_exception_message(e)}"
-                )
-                logger.error(error_message, exc_info=True)
-                raise HTTPException(status_code=400, detail=error_message) from e
+        uploaded_files, uploaded_file_paths = _save_uploaded_files(files, raw_dir)
+        task_id = _build_unique_task_id("kb_upload", kb_name)
+        get_task_stream_manager().ensure_task(task_id)
 
         logger.info(f"Uploading {len(uploaded_files)} files to KB '{kb_name}'")
 
@@ -533,12 +569,14 @@ async def upload_files(
             api_key=api_key,
             base_url=base_url,
             uploaded_file_paths=uploaded_file_paths,
+            task_id=task_id,
             rag_provider=rag_provider,
         )
 
         return {
             "message": f"Uploaded {len(uploaded_files)} files. Processing in background.",
             "files": uploaded_files,
+            "task_id": task_id,
         }
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Knowledge base '{kb_name}' not found")
@@ -569,6 +607,8 @@ async def create_knowledge_base(
             raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
 
         logger.info(f"Creating KB: {name}")
+        task_id = _build_unique_task_id("kb_init", name)
+        get_task_stream_manager().ensure_task(task_id)
 
         # Register KB to kb_config.json immediately with "initializing" status
         # This ensures the KB appears in the list right away
@@ -581,6 +621,7 @@ async def create_knowledge_base(
                 "percent": 0,
                 "current": 0,
                 "total": len(files),
+                "task_id": task_id,
             },
         )
         # Also store rag_provider in config (reload and update)
@@ -601,18 +642,14 @@ async def create_knowledge_base(
         )
 
         initializer.create_directory_structure()
+        progress_tracker.task_id = task_id
 
         manager = get_kb_manager()
         if name not in manager.list_knowledge_bases():
             logger.warning(f"KB {name} not found in config, registering manually")
             initializer._register_to_config()
 
-        uploaded_files = []
-        for file in files:
-            file_path = initializer.raw_dir / file.filename
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            uploaded_files.append(file.filename)
+        uploaded_files, _ = _save_uploaded_files(files, initializer.raw_dir)
 
         progress_tracker.update(
             ProgressStage.PROCESSING_DOCUMENTS,
@@ -621,7 +658,7 @@ async def create_knowledge_base(
             total=len(uploaded_files),
         )
 
-        background_tasks.add_task(run_initialization_task, initializer)
+        background_tasks.add_task(run_initialization_task, initializer, task_id)
 
         logger.success(f"KB '{name}' created, processing {len(uploaded_files)} files in background")
 
@@ -629,6 +666,7 @@ async def create_knowledge_base(
             "message": f"Knowledge base '{name}' created. Processing {len(uploaded_files)} files in background.",
             "name": name,
             "files": uploaded_files,
+            "task_id": task_id,
         }
 
     except HTTPException:
@@ -677,28 +715,33 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
 
         progress_tracker = ProgressTracker(kb_name, _kb_base_dir)
         initial_progress = progress_tracker.get_progress()
+        expected_task_id = websocket.query_params.get("task_id")
 
         # Check if KB is already ready (has rag_storage)
         kb_dir = _kb_base_dir / kb_name
         rag_storage_dir = kb_dir / "rag_storage"
-        kb_is_ready = rag_storage_dir.exists() and rag_storage_dir.is_dir()
+        llamaindex_storage_dir = kb_dir / "llamaindex_storage"
+        kb_is_ready = (
+            (rag_storage_dir.exists() and rag_storage_dir.is_dir())
+            or (llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir())
+        )
 
-        # Only send non-completed progress if KB is not ready
-        # or if progress is recent (within 5 minutes)
         if initial_progress:
             stage = initial_progress.get("stage")
             timestamp = initial_progress.get("timestamp")
+            progress_task_id = initial_progress.get("task_id")
 
             should_send = False
-            if stage in ["completed", "error"] or not kb_is_ready:
+            if expected_task_id and progress_task_id and progress_task_id != expected_task_id:
+                should_send = False
+            elif stage == "error" or not kb_is_ready:
                 should_send = True
-            elif timestamp:
-                # Check if progress is recent
+            elif stage != "completed" and timestamp:
                 try:
                     progress_time = datetime.fromisoformat(timestamp)
                     now = datetime.now()
                     age_seconds = (now - progress_time).total_seconds()
-                    if age_seconds < 300:  # 5 minutes
+                    if age_seconds < 300:
                         should_send = True
                 except:
                     pass
@@ -716,6 +759,9 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
                 except asyncio.TimeoutError:
                     current_progress = progress_tracker.get_progress()
                     if current_progress:
+                        progress_task_id = current_progress.get("task_id")
+                        if expected_task_id and progress_task_id and progress_task_id != expected_task_id:
+                            continue
                         current_timestamp = current_progress.get("timestamp")
                         if current_timestamp != last_timestamp:
                             await websocket.send_json(
@@ -842,6 +888,8 @@ async def sync_folder(kb_name: str, folder_id: str, background_tasks: Background
         logger.info(
             f"Syncing {len(files_to_process)} files from folder '{folder_path}' to KB '{kb_name}'"
         )
+        task_id = _build_unique_task_id("kb_upload", f"{kb_name}_folder_{folder_id}")
+        get_task_stream_manager().ensure_task(task_id)
 
         # NOTE: We DO NOT update sync state here anymore.
         # It is updated in run_upload_processing_task only after successful processing.
@@ -855,6 +903,7 @@ async def sync_folder(kb_name: str, folder_id: str, background_tasks: Background
             api_key=api_key,
             base_url=base_url,
             uploaded_file_paths=files_to_process,
+            task_id=task_id,
             folder_id=folder_id,  # Pass folder_id to update state on success
         )
 
@@ -864,6 +913,7 @@ async def sync_folder(kb_name: str, folder_id: str, background_tasks: Background
             "new_files": changes["new_count"],
             "modified_files": changes["modified_count"],
             "file_count": len(files_to_process),
+            "task_id": task_id,
         }
     except HTTPException:
         raise

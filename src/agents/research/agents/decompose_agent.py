@@ -5,17 +5,13 @@ DecomposeAgent - Topic decomposition Agent
 Responsible for decomposing topics into multiple subtopics and generating overviews for each subtopic
 """
 
-from pathlib import Path
-import sys
 from typing import Any
-
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 import json
 
 from src.agents.base_agent import BaseAgent
 from src.agents.research.data_structures import ToolTrace
+from src.core.trace import build_trace_metadata, new_call_id
 from src.tools.rag_tool import rag_search
 
 from ..utils.json_utils import extract_json_from_text
@@ -23,6 +19,25 @@ from ..utils.json_utils import extract_json_from_text
 
 class DecomposeAgent(BaseAgent):
     """Topic decomposition Agent"""
+
+    _MODE_TO_STYLE = {
+        "notes": "study_notes",
+        "report": "report",
+        "comparison": "comparison",
+        "learning_path": "learning_path",
+    }
+
+    @staticmethod
+    def _build_trace_meta(mode: str) -> dict[str, Any]:
+        return build_trace_metadata(
+            call_id=new_call_id("research-decompose"),
+            phase="decomposing",
+            label="Decompose topic",
+            call_kind="llm_generation",
+            trace_role="plan",
+            trace_kind="llm_generation",
+            mode=mode,
+        )
 
     def __init__(
         self,
@@ -55,10 +70,19 @@ class DecomposeAgent(BaseAgent):
 
         # Citation manager (will be set during process)
         self.citation_manager = None
+        intent_mode = str(config.get("intent", {}).get("mode", "") or "")
+        reporting_style = str(config.get("reporting", {}).get("style", "") or "")
+        self._research_style = reporting_style or self._MODE_TO_STYLE.get(intent_mode, "report")
 
     def set_citation_manager(self, citation_manager):
         """Set citation manager"""
         self.citation_manager = citation_manager
+
+    def _get_mode_contract(self, stage: str) -> str:
+        return (
+            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "")
+            or ""
+        ).strip()
 
     async def process(
         self, topic: str, num_subtopics: int = 5, mode: str = "manual"
@@ -102,11 +126,69 @@ class DecomposeAgent(BaseAgent):
             print("⚠️ RAG is disabled, generating subtopics directly from LLM...")
             return await self._process_without_rag(topic, num_subtopics, mode)
 
+        print("\n🔍 Step 1: Executing RAG retrieval to get background knowledge...")
+        rag_context, source_query = await self._retrieve_background_knowledge(topic)
+
+        print("\n🎯 Step 2: Generating subtopics...")
         if mode == "auto":
-            # Auto mode: autonomously generate subtopics
-            return await self._process_auto_mode(topic, num_subtopics)
-        # Manual mode: generate based on specified count
-        return await self._process_manual_mode(topic, num_subtopics)
+            sub_topics = await self._generate_sub_topics_auto(
+                topic=topic, rag_context=rag_context, max_subtopics=num_subtopics
+            )
+        else:
+            sub_topics = await self._generate_sub_topics(
+                topic=topic, rag_context=rag_context, num_subtopics=num_subtopics
+            )
+
+        print(f"✓ Generated {len(sub_topics)} subtopics")
+
+        return {
+            "main_topic": topic,
+            "sub_queries": [source_query] if source_query else [],
+            "rag_context": rag_context,
+            "sub_topics": sub_topics,
+            "total_subtopics": len(sub_topics),
+            "mode": mode,
+            "rag_context_summary": "RAG background based on topic",
+        }
+
+    async def _retrieve_background_knowledge(self, topic: str) -> tuple[str, str]:
+        """Retrieve one background context for lightweight decomposition."""
+        source_query = (topic or "").strip()
+        if not source_query:
+            return "", ""
+
+        try:
+            result = await rag_search(query=source_query, kb_name=self.kb_name, mode=self.rag_mode)
+            rag_context = result.get("answer", "")
+            print(f"  ✓ Retrieved background knowledge ({len(rag_context)} characters)")
+
+            if self.citation_manager:
+                citation_id = self.citation_manager.get_next_citation_id(stage="planning")
+                tool_type = f"rag_{self.rag_mode}" if self.rag_mode else "rag_hybrid"
+
+                import time
+
+                tool_id = f"plan_tool_{int(time.time() * 1000)}"
+                raw_answer_json = json.dumps(result, ensure_ascii=False)
+                trace = ToolTrace(
+                    tool_id=tool_id,
+                    citation_id=citation_id,
+                    tool_type=tool_type,
+                    query=source_query,
+                    raw_answer=raw_answer_json,
+                    summary=rag_context[:500] if rag_context else "",
+                )
+                self.citation_manager.add_citation(
+                    citation_id=citation_id,
+                    tool_type=tool_type,
+                    tool_trace=trace,
+                    raw_answer=raw_answer_json,
+                )
+
+            return rag_context, source_query
+        except Exception as e:
+            print(f"  ✗ RAG retrieval failed: {e!s}")
+            return "", source_query
 
     async def _process_without_rag(
         self, topic: str, num_subtopics: int, mode: str = "manual"
@@ -153,13 +235,16 @@ Generate exactly {num_subtopics} subtopics. Please ensure exactly {num_subtopics
 """
 
         user_prompt = user_prompt_template.format(
-            topic=topic, decompose_requirement=decompose_requirement
+            topic=topic,
+            decompose_requirement=decompose_requirement,
+            mode_instruction=self._get_mode_contract("decompose"),
         )
 
         response = await self.call_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="decompose_no_rag",
+            trace_meta=self._build_trace_meta(mode),
         )
 
         # Parse JSON output
@@ -193,140 +278,6 @@ Generate exactly {num_subtopics} subtopics. Please ensure exactly {num_subtopics
             "total_subtopics": len(sub_topics),
             "mode": f"{mode}_no_rag",
             "rag_context_summary": "RAG disabled - subtopics generated directly from LLM",
-        }
-
-    async def _process_manual_mode(self, topic: str, num_subtopics: int) -> dict[str, Any]:
-        """Manual mode: generate subtopics based on specified count"""
-        # Step 1: Generate sub-queries
-        print("\n🔍 Step 1: Generating sub-queries...")
-        sub_queries = await self._generate_sub_queries(topic, num_subtopics)
-        print(f"✓ Generated {len(sub_queries)} sub-queries")
-
-        # Step 2: Execute RAG retrieval to get background knowledge
-        print("\n🔍 Step 2: Executing RAG retrieval...")
-        rag_contexts = {}
-        for i, query in enumerate(sub_queries, 1):
-            try:
-                result = await rag_search(query=query, kb_name=self.kb_name, mode=self.rag_mode)
-                rag_answer = result.get("answer", "")
-                rag_contexts[query] = rag_answer
-                print(f"  ✓ Query {i}/{len(sub_queries)}: {query[:50]}...")
-
-                # Record citation (if citation manager is enabled)
-                if self.citation_manager:
-                    # Get citation ID from CitationManager (unified ID generation)
-                    citation_id = self.citation_manager.get_next_citation_id(stage="planning")
-                    tool_type = f"rag_{self.rag_mode}" if self.rag_mode else "rag_hybrid"
-
-                    # Create ToolTrace
-                    import time
-
-                    tool_id = f"plan_tool_{int(time.time() * 1000)}"
-                    raw_answer_json = json.dumps(result, ensure_ascii=False)
-                    trace = ToolTrace(
-                        tool_id=tool_id,
-                        citation_id=citation_id,
-                        tool_type=tool_type,
-                        query=query,
-                        raw_answer=raw_answer_json,
-                        summary=(
-                            rag_answer[:500] if rag_answer else ""
-                        ),  # Use first 500 characters as summary
-                    )
-
-                    # Add to citation manager
-                    self.citation_manager.add_citation(
-                        citation_id=citation_id,
-                        tool_type=tool_type,
-                        tool_trace=trace,
-                        raw_answer=raw_answer_json,
-                    )
-            except Exception as e:
-                print(f"  ✗ Query {i} failed: {e!s}")
-                rag_contexts[query] = ""
-
-        # Merge all RAG contexts
-        combined_rag_context = "\n\n".join(
-            [f"【{query}】\n{context}" for query, context in rag_contexts.items() if context]
-        )
-
-        # Step 3: Generate subtopics based on RAG background
-        print("\n🎯 Step 3: Generating subtopics...")
-        sub_topics = await self._generate_sub_topics(
-            topic=topic, rag_context=combined_rag_context, num_subtopics=num_subtopics
-        )
-
-        print(f"✓ Generated {len(sub_topics)} subtopics")
-
-        return {
-            "main_topic": topic,
-            "sub_queries": sub_queries,
-            "rag_context": combined_rag_context,
-            "sub_topics": sub_topics,
-            "total_subtopics": len(sub_topics),
-            "mode": "manual",
-            "rag_context_summary": f"Used RAG background from {len(rag_contexts)} queries",
-        }
-
-    async def _process_auto_mode(self, topic: str, max_subtopics: int) -> dict[str, Any]:
-        """Auto mode: autonomously generate subtopics based on topic and RAG context"""
-        # Step 1: First perform a broad RAG retrieval to get topic-related background knowledge
-        print("\n🔍 Step 1: Executing RAG retrieval to get background knowledge...")
-        try:
-            # Use topic itself as query to get related background
-            result = await rag_search(query=topic, kb_name=self.kb_name, mode=self.rag_mode)
-            rag_context = result.get("answer", "")
-            print(f"  ✓ Retrieved background knowledge ({len(rag_context)} characters)")
-
-            # Record citation (if citation manager is enabled)
-            if self.citation_manager:
-                # Get citation ID from CitationManager (unified ID generation)
-                citation_id = self.citation_manager.get_next_citation_id(stage="planning")
-                tool_type = f"rag_{self.rag_mode}" if self.rag_mode else "rag_hybrid"
-
-                # Create ToolTrace
-                import time
-
-                tool_id = f"plan_tool_{int(time.time() * 1000)}"
-                raw_answer_json = json.dumps(result, ensure_ascii=False)
-                trace = ToolTrace(
-                    tool_id=tool_id,
-                    citation_id=citation_id,
-                    tool_type=tool_type,
-                    query=topic,
-                    raw_answer=raw_answer_json,
-                    summary=(
-                        rag_context[:500] if rag_context else ""
-                    ),  # Use first 500 characters as summary
-                )
-
-                # Add to citation manager
-                self.citation_manager.add_citation(
-                    citation_id=citation_id,
-                    tool_type=tool_type,
-                    tool_trace=trace,
-                    raw_answer=raw_answer_json,
-                )
-        except Exception as e:
-            print(f"  ✗ RAG retrieval failed: {e!s}")
-            rag_context = ""
-
-        # Step 2: Autonomously generate subtopics based on topic and RAG context
-        print("\n🎯 Step 2: Autonomously generating subtopics...")
-        sub_topics = await self._generate_sub_topics_auto(
-            topic=topic, rag_context=rag_context, max_subtopics=max_subtopics
-        )
-
-        print(f"✓ Autonomously generated {len(sub_topics)} subtopics")
-
-        return {
-            "main_topic": topic,
-            "sub_queries": [topic],  # In auto mode, use topic itself as query
-            "rag_context": rag_context,
-            "sub_topics": sub_topics,
-            "total_subtopics": len(sub_topics),
-            "mode": "auto",
-            "rag_context_summary": "RAG background based on topic",
         }
 
     async def _generate_sub_topics_auto(
@@ -365,11 +316,17 @@ Dynamically generate no more than {max_subtopics} subtopics. Please carefully an
 """
 
         user_prompt = user_prompt_template.format(
-            topic=topic, rag_context=rag_context, decompose_requirement=decompose_requirement
+            topic=topic,
+            rag_context=rag_context,
+            decompose_requirement=decompose_requirement,
+            mode_instruction=self._get_mode_contract("decompose"),
         )
 
         response = await self.call_llm(
-            user_prompt=user_prompt, system_prompt=system_prompt, stage="decompose"
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            stage="decompose",
+            trace_meta=self._build_trace_meta("auto"),
         )
 
         # Parse JSON output (strict validation)
@@ -393,53 +350,6 @@ Dynamically generate no more than {max_subtopics} subtopics. Please carefully an
         except Exception:
             # Fallback: return empty list
             return []
-
-    async def _generate_sub_queries(self, topic: str, num_queries: int) -> list[str]:
-        """
-        Generate sub-queries
-
-        Args:
-            topic: Main topic
-            num_queries: Expected number of queries
-
-        Returns:
-            Query list
-        """
-        system_prompt = self.get_prompt("system", "role")
-        if not system_prompt:
-            raise ValueError(
-                "DecomposeAgent missing system prompt, please configure system.role in prompts/{lang}/decompose_agent.yaml"
-            )
-
-        user_prompt_template = self.get_prompt("process", "generate_queries")
-        if not user_prompt_template:
-            raise ValueError(
-                "DecomposeAgent missing generate_queries prompt, please configure process.generate_queries in prompts/{lang}/decompose_agent.yaml"
-            )
-
-        user_prompt = user_prompt_template.format(topic=topic, num_queries=num_queries)
-
-        response = await self.call_llm(
-            user_prompt=user_prompt,
-            system_prompt=system_prompt,
-            stage="generate_queries",
-        )
-
-        from ..utils.json_utils import ensure_json_dict, ensure_keys
-
-        data = extract_json_from_text(response)
-        try:
-            obj = ensure_json_dict(data)
-            ensure_keys(obj, ["queries"])
-            queries = obj.get("queries", [])
-            if not isinstance(queries, list):
-                raise ValueError("queries must be an array")
-            return queries[:num_queries]
-        except Exception:
-            # Fallback: extract queries from text
-            lines = response.split("\n")
-            queries = [line.strip() for line in lines if line.strip() and len(line.strip()) > 3]
-            return queries[:num_queries]
 
     async def _generate_sub_topics(
         self, topic: str, rag_context: str, num_subtopics: int
@@ -474,11 +384,17 @@ Explicitly generate {num_subtopics} subtopics. Please ensure exactly {num_subtop
 """
 
         user_prompt = user_prompt_template.format(
-            topic=topic, rag_context=rag_context, decompose_requirement=decompose_requirement
+            topic=topic,
+            rag_context=rag_context,
+            decompose_requirement=decompose_requirement,
+            mode_instruction=self._get_mode_contract("decompose"),
         )
 
         response = await self.call_llm(
-            user_prompt=user_prompt, system_prompt=system_prompt, stage="decompose"
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            stage="decompose",
+            trace_meta=self._build_trace_meta("manual"),
         )
 
         # Parse JSON output (strict validation)
