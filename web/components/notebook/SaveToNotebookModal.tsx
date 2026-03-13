@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { apiUrl } from "@/lib/api";
+import { invalidateNotebookCaches, listNotebooks } from "@/lib/notebook-api";
 
 type RecordType =
   | "solve"
@@ -76,9 +77,7 @@ export default function SaveToNotebookModal({
     setSelectedIds([]);
     void (async () => {
       try {
-        const res = await fetch(apiUrl("/api/v1/notebook/list"));
-        const data = await res.json();
-        setNotebooks(Array.isArray(data?.notebooks) ? data.notebooks : []);
+        setNotebooks(await listNotebooks());
       } catch {
         setNotebooks([]);
       }
@@ -153,6 +152,7 @@ export default function SaveToNotebookModal({
           } else if (type === "result") {
             const summary = String(event.payload.summary || finalSummary);
             setSummaryPreview(summary);
+            invalidateNotebookCaches();
             onSaved?.({ summary });
             setIsLoading(false);
             onClose();

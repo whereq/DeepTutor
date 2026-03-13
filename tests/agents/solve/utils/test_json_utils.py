@@ -1,4 +1,4 @@
-from src.agents.solve.utils.json_utils import extract_json_from_text
+from deeptutor.agents.solve.utils.json_utils import extract_json_from_text
 
 
 def test_extract_json_with_triple_quoted_python_code():

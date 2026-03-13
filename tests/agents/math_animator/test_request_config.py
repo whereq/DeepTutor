@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.agents.math_animator.request_config import (
+from deeptutor.agents.math_animator.request_config import (
     validate_math_animator_request_config,
 )
 

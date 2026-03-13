@@ -2,9 +2,9 @@
 
 import { useEffect } from "react";
 import { X } from "lucide-react";
-import NotebookSelector from "@/app/guide/components/NotebookSelector";
-import { useNotebookSelection } from "@/app/guide/hooks/useNotebookSelection";
-import type { SelectedRecord } from "@/app/guide/types";
+import NotebookSelector from "@/app/(workspace)/guide/components/NotebookSelector";
+import { useNotebookSelection } from "@/app/(workspace)/guide/hooks/useNotebookSelection";
+import type { SelectedRecord } from "@/app/(workspace)/guide/types";
 
 interface NotebookRecordPickerProps {
   open: boolean;

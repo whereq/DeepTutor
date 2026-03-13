@@ -109,10 +109,10 @@ DeepTutor/
 
 ```bash
 # 使用文档初始化新知识库
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 # 向现有知识库添加文档
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
 ```
 
 ## 数据存储结构

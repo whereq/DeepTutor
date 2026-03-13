@@ -12,7 +12,7 @@ import pytest
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.services.prompt import PromptManager, get_prompt_manager
+from deeptutor.services.prompt import PromptManager, get_prompt_manager
 
 
 class TestPromptManager:

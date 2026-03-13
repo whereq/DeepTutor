@@ -5,10 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.capabilities.math_animator import MathAnimatorCapability
-from src.core.context import UnifiedContext
-from src.core.stream import StreamEvent, StreamEventType
-from src.core.stream_bus import StreamBus
+from deeptutor.capabilities.math_animator import MathAnimatorCapability
+from deeptutor.core.context import UnifiedContext
+from deeptutor.core.stream import StreamEvent, StreamEventType
+from deeptutor.core.stream_bus import StreamBus
 
 
 async def _collect_events(run_coro) -> list[StreamEvent]:
@@ -77,9 +77,9 @@ async def test_math_animator_capability_emits_summary_and_result(
                 },
             )
 
-    monkeypatch.setattr("src.agents.math_animator.pipeline.MathAnimatorPipeline", FakePipeline)
+    monkeypatch.setattr("deeptutor.agents.math_animator.pipeline.MathAnimatorPipeline", FakePipeline)
     monkeypatch.setattr(
-        "src.services.llm.config.get_llm_config",
+        "deeptutor.services.llm.config.get_llm_config",
         lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
     )
 

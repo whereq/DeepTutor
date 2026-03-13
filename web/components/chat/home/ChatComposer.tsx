@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type { RefObject } from "react";
 import Image from "next/image";
 import {
@@ -17,14 +18,23 @@ import {
 import { useTranslation } from "react-i18next";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import AtMentionPopup from "@/components/chat/AtMentionPopup";
-import MathAnimatorConfigPanel from "@/components/math-animator/MathAnimatorConfigPanel";
-import QuizConfigPanel from "@/components/quiz/QuizConfigPanel";
-import ResearchConfigPanel from "@/components/research/ResearchConfigPanel";
-import type { SelectedRecord } from "@/app/guide/types";
+import type { SelectedRecord } from "@/app/(workspace)/guide/types";
 import type { DeepQuestionFormConfig } from "@/lib/quiz-types";
 import type { MathAnimatorFormConfig } from "@/lib/math-animator-types";
 import type { DeepResearchFormConfig, ResearchSource } from "@/lib/research-types";
 import { ReferenceChips } from "./ChatMessages";
+
+const QuizConfigPanel = dynamic(() => import("@/components/quiz/QuizConfigPanel"), {
+  ssr: false,
+});
+const MathAnimatorConfigPanel = dynamic(
+  () => import("@/components/math-animator/MathAnimatorConfigPanel"),
+  { ssr: false },
+);
+const ResearchConfigPanel = dynamic(
+  () => import("@/components/research/ResearchConfigPanel"),
+  { ssr: false },
+);
 
 interface PendingAttachment {
   type: string;
@@ -188,10 +198,10 @@ export default function ChatComposer({
   return (
     <div
       ref={composerRef}
-      className={`relative z-20 mx-auto w-full shrink-0 pb-5 ${hasMessages ? "-mt-12 pt-12" : ""}`}
+      className={`relative z-20 mx-auto w-full shrink-0 pb-5 ${hasMessages ? "pt-4" : ""}`}
     >
       {hasMessages && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-transparent via-[var(--background)]/82 to-[var(--background)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-transparent to-[var(--background)]/72" />
       )}
 
       {capMenuOpen && (

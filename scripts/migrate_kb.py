@@ -349,10 +349,10 @@ async def extract_numbered_items(kb_name: str, kb_base_dir: Path) -> bool:
         True if successful
     """
     try:
-        from src.knowledge.extract_numbered_items import (
+        from deeptutor.knowledge.extract_numbered_items import (
             extract_numbered_items_with_llm_async,
         )
-        from src.services.llm import get_llm_client
+        from deeptutor.services.llm import get_llm_client
     except ImportError as e:
         print(f"  ⚠️  Could not import extraction module: {e}")
         return False
@@ -424,7 +424,7 @@ async def test_kb_search(kb_name: str, query: str = "What is this knowledge base
         True if search succeeded
     """
     try:
-        from src.tools.rag_tool import rag_search
+        from deeptutor.tools.rag_tool import rag_search
     except ImportError as e:
         print(f"  ⚠️  Could not import rag_tool: {e}")
         return False

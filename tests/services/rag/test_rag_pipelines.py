@@ -28,7 +28,6 @@ sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
 
-load_dotenv(project_root / "DeepTutor.env", override=False)
 load_dotenv(project_root / ".env", override=False)
 
 
@@ -106,7 +105,7 @@ class TestRAGToolIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_list_available_providers(self):
         """Test listing available RAG providers"""
-        from src.tools.rag_tool import get_available_providers
+        from deeptutor.tools.rag_tool import get_available_providers
 
         providers = get_available_providers()
         print("\n=== Available RAG Providers ===")
@@ -124,7 +123,7 @@ class TestRAGToolIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_current_provider(self):
         """Test getting current RAG provider"""
-        from src.tools.rag_tool import get_current_provider
+        from deeptutor.tools.rag_tool import get_current_provider
 
         provider = get_current_provider()
         print(f"\n=== Current Provider: {provider} ===")
@@ -134,14 +133,14 @@ class TestRAGToolIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_has_pipeline_valid(self):
         """Test has_pipeline with valid pipeline names"""
-        from src.services.rag.factory import has_pipeline
+        from deeptutor.services.rag.factory import has_pipeline
 
         for name in ["raganything", "lightrag", "llamaindex"]:
             self.assertTrue(has_pipeline(name), f"Pipeline {name} should exist")
 
     async def test_has_pipeline_invalid(self):
         """Test has_pipeline with invalid pipeline name"""
-        from src.services.rag.factory import has_pipeline
+        from deeptutor.services.rag.factory import has_pipeline
 
         self.assertFalse(has_pipeline("nonexistent"))
         self.assertFalse(has_pipeline(""))
@@ -152,8 +151,8 @@ class TestPipelineFactory(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_pipeline_raganything(self):
         """Test getting RAGAnything pipeline"""
-        from src.services.rag.factory import get_pipeline
-        from src.services.rag.pipelines.raganything import RAGAnythingPipeline
+        from deeptutor.services.rag.factory import get_pipeline
+        from deeptutor.services.rag.pipelines.raganything import RAGAnythingPipeline
 
         pipeline = get_pipeline("raganything")
         self.assertIsInstance(pipeline, RAGAnythingPipeline)
@@ -161,8 +160,8 @@ class TestPipelineFactory(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_pipeline_lightrag(self):
         """Test getting LightRAG pipeline"""
-        from src.services.rag.factory import get_pipeline
-        from src.services.rag.pipeline import RAGPipeline
+        from deeptutor.services.rag.factory import get_pipeline
+        from deeptutor.services.rag.pipeline import RAGPipeline
 
         pipeline = get_pipeline("lightrag")
         self.assertIsInstance(pipeline, RAGPipeline)
@@ -171,7 +170,7 @@ class TestPipelineFactory(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_pipeline_llamaindex(self):
         """Test getting LlamaIndex pipeline"""
-        from src.services.rag.factory import get_pipeline
+        from deeptutor.services.rag.factory import get_pipeline
 
         try:
             pipeline = get_pipeline("llamaindex")
@@ -187,7 +186,7 @@ class TestPipelineFactory(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_pipeline_invalid(self):
         """Test getting invalid pipeline raises error"""
-        from src.services.rag.factory import get_pipeline
+        from deeptutor.services.rag.factory import get_pipeline
 
         with self.assertRaises(ValueError) as context:
             get_pipeline("nonexistent")
@@ -215,7 +214,7 @@ class TestRAGAnythingPipeline(unittest.IsolatedAsyncioTestCase, RAGPipelineTestB
         print("\n=== Testing RAGAnything Availability ===")
 
         try:
-            from src.services.rag.pipelines.raganything import RAGAnythingPipeline
+            from deeptutor.services.rag.pipelines.raganything import RAGAnythingPipeline
 
             pipeline = RAGAnythingPipeline(kb_base_dir=self.test_kb_dir)
             print("✓ RAGAnythingPipeline class available")
@@ -244,7 +243,7 @@ class TestRAGAnythingPipeline(unittest.IsolatedAsyncioTestCase, RAGPipelineTestB
         """Test RAGAnything full workflow: initialize -> search -> delete"""
         print("\n=== Testing RAGAnything Full Workflow ===")
 
-        from src.services.rag.pipelines.raganything import RAGAnythingPipeline
+        from deeptutor.services.rag.pipelines.raganything import RAGAnythingPipeline
 
         pipeline = RAGAnythingPipeline(kb_base_dir=self.test_kb_dir)
 
@@ -291,7 +290,7 @@ class TestLlamaIndexPipeline(unittest.IsolatedAsyncioTestCase, RAGPipelineTestBa
         """Test LlamaIndex pipeline components are properly configured"""
         print("\n=== Testing LlamaIndex Pipeline Components ===")
 
-        from src.services.rag.factory import get_pipeline
+        from deeptutor.services.rag.factory import get_pipeline
 
         try:
             pipeline = get_pipeline("llamaindex")
@@ -313,7 +312,7 @@ class TestLlamaIndexPipeline(unittest.IsolatedAsyncioTestCase, RAGPipelineTestBa
         """Test LlamaIndex pipeline full workflow"""
         print("\n=== Testing LlamaIndex Full Workflow ===")
 
-        from src.services.rag.factory import get_pipeline
+        from deeptutor.services.rag.factory import get_pipeline
 
         pipeline = get_pipeline("llamaindex")
 
@@ -348,7 +347,7 @@ class TestLightRAGPipeline(unittest.IsolatedAsyncioTestCase, RAGPipelineTestBase
         """Test LightRAG pipeline components are properly configured"""
         print("\n=== Testing LightRAG Pipeline Components ===")
 
-        from src.services.rag.factory import get_pipeline
+        from deeptutor.services.rag.factory import get_pipeline
 
         pipeline = get_pipeline("lightrag")
 
@@ -385,7 +384,7 @@ class TestRAGToolWithProviders(unittest.IsolatedAsyncioTestCase, RAGPipelineTest
 
     async def test_rag_search_invalid_provider(self):
         """Test rag_search with invalid provider raises error"""
-        from src.tools.rag_tool import rag_search
+        from deeptutor.tools.rag_tool import rag_search
 
         print("\n=== Testing Invalid Provider Error ===")
 
@@ -399,7 +398,7 @@ class TestRAGToolWithProviders(unittest.IsolatedAsyncioTestCase, RAGPipelineTest
 
     async def test_rag_search_default_provider(self):
         """Test rag_search uses default provider from env"""
-        from src.tools.rag_tool import DEFAULT_RAG_PROVIDER, get_current_provider
+        from deeptutor.tools.rag_tool import DEFAULT_RAG_PROVIDER, get_current_provider
 
         print("\n=== Testing Default Provider ===")
 
@@ -418,7 +417,7 @@ class TestComponentAvailability(unittest.IsolatedAsyncioTestCase):
         """Test all parsers can be imported"""
         print("\n=== Testing Parser Availability ===")
 
-        from src.services.rag.components.parsers import MarkdownParser, PDFParser
+        from deeptutor.services.rag.components.parsers import MarkdownParser, PDFParser
 
         pdf_parser = PDFParser()
         print(f"✓ PDFParser: {pdf_parser.name}")
@@ -430,7 +429,7 @@ class TestComponentAvailability(unittest.IsolatedAsyncioTestCase):
         """Test all chunkers can be imported"""
         print("\n=== Testing Chunker Availability ===")
 
-        from src.services.rag.components.chunkers import (
+        from deeptutor.services.rag.components.chunkers import (
             FixedSizeChunker,
             NumberedItemExtractor,
             SemanticChunker,
@@ -449,7 +448,7 @@ class TestComponentAvailability(unittest.IsolatedAsyncioTestCase):
         """Test all embedders can be imported"""
         print("\n=== Testing Embedder Availability ===")
 
-        from src.services.rag.components.embedders import OpenAIEmbedder
+        from deeptutor.services.rag.components.embedders import OpenAIEmbedder
 
         embedder = OpenAIEmbedder()
         print(f"✓ OpenAIEmbedder: {embedder.name}")
@@ -458,7 +457,7 @@ class TestComponentAvailability(unittest.IsolatedAsyncioTestCase):
         """Test all indexers can be imported"""
         print("\n=== Testing Indexer Availability ===")
 
-        from src.services.rag.components.indexers import GraphIndexer, VectorIndexer
+        from deeptutor.services.rag.components.indexers import GraphIndexer, VectorIndexer
 
         vector = VectorIndexer()
         print(f"✓ VectorIndexer: {vector.name}")
@@ -470,7 +469,7 @@ class TestComponentAvailability(unittest.IsolatedAsyncioTestCase):
         """Test all retrievers can be imported"""
         print("\n=== Testing Retriever Availability ===")
 
-        from src.services.rag.components.retrievers import DenseRetriever, HybridRetriever
+        from deeptutor.services.rag.components.retrievers import DenseRetriever, HybridRetriever
 
         dense = DenseRetriever()
         print(f"✓ DenseRetriever: {dense.name}")
@@ -490,7 +489,7 @@ class TestExistingKnowledgeBase(unittest.IsolatedAsyncioTestCase):
         """Test search on an existing knowledge base"""
         print("\n=== Testing Existing Knowledge Base ===")
 
-        from src.tools.rag_tool import rag_search
+        from deeptutor.tools.rag_tool import rag_search
 
         # Use default or specified KB
         kb_name = os.environ.get("TEST_KB_NAME", "ai-textbook")

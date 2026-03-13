@@ -31,7 +31,6 @@ sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
 
-load_dotenv(project_root / "DeepTutor.env", override=False)
 load_dotenv(project_root / ".env", override=False)
 
 
@@ -96,7 +95,7 @@ class PipelineIntegrationTest:
         print_info(f"Created temp directory: {self.temp_dir}")
 
         # Initialize service with temp directory
-        from src.services.rag import RAGService
+        from deeptutor.services.rag import RAGService
 
         self.service = RAGService(kb_base_dir=self.temp_dir, provider=self.pipeline_name)
 
@@ -208,7 +207,7 @@ class PipelineIntegrationTest:
         print("\n  🔧 Testing via rag_tool.py...")
 
         try:
-            from src.tools.rag_tool import rag_search
+            from deeptutor.tools.rag_tool import rag_search
 
             result = await rag_search(
                 query="What does Shandong have?",
@@ -308,7 +307,7 @@ class PipelineIntegrationTest:
 
 def get_available_pipelines():
     """Get list of available pipelines"""
-    from src.services.rag import RAGService
+    from deeptutor.services.rag import RAGService
 
     return [p["id"] for p in RAGService.list_providers()]
 

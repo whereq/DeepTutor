@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.agents.math_animator.utils import build_repair_error_message, extract_json_object
+from deeptutor.agents.math_animator.utils import build_repair_error_message, extract_json_object
 
 
 def test_build_repair_error_message_adds_targeted_3d_point_hint() -> None:

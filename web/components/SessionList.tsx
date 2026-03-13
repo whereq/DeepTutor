@@ -4,7 +4,13 @@ import { Check, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type SessionSummary } from "@/lib/session-api";
 
-type SessionRuntimeStatus = "idle" | "running" | "completed" | "failed" | "cancelled";
+type SessionRuntimeStatus =
+  | "idle"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "rejected";
 
 interface SessionListProps {
   sessions: SessionSummary[];
@@ -36,6 +42,12 @@ function StatusIndicator({ status }: { status?: SessionRuntimeStatus }) {
   if (status === "failed") {
     return (
       <span className="ml-1.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-rose-500/80 ring-1 ring-rose-500/20" />
+    );
+  }
+
+  if (status === "rejected") {
+    return (
+      <span className="ml-1.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-fuchsia-500/80 ring-1 ring-fuchsia-500/20" />
     );
   }
 

@@ -3,8 +3,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from src.services.path_service import PathService
-from src.services.session.sqlite_store import SQLiteSessionStore
+from deeptutor.services.path_service import PathService
+from deeptutor.services.session.sqlite_store import SQLiteSessionStore
 
 
 def test_sqlite_store_defaults_to_data_user_chat_history_db(tmp_path: Path) -> None:

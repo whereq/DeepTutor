@@ -1,7 +1,6 @@
-"use client";
-
 import type { StreamEvent } from "@/lib/unified-ws";
 import { apiUrl } from "@/lib/api";
+import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
 
 export interface SessionMessage {
   id: number;
@@ -86,12 +85,25 @@ async function expectJson<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function listSessions(limit = 50, offset = 0): Promise<SessionSummary[]> {
-  const response = await fetch(apiUrl(`/api/v1/sessions?limit=${limit}&offset=${offset}`), {
-    cache: "no-store",
-  });
-  const data = await expectJson<{ sessions: SessionSummary[] }>(response);
-  return data.sessions ?? [];
+export async function listSessions(
+  limit = 50,
+  offset = 0,
+  options?: { force?: boolean },
+): Promise<SessionSummary[]> {
+  return withClientCache<SessionSummary[]>(
+    `sessions:${limit}:${offset}`,
+    async () => {
+      const response = await fetch(apiUrl(`/api/v1/sessions?limit=${limit}&offset=${offset}`), {
+        cache: "no-store",
+      });
+      const data = await expectJson<{ sessions: SessionSummary[] }>(response);
+      return data.sessions ?? [];
+    },
+    {
+      force: options?.force,
+      ttlMs: 15_000,
+    },
+  );
 }
 
 export async function getSession(sessionId: string): Promise<SessionDetail> {
@@ -108,6 +120,7 @@ export async function updateSessionTitle(sessionId: string, title: string): Prom
     body: JSON.stringify({ title }),
   });
   const data = await expectJson<{ session: SessionDetail }>(response);
+  invalidateClientCache("sessions:");
   return data.session;
 }
 
@@ -116,6 +129,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
     method: "DELETE",
   });
   await expectJson<{ deleted: boolean }>(response);
+  invalidateClientCache("sessions:");
 }
 
 export async function recordQuizResults(

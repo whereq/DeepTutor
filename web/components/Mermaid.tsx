@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import mermaid from "mermaid";
 import { useTranslation } from "react-i18next";
 
 interface MermaidProps {
@@ -9,26 +8,37 @@ interface MermaidProps {
   className?: string;
 }
 
-// Initialize mermaid with custom config
-mermaid.initialize({
-  startOnLoad: false,
-  theme: "neutral",
-  securityLevel: "strict",
-  fontFamily: "ui-sans-serif, system-ui, sans-serif",
-  flowchart: {
-    useMaxWidth: true,
-    htmlLabels: false,
-    curve: "basis",
-  },
-  themeVariables: {
-    primaryColor: "#6366f1",
-    primaryTextColor: "#1e293b",
-    primaryBorderColor: "#c7d2fe",
-    lineColor: "#94a3b8",
-    secondaryColor: "#f1f5f9",
-    tertiaryColor: "#f8fafc",
-  },
-});
+let mermaidLoader: Promise<typeof import("mermaid")["default"]> | null = null;
+
+async function loadMermaid() {
+  if (!mermaidLoader) {
+    mermaidLoader = import("mermaid").then((module) => {
+      const mermaid = module.default;
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "neutral",
+        securityLevel: "strict",
+        fontFamily: "ui-sans-serif, system-ui, sans-serif",
+        flowchart: {
+          useMaxWidth: true,
+          htmlLabels: false,
+          curve: "basis",
+        },
+        themeVariables: {
+          primaryColor: "#6366f1",
+          primaryTextColor: "#1e293b",
+          primaryBorderColor: "#c7d2fe",
+          lineColor: "#94a3b8",
+          secondaryColor: "#f1f5f9",
+          tertiaryColor: "#f8fafc",
+        },
+      });
+      return mermaid;
+    });
+  }
+
+  return mermaidLoader;
+}
 
 let mermaidIdCounter = 0;
 
@@ -40,26 +50,35 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
   const [id] = useState(() => `mermaid-${++mermaidIdCounter}`);
 
   useEffect(() => {
+    let cancelled = false;
+
     const renderChart = async () => {
       if (!chart || !containerRef.current) return;
 
       try {
+        const mermaid = await loadMermaid();
         // Clean up the chart code
         const cleanedChart = chart.trim();
 
         // Validate and render
         const { svg: renderedSvg } = await mermaid.render(id, cleanedChart);
-        setSvg(renderedSvg);
-        setError(null);
+        if (!cancelled) {
+          setSvg(renderedSvg);
+          setError(null);
+        }
       } catch (err) {
         console.error("Mermaid rendering error:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to render diagram",
-        );
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to render diagram");
+        }
       }
     };
 
-    renderChart();
+    void renderChart();
+
+    return () => {
+      cancelled = true;
+    };
   }, [chart, id]);
 
   if (error) {

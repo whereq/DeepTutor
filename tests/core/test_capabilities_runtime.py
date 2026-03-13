@@ -10,13 +10,13 @@ from typing import Any
 
 import pytest
 
-from src.capabilities.chat import ChatCapability
-from src.capabilities.deep_question import DeepQuestionCapability
-from src.capabilities.deep_research import DeepResearchCapability
-from src.capabilities.deep_solve import DeepSolveCapability
-from src.core.context import Attachment, UnifiedContext
-from src.core.stream import StreamEvent, StreamEventType
-from src.core.stream_bus import StreamBus
+from deeptutor.capabilities.chat import ChatCapability
+from deeptutor.capabilities.deep_question import DeepQuestionCapability
+from deeptutor.capabilities.deep_research import DeepResearchCapability
+from deeptutor.capabilities.deep_solve import DeepSolveCapability
+from deeptutor.core.context import Attachment, UnifiedContext
+from deeptutor.core.stream import StreamEvent, StreamEventType
+from deeptutor.core.stream_bus import StreamBus
 
 
 def _install_module(monkeypatch: pytest.MonkeyPatch, fullname: str, **attrs: Any) -> types.ModuleType:
@@ -90,7 +90,7 @@ async def test_chat_capability_streams_content_and_geogebra_context(
             )
             await stream.content("assistant output", source="chat", stage="responding")
 
-    monkeypatch.setattr("src.capabilities.chat.AgenticChatPipeline", FakePipeline)
+    monkeypatch.setattr("deeptutor.capabilities.chat.AgenticChatPipeline", FakePipeline)
 
     context = UnifiedContext(
         user_message="analyze triangle",
@@ -147,10 +147,10 @@ async def test_deep_solve_capability_bridges_solver_output(
                 "metadata": {"steps": 2},
             }
 
-    _install_module(monkeypatch, "src.agents.solve.main_solver", MainSolver=FakeMainSolver)
+    _install_module(monkeypatch, "deeptutor.agents.solve.main_solver", MainSolver=FakeMainSolver)
     _install_module(
         monkeypatch,
-        "src.services.llm.config",
+        "deeptutor.services.llm.config",
         get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
     )
 
@@ -219,10 +219,10 @@ async def test_deep_solve_capability_bridges_observation_and_retrieve_events(
                 "metadata": {"steps": 1},
             }
 
-    _install_module(monkeypatch, "src.agents.solve.main_solver", MainSolver=FakeMainSolver)
+    _install_module(monkeypatch, "deeptutor.agents.solve.main_solver", MainSolver=FakeMainSolver)
     _install_module(
         monkeypatch,
-        "src.services.llm.config",
+        "deeptutor.services.llm.config",
         get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
     )
 
@@ -281,12 +281,12 @@ async def test_deep_question_capability_uses_user_message_as_topic(
 
     _install_module(
         monkeypatch,
-        "src.agents.question.coordinator",
+        "deeptutor.agents.question.coordinator",
         AgentCoordinator=FakeCoordinator,
     )
     _install_module(
         monkeypatch,
-        "src.services.llm.config",
+        "deeptutor.services.llm.config",
         get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
     )
 
@@ -347,17 +347,17 @@ async def test_deep_question_capability_uses_single_call_followup_agent(
 
     _install_module(
         monkeypatch,
-        "src.agents.question.coordinator",
+        "deeptutor.agents.question.coordinator",
         AgentCoordinator=FakeCoordinator,
     )
     _install_module(
         monkeypatch,
-        "src.agents.question.agents.followup_agent",
+        "deeptutor.agents.question.agents.followup_agent",
         FollowupAgent=FakeFollowupAgent,
     )
     _install_module(
         monkeypatch,
-        "src.services.llm.config",
+        "deeptutor.services.llm.config",
         get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
     )
 
@@ -425,7 +425,7 @@ def test_deep_question_capability_humanizes_question_progress_labels() -> None:
 async def test_deep_research_capability_requires_explicit_config_and_streams_trace(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import src.agents.research.request_config  # noqa: F401
+    import deeptutor.agents.research.request_config  # noqa: F401
 
     captured: dict[str, Any] = {}
 
@@ -473,17 +473,17 @@ async def test_deep_research_capability_requires_explicit_config_and_streams_tra
 
     _install_module(
         monkeypatch,
-        "src.agents.research.research_pipeline",
+        "deeptutor.agents.research.research_pipeline",
         ResearchPipeline=FakeResearchPipeline,
     )
     _install_module(
         monkeypatch,
-        "src.services.config",
+        "deeptutor.services.config",
         load_config_with_main=fake_load_config_with_main,
     )
     _install_module(
         monkeypatch,
-        "src.services.llm.config",
+        "deeptutor.services.llm.config",
         get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
     )
 

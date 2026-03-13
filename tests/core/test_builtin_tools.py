@@ -9,15 +9,17 @@ from typing import Any
 
 import pytest
 
-from src.runtime.registry.tool_registry import ToolRegistry
-from src.core.tool_protocol import BaseTool, ToolDefinition, ToolParameter, ToolResult
-from src.tools.builtin.brainstorm import BrainstormTool
-from src.tools.builtin.code_execution import CodeExecutionTool
-from src.tools.builtin.geogebra_analysis import GeoGebraAnalysisTool
-from src.tools.builtin.paper_search import PaperSearchToolWrapper
-from src.tools.builtin.rag import RAGTool
-from src.tools.builtin.reason import ReasonTool
-from src.tools.builtin.web import WebSearchTool
+from deeptutor.runtime.registry.tool_registry import ToolRegistry
+from deeptutor.core.tool_protocol import BaseTool, ToolDefinition, ToolParameter, ToolResult
+from deeptutor.tools.builtin import (
+    BrainstormTool,
+    CodeExecutionTool,
+    GeoGebraAnalysisTool,
+    PaperSearchToolWrapper,
+    RAGTool,
+    ReasonTool,
+    WebSearchTool,
+)
 
 
 def _install_module(monkeypatch: pytest.MonkeyPatch, fullname: str, **attrs: Any) -> types.ModuleType:
@@ -52,7 +54,7 @@ async def test_brainstorm_tool_passes_llm_arguments(monkeypatch: pytest.MonkeyPa
         captured.update(kwargs)
         return {"answer": "## 1. Test idea\n- Rationale: worth exploring"}
 
-    _install_module(monkeypatch, "src.tools.brainstorm", brainstorm=fake_brainstorm)
+    _install_module(monkeypatch, "deeptutor.tools.brainstorm", brainstorm=fake_brainstorm)
 
     result = await BrainstormTool().execute(
         topic="agent-native tutoring",
@@ -74,7 +76,7 @@ async def test_rag_tool_forwards_query_and_extra_kwargs(monkeypatch: pytest.Monk
         captured.update(kwargs)
         return {"answer": "grounded answer", "provider": "fake"}
 
-    _install_module(monkeypatch, "src.tools.rag_tool", rag_search=fake_rag_search)
+    _install_module(monkeypatch, "deeptutor.tools.rag_tool", rag_search=fake_rag_search)
 
     result = await RAGTool().execute(
         query="what is a tensor",
@@ -101,7 +103,7 @@ async def test_web_search_tool_wraps_sync_function(monkeypatch: pytest.MonkeyPat
             "citations": [{"url": "https://example.com", "title": "Example"}],
         }
 
-    _install_module(monkeypatch, "src.tools.web_search", web_search=fake_web_search)
+    _install_module(monkeypatch, "deeptutor.tools.web_search", web_search=fake_web_search)
 
     result = await WebSearchTool().execute(query="latest benchmark", output_dir="/tmp/out")
 
@@ -125,7 +127,7 @@ async def test_code_execution_tool_uses_direct_code_path(monkeypatch: pytest.Mon
             "artifact_paths": [],
         }
 
-    _install_module(monkeypatch, "src.tools.code_executor", run_code=fake_run_code)
+    _install_module(monkeypatch, "deeptutor.tools.code_executor", run_code=fake_run_code)
 
     tool = CodeExecutionTool()
     result = await tool.execute(code="print(2 + 2)", timeout=5, workspace_dir="/tmp/code-runs")
@@ -149,7 +151,7 @@ async def test_code_execution_tool_generates_code_from_intent(monkeypatch: pytes
             "artifact_paths": ["/tmp/plot.png"],
         }
 
-    _install_module(monkeypatch, "src.tools.code_executor", run_code=fake_run_code)
+    _install_module(monkeypatch, "deeptutor.tools.code_executor", run_code=fake_run_code)
     tool = CodeExecutionTool()
 
     async def fake_generate_code(intent: str) -> str:
@@ -178,7 +180,7 @@ async def test_reason_tool_passes_llm_arguments(monkeypatch: pytest.MonkeyPatch)
         captured.update(kwargs)
         return {"answer": "reasoned"}
 
-    _install_module(monkeypatch, "src.tools.reason", reason=fake_reason)
+    _install_module(monkeypatch, "deeptutor.tools.reason", reason=fake_reason)
 
     result = await ReasonTool().execute(
         query="derive the formula",
@@ -211,7 +213,7 @@ async def test_paper_search_tool_formats_papers(monkeypatch: pytest.MonkeyPatch)
 
     _install_module(
         monkeypatch,
-        "src.tools.paper_search_tool",
+        "deeptutor.tools.paper_search_tool",
         ArxivSearchTool=FakeArxivSearchTool,
     )
 
@@ -245,12 +247,12 @@ async def test_geogebra_analysis_tool_handles_success(monkeypatch: pytest.Monkey
 
     _install_module(
         monkeypatch,
-        "src.agents.vision_solver.vision_solver_agent",
+        "deeptutor.agents.vision_solver.vision_solver_agent",
         VisionSolverAgent=FakeVisionSolverAgent,
     )
     _install_module(
         monkeypatch,
-        "src.services.llm.config",
+        "deeptutor.services.llm.config",
         get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u"),
     )
 

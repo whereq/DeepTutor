@@ -438,7 +438,7 @@ def main():
         print_info("You can start DeepTutor with: python scripts/start_web.py")
     else:
         print_error("Some dependencies are missing!")
-        print_info("Run: python scripts/install_all.py")
+        print_info("Run: python scripts/start_tour.py")
         print_info("Or manually install missing packages")
 
     print("=" * 60 + "\n")

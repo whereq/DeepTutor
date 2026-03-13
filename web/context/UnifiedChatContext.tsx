@@ -9,13 +9,16 @@ import React, {
   useReducer,
   useRef,
 } from "react";
+import {
+  readStoredActiveSessionId,
+  readStoredLanguage,
+  writeStoredActiveSessionId,
+} from "@/context/AppShellContext";
 import type { StreamEvent, ChatMessage } from "@/lib/unified-ws";
 import { UnifiedWSClient } from "@/lib/unified-ws";
 import { getSession, type SessionMessage } from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { shouldAppendEventContent } from "@/lib/stream";
-
-const ACTIVE_SESSION_STORAGE_KEY = "deeptutor.activeSessionId.tab";
 
 type SessionRuntimeStatus =
   | "idle"
@@ -148,7 +151,7 @@ function createSessionEntry(key: string, sessionId: string | null = null): Sessi
     messages: [],
     isStreaming: false,
     currentStage: "",
-    language: "en",
+    language: typeof window === "undefined" ? "en" : readStoredLanguage(),
     status: "idle",
     activeTurnId: null,
     lastSeq: 0,
@@ -568,20 +571,16 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (typeof window === "undefined") return;
     const current = state.selectedKey ? state.sessions[state.selectedKey] : null;
-    if (current?.sessionId) {
-      window.sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, current.sessionId);
-    } else {
-      window.sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-    }
+    writeStoredActiveSessionId(current?.sessionId ?? null);
   }, [state.selectedKey, state.sessions]);
 
   useEffect(() => {
     if (restoredRef.current || typeof window === "undefined") return;
     restoredRef.current = true;
-    const savedSessionId = window.sessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+    const savedSessionId = readStoredActiveSessionId();
     if (savedSessionId) {
       void loadSession(savedSessionId).catch(() => {
-        window.sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+        writeStoredActiveSessionId(null);
         dispatch({ type: "NEW_SESSION", key: makeDraftKey() });
       });
       return;

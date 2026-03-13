@@ -2,9 +2,9 @@
 
 import asyncio
 
-from src.services.llm.config import LLMConfig
-from src.services.llm.exceptions import LLMRateLimitError
-from src.services.llm.providers.base_provider import BaseLLMProvider
+from deeptutor.services.llm.config import LLMConfig
+from deeptutor.services.llm.exceptions import LLMRateLimitError
+from deeptutor.services.llm.providers.base_provider import BaseLLMProvider
 
 
 class DummyProvider(BaseLLMProvider):

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   hasVisibleMarkdownContent,
   normalizeMarkdownForDisplay,
-} from "../lib/markdown-display.ts";
+} from "../lib/markdown-display";
 
 test("normalizeMarkdownForDisplay removes empty details blocks", () => {
   const input = "Before\n\n<details><summary></summary></details>\n\nAfter";

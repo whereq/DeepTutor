@@ -278,23 +278,16 @@ cp .env.example .env
 | `EMBEDDING_HOST` | **Yes** | Embedding API endpoint |
 | `BACKEND_PORT` | No | Backend port (default: `8001`) |
 | `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
-| `NEXT_PUBLIC_API_BASE` | No | **Frontend API URL** - Set this for remote/LAN access (e.g., `http://192.168.1.100:8001`) |
-| `TTS_*` | No | Text-to-Speech settings |
 | `SEARCH_PROVIDER` | No | Search provider (options: `perplexity`, `openrouter`, `tavily`, `serper`, `jina`, `exa`, `baidu`, default: `perplexity`) |
 | `SEARCH_API_KEY` | No | Unified API key for all search providers |
-
-> 💡 **Remote Access**: If accessing from another device (e.g., `192.168.31.66:3782`), add to `.env`:
-> ```bash
-> NEXT_PUBLIC_API_BASE=http://192.168.31.66:8001
-> ```
 
 </details>
 
 **③ Configure Ports & LLM** *(Optional)*
 
-- **Ports**: Set in `.env` file → `BACKEND_PORT` / `FRONTEND_PORT` (defaults: 8001/3782)
-- **LLM**: Edit `config/agents.yaml` → `temperature` / `max_tokens` per module
-- See [Configuration Docs](config/README.md) for details
+- **Ports**: Set in `.env` file → `BACKEND_PORT` / `FRONTEND_PORT`
+- **Behavior config**: Runtime YAML lives under `data/user/settings/`
+- **Model catalog**: Tour and Settings now manage provider/model options for you
 
 **④ Try Demo Knowledge Bases** *(Optional)*
 
@@ -358,7 +351,7 @@ docker compose up --build # Rebuild after changes
 ```
 
 <details>
-<summary>📋 <b>More Docker Options</b> (Pre-built images, Cloud deployment, Custom ports)</summary>
+<summary>📋 <b>More Docker Options</b> (Pre-built images and architecture notes)</summary>
 
 **Pre-built Image Tags:**
 
@@ -371,29 +364,7 @@ docker compose up --build # Rebuild after changes
 
 > 💡 The `:latest` tag is a **multi-architecture image** — Docker automatically pulls the correct version for your system (Intel/AMD or Apple Silicon/ARM)
 
-**Cloud Deployment** — Must set external API URL:
-
-```bash
-docker run -d --name deeptutor \
-  -p 8001:8001 -p 3782:3782 \
-  -e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001 \
-  --env-file .env \
-  -v $(pwd)/data:/app/data \
-  ghcr.io/hkuds/deeptutor:latest
-```
-
-**Custom Ports Example:**
-
-```bash
-docker run -d --name deeptutor \
-  -p 9001:9001 -p 3000:3000 \
-  -e BACKEND_PORT=9001 \
-  -e FRONTEND_PORT=3000 \
-  -e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:9001 \
-  --env-file .env \
-  -v $(pwd)/data:/app/data \
-  ghcr.io/hkuds/deeptutor:latest
-```
+For cloud deployment and custom port mapping details, use the dedicated docs under `docs/guide/docker-start.md`.
 
 </details>
 
@@ -415,19 +386,29 @@ conda create -n deeptutor python=3.10 && conda activate deeptutor
 python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activate
 ```
 
-**2. Install Dependencies**:
+**2. Install from source (nanobot-style)**:
 
 ```bash
-# One-click installation (Recommended)
-python scripts/install_all.py
-# Or: bash scripts/install_all.sh
-
-# Or manual installation
-pip install -r requirements.txt
-npm install --prefix web
+pip install -e .
+pip install ".[server]"          # backend API support
+pip install ".[math-animator]"   # optional math animator
 ```
 
-**3. Launch**:
+**3. Start the official local onboarding flow**:
+
+```bash
+python scripts/start_tour.py
+```
+
+The terminal tour now handles:
+
+- choosing `Web` or `CLI` guidance
+- choosing ports
+- installing the selected dependency profile
+- collecting provider/model configuration
+- writing the active `.env`
+
+**4. Launch**:
 
 ```bash
 python scripts/start_web.py    # Start frontend + backend
@@ -440,8 +421,8 @@ python scripts/start_web.py    # Start frontend + backend
 
 **Backend** (FastAPI):
 ```bash
-python src/api/run_server.py
-# Or: uvicorn src.api.main:app --host 0.0.0.0 --port 8001 --reload
+python -m deeptutor.api.run_server
+# Or: uvicorn deeptutor.api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 **Frontend** (Next.js):
@@ -449,10 +430,7 @@ python src/api/run_server.py
 cd web && npm install && npm run dev -- -p 3782
 ```
 
-**Note**: Create `web/.env.local`:
-```bash
-NEXT_PUBLIC_API_BASE=http://localhost:8001
-```
+`start_web.py` injects the frontend API base automatically. `web/.env.local` is no longer part of the supported local flow.
 
 | Service | Default Port |
 |:---:|:---:|
@@ -527,7 +505,7 @@ Results are automatically saved during all activities. Directories are created a
 
 ```python
 import asyncio
-from src.agents.solve import MainSolver
+from deeptutor.agents.solve import MainSolver
 
 async def main():
     solver = MainSolver(kb_name="ai_textbook")
@@ -607,7 +585,7 @@ data/user/solve/solve_YYYYMMDD_HHMMSS/
 **Custom Mode - Full Pipeline:**
 ```python
 import asyncio
-from src.agents.question import AgentCoordinator
+from deeptutor.agents.question import AgentCoordinator
 
 async def main():
     coordinator = AgentCoordinator(
@@ -632,7 +610,7 @@ asyncio.run(main())
 
 **Mimic Mode - PDF Upload:**
 ```python
-from src.agents.question.tools.exam_mimic import mimic_exam_questions
+from deeptutor.agents.question.tools.exam_mimic import mimic_exam_questions
 
 result = await mimic_exam_questions(
     pdf_path="exams/midterm.pdf",
@@ -900,9 +878,9 @@ When `execution_mode: "parallel"` is enabled, multiple topic blocks are research
 
 ```python
 import asyncio
-from src.agents.research import ResearchPipeline
-from src.services.config import load_config_with_main
-from src.services.llm import get_llm_config
+from deeptutor.agents.research import ResearchPipeline
+from deeptutor.services.config import load_config_with_main
+from deeptutor.services.llm import get_llm_config
 
 async def main():
     # Shared runtime settings come from main.yaml.
@@ -1050,22 +1028,22 @@ tools:
 
 <table>
 <tr>
-<td align="center"><a href="config/README.md">Configuration</a></td>
-<td align="center"><a href="data/README.md">Data Directory</a></td>
-<td align="center"><a href="src/api/README.md">API Backend</a></td>
-<td align="center"><a href="src/core/README.md">Core Utilities</a></td>
+<td align="center"><a href="docs/guide/local-start.md">Local Setup</a></td>
+<td align="center"><a href="data/">Data Directory</a></td>
+<td align="center"><a href="deeptutor/api/">API Backend</a></td>
+<td align="center"><a href="deeptutor/core/">Core Utilities</a></td>
 </tr>
 <tr>
-<td align="center"><a href="src/knowledge/README.md">Knowledge Base</a></td>
-<td align="center"><a href="src/tools/README.md">Tools</a></td>
-<td align="center"><a href="web/README.md">Web Frontend</a></td>
-<td align="center"><a href="src/agents/solve/README.md">Solve Module</a></td>
+<td align="center"><a href="deeptutor/knowledge/">Knowledge Base</a></td>
+<td align="center"><a href="deeptutor/tools/">Tools</a></td>
+<td align="center"><a href="web/">Web Frontend</a></td>
+<td align="center"><a href="deeptutor/agents/solve/">Solve Module</a></td>
 </tr>
 <tr>
-<td align="center"><a href="src/agents/question/README.md">Question Module</a></td>
-<td align="center"><a href="src/agents/research/README.md">Research Module</a></td>
-<td align="center"><a href="src/agents/co_writer/README.md">Co-Writer Module</a></td>
-<td align="center"><a href="src/agents/guide/README.md">Guide Module</a></td>
+<td align="center"><a href="deeptutor/agents/question/">Question Module</a></td>
+<td align="center"><a href="deeptutor/agents/research/">Research Module</a></td>
+<td align="center"><a href="deeptutor/agents/co_writer/">Co-Writer Module</a></td>
+<td align="center"><a href="deeptutor/agents/guide/">Guide Module</a></td>
 </tr>
 <tr>
 </tr>
@@ -1180,67 +1158,14 @@ After running this command, restart your terminal for the changes to take effect
 
 **Solution**
 
-Create `.env.local` in `web` directory:
-
-```bash
-NEXT_PUBLIC_API_BASE=http://localhost:8001
-```
+Re-run the guided flow with `python scripts/start_tour.py`, then start the app again with `python scripts/start_web.py`.
 
 </details>
 
 <details>
-<summary><b>Docker: Frontend cannot connect in cloud deployment?</b></summary>
+<summary><b>Docker and cloud deployment details</b></summary>
 
-**Problem**
-
-When deploying to a cloud server, the frontend shows connection errors like "Failed to fetch" or "NEXT_PUBLIC_API_BASE is not configured".
-
-**Cause**
-
-The default API URL is `localhost:8001`, which points to the user's local machine in the browser, not your server.
-
-**Solution**
-
-Set the `NEXT_PUBLIC_API_BASE_EXTERNAL` environment variable to your server's public URL:
-
-```bash
-# Using docker run
-docker run -d --name deeptutor \
-  -e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001 \
-  ... other options ...
-  ghcr.io/hkuds/deeptutor:latest
-
-# Or in .env file
-NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
-```
-
-**Custom Port Example:**
-```bash
-# If using backend port 9001
--e BACKEND_PORT=9001 \
--e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:9001
-```
-
-</details>
-
-<details>
-<summary><b>Docker: How to use custom ports?</b></summary>
-
-**Solution**
-
-Set both the port environment variables AND the port mappings:
-
-```bash
-docker run -d --name deeptutor \
-  -p 9001:9001 -p 4000:4000 \
-  -e BACKEND_PORT=9001 \
-  -e FRONTEND_PORT=4000 \
-  -e NEXT_PUBLIC_API_BASE_EXTERNAL=http://localhost:9001 \
-  ... other env vars ...
-  ghcr.io/hkuds/deeptutor:latest
-```
-
-**Important**: The `-p` port mapping must match the `BACKEND_PORT`/`FRONTEND_PORT` values.
+Use `docs/guide/docker-start.md` for remote deployment, reverse proxy, and custom port mapping guidance.
 
 </details>
 
@@ -1345,7 +1270,7 @@ See: [GitHub Issue #112](https://github.com/HKUDS/DeepTutor/issues/112)
 
 **CLI**
 ```bash
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
 ```
 
 </details>
@@ -1355,7 +1280,7 @@ python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 **CLI (Recommended)**
 ```bash
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
 ```
 
 **Benefits**
@@ -1386,7 +1311,7 @@ Use one of the following methods to extract numbered items:
 ./scripts/extract_numbered_items.sh <kb_name>
 
 # Option 2: Direct Python command
-python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/knowledge_bases
+python -m deeptutor.knowledge.extract_numbered_items --kb <kb_name> --base-dir ./data/knowledge_bases
 ```
 
 This will extract numbered items (Definitions, Theorems, Equations, etc.) from your knowledge base without reinitializing it.

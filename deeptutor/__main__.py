@@ -1,5 +1,7 @@
-"""Allow ``python -m deeptutor``."""
+"""Run DeepTutor CLI via ``python -m deeptutor``."""
 
-from src.cli.main import main
+from deeptutor_cli.main import main
 
-main()
+
+if __name__ == "__main__":
+    main()

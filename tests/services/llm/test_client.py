@@ -8,8 +8,8 @@ import types
 from _pytest.monkeypatch import MonkeyPatch
 import pytest
 
-from src.services.llm.client import LLMClient
-from src.services.llm.config import LLMConfig
+from deeptutor.services.llm.client import LLMClient
+from deeptutor.services.llm.config import LLMConfig
 
 
 @pytest.mark.asyncio
@@ -21,7 +21,7 @@ async def test_client_complete_uses_factory(monkeypatch: MonkeyPatch) -> None:
     async def _fake_complete(**_kwargs: object) -> str:
         return "ok"
 
-    monkeypatch.setattr("src.services.llm.factory.complete", _fake_complete)
+    monkeypatch.setattr("deeptutor.services.llm.factory.complete", _fake_complete)
 
     result = await client.complete("hello")
 
@@ -67,7 +67,7 @@ def test_client_get_model_func_openai(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "lightrag.llm", types.ModuleType("lightrag.llm"))
     monkeypatch.setitem(sys.modules, "lightrag.llm.openai", module)
 
-    monkeypatch.setattr("src.services.llm.client.system_in_messages", lambda *_a: True)
+    monkeypatch.setattr("deeptutor.services.llm.client.system_in_messages", lambda *_a: True)
 
     func = client.get_model_func()
 
@@ -82,8 +82,8 @@ def test_client_get_model_func_factory(monkeypatch: MonkeyPatch) -> None:
     def _fake_complete(**_kwargs: object) -> str:
         return "ok"
 
-    monkeypatch.setattr("src.services.llm.factory.complete", _fake_complete)
-    monkeypatch.setattr("src.services.llm.client.system_in_messages", lambda *_a: False)
+    monkeypatch.setattr("deeptutor.services.llm.factory.complete", _fake_complete)
+    monkeypatch.setattr("deeptutor.services.llm.client.system_in_messages", lambda *_a: False)
 
     func = client.get_model_func()
 
@@ -98,8 +98,8 @@ def test_client_get_vision_model_func_factory(monkeypatch: MonkeyPatch) -> None:
     def _fake_complete(**_kwargs: object) -> str:
         return "ok"
 
-    monkeypatch.setattr("src.services.llm.factory.complete", _fake_complete)
-    monkeypatch.setattr("src.services.llm.client.system_in_messages", lambda *_a: False)
+    monkeypatch.setattr("deeptutor.services.llm.factory.complete", _fake_complete)
+    monkeypatch.setattr("deeptutor.services.llm.client.system_in_messages", lambda *_a: False)
 
     func = client.get_vision_model_func()
 
@@ -117,7 +117,7 @@ def test_client_get_vision_model_func_openai(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "lightrag.llm", types.ModuleType("lightrag.llm"))
     monkeypatch.setitem(sys.modules, "lightrag.llm.openai", module)
 
-    monkeypatch.setattr("src.services.llm.client.system_in_messages", lambda *_a: True)
+    monkeypatch.setattr("deeptutor.services.llm.client.system_in_messages", lambda *_a: True)
 
     func = client.get_vision_model_func()
 

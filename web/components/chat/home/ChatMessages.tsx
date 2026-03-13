@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { memo, useMemo } from "react";
 import Image from "next/image";
 import {
@@ -15,14 +16,18 @@ import {
 import { useTranslation } from "react-i18next";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import AssistantResponse from "@/components/common/AssistantResponse";
-import MathAnimatorViewer from "@/components/math-animator/MathAnimatorViewer";
-import QuizViewer from "@/components/quiz/QuizViewer";
 import type { MessageRequestSnapshot } from "@/context/UnifiedChatContext";
 import { extractMathAnimatorResult } from "@/lib/math-animator-types";
 import { extractQuizQuestions } from "@/lib/quiz-types";
 import type { StreamEvent } from "@/lib/unified-ws";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
 import { CallTracePanel, ResearchStagePanel } from "./TracePanels";
+
+const MathAnimatorViewer = dynamic(
+  () => import("@/components/math-animator/MathAnimatorViewer"),
+  { ssr: false },
+);
+const QuizViewer = dynamic(() => import("@/components/quiz/QuizViewer"), { ssr: false });
 
 interface ChatMessageItem {
   role: "user" | "assistant" | "system";

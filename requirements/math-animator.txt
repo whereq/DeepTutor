@@ -1,0 +1,8 @@
+# ============================================
+# DeepTutor Math Animator Dependencies
+# ============================================
+# Install: pip install -r requirements/math-animator.txt
+
+-r cli.txt
+
+manim>=0.19.0

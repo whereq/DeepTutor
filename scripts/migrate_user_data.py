@@ -50,9 +50,7 @@ def move_file(src: Path, dst: Path) -> bool:
         return False
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists():
-        backup = dst.with_suffix(dst.suffix + ".backup")
-        shutil.move(str(dst), str(backup))
-        print_step(f"Backed up existing {dst.name}", f"-> {backup.name}")
+        dst.unlink()
     shutil.move(str(src), str(dst))
     return True
 
@@ -62,20 +60,6 @@ def delete_file(path: Path) -> bool:
         path.unlink()
         return True
     return False
-
-
-def bootstrap_runtime_configs(user_dir: Path) -> None:
-    settings_dir = user_dir / "settings"
-    settings_dir.mkdir(parents=True, exist_ok=True)
-    legacy_config_dir = project_root / "config"
-    for filename in ("main.yaml", "agents.yaml", "memory.yaml"):
-        src = legacy_config_dir / filename
-        dst = settings_dir / filename
-        if src.exists() and not dst.exists():
-            shutil.copy2(src, dst)
-            print_step(f"Copied {filename}", f"-> settings/{filename}")
-
-
 def create_structure(user_dir: Path) -> None:
     required_dirs = [
         user_dir / "settings",
@@ -109,7 +93,6 @@ def migrate() -> None:
 
     print_banner("Step 1: Creating New Directory Structure")
     create_structure(user_dir)
-    bootstrap_runtime_configs(user_dir)
 
     print_banner("Step 2: Moving Chat History Database")
     legacy_chat_db = data_dir / "chat_history.db"

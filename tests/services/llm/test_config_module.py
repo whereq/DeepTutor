@@ -7,9 +7,9 @@ import sys
 
 import pytest
 
-from src.services.llm import config as config_module
-from src.services.llm.config import LLMConfig
-from src.services.llm.exceptions import LLMConfigError
+from deeptutor.services.llm import config as config_module
+from deeptutor.services.llm.config import LLMConfig
+from deeptutor.services.llm.exceptions import LLMConfigError
 
 
 def _reset_config_cache() -> None:
@@ -20,7 +20,7 @@ def test_get_llm_config_from_env(monkeypatch) -> None:
     """Environment-based config loading should populate required fields."""
     _reset_config_cache()
     fake_module = type("_Config", (), {"get_active_llm_config": lambda: None})
-    monkeypatch.setitem(sys.modules, "src.services.config", fake_module)
+    monkeypatch.setitem(sys.modules, "deeptutor.services.config", fake_module)
     monkeypatch.setenv("LLM_MODEL", "gpt-test")
     monkeypatch.setenv("LLM_HOST", "https://api.openai.com")
     monkeypatch.setenv("LLM_API_KEY", "key")
@@ -61,7 +61,7 @@ def test_get_llm_config_missing_env(monkeypatch) -> None:
     monkeypatch.setenv("LLM_BINDING", "openai")
 
     fake_module = type("_Config", (), {"get_active_llm_config": lambda: None})
-    monkeypatch.setitem(sys.modules, "src.services.config", fake_module)
+    monkeypatch.setitem(sys.modules, "deeptutor.services.config", fake_module)
 
     with pytest.raises(LLMConfigError):
         config_module.get_llm_config()

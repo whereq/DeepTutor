@@ -125,7 +125,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8001
 
 **CLI**
 ```bash
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
 ```
 
 ---
@@ -134,7 +134,7 @@ python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 **CLI (Recommended)**
 ```bash
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
 ```
 
 **Benefits**
@@ -164,7 +164,7 @@ Use one of the following methods to extract numbered items:
 ./scripts/extract_numbered_items.sh <kb_name>
 
 # Option 2: Direct Python command
-python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/knowledge_bases
+python -m deeptutor.knowledge.extract_numbered_items --kb <kb_name> --base-dir ./data/knowledge_bases
 ```
 
 This will extract numbered items (Definitions, Theorems, Equations, etc.) from your knowledge base without reinitializing it.

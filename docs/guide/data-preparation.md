@@ -109,10 +109,10 @@ If your embedding model has different dimensions, you'll need to create your own
 
 ```bash
 # Initialize a new knowledge base with documents
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 # Add documents to existing knowledge base
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
 ```
 
 ## Data Storage Structure

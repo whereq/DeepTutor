@@ -66,29 +66,30 @@ export function extractQuizQuestions(
   const results = summary.results as Array<Record<string, unknown>> | undefined;
   if (!Array.isArray(results) || results.length === 0) return null;
 
-  return results
-    .map((item) => {
-      const qa = (item.qa_pair ?? item) as Record<string, unknown>;
-      if (!qa.question) return null;
-      return {
-        question_id: String(qa.question_id ?? ""),
-        question: String(qa.question ?? ""),
-        question_type: (qa.question_type as QuizQuestion["question_type"]) ?? "written",
-        options: qa.options as Record<string, string> | undefined,
-        correct_answer: String(qa.correct_answer ?? ""),
-        explanation: String(qa.explanation ?? ""),
-        difficulty: qa.difficulty ? String(qa.difficulty) : undefined,
-        concentration: qa.concentration ? String(qa.concentration) : undefined,
-        knowledge_context:
-          qa.metadata &&
-          typeof qa.metadata === "object" &&
-          "knowledge_context" in qa.metadata &&
-          qa.metadata.knowledge_context
-            ? String(qa.metadata.knowledge_context)
-            : undefined,
-      } satisfies QuizQuestion;
-    })
-    .filter((q): q is QuizQuestion => q !== null);
+  const parsed: Array<QuizQuestion | null> = results.map((item) => {
+    const qa = (item.qa_pair ?? item) as Record<string, unknown>;
+    if (!qa.question) return null;
+    const question: QuizQuestion = {
+      question_id: String(qa.question_id ?? ""),
+      question: String(qa.question ?? ""),
+      question_type: (qa.question_type as QuizQuestion["question_type"]) ?? "written",
+      options: qa.options as Record<string, string> | undefined,
+      correct_answer: String(qa.correct_answer ?? ""),
+      explanation: String(qa.explanation ?? ""),
+      difficulty: qa.difficulty ? String(qa.difficulty) : undefined,
+      concentration: qa.concentration ? String(qa.concentration) : undefined,
+      knowledge_context:
+        qa.metadata &&
+        typeof qa.metadata === "object" &&
+        "knowledge_context" in qa.metadata &&
+        qa.metadata.knowledge_context
+          ? String(qa.metadata.knowledge_context)
+          : undefined,
+    };
+    return question;
+  });
+
+  return parsed.filter((question): question is QuizQuestion => question !== null);
 }
 
 export function buildQuizFollowupConfig(

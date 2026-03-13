@@ -4,9 +4,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.core.stream import StreamEvent, StreamEventType
-from src.services.session.sqlite_store import SQLiteSessionStore
-from src.services.session.turn_runtime import TurnRuntimeManager
+from deeptutor.core.stream import StreamEvent, StreamEventType
+from deeptutor.services.session.sqlite_store import SQLiteSessionStore
+from deeptutor.services.session.turn_runtime import TurnRuntimeManager
+
+
+async def _noop_refresh(**_kwargs):
+    return None
 
 
 @pytest.mark.asyncio
@@ -51,9 +55,16 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             )
             yield StreamEvent(type=StreamEventType.DONE, source="chat")
 
-    monkeypatch.setattr("src.services.llm.config.get_llm_config", lambda: SimpleNamespace())
-    monkeypatch.setattr("src.services.session.context_builder.ContextBuilder", FakeContextBuilder)
-    monkeypatch.setattr("src.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr("deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace())
+    monkeypatch.setattr("deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder)
+    monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "deeptutor.services.memory.get_memory_service",
+        lambda: SimpleNamespace(
+            build_memory_context=lambda: "",
+            refresh_from_turn=_noop_refresh,
+        ),
+    )
 
     session, turn = await runtime.start_turn(
         {
@@ -133,9 +144,16 @@ async def test_turn_runtime_bootstraps_question_followup_context_once(
             )
             yield StreamEvent(type=StreamEventType.DONE, source="chat")
 
-    monkeypatch.setattr("src.services.llm.config.get_llm_config", lambda: SimpleNamespace())
-    monkeypatch.setattr("src.services.session.context_builder.ContextBuilder", FakeContextBuilder)
-    monkeypatch.setattr("src.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr("deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace())
+    monkeypatch.setattr("deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder)
+    monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "deeptutor.services.memory.get_memory_service",
+        lambda: SimpleNamespace(
+            build_memory_context=lambda: "",
+            refresh_from_turn=_noop_refresh,
+        ),
+    )
 
     session, turn = await runtime.start_turn(
         {
@@ -241,9 +259,16 @@ async def test_turn_runtime_persists_deep_research_session_preference(
             )
             yield StreamEvent(type=StreamEventType.DONE, source="deep_research")
 
-    monkeypatch.setattr("src.services.llm.config.get_llm_config", lambda: SimpleNamespace())
-    monkeypatch.setattr("src.services.session.context_builder.ContextBuilder", FakeContextBuilder)
-    monkeypatch.setattr("src.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr("deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace())
+    monkeypatch.setattr("deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder)
+    monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "deeptutor.services.memory.get_memory_service",
+        lambda: SimpleNamespace(
+            build_memory_context=lambda: "",
+            refresh_from_turn=_noop_refresh,
+        ),
+    )
 
     session, turn = await runtime.start_turn(
         {
@@ -272,3 +297,79 @@ async def test_turn_runtime_persists_deep_research_session_preference(
     assert detail is not None
     assert detail["preferences"]["capability"] == "deep_research"
     assert detail["preferences"]["tools"] == ["rag", "web_search"]
+
+
+@pytest.mark.asyncio
+async def test_turn_runtime_injects_memory_and_refreshes_after_completion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    store = SQLiteSessionStore(tmp_path / "chat_history.db")
+    runtime = TurnRuntimeManager(store)
+    captured: dict[str, object] = {}
+
+    class FakeContextBuilder:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        async def build(self, **_kwargs):
+            return SimpleNamespace(
+                conversation_history=[],
+                conversation_summary="",
+                context_text="Recent chat summary",
+                token_count=0,
+                budget=0,
+            )
+
+    class FakeOrchestrator:
+        async def handle(self, context):
+            captured["conversation_history"] = context.conversation_history
+            captured["memory_context"] = context.memory_context
+            captured["conversation_context_text"] = context.metadata.get("conversation_context_text")
+            yield StreamEvent(
+                type=StreamEventType.CONTENT,
+                source="chat",
+                stage="responding",
+                content="Stored reply",
+                metadata={"call_kind": "llm_final_response"},
+            )
+            yield StreamEvent(type=StreamEventType.DONE, source="chat")
+
+    refresh_calls: list[dict[str, object]] = []
+
+    async def fake_refresh_from_turn(**kwargs):
+        refresh_calls.append(kwargs)
+        return None
+
+    monkeypatch.setattr("deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace())
+    monkeypatch.setattr("deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder)
+    monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "deeptutor.services.memory.get_memory_service",
+        lambda: SimpleNamespace(
+            build_memory_context=lambda: "## Memory\n## Preferences\n- Prefer concise answers.",
+            refresh_from_turn=fake_refresh_from_turn,
+        ),
+    )
+
+    _session, turn = await runtime.start_turn(
+        {
+            "type": "start_turn",
+            "content": "hello, i'm frank",
+            "session_id": None,
+            "capability": None,
+            "tools": [],
+            "knowledge_bases": [],
+            "attachments": [],
+            "language": "en",
+            "config": {},
+        }
+    )
+
+    async for _event in runtime.subscribe_turn(turn["id"], after_seq=0):
+        pass
+
+    assert captured["memory_context"] == "## Memory\n## Preferences\n- Prefer concise answers."
+    assert captured["conversation_history"] == []
+    assert captured["conversation_context_text"] == "Recent chat summary"
+    assert refresh_calls[0]["assistant_message"] == "Stored reply"

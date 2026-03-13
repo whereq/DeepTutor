@@ -1,8 +1,7 @@
 // API configuration and utility functions
 
-// Get API base URL from environment variable
-// This is provided via NEXT_PUBLIC_API_BASE, typically sourced from .env/.env.local.
-// The .env.local file is auto-generated on startup with the correct backend port
+// Get API base URL from environment variable.
+// The launcher injects NEXT_PUBLIC_API_BASE from the canonical project-root `.env`.
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE ||
   (() => {
@@ -11,9 +10,7 @@ export const API_BASE_URL =
       console.error(
         "Please configure NEXT_PUBLIC_API_BASE in your environment and restart the application.",
       );
-      console.error(
-        "For local development, scripts/start_web.py can generate web/.env.local automatically.",
-      );
+      console.error("Run python scripts/start_tour.py to rebuild your local setup if needed.");
     }
     throw new Error(
       "NEXT_PUBLIC_API_BASE is not configured. Please set it in your environment and restart.",

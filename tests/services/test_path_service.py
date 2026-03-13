@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.services.path_service import PathService
+from deeptutor.services.path_service import PathService
 
 
 def test_public_output_filter_allows_only_whitelisted_artifacts(tmp_path: Path) -> None:
@@ -26,14 +26,14 @@ def test_public_output_filter_allows_only_whitelisted_artifacts(tmp_path: Path) 
         allowed.parent.mkdir(parents=True, exist_ok=True)
         allowed.write_text("png", encoding="utf-8")
 
-        denied = service._user_data_dir / "settings" / "llm_configs.json"
+        denied = service._user_data_dir / "settings" / "env.json"
         denied.parent.mkdir(parents=True, exist_ok=True)
         denied.write_text("{}", encoding="utf-8")
 
         assert service.is_public_output_path(
             "workspace/chat/deep_solve/solve_1/artifacts/plot.png"
         ) is True
-        assert service.is_public_output_path("settings/llm_configs.json") is False
+        assert service.is_public_output_path("settings/env.json") is False
         assert service.is_public_output_path("../outside.txt") is False
     finally:
         service._project_root = original_root
