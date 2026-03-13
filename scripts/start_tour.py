@@ -86,10 +86,12 @@ def _load_runtime_deps():
 PROFILE_COMMANDS: dict[str, list[str]] = {
     "cli-core": ["requirements/core.txt"],
     "cli-rag-lite": ["requirements/core.txt", "requirements/rag-lite.txt"],
-    "cli-rag-full": ["requirements/core.txt", "requirements/rag-full.txt"],
+    # Backward-compatible alias; keep accepted but hidden from UI choices.
+    "cli-rag-full": ["requirements/core.txt", "requirements/rag-lite.txt"],
     "web-basic": ["requirements/server.txt"],
     "web-rag-lite": ["requirements/server.txt", "requirements/rag-lite.txt"],
-    "web-rag-full": ["requirements/server.txt", "requirements/rag-full.txt"],
+    # Backward-compatible alias; keep accepted but hidden from UI choices.
+    "web-rag-full": ["requirements/server.txt", "requirements/rag-lite.txt"],
 }
 
 CACHE_PATH = PROJECT_ROOT / "data" / "user" / "settings" / ".tour_cache.json"
@@ -405,7 +407,6 @@ def _run_web_tour() -> None:
         [
             ("web-basic", "web-basic", "FastAPI + Next.js"),
             ("web-rag-lite", "web-rag-lite", "+ LlamaIndex RAG"),
-            ("web-rag-full", "web-rag-full", "+ LlamaIndex RAG (same as rag-lite)"),
         ],
     )
     _save_cache({"step": 1, "mode": "web", "profile": profile, "status": "running"})
@@ -543,7 +544,6 @@ def _run_cli_tour() -> None:
         [
             ("cli-core", "cli-core", "Minimal CLI (~80 MB)"),
             ("cli-rag-lite", "cli-rag-lite", "+ LlamaIndex RAG"),
-            ("cli-rag-full", "cli-rag-full", "+ LlamaIndex RAG (same as rag-lite)"),
         ],
     )
     _save_cache({"step": 1, "mode": "cli", "profile": profile})

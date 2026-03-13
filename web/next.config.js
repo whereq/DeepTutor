@@ -9,7 +9,7 @@ const nextConfig = {
   // Transpile mermaid and related packages for proper ESM handling
   transpilePackages: ["mermaid"],
 
-  // Turbopack configuration (Next.js 16+ uses Turbopack by default for dev)
+  // Turbopack configuration (used when running `npm run dev:turbo`)
   turbopack: {
     resolveAlias: {
       // Fix for mermaid's cytoscape dependency - use CJS version
