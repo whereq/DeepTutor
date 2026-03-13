@@ -39,7 +39,11 @@ class OllamaEmbeddingAdapter(BaseEmbeddingAdapter):
 
         try:
             async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-                response = await client.post(url, json=payload)
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers={str(k): str(v) for k, v in self.extra_headers.items()},
+                )
 
                 if response.status_code == 404:
                     try:

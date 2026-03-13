@@ -23,12 +23,14 @@ def register(app: typer.Typer) -> None:
         from deeptutor.services.config import (
             get_env_store,
             load_config_with_main,
+            resolve_embedding_runtime_config,
             resolve_llm_runtime_config,
             resolve_search_runtime_config,
         )
 
         summary = get_env_store().as_summary()
         llm_runtime = resolve_llm_runtime_config()
+        embedding_runtime = resolve_embedding_runtime_config()
         search_runtime = resolve_search_runtime_config()
         llm_info = {
             "binding_hint": summary.llm["binding"],
@@ -55,11 +57,15 @@ def register(app: typer.Typer) -> None:
                     },
                     "llm": llm_info,
                     "embedding": {
-                        "binding": summary.embedding["binding"],
-                        "model": summary.embedding["model"],
-                        "host": summary.embedding["host"],
-                        "api_key": "***" if summary.embedding["api_key"] else "(not set)",
-                        "dimension": summary.embedding["dimension"],
+                        "binding_hint": summary.embedding["binding"],
+                        "provider": embedding_runtime.provider_name,
+                        "provider_mode": embedding_runtime.provider_mode,
+                        "model": embedding_runtime.model,
+                        "base_url": embedding_runtime.effective_url,
+                        "api_version": embedding_runtime.api_version,
+                        "extra_headers": embedding_runtime.extra_headers,
+                        "api_key": "***" if embedding_runtime.api_key else "(not set)",
+                        "dimension": embedding_runtime.dimension,
                     },
                     "search": {
                         "provider": search_runtime.provider or "(optional)",

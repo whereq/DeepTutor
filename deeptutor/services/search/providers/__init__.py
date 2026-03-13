@@ -12,11 +12,10 @@ from ..base import BaseSearchProvider
 
 _PROVIDERS: dict[str, Type[BaseSearchProvider]] = {}
 _DEPRECATED_UNSUPPORTED: dict[str, str] = {
-    "perplexity": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
-    "exa": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
-    "serper": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
-    "baidu": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
-    "openrouter": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
+    "exa": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
+    "serper": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
+    "baidu": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
+    "openrouter": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
 }
 
 
@@ -149,9 +148,9 @@ def get_default_provider(**kwargs) -> BaseSearchProvider:
 
 def _register_builtin_providers() -> None:
     # Import for side effects (register_provider decorators).
-    from . import brave, duckduckgo, jina, searxng, tavily
+    from . import brave, duckduckgo, jina, perplexity, searxng, tavily
 
-    _ = (brave, duckduckgo, jina, searxng, tavily)
+    _ = (brave, duckduckgo, jina, perplexity, searxng, tavily)
 
 
 _register_builtin_providers()

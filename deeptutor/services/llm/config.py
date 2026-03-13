@@ -15,6 +15,7 @@ import re
 from typing import TYPE_CHECKING, TypedDict
 
 from deeptutor.services.config import get_env_store, resolve_llm_runtime_config
+from deeptutor.services.provider_registry import canonical_provider_name, find_by_name
 
 from .exceptions import LLMConfigError
 
@@ -46,6 +47,27 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = get_env_store().path.parent
 
 
+def _is_openai_compatible_binding(binding: str | None) -> bool:
+    canonical = canonical_provider_name(binding) or (binding or "").strip().lower()
+    if canonical in {"custom", "azure_openai"}:
+        return True
+    spec = find_by_name(canonical)
+    return bool(spec and not spec.is_oauth)
+
+
+def _set_openai_env_vars(api_key: str | None, base_url: str | None, *, source: str) -> None:
+    if api_key and not os.getenv("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = api_key
+        logger.debug("Set OPENAI_API_KEY env var (%s)", source)
+
+    if base_url and not os.getenv("OPENAI_BASE_URL"):
+        from .utils import sanitize_url
+
+        clean_url = sanitize_url(base_url)
+        os.environ["OPENAI_BASE_URL"] = clean_url
+        logger.debug("Set OPENAI_BASE_URL env var to %s (%s)", clean_url, source)
+
+
 def _setup_openai_env_vars_early() -> None:
     """
     Set OPENAI_* environment variables early for OpenAI-compatible SDKs.
@@ -59,37 +81,8 @@ def _setup_openai_env_vars_early() -> None:
     api_key = env_store.get("LLM_API_KEY", "")
     base_url = env_store.get("LLM_HOST", "")
 
-    if binding in {
-        "openai",
-        "azure_openai",
-        "gemini",
-        "custom",
-        "openrouter",
-        "deepseek",
-        "groq",
-        "minimax",
-        "dashscope",
-        "moonshot",
-        "zhipu",
-        "ollama",
-        "vllm",
-        "aihubmix",
-        "siliconflow",
-        "volcengine",
-        "byteplus",
-        "volcengine_coding_plan",
-        "byteplus_coding_plan",
-    }:
-        if api_key and not os.getenv("OPENAI_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = api_key
-            logger.debug("Set OPENAI_API_KEY env var (early init)")
-
-        if base_url and not os.getenv("OPENAI_BASE_URL"):
-            from .utils import sanitize_url
-
-            clean_url = sanitize_url(base_url)
-            os.environ["OPENAI_BASE_URL"] = clean_url
-            logger.debug("Set OPENAI_BASE_URL env var to %s (early init)", clean_url)
+    if _is_openai_compatible_binding(binding):
+        _set_openai_env_vars(api_key, base_url, source="early init")
 
 
 # Execute early setup at module import time
@@ -150,37 +143,8 @@ def initialize_environment() -> None:
         api_key = _strip_value(env_store.get("LLM_API_KEY"))
         base_url = _strip_value(env_store.get("LLM_HOST"))
 
-    if binding in {
-        "openai",
-        "azure_openai",
-        "gemini",
-        "custom",
-        "openrouter",
-        "deepseek",
-        "groq",
-        "minimax",
-        "dashscope",
-        "moonshot",
-        "zhipu",
-        "ollama",
-        "vllm",
-        "aihubmix",
-        "siliconflow",
-        "volcengine",
-        "byteplus",
-        "volcengine_coding_plan",
-        "byteplus_coding_plan",
-    }:
-        if api_key and not os.getenv("OPENAI_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = api_key
-            logger.debug("Set OPENAI_API_KEY env var")
-
-        if base_url and not os.getenv("OPENAI_BASE_URL"):
-            from .utils import sanitize_url
-
-            clean_url = sanitize_url(base_url)
-            os.environ["OPENAI_BASE_URL"] = clean_url
-            logger.debug("Set OPENAI_BASE_URL env var to %s", clean_url)
+    if _is_openai_compatible_binding(binding):
+        _set_openai_env_vars(api_key, base_url, source="initialize_environment")
 
 
 def _strip_value(value: str | None) -> str | None:

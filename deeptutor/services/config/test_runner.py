@@ -190,7 +190,12 @@ class ConfigTestRunner:
         if resolved.unsupported_provider:
             raise ValueError(
                 f"Search provider `{resolved.requested_provider}` is deprecated/unsupported. "
-                "Switch to brave/tavily/jina/searxng/duckduckgo."
+                "Switch to brave/tavily/jina/searxng/duckduckgo/perplexity."
+            )
+        if resolved.missing_credentials:
+            raise ValueError(
+                f"Search provider `{resolved.requested_provider}` requires api_key. "
+                "Set profile.api_key or PERPLEXITY_API_KEY."
             )
         provider = resolved.provider
         run.emit("info", f"Resolved search provider `{provider}`.")

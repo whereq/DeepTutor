@@ -94,13 +94,13 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         import asyncio
 
-        headers = {
-            "Content-Type": "application/json",
-        }
+        headers = {"Content-Type": "application/json"}
         if self.api_version:
-            headers["api-key"] = self.api_key
-        else:
+            if self.api_key:
+                headers["api-key"] = self.api_key
+        elif self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        headers.update({str(k): str(v) for k, v in self.extra_headers.items()})
 
         payload = {
             "input": request.texts,

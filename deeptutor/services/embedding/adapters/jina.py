@@ -29,6 +29,7 @@ class JinaEmbeddingAdapter(BaseEmbeddingAdapter):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        headers.update({str(k): str(v) for k, v in self.extra_headers.items()})
 
         payload = {
             "input": request.texts,

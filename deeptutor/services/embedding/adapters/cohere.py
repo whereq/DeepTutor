@@ -46,6 +46,7 @@ class CohereEmbeddingAdapter(BaseEmbeddingAdapter):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        headers.update({str(k): str(v) for k, v in self.extra_headers.items()})
 
         model_name = request.model or self.model
         model_info = self.MODELS_INFO.get(model_name, {})

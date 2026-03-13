@@ -32,13 +32,33 @@ def test_web_search_rejects_deprecated_provider(monkeypatch) -> None:
     monkeypatch.setattr(
         "deeptutor.services.search.resolve_search_runtime_config",
         lambda: ResolvedSearchConfig(
-            provider="perplexity",
-            requested_provider="perplexity",
+            provider="exa",
+            requested_provider="exa",
             unsupported_provider=True,
             deprecated_provider=True,
         ),
     )
     with pytest.raises(ValueError):
+        web_search("hello")
+
+
+def test_web_search_perplexity_missing_key_hard_fails(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "deeptutor.services.search._get_web_search_config",
+        lambda: {"enabled": True},
+    )
+    monkeypatch.setattr(
+        "deeptutor.services.search.resolve_search_runtime_config",
+        lambda: ResolvedSearchConfig(
+            provider="perplexity",
+            requested_provider="perplexity",
+            api_key="",
+            max_results=5,
+            missing_credentials=True,
+        ),
+    )
+    monkeypatch.setattr("deeptutor.services.search._resolve_provider_key", lambda _p, _k: "")
+    with pytest.raises(ValueError, match="perplexity requires api_key"):
         web_search("hello")
 
 
@@ -102,4 +122,3 @@ def test_web_search_searxng_uses_base_url(monkeypatch) -> None:
     assert captured["kwargs"]["base_url"] == "https://searx.example.com"
     assert captured["kwargs"]["max_results"] == 4
     assert result["provider"] == "searxng"
-

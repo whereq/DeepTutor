@@ -108,13 +108,19 @@ async def get_system_status():
                 result["search"]["status"] = "unsupported"
                 result["search"]["error"] = (
                     f"{search_config.requested_provider} is deprecated/unsupported. "
-                    "Switch to brave/tavily/jina/searxng/duckduckgo."
+                    "Switch to brave/tavily/jina/searxng/duckduckgo/perplexity."
                 )
             elif search_config.deprecated_provider:
                 result["search"]["status"] = "deprecated"
                 result["search"]["error"] = (
                     f"{search_config.requested_provider} is deprecated. "
-                    "Switch to brave/tavily/jina/searxng/duckduckgo."
+                    "Switch to brave/tavily/jina/searxng/duckduckgo/perplexity."
+                )
+            elif search_config.missing_credentials:
+                result["search"]["status"] = "not_configured"
+                result["search"]["error"] = (
+                    f"{search_config.requested_provider} requires api_key. "
+                    "Set profile.api_key or PERPLEXITY_API_KEY."
                 )
             else:
                 result["search"]["status"] = "configured"
@@ -265,7 +271,13 @@ async def test_search_connection():
                 message=(
                     f"Search provider `{search_config.requested_provider}` is deprecated/unsupported."
                 ),
-                error="Switch to brave/tavily/jina/searxng/duckduckgo",
+                error="Switch to brave/tavily/jina/searxng/duckduckgo/perplexity",
+            )
+        if search_config.missing_credentials:
+            return TestResponse(
+                success=False,
+                message=f"Search provider `{search_config.requested_provider}` missing credentials.",
+                error="Set profile.api_key or PERPLEXITY_API_KEY",
             )
         result = web_search("DeepTutor health check", provider=search_config.provider)
         response_time = (time.time() - start_time) * 1000

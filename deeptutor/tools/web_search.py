@@ -14,16 +14,16 @@ Usage:
     result = web_search("What is AI?", provider="tavily")
 
 Environment Variables:
-    - SEARCH_PROVIDER: Default search provider (default: perplexity)
+    - SEARCH_PROVIDER: Default search provider (default: brave)
     - SEARCH_API_KEY: Unified API key for all providers
 
 Available Providers:
-    - perplexity: AI-powered search (default)
-    - baidu: Baidu AI Search
+    - brave: Brave web search API
     - tavily: Research-focused with optional answers
-    - exa: Neural/embeddings search with summaries
-    - serper: Google SERP results
     - jina: SERP with full content extraction
+    - searxng: Self-hosted SearXNG endpoint
+    - duckduckgo: Zero-config search
+    - perplexity: AI-powered search with answers
 """
 
 # Re-export from services layer

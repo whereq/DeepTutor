@@ -163,8 +163,15 @@ const TOUR_GUIDE_STEPS = [
   { target: "tour-complete", title: "4 / 4  —  Complete", desc: "When you are ready, click here to test and launch DeepTutor." },
 ];
 
-const supportedSearchProviders = ["brave", "tavily", "jina", "searxng", "duckduckgo"] as const;
-const deprecatedSearchProviders = new Set(["perplexity", "exa", "serper", "baidu", "openrouter"]);
+const supportedSearchProviders = [
+  "brave",
+  "tavily",
+  "jina",
+  "searxng",
+  "duckduckgo",
+  "perplexity",
+] as const;
+const deprecatedSearchProviders = new Set(["exa", "serper", "baidu", "openrouter"]);
 
 // ---------------------------------------------------------------------------
 // Spotlight overlay component
@@ -433,6 +440,10 @@ function SettingsPageContent() {
   const showSearchProviderWarning = activeService === "search" && Boolean(searchProviderRaw);
   const isDeprecatedSearchProvider = deprecatedSearchProviders.has(searchProviderRaw);
   const isSupportedSearchProvider = supportedSearchProviders.includes(searchProviderRaw as (typeof supportedSearchProviders)[number]);
+  const isPerplexityMissingKey =
+    activeService === "search" &&
+    searchProviderRaw === "perplexity" &&
+    !String(activeProfile?.api_key || "").trim();
 
   // -- UI preference helpers ----------------------------------------------
 
@@ -1019,10 +1030,12 @@ function SettingsPageContent() {
                           }`}
                         >
                           {isSupportedSearchProvider
-                            ? "Supported provider."
+                            ? isPerplexityMissingKey
+                              ? "Perplexity requires API key. It will fail hard without credentials."
+                              : "Supported provider."
                             : isDeprecatedSearchProvider
-                              ? "Deprecated provider. Switch to brave/tavily/jina/searxng/duckduckgo."
-                              : "Unsupported provider. Use brave/tavily/jina/searxng/duckduckgo."}
+                              ? "Deprecated provider. Switch to brave/tavily/jina/searxng/duckduckgo/perplexity."
+                              : "Unsupported provider. Use brave/tavily/jina/searxng/duckduckgo/perplexity."}
                         </p>
                       )}
                     </div>

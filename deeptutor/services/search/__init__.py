@@ -35,6 +35,7 @@ _PROVIDER_KEY_ENV = {
     "brave": "BRAVE_API_KEY",
     "tavily": "TAVILY_API_KEY",
     "jina": "JINA_API_KEY",
+    "perplexity": "PERPLEXITY_API_KEY",
 }
 
 
@@ -71,7 +72,7 @@ def _assert_provider_supported(provider_name: str) -> None:
     if provider_name in _DEPRECATED_UNSUPPORTED:
         raise ValueError(
             f"Search provider `{provider_name}` is deprecated/unsupported. "
-            "Please switch to brave, tavily, jina, searxng, or duckduckgo."
+            "Please switch to brave, tavily, jina, searxng, duckduckgo, or perplexity."
         )
     if provider_name not in SUPPORTED_SEARCH_PROVIDERS:
         allowed = ", ".join(sorted(SUPPORTED_SEARCH_PROVIDERS))
@@ -112,6 +113,11 @@ def web_search(
             provider_name = "duckduckgo"
         else:
             provider_kwargs.setdefault("api_key", api_key)
+    elif provider_name == "perplexity":
+        api_key = _resolve_provider_key(provider_name, resolved.api_key)
+        if not api_key:
+            raise ValueError("perplexity requires api_key (profile.api_key or PERPLEXITY_API_KEY).")
+        provider_kwargs.setdefault("api_key", api_key)
     elif provider_name == "searxng":
         base_url = provider_kwargs.get("base_url") or resolved.base_url
         if not base_url:
@@ -170,6 +176,7 @@ def get_current_config() -> dict[str, Any]:
         "provider": resolved.provider,
         "requested_provider": resolved.requested_provider,
         "provider_status": resolved.status,
+        "missing_credentials": resolved.missing_credentials,
         "fallback_reason": resolved.fallback_reason,
         "base_url": resolved.base_url,
         "max_results": resolved.max_results,
