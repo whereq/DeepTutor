@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Console Log Handler
 ===================

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Dense Retriever
 ===============
@@ -11,7 +10,10 @@ from pathlib import Path
 import pickle
 from typing import Any, Dict, Optional
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - optional dependency in minimal envs
+    np = None
 
 from ..base import BaseComponent
 
@@ -42,6 +44,10 @@ class DenseRetriever(BaseComponent):
         )
         self.top_k = top_k
 
+        if np is None:
+            self.logger.warning("NumPy not available, dense retriever is disabled")
+            return
+
         # Try to import FAISS
         self.use_faiss = False
         try:
@@ -68,6 +74,10 @@ class DenseRetriever(BaseComponent):
         self.logger.info(f"Dense search in {kb_name}: {query[:50]}... (top_k={top_k})")
 
         from deeptutor.services.embedding import get_embedding_client
+
+        if np is None:
+            self.logger.warning("NumPy not available, cannot run dense retrieval")
+            return self._empty_response(query)
 
         # Get query embedding
         client = get_embedding_client()

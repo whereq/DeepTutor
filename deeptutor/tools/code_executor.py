@@ -17,6 +17,9 @@ import sys
 import time
 from typing import Any
 
+from deeptutor.logging import get_logger
+from deeptutor.services.path_service import get_path_service
+
 RUN_CODE_WORKSPACE_ENV = "RUN_CODE_WORKSPACE"
 RUN_CODE_ALLOWED_ROOTS_ENV = "RUN_CODE_ALLOWED_ROOTS"
 DEFAULT_WORKSPACE_NAME = "_detached_code_execution"
@@ -46,9 +49,6 @@ DISALLOWED_ATTRIBUTE_BASES = {
     "importlib",
     "builtins",
 }
-
-from deeptutor.logging import get_logger
-from deeptutor.services.path_service import get_path_service
 
 logger = get_logger("CodeExecutor")
 

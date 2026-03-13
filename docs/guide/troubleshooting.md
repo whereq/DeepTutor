@@ -125,7 +125,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8001
 
 **CLI**
 ```bash
-python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
+deeptutor kb create <kb_name> --doc <pdf_path>
 ```
 
 ---
@@ -134,37 +134,17 @@ python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 **CLI (Recommended)**
 ```bash
-python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+deeptutor kb add <kb_name> --doc <new_document.pdf>
 ```
 
 **Benefits**
 - Only processes new documents, saves time and API costs
-- Automatically merges with existing knowledge graph
+- Automatically merges with existing vector index
 - Preserves all existing data
 
 ---
 
-## Numbered items extraction failed with uvloop.Loop error?
+## Numbered items extraction / uvloop issue
 
-**Problem**
-
-When initializing a knowledge base, you may encounter this error:
-```text
-ValueError: Can't patch loop of type <class 'uvloop.Loop'>
-```
-
-This occurs because Uvicorn uses `uvloop` event loop by default, which is incompatible with `nest_asyncio`.
-
-**Solution**
-
-Use one of the following methods to extract numbered items:
-
-```bash
-# Option 1: Using the shell script (recommended)
-./scripts/extract_numbered_items.sh <kb_name>
-
-# Option 2: Direct Python command
-python -m deeptutor.knowledge.extract_numbered_items --kb <kb_name> --base-dir ./data/knowledge_bases
-```
-
-This will extract numbered items (Definitions, Theorems, Equations, etc.) from your knowledge base without reinitializing it.
+Numbered items extraction has been removed in llamaindex-only mode.
+If you previously encountered `uvloop.Loop` errors from that flow, no action is required now.

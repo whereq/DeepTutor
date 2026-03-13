@@ -7,11 +7,11 @@ All logic is delegated to RAGService in deeptutor/services/rag/service.py.
 """
 
 import asyncio
-from pathlib import Path
 from typing import Dict, List, Optional
 
 # Import RAGService as the single entry point
 from deeptutor.services.rag.service import RAGService
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER as DEFAULT_RAG_PROVIDER
 
 
 async def rag_search(
@@ -30,7 +30,7 @@ async def rag_search(
         query: Query question
         kb_name: Knowledge base name (optional, defaults to default knowledge base)
         mode: Query mode (e.g., "hybrid", "local", "global", "naive")
-        provider: RAG pipeline to use (defaults to RAG_PROVIDER env var or "raganything")
+        provider: RAG pipeline to use (defaults to configured provider or "llamaindex")
         kb_base_dir: Base directory for knowledge bases (for testing)
         **kwargs: Additional parameters passed to the RAG pipeline
 
@@ -53,7 +53,7 @@ async def rag_search(
         result = await rag_search("What is machine learning?", kb_name="textbook")
 
         # Override provider
-        result = await rag_search("What is ML?", kb_name="textbook", provider="lightrag")
+        result = await rag_search("What is ML?", kb_name="textbook", provider="llamaindex")
     """
     service = RAGService(kb_base_dir=kb_base_dir, provider=provider)
 
@@ -82,7 +82,7 @@ async def initialize_rag(
     Args:
         kb_name: Knowledge base name
         documents: List of document file paths to index
-        provider: RAG pipeline to use (defaults to RAG_PROVIDER env var)
+        provider: RAG pipeline to use (defaults to configured provider)
         kb_base_dir: Base directory for knowledge bases (for testing)
         **kwargs: Additional arguments passed to pipeline
 
@@ -107,7 +107,7 @@ async def delete_rag(
 
     Args:
         kb_name: Knowledge base name
-        provider: RAG pipeline to use (defaults to RAG_PROVIDER env var)
+        provider: RAG pipeline to use (defaults to configured provider)
         kb_base_dir: Base directory for knowledge bases (for testing)
 
     Returns:

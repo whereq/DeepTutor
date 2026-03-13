@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 PDF Parser
 ==========
 
-Parser for PDF documents using MinerU/RAG-Anything.
+Parser for PDF documents.
 """
 
 import json
@@ -16,23 +15,19 @@ from ..base import BaseComponent
 
 class PDFParser(BaseComponent):
     """
-    PDF parser using MinerU for extraction.
-
-    Can use RAG-Anything's MinerU integration or standalone MinerU.
+    PDF parser for extraction.
     """
 
     name = "pdf_parser"
 
-    def __init__(self, use_mineru: bool = True, output_dir: Optional[str] = None):
+    def __init__(self, output_dir: Optional[str] = None):
         """
         Initialize PDF parser.
 
         Args:
-            use_mineru: Whether to use MinerU for parsing
             output_dir: Directory to store parsed output
         """
         super().__init__()
-        self.use_mineru = use_mineru
         self.output_dir = output_dir
 
     async def process(self, file_path: Union[str, Path], **kwargs) -> Document:
@@ -69,9 +64,9 @@ class PDFParser(BaseComponent):
             # Extract text content
             content = self._extract_text_from_content_items(content_items)
         else:
-            # Parse PDF (placeholder - actual MinerU parsing would happen here)
+            # Parse PDF with local fallback extraction
             self.logger.warning(
-                "No pre-parsed content found. Use RAGAnythingPipeline for full PDF parsing."
+                "No pre-parsed content found. Falling back to local PDF text extraction."
             )
             # Basic text extraction fallback
             content = await self._basic_pdf_extract(file_path)
@@ -87,7 +82,7 @@ class PDFParser(BaseComponent):
         )
 
     def _extract_text_from_content_items(self, content_items: list) -> str:
-        """Extract plain text from MinerU content items."""
+        """Extract plain text from content-item payloads."""
         texts = []
         for item in content_items:
             if isinstance(item, dict):

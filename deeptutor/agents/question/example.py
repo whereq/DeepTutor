@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Example script that demonstrates how to use the Agent coordinator.
 """
@@ -7,27 +6,21 @@ Example script that demonstrates how to use the Agent coordinator.
 import asyncio
 import json
 import logging
-import os
 from pathlib import Path
-import sys
 
 from dotenv import load_dotenv
 
-os.environ["RAGANYTHING_VERBOSE"] = "0"
-os.environ["LIGHTRAG_VERBOSE"] = "0"
+from deeptutor.agents.question import AgentCoordinator
 
 logging.basicConfig(level=logging.WARNING, force=True)
-for logger_name in ["lightrag", "raganything", "nano-vectordb", "openai", "httpx", "httpcore"]:
+for logger_name in ["openai", "httpx", "httpcore"]:
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.WARNING)
     logger.propagate = False
 
-project_root = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
+project_root = Path(__file__).resolve().parents[3]
 
 load_dotenv(dotenv_path=project_root / ".env", override=False)
-
-from deeptutor.agents.question import AgentCoordinator
 
 
 async def run_single_example(coordinator: AgentCoordinator):

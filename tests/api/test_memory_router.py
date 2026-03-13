@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
 pytest.importorskip("fastapi")
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from deeptutor.api.routers.memory import router
+FastAPI = pytest.importorskip("fastapi").FastAPI
+TestClient = pytest.importorskip("fastapi.testclient").TestClient
+router = importlib.import_module("deeptutor.api.routers.memory").router
 
 
 def _build_app() -> FastAPI:

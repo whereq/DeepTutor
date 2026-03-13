@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Jina Reader Search Provider
 
@@ -34,7 +33,8 @@ class JinaProvider(BaseSearchProvider):
     display_name = "Jina"
     description = "SERP with content extraction (free tier)"
     supports_answer = False  # Returns raw content, not LLM answers
-    requires_api_key = False  # Has free tier without API key
+    requires_api_key = True
+    API_KEY_ENV_VARS = ("JINA_API_KEY", "SEARCH_API_KEY")
     BASE_URL = "https://s.jina.ai"
 
     def search(
@@ -76,7 +76,10 @@ class JinaProvider(BaseSearchProvider):
         encoded_query = urllib.parse.quote(query)
         url = f"{self.BASE_URL}/{encoded_query}"
 
-        response = requests.get(url, headers=headers, timeout=timeout)
+        request_kwargs: dict[str, Any] = {"headers": headers, "timeout": timeout}
+        if self.proxy:
+            request_kwargs["proxies"] = {"http": self.proxy, "https": self.proxy}
+        response = requests.get(url, **request_kwargs)
 
         if response.status_code != 200:
             self.logger.error(f"Jina API error: {response.status_code}")

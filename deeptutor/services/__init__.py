@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Services Layer
 ==============
@@ -30,7 +29,7 @@ Usage:
     vectors = await embed.embed(["text1", "text2"])
 
     # RAG
-    pipeline = get_pipeline("raganything")
+    pipeline = get_pipeline("llamaindex")
     result = await pipeline.search("query", "kb_name")
 
     # Prompt
@@ -41,11 +40,9 @@ Usage:
     result = web_search("What is AI?")
 """
 
-# Note: rag and embedding modules are lazy-loaded via __getattr__
-# to avoid importing heavy dependencies (lightrag, llama_index) at module load time
-from . import config, llm, prompt, search, session, setup
+# Keep service package import side-effects minimal.
+# Modules are lazy-loaded in __getattr__ to avoid circular imports.
 from .path_service import PathService, get_path_service
-from .session import BaseSessionManager
 
 __all__ = [
     "llm",
@@ -64,12 +61,26 @@ __all__ = [
 
 def __getattr__(name: str):
     """Lazy import for modules that depend on heavy libraries."""
+    import importlib
+
+    if name == "llm":
+        return importlib.import_module(f"{__name__}.llm")
+    if name == "prompt":
+        return importlib.import_module(f"{__name__}.prompt")
+    if name == "search":
+        return importlib.import_module(f"{__name__}.search")
+    if name == "setup":
+        return importlib.import_module(f"{__name__}.setup")
+    if name == "session":
+        return importlib.import_module(f"{__name__}.session")
+    if name == "config":
+        return importlib.import_module(f"{__name__}.config")
     if name == "rag":
-        from . import rag
-
-        return rag
+        return importlib.import_module(f"{__name__}.rag")
     if name == "embedding":
-        from . import embedding
+        return importlib.import_module(f"{__name__}.embedding")
+    if name == "BaseSessionManager":
+        from .session import BaseSessionManager
 
-        return embedding
+        return BaseSessionManager
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -137,11 +137,7 @@ def check_backend_packages() -> tuple[bool, int, int]:
         ("websockets", "websockets", "12.0", False),
         ("pydantic", "pydantic", "2.0.0", False),
         # RAG
-        ("lightrag-hku", "lightrag", "1.0.0", False),
-        ("raganything", "raganything", "0.1.0", False),
         ("llama-index", "llama_index", "0.14.0", False),
-        # Document parsing
-        ("docling", "docling", "2.31.0", True),  # Optional
         ("PyMuPDF", "fitz", "1.26.0", False),
         # Academic
         ("arxiv", "arxiv", "2.0.0", False),
@@ -324,12 +320,23 @@ def check_env_file(project_root: Path) -> bool:
 
         # Check for required keys (without revealing values)
         required_keys = [
-            "OPENAI_API_KEY",
+            "LLM_BINDING",
+            "LLM_MODEL",
+            "LLM_API_KEY",
+            "LLM_HOST",
+            "EMBEDDING_BINDING",
+            "EMBEDDING_MODEL",
+            "EMBEDDING_API_KEY",
+            "EMBEDDING_HOST",
+            "EMBEDDING_DIMENSION",
         ]
         optional_keys = [
-            "ANTHROPIC_API_KEY",
-            "PERPLEXITY_API_KEY",
-            "DASHSCOPE_API_KEY",
+            "SEARCH_PROVIDER",
+            "SEARCH_API_KEY",
+            "SEARCH_BASE_URL",
+            "NEXT_PUBLIC_API_BASE_EXTERNAL",
+            "NEXT_PUBLIC_API_BASE",
+            "DISABLE_SSL_VERIFY",
         ]
 
         try:
@@ -348,7 +355,7 @@ def check_env_file(project_root: Path) -> bool:
                 if key in env_vars and env_vars[key]:
                     print_success(f"  ✓ {key} is set")
                 else:
-                    print_warning(f"  ⚠ {key} is not set (required for most features)")
+                    print_warning(f"  ⚠ {key} is not set (required)")
 
             for key in optional_keys:
                 if key in env_vars and env_vars[key]:
@@ -365,7 +372,7 @@ def check_env_file(project_root: Path) -> bool:
         if env_example.exists():
             print_info("Copy .env.example to .env and configure your API keys")
         else:
-            print_info("Create a .env file with your API keys (e.g., OPENAI_API_KEY)")
+            print_info("Create a .env file with your provider configuration (LLM_* / EMBEDDING_*)")
         return False
 
 

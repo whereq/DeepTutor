@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 LLM Factory - Central Hub for LLM Calls
 =======================================
@@ -51,8 +50,14 @@ from .config import LLMConfig, get_llm_config
 from .exceptions import (
     LLMAPIError,
     LLMAuthenticationError,
+    LLMConfigError,
     LLMRateLimitError,
     LLMTimeoutError,
+)
+from .executors import (
+    litellm_available,
+    litellm_complete,
+    litellm_stream,
 )
 from .utils import is_local_llm_server
 
@@ -100,6 +105,8 @@ def _is_retriable_error(error: BaseException) -> bool:
         return True
     if isinstance(error, LLMAuthenticationError):
         return False  # Don't retry auth errors
+    if isinstance(error, LLMConfigError):
+        return False
 
     if isinstance(error, LLMAPIError):
         status_code = error.status_code
@@ -168,17 +175,32 @@ async def complete(
     Returns:
         str: The LLM response
     """
-    # Get config if parameters not provided
-    if not model or not base_url:
+    provider_name = binding or "openai"
+    provider_mode = "standard"
+    extra_headers: dict[str, str] = {}
+    reasoning_effort = kwargs.pop("reasoning_effort", None)
+
+    if not model or not base_url or api_key is None or not binding:
         config = get_llm_config()
         model = model or config.model
         api_key = api_key if api_key is not None else config.api_key
         base_url = base_url or config.base_url
         api_version = api_version or config.api_version
         binding = binding or config.binding or "openai"
+        provider_name = getattr(config, "provider_name", binding or "openai")
+        provider_mode = getattr(config, "provider_mode", "standard")
+        extra_headers = getattr(config, "extra_headers", {}) or {}
+        if reasoning_effort is None:
+            reasoning_effort = getattr(config, "reasoning_effort", None)
+    else:
+        from .provider_registry import find_by_name
 
-    # Determine which provider to use
-    use_local = _should_use_local(base_url)
+        provider_name = binding or "openai"
+        spec = find_by_name(provider_name)
+        if spec is not None:
+            provider_mode = spec.mode
+
+    use_local_fallback = _should_use_local(base_url)
 
     def _is_retriable_llm_api_error(exc: BaseException) -> bool:
         """Delegate retriable checks to shared helper."""
@@ -236,7 +258,32 @@ async def complete(
         messages_value: list[dict[str, object]] | None,
     ) -> str:
         try:
-            if use_local:
+            if provider_mode == "oauth" and provider_name == "openai_codex":
+                raise LLMConfigError(
+                    "openai_codex requires OAuth login in CLI. "
+                    "Run `deeptutor provider login openai-codex` first."
+                )
+            if provider_mode == "oauth" and not litellm_available():
+                raise LLMConfigError(
+                    f"{provider_name} requires litellm + OAuth session. "
+                    "Install provider deps and run `deeptutor provider login ...`."
+                )
+            if provider_mode != "direct" and litellm_available():
+                return await litellm_complete(
+                    prompt=prompt_value,
+                    system_prompt=system_prompt_value,
+                    provider_name=provider_name,
+                    model=model_value,
+                    api_key=api_key_value,
+                    base_url=base_url_value,
+                    api_version=api_version_value,
+                    messages=messages_value,
+                    extra_headers=extra_headers or None,
+                    reasoning_effort=reasoning_effort,
+                    **extra_kwargs,
+                )
+
+            if use_local_fallback:
                 return await local_provider.complete(
                     prompt=prompt_value,
                     system_prompt=system_prompt_value,
@@ -248,6 +295,7 @@ async def complete(
                 )
             from . import cloud_provider
 
+            direct_binding = "azure_openai" if provider_name == "azure_openai" else "openai"
             return await cloud_provider.complete(
                 prompt=prompt_value,
                 system_prompt=system_prompt_value,
@@ -255,35 +303,24 @@ async def complete(
                 api_key=api_key_value,
                 base_url=base_url_value,
                 api_version=api_version_value,
-                binding=binding_value or "openai",
+                binding=direct_binding if provider_mode == "direct" else (binding_value or "openai"),
                 messages=messages_value,
+                extra_headers=extra_headers or None,
                 **extra_kwargs,
             )
         except Exception as exc:
+            if isinstance(exc, LLMConfigError):
+                raise
             from .error_mapping import map_error
 
-            if use_local:
-                provider_name = "local"
-            else:
-                provider_name = binding_value if isinstance(binding_value, str) else "unknown"
-            mapped_error = map_error(exc, provider=provider_name)
+            provider_for_error = provider_name
+            if use_local_fallback and provider_mode != "direct":
+                provider_for_error = "local"
+            mapped_error = map_error(exc, provider=provider_for_error)
             raise mapped_error from exc
 
     extra_kwargs: CallKwargs = dict(kwargs)
     extra_kwargs.pop("messages", None)
-
-    if use_local:
-        return await _do_complete(
-            prompt_value=prompt,
-            system_prompt_value=system_prompt,
-            model_value=model,
-            api_key_value=api_key,
-            base_url_value=base_url,
-            api_version_value=None,
-            binding_value=None,
-            extra_kwargs=extra_kwargs,
-            messages_value=messages,
-        )
 
     return await _do_complete(
         prompt_value=prompt,
@@ -313,15 +350,32 @@ async def stream(
     **kwargs: object,
 ) -> AsyncGenerator[str, None]:
     """Stream LLM responses with retry handling."""
-    if not model or not base_url:
+    provider_name = binding or "openai"
+    provider_mode = "standard"
+    extra_headers: dict[str, str] = {}
+    reasoning_effort = kwargs.pop("reasoning_effort", None)
+
+    if not model or not base_url or api_key is None or not binding:
         config = get_llm_config()
         model = model or config.model
         api_key = api_key if api_key is not None else config.api_key
         base_url = base_url or config.base_url
         api_version = api_version or config.api_version
         binding = binding or config.binding or "openai"
+        provider_name = getattr(config, "provider_name", binding or "openai")
+        provider_mode = getattr(config, "provider_mode", "standard")
+        extra_headers = getattr(config, "extra_headers", {}) or {}
+        if reasoning_effort is None:
+            reasoning_effort = getattr(config, "reasoning_effort", None)
+    else:
+        from .provider_registry import find_by_name
 
-    use_local = _should_use_local(base_url)
+        provider_name = binding or "openai"
+        spec = find_by_name(provider_name)
+        if spec is not None:
+            provider_mode = spec.mode
+
+    use_local_fallback = _should_use_local(base_url)
     extra_kwargs: CallKwargs = dict(kwargs)
     extra_kwargs.pop("messages", None)
 
@@ -333,7 +387,34 @@ async def stream(
 
     for attempt in range(total_attempts):
         try:
-            if use_local:
+            if provider_mode == "oauth" and provider_name == "openai_codex":
+                raise LLMConfigError(
+                    "openai_codex requires OAuth login in CLI. "
+                    "Run `deeptutor provider login openai-codex` first."
+                )
+            if provider_mode == "oauth" and not litellm_available():
+                raise LLMConfigError(
+                    f"{provider_name} requires litellm + OAuth session. "
+                    "Install provider deps and run `deeptutor provider login ...`."
+                )
+
+            if provider_mode != "direct" and litellm_available():
+                async for chunk in litellm_stream(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    provider_name=provider_name,
+                    model=model,
+                    api_key=api_key,
+                    base_url=base_url,
+                    api_version=api_version,
+                    messages=messages,
+                    extra_headers=extra_headers or None,
+                    reasoning_effort=reasoning_effort,
+                    **extra_kwargs,
+                ):
+                    has_yielded = True
+                    yield chunk
+            elif use_local_fallback:
                 async for chunk in local_provider.stream(
                     prompt=prompt,
                     system_prompt=system_prompt,
@@ -348,6 +429,7 @@ async def stream(
             else:
                 from . import cloud_provider
 
+                direct_binding = "azure_openai" if provider_name == "azure_openai" else "openai"
                 async for chunk in cloud_provider.stream(
                     prompt=prompt,
                     system_prompt=system_prompt,
@@ -355,8 +437,9 @@ async def stream(
                     api_key=api_key,
                     base_url=base_url,
                     api_version=api_version,
-                    binding=binding or "openai",
+                    binding=direct_binding if provider_mode == "direct" else (binding or "openai"),
                     messages=messages,
+                    extra_headers=extra_headers or None,
                     **extra_kwargs,
                 ):
                     has_yielded = True

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 GuideManager - Guided Learning Session Manager
 Manages the complete lifecycle of learning sessions

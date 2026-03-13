@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 ResearchAgent - Research Agent
 Responsible for executing research logic and tool call decisions

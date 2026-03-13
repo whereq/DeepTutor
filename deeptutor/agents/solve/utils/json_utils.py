@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 JSON Utils - JSON parsing utilities
 Specifically for extracting and parsing JSON data from LLM output,

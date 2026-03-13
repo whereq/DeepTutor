@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TeX Chunker - LaTeX text chunking tool
 

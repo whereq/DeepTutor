@@ -25,8 +25,15 @@ if str(PROJECT_ROOT) not in sys.path:
 
 load_dotenv(PROJECT_ROOT / ".env", override=False)
 
-from deeptutor.services.embedding.client import get_embedding_client, reset_embedding_client
-from deeptutor.services.embedding.config import get_embedding_config
+
+def _load_embedding_services():
+    from deeptutor.services.embedding.client import get_embedding_client, reset_embedding_client
+    from deeptutor.services.embedding.config import get_embedding_config
+
+    return get_embedding_client, reset_embedding_client, get_embedding_config
+
+
+get_embedding_client, reset_embedding_client, get_embedding_config = _load_embedding_services()
 
 
 def _mask_key(key: str) -> str:

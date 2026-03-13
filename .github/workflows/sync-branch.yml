@@ -1,10 +1,10 @@
 name: Sync Branch
 
 on:
-  # 每4小时自动运行
+  # Run automatically every 4 hours
   schedule:
     - cron: '0 */4 * * *'
-  # 允许手动触发
+  # Allow manual trigger
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: main
@@ -28,14 +28,14 @@ jobs:
 
       - name: Sync main to sync branch
         run: |
-          # 检查 sync 分支是否存在
+          # Check whether the sync branch exists
           if git ls-remote --heads origin sync | grep -q sync; then
             echo "sync branch exists, updating..."
           else
             echo "sync branch does not exist, creating..."
           fi
 
-          # 强制将 main 分支的内容推送到 sync 分支
+          # Force-push main branch contents to sync branch
           git push origin main:sync --force
 
           echo "✅ Successfully synced main branch to sync branch"

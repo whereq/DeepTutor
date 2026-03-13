@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Token Tracker - LLM Token usage and cost tracking system (Advanced)
 Uses tiktoken for precise token counting, supports multiple models and more accurate cost calculation

@@ -1,7 +1,7 @@
 /* eslint-disable i18n/no-literal-ui-text */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Brain,
@@ -42,6 +42,9 @@ type CatalogProfile = {
   base_url: string;
   api_key: string;
   api_version: string;
+  extra_headers?: Record<string, string> | string;
+  proxy?: string;
+  max_results?: number;
   models: CatalogModel[];
 };
 
@@ -139,6 +142,16 @@ function defaultCatalog(): Catalog {
 const inputClass =
   "w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40";
 
+function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Tour onboarding steps
 // ---------------------------------------------------------------------------
@@ -149,6 +162,9 @@ const TOUR_GUIDE_STEPS = [
   { target: "tour-search", title: "3 / 4  —  Search", desc: "Optional: add a web search provider for real-time information." },
   { target: "tour-complete", title: "4 / 4  —  Complete", desc: "When you are ready, click here to test and launch DeepTutor." },
 ];
+
+const supportedSearchProviders = ["brave", "tavily", "jina", "searxng", "duckduckgo"] as const;
+const deprecatedSearchProviders = new Set(["perplexity", "exa", "serper", "baidu", "openrouter"]);
 
 // ---------------------------------------------------------------------------
 // Spotlight overlay component
@@ -328,7 +344,7 @@ function TestResultsModal({
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const searchParams = useSearchParams();
   const isTourMode = searchParams.get("tour") === "true";
 
@@ -413,6 +429,10 @@ export default function SettingsPage() {
   const activeProfile = getActiveProfile(draft, activeService);
   const activeModel = getActiveModel(draft, activeService);
   const hasUnsavedChanges = JSON.stringify(catalog) !== JSON.stringify(draft);
+  const searchProviderRaw = activeService === "search" ? (activeProfile?.provider || "").trim().toLowerCase() : "";
+  const showSearchProviderWarning = activeService === "search" && Boolean(searchProviderRaw);
+  const isDeprecatedSearchProvider = deprecatedSearchProviders.has(searchProviderRaw);
+  const isSupportedSearchProvider = supportedSearchProviders.includes(searchProviderRaw as (typeof supportedSearchProviders)[number]);
 
   // -- UI preference helpers ----------------------------------------------
 
@@ -454,10 +474,12 @@ export default function SettingsPage() {
         id: profileId,
         name: "New Profile",
         binding: activeService === "search" ? undefined : "openai",
-        provider: activeService === "search" ? "perplexity" : undefined,
+        provider: activeService === "search" ? "brave" : undefined,
         base_url: "",
         api_key: "",
         api_version: "",
+        extra_headers: activeService === "search" ? undefined : {},
+        proxy: activeService === "search" ? "" : undefined,
         models: [],
       };
       if (activeService !== "search") {
@@ -969,7 +991,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        {activeService === "search" ? "Provider" : "Binding"}
+                        {activeService === "search" ? "Provider" : "Provider Hint / Binding"}
                       </div>
                       <input
                         className={inputClass}
@@ -984,7 +1006,25 @@ export default function SettingsPage() {
                             e.target.value,
                           )
                         }
+                        placeholder={activeService === "search" ? "brave" : "openai"}
                       />
+                      {showSearchProviderWarning && (
+                        <p
+                          className={`mt-1.5 text-[11px] ${
+                            isSupportedSearchProvider
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : isDeprecatedSearchProvider
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-red-500"
+                          }`}
+                        >
+                          {isSupportedSearchProvider
+                            ? "Supported provider."
+                            : isDeprecatedSearchProvider
+                              ? "Deprecated provider. Switch to brave/tavily/jina/searxng/duckduckgo."
+                              : "Unsupported provider. Use brave/tavily/jina/searxng/duckduckgo."}
+                        </p>
+                      )}
                     </div>
                     <div className="sm:col-span-2">
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">Base URL</div>
@@ -1013,6 +1053,29 @@ export default function SettingsPage() {
                         placeholder="Optional"
                       />
                     </div>
+                    {activeService === "search" ? (
+                      <div>
+                        <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">Proxy</div>
+                        <input
+                          className={inputClass}
+                          value={activeProfile.proxy || ""}
+                          onChange={(e) => updateProfileField("proxy", e.target.value)}
+                          placeholder="http://127.0.0.1:7890 (optional)"
+                        />
+                      </div>
+                    ) : (
+                      <div className="sm:col-span-2">
+                        <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                          Extra Headers (JSON)
+                        </div>
+                        <textarea
+                          className={`${inputClass} min-h-[84px] resize-y`}
+                          value={stringifyExtraHeaders(activeProfile.extra_headers)}
+                          onChange={(e) => updateProfileField("extra_headers", e.target.value)}
+                          placeholder='{"APP-Code":"your-app-code"}'
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1170,5 +1233,19 @@ export default function SettingsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[50vh] flex items-center justify-center text-[13px] text-[var(--muted-foreground)]">
+          Loading settings...
+        </div>
+      }
+    >
+      <SettingsPageContent />
+    </Suspense>
   );
 }

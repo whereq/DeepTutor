@@ -27,6 +27,7 @@ ENV_KEY_ORDER = (
     "SEARCH_PROVIDER",
     "SEARCH_API_KEY",
     "SEARCH_BASE_URL",
+    "SEARCH_PROXY",
 )
 
 
@@ -104,6 +105,7 @@ class EnvStore:
                 "provider": values.get("SEARCH_PROVIDER", os.getenv("SEARCH_PROVIDER", "")),
                 "api_key": values.get("SEARCH_API_KEY", os.getenv("SEARCH_API_KEY", "")),
                 "base_url": values.get("SEARCH_BASE_URL", os.getenv("SEARCH_BASE_URL", "")),
+                "proxy": values.get("SEARCH_PROXY", os.getenv("SEARCH_PROXY", "")),
             },
         )
 
@@ -155,6 +157,7 @@ class EnvStore:
             "SEARCH_PROVIDER": str(search.get("provider") or ""),
             "SEARCH_API_KEY": str(search.get("api_key") or ""),
             "SEARCH_BASE_URL": str(search.get("base_url") or ""),
+            "SEARCH_PROXY": str(search.get("proxy") or ""),
         }
 
     def render_from_catalog(self, catalog: dict[str, Any]) -> dict[str, str]:
@@ -187,6 +190,7 @@ class EnvStore:
             "SEARCH_PROVIDER": str((search_profile or {}).get("provider") or ""),
             "SEARCH_API_KEY": str((search_profile or {}).get("api_key") or ""),
             "SEARCH_BASE_URL": str((search_profile or {}).get("base_url") or ""),
+            "SEARCH_PROXY": str((search_profile or {}).get("proxy") or ""),
         }
 
     def _get_active_profile(self, service: dict[str, Any]) -> dict[str, Any] | None:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Embedding Service
 =================
@@ -13,7 +12,7 @@ Usage:
     client = get_embedding_client()
     vectors = await client.embed(["text1", "text2"])
 
-    # Get LightRAG-compatible EmbeddingFunc
+    # Get an async embedding callable
     embed_func = client.get_embedding_func()
 """
 

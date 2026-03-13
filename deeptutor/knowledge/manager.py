@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Knowledge Base Manager
 
@@ -15,7 +14,12 @@ from pathlib import Path
 import shutil
 import sys
 
+from deeptutor.logging import get_logger
 from deeptutor.services.rag.components.routing import FileTypeRouter
+
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER, LEGACY_PROVIDER_ALIASES, normalize_provider_name
+
+logger = get_logger("KnowledgeBaseManager")
 
 
 # Cross-platform file locking
@@ -96,9 +100,51 @@ class KnowledgeBaseManager:
                     # Note: Don't save during load to avoid recursion issues
                     # The next _save_config() call will persist this change
 
+                # Migration: normalize legacy providers to llamaindex and
+                # mark legacy index-only KBs as needs_reindex.
+                knowledge_bases = config.get("knowledge_bases", {})
+                config_changed = False
+                for kb_name, kb_entry in knowledge_bases.items():
+                    if not isinstance(kb_entry, dict):
+                        continue
+
+                    raw_provider = kb_entry.get("rag_provider")
+                    normalized_provider = normalize_provider_name(raw_provider or DEFAULT_PROVIDER)
+                    if kb_entry.get("rag_provider") != normalized_provider:
+                        kb_entry["rag_provider"] = normalized_provider
+                        config_changed = True
+
+                    if (
+                        isinstance(raw_provider, str)
+                        and raw_provider.strip().lower() in LEGACY_PROVIDER_ALIASES
+                    ):
+                        if not kb_entry.get("needs_reindex", False):
+                            kb_entry["needs_reindex"] = True
+                            config_changed = True
+
+                    kb_dir = self.base_dir / kb_name
+                    legacy_storage = kb_dir / "rag_storage"
+                    llamaindex_storage = kb_dir / "llamaindex_storage"
+                    if legacy_storage.exists() and legacy_storage.is_dir() and not (
+                        llamaindex_storage.exists() and llamaindex_storage.is_dir()
+                    ):
+                        if not kb_entry.get("needs_reindex", False):
+                            kb_entry["needs_reindex"] = True
+                            config_changed = True
+
+                if config_changed:
+                    try:
+                        with open(self.config_file, "w", encoding="utf-8") as f:
+                            with file_lock_exclusive(f):
+                                json.dump(config, f, indent=2, ensure_ascii=False)
+                                f.flush()
+                                os.fsync(f.fileno())
+                    except Exception as save_err:
+                        logger.warning(f"Failed to persist normalized KB config: {save_err}")
+
                 return config
             except (json.JSONDecodeError, Exception) as e:
-                print(f"[KnowledgeBaseManager] Error loading config: {e}")
+                logger.warning(f"Error loading config: {e}")
                 return {"knowledge_bases": {}}
         return {"knowledge_bases": {}}
 
@@ -200,7 +246,7 @@ class KnowledgeBaseManager:
                 if item.name in kb_list:
                     continue
                     
-                # Check if this is a valid KB directory (has rag_storage or llamaindex_storage)
+                # Check if this is a valid KB directory (legacy rag_storage or llamaindex_storage)
                 rag_storage = item / "rag_storage"
                 llamaindex_storage = item / "llamaindex_storage"
                 is_valid_kb = (
@@ -245,29 +291,33 @@ class KnowledgeBaseManager:
                 if metadata.get("description"):
                     kb_entry["description"] = metadata["description"]
                 if metadata.get("rag_provider"):
-                    kb_entry["rag_provider"] = metadata["rag_provider"]
+                    raw_provider = str(metadata["rag_provider"]).strip().lower()
+                    kb_entry["rag_provider"] = normalize_provider_name(raw_provider)
+                    if str(raw_provider).strip().lower() in LEGACY_PROVIDER_ALIASES:
+                        kb_entry["needs_reindex"] = True
                 if metadata.get("created_at"):
                     kb_entry["created_at"] = metadata["created_at"]
                 if metadata.get("last_updated"):
                     kb_entry["updated_at"] = metadata["last_updated"]
             except Exception as e:
-                print(f"[KnowledgeBaseManager] Warning: Failed to read metadata.json for '{name}': {e}")
+                logger.warning(f"Failed to read metadata.json for '{name}': {e}")
         
         # Detect rag_provider from storage type if not set
         if "rag_provider" not in kb_entry:
             rag_storage = kb_dir / "rag_storage"
             llamaindex_storage = kb_dir / "llamaindex_storage"
             if llamaindex_storage.exists():
-                kb_entry["rag_provider"] = "llamaindex"
+                kb_entry["rag_provider"] = DEFAULT_PROVIDER
             elif rag_storage.exists():
-                kb_entry["rag_provider"] = "raganything"
+                kb_entry["rag_provider"] = DEFAULT_PROVIDER
+                kb_entry["needs_reindex"] = True
         
         # Add to config
         if "knowledge_bases" not in self.config:
             self.config["knowledge_bases"] = {}
         self.config["knowledge_bases"][name] = kb_entry
         
-        print(f"[KnowledgeBaseManager] Auto-registered KB '{name}' to kb_config.json")
+        logger.info(f"Auto-registered KB '{name}' to kb_config.json")
 
     def register_knowledge_base(self, name: str, description: str = "", set_default: bool = False):
         """Register a knowledge base"""
@@ -300,12 +350,15 @@ class KnowledgeBaseManager:
         return kb_dir
 
     def get_rag_storage_path(self, name: str | None = None) -> Path:
-        """Get RAG storage path for a knowledge base"""
+        """Get active index storage path for a knowledge base."""
         kb_dir = self.get_knowledge_base_path(name)
-        rag_storage = kb_dir / "rag_storage"
-        if not rag_storage.exists():
-            raise ValueError(f"RAG storage not found for knowledge base: {name or 'default'}")
-        return rag_storage
+        llamaindex_storage = kb_dir / "llamaindex_storage"
+        legacy_storage = kb_dir / "rag_storage"
+        if llamaindex_storage.exists():
+            return llamaindex_storage
+        if legacy_storage.exists():
+            return legacy_storage
+        raise ValueError(f"Index storage not found for knowledge base: {name or 'default'}")
 
     def get_images_path(self, name: str | None = None) -> Path:
         """Get images path for a knowledge base"""
@@ -334,7 +387,7 @@ class KnowledgeBaseManager:
             kb_config_service = get_kb_config_service()
             kb_config_service.set_default_kb(name)
         except Exception as e:
-            print(f"Warning: Failed to save default to centralized config: {e}")
+            logger.warning(f"Failed to save default to centralized config: {e}")
 
     def get_default(self) -> str | None:
         """
@@ -383,7 +436,8 @@ class KnowledgeBaseManager:
             metadata = {
                 "name": kb_name,
                 "description": kb_config.get("description", f"Knowledge base: {kb_name}"),
-                "rag_provider": kb_config.get("rag_provider"),
+                "rag_provider": normalize_provider_name(kb_config.get("rag_provider")),
+                "needs_reindex": bool(kb_config.get("needs_reindex", False)),
                 "created_at": kb_config.get("created_at"),
                 "last_updated": kb_config.get("updated_at"),
             }
@@ -417,7 +471,8 @@ class KnowledgeBaseManager:
         status = kb_config.get("status")
         progress = kb_config.get("progress")
         description = kb_config.get("description", f"Knowledge base: {kb_name}")
-        rag_provider = kb_config.get("rag_provider")
+        rag_provider = normalize_provider_name(kb_config.get("rag_provider"))
+        needs_reindex = bool(kb_config.get("needs_reindex", False))
         created_at = kb_config.get("created_at")
         updated_at = kb_config.get("updated_at")
 
@@ -425,12 +480,16 @@ class KnowledgeBaseManager:
         dir_exists = kb_dir.exists()
 
         # For old KBs without status field, determine status from rag_storage
-        if not status and dir_exists:
+        if needs_reindex:
+            status = "needs_reindex"
+        elif not status and dir_exists:
             rag_storage_dir = kb_dir / "rag_storage"
             llamaindex_storage_dir = kb_dir / "llamaindex_storage"
-            if (rag_storage_dir.exists() and any(rag_storage_dir.iterdir())) or \
-               (llamaindex_storage_dir.exists() and any(llamaindex_storage_dir.iterdir())):
+            if llamaindex_storage_dir.exists() and any(llamaindex_storage_dir.iterdir()):
                 status = "ready"
+            elif rag_storage_dir.exists() and any(rag_storage_dir.iterdir()):
+                status = "needs_reindex"
+                needs_reindex = True
             else:
                 status = "unknown"
         elif not status:
@@ -441,6 +500,7 @@ class KnowledgeBaseManager:
             "name": kb_name,
             "description": description,
             "rag_provider": rag_provider,
+            "needs_reindex": needs_reindex,
         }
         if created_at:
             metadata["created_at"] = created_at
@@ -494,9 +554,8 @@ class KnowledgeBaseManager:
             except Exception:
                 pass
 
-        # Check rag_initialized for both storage types
+        # Check rag_initialized (llamaindex storage only)
         rag_initialized = (
-            (dir_exists and rag_storage_dir and rag_storage_dir.exists() and rag_storage_dir.is_dir()) or
             (dir_exists and llamaindex_storage_dir and llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir())
         )
 
@@ -506,57 +565,11 @@ class KnowledgeBaseManager:
             "content_lists": content_lists_count,
             "rag_initialized": rag_initialized,
             "rag_provider": rag_provider,
+            "needs_reindex": needs_reindex,
             # Include status and progress in statistics for backward compatibility
             "status": status,
             "progress": progress,
         }
-
-        # Try to get RAG statistics
-        if rag_initialized:
-            try:
-                entities_file = rag_storage_dir / "kv_store_full_entities.json"
-                relations_file = rag_storage_dir / "kv_store_full_relations.json"
-                chunks_file = rag_storage_dir / "kv_store_text_chunks.json"
-
-                rag_stats = {}
-                if entities_file.exists():
-                    try:
-                        with open(entities_file, encoding="utf-8") as f:
-                            entities_data = json.load(f)
-                            rag_stats["entities"] = (
-                                len(entities_data) if isinstance(entities_data, (list, dict)) else 0
-                            )
-                    except Exception:
-                        pass
-
-                if relations_file.exists():
-                    try:
-                        with open(relations_file, encoding="utf-8") as f:
-                            relations_data = json.load(f)
-                            rag_stats["relations"] = (
-                                len(relations_data)
-                                if isinstance(relations_data, (list, dict))
-                                else 0
-                            )
-                    except Exception:
-                        pass
-
-                if chunks_file.exists():
-                    try:
-                        with open(chunks_file, encoding="utf-8") as f:
-                            chunks_data = json.load(f)
-                            rag_stats["chunks"] = (
-                                len(chunks_data) if isinstance(chunks_data, (list, dict)) else 0
-                            )
-                    except Exception:
-                        pass
-
-                if rag_stats:
-                    statistics = info["statistics"]
-                    if isinstance(statistics, dict):
-                        statistics["rag"] = rag_stats
-            except Exception:
-                pass
 
         return info
 
@@ -602,36 +615,41 @@ class KnowledgeBaseManager:
 
     def clean_rag_storage(self, name: str | None = None, backup: bool = True) -> bool:
         """
-        Clean (delete) RAG storage for a knowledge base
-        Useful when RAG data is corrupted
+        Clean (delete) index storage for a knowledge base.
 
         Args:
             name: Knowledge base name (default if not specified)
-            backup: If True, backup the RAG storage before deleting
+            backup: If True, backup storage before deleting
 
         Returns:
             True if cleaned successfully
         """
         kb_name = name or self.get_default()
         kb_dir = self.get_knowledge_base_path(kb_name)
-        rag_storage_dir = kb_dir / "rag_storage"
+        llamaindex_storage_dir = kb_dir / "llamaindex_storage"
+        legacy_storage_dir = kb_dir / "rag_storage"
 
-        if not rag_storage_dir.exists():
-            print(f"RAG storage does not exist for '{kb_name}'")
+        if not llamaindex_storage_dir.exists() and not legacy_storage_dir.exists():
+            logger.info(f"Index storage does not exist for '{kb_name}'")
             return False
 
-        # Backup if requested
-        if backup:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_dir = kb_dir / f"rag_storage_backup_{timestamp}"
-            shutil.copytree(rag_storage_dir, backup_dir)
-            print(f"✓ Backed up to: {backup_dir}")
+        targets = []
+        if llamaindex_storage_dir.exists():
+            targets.append(("llamaindex_storage", llamaindex_storage_dir))
+        if legacy_storage_dir.exists():
+            targets.append(("rag_storage", legacy_storage_dir))
 
-        # Delete RAG storage
-        shutil.rmtree(rag_storage_dir)
-        rag_storage_dir.mkdir(parents=True, exist_ok=True)
+        for label, target in targets:
+            if backup:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_dir = kb_dir / f"{label}_backup_{timestamp}"
+                shutil.copytree(target, backup_dir)
+                logger.info(f"Backed up {label} to: {backup_dir}")
 
-        print(f"✓ RAG storage cleaned for '{kb_name}'")
+            shutil.rmtree(target)
+            target.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Cleaned {label} for '{kb_name}'")
+
         return True
 
     def link_folder(self, kb_name: str, folder_path: str) -> dict:
@@ -662,7 +680,7 @@ class KnowledgeBaseManager:
         # Get RAG provider from kb_config.json to determine supported extensions
         self.config = self._load_config()
         kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
-        provider = kb_config.get("rag_provider") or "raganything"
+        provider = normalize_provider_name(kb_config.get("rag_provider") or DEFAULT_PROVIDER)
 
         # Get supported files in folder based on provider
         supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
@@ -780,13 +798,13 @@ class KnowledgeBaseManager:
 
         return True
 
-    def scan_linked_folder(self, folder_path: str, provider: str = "raganything") -> list[str]:
+    def scan_linked_folder(self, folder_path: str, provider: str = DEFAULT_PROVIDER) -> list[str]:
         """
         Scan a linked folder and return list of supported file paths.
 
         Args:
             folder_path: Path to folder
-            provider: RAG provider to determine supported extensions (default: raganything)
+            provider: RAG provider to determine supported extensions (default: llamaindex)
 
         Returns:
             List of file paths (as strings)
@@ -844,7 +862,7 @@ class KnowledgeBaseManager:
         # Get RAG provider from kb_config.json to determine supported extensions
         self.config = self._load_config()
         kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
-        provider = kb_config.get("rag_provider") or "raganything"
+        provider = normalize_provider_name(kb_config.get("rag_provider") or DEFAULT_PROVIDER)
 
         # Scan current files based on provider's supported extensions
         supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)

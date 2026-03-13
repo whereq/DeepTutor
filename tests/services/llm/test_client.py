@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-import types
-
 from _pytest.monkeypatch import MonkeyPatch
 import pytest
 
@@ -56,69 +53,55 @@ async def test_client_complete_sync_running_loop() -> None:
         client.complete_sync("hello")
 
 
-def test_client_get_model_func_openai(monkeypatch: MonkeyPatch) -> None:
-    """OpenAI-style model func should call openai_complete_if_cache."""
+@pytest.mark.asyncio
+async def test_client_get_model_func_uses_factory(monkeypatch: MonkeyPatch) -> None:
+    """get_model_func should return async callable that delegates to factory."""
     config = LLMConfig(model="model", api_key="key", base_url="https://example.com")
     client = LLMClient(config)
 
-    module = types.ModuleType("lightrag.llm.openai")
-    module.openai_complete_if_cache = lambda *_args, **_kwargs: "ok"
-    monkeypatch.setitem(sys.modules, "lightrag", types.ModuleType("lightrag"))
-    monkeypatch.setitem(sys.modules, "lightrag.llm", types.ModuleType("lightrag.llm"))
-    monkeypatch.setitem(sys.modules, "lightrag.llm.openai", module)
+    captured: dict[str, object] = {}
 
-    monkeypatch.setattr("deeptutor.services.llm.client.system_in_messages", lambda *_a: True)
-
-    func = client.get_model_func()
-
-    assert func("hello") == "ok"
-
-
-def test_client_get_model_func_factory(monkeypatch: MonkeyPatch) -> None:
-    """Non-OpenAI providers should route via factory.complete."""
-    config = LLMConfig(model="model", api_key="key", base_url="https://example.com")
-    client = LLMClient(config)
-
-    def _fake_complete(**_kwargs: object) -> str:
+    async def _fake_complete(**kwargs: object) -> str:
+        captured.update(kwargs)
         return "ok"
 
     monkeypatch.setattr("deeptutor.services.llm.factory.complete", _fake_complete)
-    monkeypatch.setattr("deeptutor.services.llm.client.system_in_messages", lambda *_a: False)
 
     func = client.get_model_func()
+    result = await func(
+        "hello",
+        system_prompt="sys",
+        history_messages=[{"role": "user", "content": "old"}],
+    )
 
-    assert func("hello") == "ok"
+    assert result == "ok"
+    assert captured["prompt"] == "hello"
+    assert captured["system_prompt"] == "sys"
+    assert captured["messages"] == [{"role": "user", "content": "old"}]
 
 
-def test_client_get_vision_model_func_factory(monkeypatch: MonkeyPatch) -> None:
-    """Vision model func should route via factory for non-OpenAI bindings."""
+@pytest.mark.asyncio
+async def test_client_get_vision_model_func_uses_factory(monkeypatch: MonkeyPatch) -> None:
+    """Vision model func should pass multimodal args into factory."""
     config = LLMConfig(model="model", api_key="key", base_url="https://example.com")
     client = LLMClient(config)
 
-    def _fake_complete(**_kwargs: object) -> str:
+    captured: dict[str, object] = {}
+
+    async def _fake_complete(**kwargs: object) -> str:
+        captured.update(kwargs)
         return "ok"
 
     monkeypatch.setattr("deeptutor.services.llm.factory.complete", _fake_complete)
-    monkeypatch.setattr("deeptutor.services.llm.client.system_in_messages", lambda *_a: False)
 
     func = client.get_vision_model_func()
+    result = await func(
+        "hello",
+        image_data="abc123",
+        messages=[{"role": "user", "content": "hi"}],
+    )
 
-    assert func("hello") == "ok"
-
-
-def test_client_get_vision_model_func_openai(monkeypatch: MonkeyPatch) -> None:
-    """OpenAI-style vision model func should call openai_complete_if_cache."""
-    config = LLMConfig(model="model", api_key="key", base_url="https://example.com")
-    client = LLMClient(config)
-
-    module = types.ModuleType("lightrag.llm.openai")
-    module.openai_complete_if_cache = lambda *_args, **_kwargs: "ok"
-    monkeypatch.setitem(sys.modules, "lightrag", types.ModuleType("lightrag"))
-    monkeypatch.setitem(sys.modules, "lightrag.llm", types.ModuleType("lightrag.llm"))
-    monkeypatch.setitem(sys.modules, "lightrag.llm.openai", module)
-
-    monkeypatch.setattr("deeptutor.services.llm.client.system_in_messages", lambda *_a: True)
-
-    func = client.get_vision_model_func()
-
-    assert func("hello", messages=[{"role": "user", "content": "hi"}]) == "ok"
+    assert result == "ok"
+    assert captured["prompt"] == "hello"
+    assert captured["messages"] == [{"role": "user", "content": "hi"}]
+    assert captured["image_data"] == "abc123"

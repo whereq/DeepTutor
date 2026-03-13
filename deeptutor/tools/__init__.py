@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import importlib
 
-from ._compat import ensure_lightrag_compat
-
-ensure_lightrag_compat()
-
 _LAZY_EXPORTS = {
     "brainstorm": (".brainstorm", "brainstorm"),
     "run_code": (".code_executor", "run_code"),

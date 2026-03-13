@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RAG Types
 =========
@@ -40,7 +39,7 @@ class Document:
     file_path: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
     chunks: List[Chunk] = field(default_factory=list)
-    content_items: List[Dict] = field(default_factory=list)  # MinerU format
+    content_items: List[Dict] = field(default_factory=list)  # Parsed content-item format
 
     def __post_init__(self):
         if self.metadata is None:
@@ -69,6 +68,6 @@ class SearchResult:
     answer: str
     content: str
     mode: str = "hybrid"
-    provider: str = "raganything"
+    provider: str = "llamaindex"
     chunks: List[Chunk] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)

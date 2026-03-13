@@ -268,18 +268,25 @@ cp .env.example .env
 
 | Variable | Required | Description |
 |:---|:---:|:---|
+| `BACKEND_PORT` | No | Backend API port (default: `8001`) |
+| `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
+| `LLM_BINDING` | **Yes** | LLM provider binding (e.g., `openai`, `anthropic`) |
 | `LLM_MODEL` | **Yes** | Model name (e.g., `gpt-4o`) |
-| `LLM_API_VERSION` | No | API version for Azure OpenAI (e.g., `2024-02-15-preview`) |
 | `LLM_API_KEY` | **Yes** | Your LLM API key |
 | `LLM_HOST` | **Yes** | API endpoint URL |
+| `LLM_API_VERSION` | No | API version for Azure/OpenAI-compatible providers |
+| `EMBEDDING_BINDING` | **Yes** | Embedding provider binding (e.g., `openai`, `jina`) |
 | `EMBEDDING_MODEL` | **Yes** | Embedding model name |
-| `EMBEDDING_API_VERSION` | No | API version for Azure OpenAI Embeddings |
 | `EMBEDDING_API_KEY` | **Yes** | Embedding API key |
 | `EMBEDDING_HOST` | **Yes** | Embedding API endpoint |
-| `BACKEND_PORT` | No | Backend port (default: `8001`) |
-| `FRONTEND_PORT` | No | Frontend port (default: `3782`) |
-| `SEARCH_PROVIDER` | No | Search provider (options: `perplexity`, `openrouter`, `tavily`, `serper`, `jina`, `exa`, `baidu`, default: `perplexity`) |
+| `EMBEDDING_DIMENSION` | **Yes** | Embedding vector dimension |
+| `EMBEDDING_API_VERSION` | No | API version for Azure/OpenAI-compatible embeddings |
+| `SEARCH_PROVIDER` | No | Search provider (`perplexity`, `openrouter`, `tavily`, `serper`, `jina`, `exa`, `baidu`) |
 | `SEARCH_API_KEY` | No | Unified API key for all search providers |
+| `SEARCH_BASE_URL` | No | Custom search endpoint URL |
+| `NEXT_PUBLIC_API_BASE_EXTERNAL` | No | Public backend URL for cloud deployment |
+| `NEXT_PUBLIC_API_BASE` | No | Alternative direct API base URL |
+| `DISABLE_SSL_VERIFY` | No | Disable SSL verification (keep `false` in production) |
 
 </details>
 
@@ -334,8 +341,8 @@ docker compose build --no-cache    # Clear cache and rebuild after pull the newe
 docker run -d --name deeptutor \
   -p 8001:8001 -p 3782:3782 \
   --env-file .env \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/config:/app/config:ro \
+  -v $(pwd)/data/user:/app/data/user \
+  -v $(pwd)/data/knowledge_bases:/app/data/knowledge_bases \
   ghcr.io/hkuds/deeptutor:latest
 
 # Windows PowerShell: use ${PWD} instead of $(pwd)
@@ -358,9 +365,10 @@ docker compose up --build # Rebuild after changes
 | Tag | Architectures | Description |
 |:----|:--------------|:------------|
 | `:latest` | AMD64 + ARM64 | Latest stable release (auto-detects your architecture) |
-| `:v0.5.x` | AMD64 + ARM64 | Specific version (auto-detects your architecture) |
-| `:v0.5.x-amd64` | AMD64 only | Explicit AMD64 image |
-| `:v0.5.x-arm64` | ARM64 only | Explicit ARM64 image |
+| `:X.Y.Z` | AMD64 + ARM64 | Specific version (for example `:0.6.0`) |
+| `:X.Y.Z-amd64` | AMD64 only | Explicit AMD64 image |
+| `:X.Y.Z-arm64` | ARM64 only | Explicit ARM64 image |
+| `:latest-arm64` | ARM64 only | Latest ARM64 compatibility tag |
 
 > 💡 The `:latest` tag is a **multi-architecture image** — Docker automatically pulls the correct version for your system (Intel/AMD or Apple Silicon/ARM)
 
@@ -412,7 +420,7 @@ The terminal tour now handles:
 
 ```bash
 python scripts/start_web.py    # Start frontend + backend
-# Or: python scripts/start.py  # CLI only
+# Or: python -m deeptutor_cli.main chat  # CLI chat
 # Stop: Ctrl+C
 ```
 
@@ -454,19 +462,45 @@ All user content and system data are stored in the `data/` directory:
 
 ```
 data/
-├── knowledge_bases/              # Knowledge base storage
-└── user/                         # User activity data
-    ├── solve/                    # Problem solving results and artifacts
-    ├── question/                 # Generated questions
-    ├── research/                 # Research reports and cache
-    ├── co-writer/                # Interactive IdeaGen documents and audio files
-    ├── notebook/                 # Notebook records and metadata
-    ├── guide/                    # Guided learning sessions
-    ├── logs/                     # System logs
-    └── run_code_workspace/       # Code execution workspace
+├── knowledge_bases/                          # Knowledge base storage
+└── user/
+    ├── chat_history.db                       # Unified chat history database
+    ├── logs/                                 # Runtime logs
+    ├── settings/                             # Runtime settings (auto-bootstrapped)
+    │   ├── interface.json
+    │   ├── main.yaml
+    │   └── agents.yaml
+    └── workspace/
+        ├── memory/
+        ├── notebook/
+        ├── co-writer/
+        │   ├── audio/
+        │   └── tool_calls/
+        ├── guide/
+        └── chat/
+            ├── chat/
+            ├── deep_solve/
+            ├── deep_question/
+            ├── deep_research/
+            │   └── reports/
+            ├── math_animator/
+            └── _detached_code_execution/
 ```
 
-Results are automatically saved during all activities. Directories are created automatically as needed.
+Results are automatically saved during all activities. Missing runtime settings files are created at startup.
+
+## 🧪 CI Workflows
+
+- Branch strategy: workflows run on `main` and `dev`.
+- [`tests.yml`](.github/workflows/tests.yml): import checks (Python 3.10/3.11/3.12) + smoke test subset (Python 3.11) using `--import-mode=importlib`.
+- [`linting.yaml`](.github/workflows/linting.yaml): Python pre-commit checks + frontend lint/type-check.
+- [`docker-publish.yml`](.github/workflows/docker-publish.yml): manual multi-arch image publish with semantic version input.
+
+Local smoke command aligned with CI:
+
+```bash
+pytest -q --import-mode=importlib tests/api tests/cli tests/services/test_app_facade.py tests/services/test_model_catalog.py tests/services/test_path_service.py tests/services/memory tests/services/session tests/tools
+```
 
 ## 📦 Core Modules
 
@@ -524,7 +558,7 @@ asyncio.run(main())
 <summary><b>Output Location</b></summary>
 
 ```
-data/user/solve/solve_YYYYMMDD_HHMMSS/
+data/user/workspace/chat/deep_solve/solve_YYYYMMDD_HHMMSS/
 ├── investigate_memory.json    # Analysis Loop memory
 ├── solve_chain.json           # Solve Loop steps & tool records
 ├── citation_memory.json       # Citation management
@@ -590,7 +624,7 @@ from deeptutor.agents.question import AgentCoordinator
 async def main():
     coordinator = AgentCoordinator(
         kb_name="ai_textbook",
-        output_dir="data/user/question"
+        output_dir="data/user/workspace/chat/deep_question"
     )
 
     # Generate multiple questions from text requirement
@@ -615,7 +649,7 @@ from deeptutor.agents.question.tools.exam_mimic import mimic_exam_questions
 result = await mimic_exam_questions(
     pdf_path="exams/midterm.pdf",
     kb_name="calculus",
-    output_dir="data/user/question/mimic_papers",
+    output_dir="data/user/workspace/chat/deep_question/mimic_papers",
     max_questions=5
 )
 
@@ -630,7 +664,7 @@ print(f"Output: {result['output_file']}")
 
 **Custom Mode:**
 ```
-data/user/question/custom_YYYYMMDD_HHMMSS/
+data/user/workspace/chat/deep_question/custom_YYYYMMDD_HHMMSS/
 ├── background_knowledge.json      # RAG retrieval results
 ├── question_plan.json              # Question planning
 ├── question_1_result.json          # Individual question results
@@ -640,7 +674,7 @@ data/user/question/custom_YYYYMMDD_HHMMSS/
 
 **Mimic Mode:**
 ```
-data/user/question/mimic_papers/
+data/user/workspace/chat/deep_question/mimic_papers/
 └── mimic_YYYYMMDD_HHMMSS_{pdf_name}/
     ├── {pdf_name}.pdf                              # Original PDF
     ├── auto/{pdf_name}.md                          # MinerU parsed markdown
@@ -689,7 +723,7 @@ data/user/question/mimic_papers/
 <summary><b>Output Location</b></summary>
 
 ```
-data/user/guide/
+data/user/workspace/guide/
 └── session_{session_id}.json    # Complete session state, knowledge points, chat history
 ```
 
@@ -733,7 +767,7 @@ data/user/guide/
 <summary><b>Output Location</b></summary>
 
 ```
-data/user/co-writer/
+data/user/workspace/co-writer/
 ├── audio/                    # TTS audio files
 │   └── {operation_id}.mp3
 ├── tool_calls/               # Tool call history
@@ -909,7 +943,7 @@ asyncio.run(main())
 <summary><b>Output Location</b></summary>
 
 ```
-data/user/research/
+data/user/workspace/chat/deep_research/
 ├── reports/                          # Final research reports
 │   ├── research_YYYYMMDD_HHMMSS.md   # Markdown report with clickable citations [[N]](#ref-N)
 │   └── research_*_metadata.json      # Research metadata and statistics
@@ -1056,7 +1090,9 @@ tools:
 
 **Checklist**
 - Confirm Python version >= 3.10
-- Confirm all dependencies installed: `pip install -r requirements.txt`
+- Confirm dependencies installed for your mode:
+  - CLI only: `pip install -r requirements/core.txt`
+  - Web/API: `pip install -r requirements/server.txt`
 - Check if port 8001 is in use
 - Check `.env` file configuration
 
@@ -1248,12 +1284,12 @@ See: [GitHub Issue #112](https://github.com/HKUDS/DeepTutor/issues/112)
 
 | Module | Output Path |
 |:---:|:---|
-| Solve | `data/user/solve/solve_YYYYMMDD_HHMMSS/` |
-| Question | `data/user/question/question_YYYYMMDD_HHMMSS/` |
-| Research | `data/user/research/reports/` |
-| Interactive IdeaGen | `data/user/co-writer/` |
-| Notebook | `data/user/notebook/` |
-| Guide | `data/user/guide/session_{session_id}.json` |
+| Solve | `data/user/workspace/chat/deep_solve/solve_YYYYMMDD_HHMMSS/` |
+| Question | `data/user/workspace/chat/deep_question/{custom|mimic}_YYYYMMDD_HHMMSS/` |
+| Research | `data/user/workspace/chat/deep_research/reports/` |
+| Interactive IdeaGen | `data/user/workspace/co-writer/` |
+| Notebook | `data/user/workspace/notebook/` |
+| Guide | `data/user/workspace/guide/session_{session_id}.json` |
 | Logs | `data/user/logs/` |
 
 </details>
@@ -1270,7 +1306,7 @@ See: [GitHub Issue #112](https://github.com/HKUDS/DeepTutor/issues/112)
 
 **CLI**
 ```bash
-python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
+deeptutor kb create <kb_name> --doc <pdf_path>
 ```
 
 </details>
@@ -1280,41 +1316,30 @@ python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 **CLI (Recommended)**
 ```bash
-python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+deeptutor kb add <kb_name> --doc <new_document.pdf>
 ```
 
 **Benefits**
 - Only processes new documents, saves time and API costs
-- Automatically merges with existing knowledge graph
+- Automatically merges with existing vector index
 - Preserves all existing data
 
 </details>
 
 <details>
-<summary><b>Numbered items extraction failed with uvloop.Loop error?</b></summary>
+<summary><b>Numbered items extraction / uvloop.Loop issue?</b></summary>
 
 **Problem**
 
-When initializing a knowledge base, you may encounter this error:
+Earlier versions had a numbered-items extraction step that could raise:
 ```
 ValueError: Can't patch loop of type <class 'uvloop.Loop'>
 ```
 
-This occurs because Uvicorn uses `uvloop` event loop by default, which is incompatible with `nest_asyncio`.
-
 **Solution**
 
-Use one of the following methods to extract numbered items:
-
-```bash
-# Option 1: Using the shell script (recommended)
-./scripts/extract_numbered_items.sh <kb_name>
-
-# Option 2: Direct Python command
-python -m deeptutor.knowledge.extract_numbered_items --kb <kb_name> --base-dir ./data/knowledge_bases
-```
-
-This will extract numbered items (Definitions, Theorems, Equations, etc.) from your knowledge base without reinitializing it.
+The numbered-items extraction module has been removed in llamaindex-only mode.
+No extra extraction command is required.
 
 </details>
 

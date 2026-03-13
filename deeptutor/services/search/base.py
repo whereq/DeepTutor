@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Web Search Base Provider - Abstract base class for all search providers
 
@@ -7,6 +6,7 @@ All providers use a unified SEARCH_API_KEY environment variable.
 """
 
 from abc import ABC, abstractmethod
+import os
 from typing import Any
 
 from deeptutor.logging import get_logger
@@ -31,6 +31,7 @@ class BaseSearchProvider(ABC):
     requires_api_key: bool = True
     supports_answer: bool = False  # Whether provider generates LLM answers
     BASE_URL: str = ""  # Each provider defines its own endpoint
+    API_KEY_ENV_VARS: tuple[str, ...] = (SEARCH_API_KEY_ENV,)
 
     def __init__(self, api_key: str | None = None, **kwargs: Any) -> None:
         """
@@ -43,13 +44,18 @@ class BaseSearchProvider(ABC):
         self.logger = get_logger(f"Search.{self.__class__.__name__}", level="INFO")
         self.api_key = api_key or self._get_api_key()
         self.config = kwargs
+        self.proxy = kwargs.get("proxy")
 
     def _get_api_key(self) -> str:
-        """Get API key from unified SEARCH_API_KEY environment variable."""
-        key = get_env_store().get(SEARCH_API_KEY_ENV, "")
+        """Get API key from provider-specific env vars with SEARCH_API_KEY fallback."""
+        key = ""
+        for env_name in self.API_KEY_ENV_VARS:
+            key = get_env_store().get(env_name, "") or os.getenv(env_name, "")
+            if key:
+                break
         if self.requires_api_key and not key:
             raise ValueError(
-                f"{self.name} requires {SEARCH_API_KEY_ENV} environment variable. "
+                f"{self.name} requires one of {self.API_KEY_ENV_VARS}. "
                 f"Please set it before using this provider."
             )
         return key

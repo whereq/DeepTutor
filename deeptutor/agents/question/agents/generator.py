@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Generator - Generate Q-A pairs from QuestionTemplate in a single LLM call.
 """

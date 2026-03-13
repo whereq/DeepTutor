@@ -1,17 +1,6 @@
-# -*- coding: utf-8 -*-
-"""
-RAG Utilities
-=============
+"""RAG utility helpers.
 
-Utility modules for RAG operations.
+No standalone utility exports are required in llamaindex-only mode.
 """
 
-from .image_migration import (
-    cleanup_parser_output_dirs,
-    migrate_images_and_update_paths,
-)
-
-__all__ = [
-    "migrate_images_and_update_paths",
-    "cleanup_parser_output_dirs",
-]
+__all__: list[str] = []

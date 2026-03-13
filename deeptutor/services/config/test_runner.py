@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from .env_store import get_env_store
 from .model_catalog import get_model_catalog_service
+from .provider_runtime import resolve_search_runtime_config
 
 
 def _redact(value: str) -> str:
@@ -181,12 +182,20 @@ class ConfigTestRunner:
     def _test_search(self, run: TestRun) -> None:
         from deeptutor.services.search import web_search
 
-        provider = get_env_store().get("SEARCH_PROVIDER", "")
-        if not provider:
+        resolved = resolve_search_runtime_config()
+        if not resolved.requested_provider:
             run.status = "completed"
             run.emit("completed", "Search skipped because no active provider is configured.")
             return
+        if resolved.unsupported_provider:
+            raise ValueError(
+                f"Search provider `{resolved.requested_provider}` is deprecated/unsupported. "
+                "Switch to brave/tavily/jina/searxng/duckduckgo."
+            )
+        provider = resolved.provider
         run.emit("info", f"Resolved search provider `{provider}`.")
+        if resolved.fallback_reason:
+            run.emit("warning", resolved.fallback_reason)
         run.emit("info", "Running search query: DeepTutor configuration health check")
         result = web_search("DeepTutor configuration health check", provider=provider)
         run.emit(

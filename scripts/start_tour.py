@@ -17,7 +17,50 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from _cli_kit import (  # noqa: E402
+
+def _load_runtime_deps():
+    from _cli_kit import (
+        accent,
+        banner,
+        bold,
+        confirm,
+        countdown,
+        dim,
+        log_error,
+        log_info,
+        log_success,
+        log_warn,
+        select,
+        step,
+        text_input,
+    )
+    from deeptutor.services.config import (
+        get_config_test_runner,
+        get_env_store,
+        get_model_catalog_service,
+    )
+
+    return (
+        accent,
+        banner,
+        bold,
+        confirm,
+        countdown,
+        dim,
+        log_error,
+        log_info,
+        log_success,
+        log_warn,
+        select,
+        step,
+        text_input,
+        get_config_test_runner,
+        get_env_store,
+        get_model_catalog_service,
+    )
+
+
+(
     accent,
     banner,
     bold,
@@ -31,13 +74,10 @@ from _cli_kit import (  # noqa: E402
     select,
     step,
     text_input,
-)
-
-from deeptutor.services.config import (  # noqa: E402
     get_config_test_runner,
     get_env_store,
     get_model_catalog_service,
-)
+) = _load_runtime_deps()
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -365,7 +405,7 @@ def _run_web_tour() -> None:
         [
             ("web-basic", "web-basic", "FastAPI + Next.js"),
             ("web-rag-lite", "web-rag-lite", "+ LlamaIndex RAG"),
-            ("web-rag-full", "web-rag-full", "+ raganything + docling"),
+            ("web-rag-full", "web-rag-full", "+ LlamaIndex RAG (same as rag-lite)"),
         ],
     )
     _save_cache({"step": 1, "mode": "web", "profile": profile, "status": "running"})
@@ -425,7 +465,7 @@ def _run_web_tour() -> None:
     frontend_env = os.environ.copy()
     frontend_env["NEXT_PUBLIC_API_BASE"] = f"http://localhost:{ports['backend']}"
 
-    backend_cmd = [sys.executable, str(PROJECT_ROOT / "src" / "api" / "run_server.py")]
+    backend_cmd = [sys.executable, "-m", "deeptutor.api.run_server"]
     frontend_cmd = [npm, "run", "dev", "--", "--port", str(ports["frontend"])]
 
     log_info("Starting temporary server ...")
@@ -503,7 +543,7 @@ def _run_cli_tour() -> None:
         [
             ("cli-core", "cli-core", "Minimal CLI (~80 MB)"),
             ("cli-rag-lite", "cli-rag-lite", "+ LlamaIndex RAG"),
-            ("cli-rag-full", "cli-rag-full", "+ raganything + docling"),
+            ("cli-rag-full", "cli-rag-full", "+ LlamaIndex RAG (same as rag-lite)"),
         ],
     )
     _save_cache({"step": 1, "mode": "cli", "profile": profile})

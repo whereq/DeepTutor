@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Core contracts shared across runtime, tools, and capabilities."""
 
 from .capability_protocol import BaseCapability, CapabilityManifest

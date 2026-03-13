@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Cloud LLM Provider
 ==================
@@ -11,52 +10,26 @@ from collections.abc import AsyncGenerator, Mapping
 import logging
 import os
 import threading
-from typing import Protocol, cast
+from typing import cast
 
 import aiohttp
 
-# Get loggers for suppression during fallback scenarios
-# (lightrag logs errors internally before raising exceptions)
-_lightrag_logger = logging.getLogger("lightrag")
-_openai_logger = logging.getLogger("openai")
+from .capabilities import get_effective_temperature, supports_response_format
+from .config import get_token_limit_kwargs
+from .exceptions import LLMAPIError, LLMAuthenticationError, LLMConfigError
+from .utils import (
+    build_auth_headers,
+    build_chat_url,
+    clean_thinking_tags,
+    collect_model_names,
+    extract_response_content,
+    sanitize_url,
+)
+
 logger = logging.getLogger(__name__)
 
 # Thread-safe lock for SSL-warning state
 _ssl_warning_lock = threading.Lock()
-
-
-class OpenAICompleteIfCache(Protocol):
-    """Protocol for the lightrag OpenAI completion helper."""
-
-    async def __call__(
-        self,
-        model: str,
-        prompt: str,
-        *,
-        system_prompt: str,
-        history_messages: list[dict[str, str]],
-        api_key: str | None,
-        base_url: str | None,
-        **kwargs: object,
-    ) -> str | None:
-        """Return cached completion content when available."""
-
-
-# Lazy import for lightrag to avoid import errors when not installed
-_openai_complete_if_cache: OpenAICompleteIfCache | None = None
-
-
-def _get_openai_complete_if_cache() -> OpenAICompleteIfCache:
-    """Lazy load openai_complete_if_cache from lightrag."""
-    global _openai_complete_if_cache
-    if _openai_complete_if_cache is None:
-        # Import inside the function to avoid circular dependencies
-        from lightrag.llm.openai import (
-            openai_complete_if_cache,
-        )
-
-        _openai_complete_if_cache = cast(OpenAICompleteIfCache, openai_complete_if_cache)
-    return _openai_complete_if_cache
 
 
 def _coerce_float(value: object, default: float) -> float:
@@ -130,20 +103,6 @@ def _get_aiohttp_connector() -> aiohttp.TCPConnector | None:
             globals()["_ssl_warning_logged"] = True
     return aiohttp.TCPConnector(ssl=False)
 
-
-from .capabilities import get_effective_temperature, supports_response_format
-from .config import get_token_limit_kwargs
-from .exceptions import LLMAPIError, LLMAuthenticationError, LLMConfigError
-from .utils import (
-    build_auth_headers,
-    build_chat_url,
-    clean_thinking_tags,
-    collect_model_names,
-    extract_response_content,
-    sanitize_url,
-)
-
-
 async def complete(
     prompt: str,
     system_prompt: str = "You are a helpful assistant.",
@@ -175,12 +134,6 @@ async def complete(
     binding_lower = (binding or "openai").lower()
     if model is None or not model.strip():
         raise LLMConfigError("Model is required for cloud LLM provider")
-
-    if binding_lower == "cohere":
-        raise LLMConfigError("Cohere streaming is not supported yet.")
-
-    if binding_lower == "cohere":
-        raise LLMConfigError("Cohere streaming is not supported yet.")
 
     if binding_lower in ["anthropic", "claude"]:
         max_tokens_value = _coerce_int(kwargs.get("max_tokens"), None)
@@ -303,127 +256,97 @@ async def _openai_complete(
         kwargs.pop("response_format", None)
 
     messages = kwargs.pop("messages", None)
-
     content = None
-    # When pre-built messages are provided, skip lightrag (it expects prompt+history, not messages)
-    # and use direct aiohttp call. Otherwise try lightrag first for caching.
-    if not messages:
+
+    effective_base = base_url or "https://api.openai.com/v1"
+    url = build_chat_url(effective_base, api_version, binding)
+
+    # Build headers using unified utility
+    headers = build_auth_headers(api_key, binding)
+    extra_headers = kwargs.get("extra_headers")
+    if isinstance(extra_headers, Mapping):
+        for key, value in extra_headers.items():
+            if isinstance(key, str) and key and value is not None:
+                headers[key] = str(value)
+
+    # Use pre-built messages when provided; otherwise build from prompt/system_prompt
+    if messages:
+        msg_list = messages
+    else:
+        msg_list = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
+    temperature = get_effective_temperature(
+        binding,
+        model,
+        _coerce_float(kwargs.get("temperature"), 0.7),
+    )
+    data: dict[str, object] = {
+        "model": model,
+        "messages": msg_list,
+        "temperature": temperature,
+    }
+
+    # Handle max_tokens / max_completion_tokens based on model
+    max_tokens_value = _coerce_int(kwargs.get("max_tokens"), None)
+    max_completion_value = _coerce_int(kwargs.get("max_completion_tokens"), None)
+    if max_tokens_value is None:
+        max_tokens_value = max_completion_value
+    if max_tokens_value is None:
+        max_tokens_value = 4096
+    data.update(get_token_limit_kwargs(model, max_tokens_value))
+
+    # Include response_format if present in kwargs
+    response_format = kwargs.get("response_format")
+    if response_format is not None:
+        data["response_format"] = response_format
+    reasoning_effort = kwargs.get("reasoning_effort")
+    if isinstance(reasoning_effort, str) and reasoning_effort.strip():
+        data["reasoning_effort"] = reasoning_effort.strip()
+
+    timeout = aiohttp.ClientTimeout(total=120)
+    connector = _get_aiohttp_connector()
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
         try:
-            history_messages: list[dict[str, str]] = []
-            lightrag_kwargs: dict[str, object] = dict(kwargs)
-            lightrag_kwargs.pop("system_prompt", None)
-            lightrag_kwargs.pop("history_messages", None)
-            lightrag_kwargs.pop("api_key", None)
-            lightrag_kwargs.pop("base_url", None)
-            lightrag_kwargs.pop("api_version", None)
-
-            original_lightrag_level = _lightrag_logger.level
-            original_openai_level = _openai_logger.level
-            _lightrag_logger.setLevel(logging.CRITICAL)
-            _openai_logger.setLevel(logging.CRITICAL)
-            try:
-                if api_version:
-                    lightrag_kwargs["api_version"] = api_version
-
-                openai_complete_if_cache = _get_openai_complete_if_cache()
-                content = await openai_complete_if_cache(
-                    model,
-                    prompt,
-                    system_prompt=system_prompt,
-                    history_messages=history_messages,
-                    api_key=api_key,
-                    base_url=base_url,
-                    **lightrag_kwargs,
-                )
-            finally:
-                _lightrag_logger.setLevel(original_lightrag_level)
-                _openai_logger.setLevel(original_openai_level)
-        except Exception as exc:
-            logger.debug("Exception occurred: %s", exc)
-
-    # Direct aiohttp call (used when messages provided, or as fallback)
-    if not content:
-        effective_base = base_url or "https://api.openai.com/v1"
-        url = build_chat_url(effective_base, api_version, binding)
-
-        # Build headers using unified utility
-        headers = build_auth_headers(api_key, binding)
-
-        # Use pre-built messages when provided; otherwise build from prompt/system_prompt
-        if messages:
-            msg_list = messages
-        else:
-            msg_list = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ]
-
-        temperature = get_effective_temperature(
-            binding,
-            model,
-            _coerce_float(kwargs.get("temperature"), 0.7),
-        )
-        data: dict[str, object] = {
-            "model": model,
-            "messages": msg_list,
-            "temperature": temperature,
-        }
-
-        # Handle max_tokens / max_completion_tokens based on model
-        max_tokens_value = _coerce_int(kwargs.get("max_tokens"), None)
-        max_completion_value = _coerce_int(kwargs.get("max_completion_tokens"), None)
-        if max_tokens_value is None:
-            max_tokens_value = max_completion_value
-        if max_tokens_value is None:
-            max_tokens_value = 4096
-        data.update(get_token_limit_kwargs(model, max_tokens_value))
-
-        # Include response_format if present in kwargs
-        response_format = kwargs.get("response_format")
-        if response_format is not None:
-            data["response_format"] = response_format
-
-        timeout = aiohttp.ClientTimeout(total=120)
-        connector = _get_aiohttp_connector()
-        async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
-            try:
-                async with session.post(url, headers=headers, json=data) as resp:
-                    if resp.status == 200:
-                        result = cast(dict[str, object], await resp.json())
-                        choices = result.get("choices")
-                        if isinstance(choices, list) and choices:
-                            choices_list = cast(list[object], choices)
-                            first_choice = choices_list[0]
-                            if isinstance(first_choice, Mapping):
-                                message = cast(Mapping[str, object], first_choice).get("message")
-                            else:
-                                message = None
-                            if isinstance(message, Mapping):
-                                # Use unified response extraction
-                                content = extract_response_content(cast(dict[str, object], message))
-                    else:
-                        error_text = await resp.text()
-                        raise LLMAPIError(
-                            f"OpenAI API error: {error_text}",
-                            status_code=resp.status,
-                            provider=binding or "openai",
-                        )
-            except aiohttp.ClientError as e:
-                # Handle connection errors with more specific messages
-                if "forcibly closed" in str(e).lower() or "10054" in str(e):
-                    raise LLMAPIError(
-                        f"Connection to {binding} API was forcibly closed. "
-                        "This may indicate network issues or server-side problems. "
-                        "Please check your internet connection and try again.",
-                        status_code=0,
-                        provider=binding or "openai",
-                    ) from e
+            async with session.post(url, headers=headers, json=data) as resp:
+                if resp.status == 200:
+                    result = cast(dict[str, object], await resp.json())
+                    choices = result.get("choices")
+                    if isinstance(choices, list) and choices:
+                        choices_list = cast(list[object], choices)
+                        first_choice = choices_list[0]
+                        if isinstance(first_choice, Mapping):
+                            message = cast(Mapping[str, object], first_choice).get("message")
+                        else:
+                            message = None
+                        if isinstance(message, Mapping):
+                            # Use unified response extraction
+                            content = extract_response_content(cast(dict[str, object], message))
                 else:
+                    error_text = await resp.text()
                     raise LLMAPIError(
-                        f"Network error connecting to {binding} API: {e}",
-                        status_code=0,
+                        f"OpenAI API error: {error_text}",
+                        status_code=resp.status,
                         provider=binding or "openai",
-                    ) from e
+                    )
+        except aiohttp.ClientError as e:
+            # Handle connection errors with more specific messages
+            if "forcibly closed" in str(e).lower() or "10054" in str(e):
+                raise LLMAPIError(
+                    f"Connection to {binding} API was forcibly closed. "
+                    "This may indicate network issues or server-side problems. "
+                    "Please check your internet connection and try again.",
+                    status_code=0,
+                    provider=binding or "openai",
+                ) from e
+            else:
+                raise LLMAPIError(
+                    f"Network error connecting to {binding} API: {e}",
+                    status_code=0,
+                    provider=binding or "openai",
+                ) from e
 
     if content is not None:
         # Clean thinking tags from response using unified utility
@@ -460,6 +383,11 @@ async def _openai_stream(
 
     # Build headers using unified utility
     headers = build_auth_headers(api_key, binding)
+    extra_headers = kwargs.get("extra_headers")
+    if isinstance(extra_headers, Mapping):
+        for key, value in extra_headers.items():
+            if isinstance(key, str) and key and value is not None:
+                headers[key] = str(value)
 
     # Build messages
     if messages:
@@ -493,6 +421,9 @@ async def _openai_stream(
     response_format = kwargs.get("response_format")
     if response_format is not None:
         data["response_format"] = response_format
+    reasoning_effort = kwargs.get("reasoning_effort")
+    if isinstance(reasoning_effort, str) and reasoning_effort.strip():
+        data["reasoning_effort"] = reasoning_effort.strip()
 
     timeout = aiohttp.ClientTimeout(total=300)
     connector = _get_aiohttp_connector()

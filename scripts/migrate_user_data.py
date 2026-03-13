@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """Migrate legacy runtime data into the new ``data/user`` layout."""
 
 from __future__ import annotations

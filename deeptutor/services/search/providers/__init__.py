@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Web Search Provider Registry
 
@@ -12,6 +11,13 @@ from deeptutor.services.config import get_env_store
 from ..base import BaseSearchProvider
 
 _PROVIDERS: dict[str, Type[BaseSearchProvider]] = {}
+_DEPRECATED_UNSUPPORTED: dict[str, str] = {
+    "perplexity": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
+    "exa": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
+    "serper": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
+    "baidu": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
+    "openrouter": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo.",
+}
 
 
 def register_provider(name: str):
@@ -26,8 +32,12 @@ def register_provider(name: str):
     """
 
     def decorator(cls: Type[BaseSearchProvider]):
-        _PROVIDERS[name.lower()] = cls
-        cls.name = name.lower()
+        key = name.lower()
+        if key in _DEPRECATED_UNSUPPORTED:
+            cls.name = key
+            return cls
+        _PROVIDERS[key] = cls
+        cls.name = key
         return cls
 
     return decorator
@@ -49,8 +59,14 @@ def get_provider(name: str, **kwargs) -> BaseSearchProvider:
     """
     name = name.lower()
     if name not in _PROVIDERS:
+        if name in _DEPRECATED_UNSUPPORTED:
+            raise ValueError(f"Unsupported provider `{name}`: {_DEPRECATED_UNSUPPORTED[name]}")
         available = ", ".join(sorted(_PROVIDERS.keys()))
-        raise ValueError(f"Unknown provider: {name}. Available: {available}")
+        deprecated = ", ".join(sorted(_DEPRECATED_UNSUPPORTED.keys()))
+        raise ValueError(
+            f"Unknown provider: {name}. Available: {available}. "
+            f"Deprecated/unsupported: {deprecated}"
+        )
     return _PROVIDERS[name](**kwargs)
 
 
@@ -98,6 +114,18 @@ def get_providers_info() -> list[dict]:
                 "description": cls.description,
                 "supports_answer": cls.supports_answer,
                 "requires_api_key": cls.requires_api_key,
+                "status": "supported",
+            }
+        )
+    for provider_id, reason in sorted(_DEPRECATED_UNSUPPORTED.items()):
+        providers_info.append(
+            {
+                "id": provider_id,
+                "name": provider_id,
+                "description": reason,
+                "supports_answer": False,
+                "requires_api_key": False,
+                "status": "deprecated",
             }
         )
     return providers_info
@@ -113,12 +141,20 @@ def get_default_provider(**kwargs) -> BaseSearchProvider:
     Returns:
         BaseSearchProvider: Default provider instance.
     """
-    provider_name = get_env_store().get("SEARCH_PROVIDER", "perplexity").lower()
+    provider_name = get_env_store().get("SEARCH_PROVIDER", "brave").lower()
+    if provider_name in _DEPRECATED_UNSUPPORTED:
+        provider_name = "duckduckgo"
     return get_provider(provider_name, **kwargs)
 
 
-# Auto-import all providers to trigger registration
-from . import baidu, exa, jina, openrouter, perplexity, serper, tavily
+def _register_builtin_providers() -> None:
+    # Import for side effects (register_provider decorators).
+    from . import brave, duckduckgo, jina, searxng, tavily
+
+    _ = (brave, duckduckgo, jina, searxng, tavily)
+
+
+_register_builtin_providers()
 
 __all__ = [
     "register_provider",
@@ -127,4 +163,5 @@ __all__ = [
     "get_available_providers",
     "get_providers_info",
     "get_default_provider",
+    "_DEPRECATED_UNSUPPORTED",
 ]

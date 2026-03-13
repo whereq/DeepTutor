@@ -1,14 +1,6 @@
-# -*- coding: utf-8 -*-
-"""
-RAG Parsers
-===========
+"""RAG parser integrations.
 
-External document parsing integrations (e.g., MinerU Cloud API).
+No external parser integrations are bundled in llamaindex-only mode.
 """
 
-from .mineru_api import MinerUAPIClient, MinerUAPIError
-
-__all__ = [
-    "MinerUAPIClient",
-    "MinerUAPIError",
-]
+__all__: list[str] = []

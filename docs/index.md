@@ -38,7 +38,7 @@ features:
 
 - **Deep Understanding** — Not just answers, but guided learning journeys with visual explanations
 - **Multi-Modal Support** — PDF, LaTeX, images, code execution, and more
-- **Knowledge Graph** — Semantic connections powered by LightRAG for better comprehension
+- **Knowledge Retrieval** — Unified llamaindex-based retrieval for better comprehension
 - **All-in-One Platform** — Problem solving, question generation, research, and guided learning in one place
 
 <style>

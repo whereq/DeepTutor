@@ -451,8 +451,8 @@ python scripts/start_web.py    # Запуск интерфейса и бэкен
 
 **Бэкенд** (FastAPI):
 ```bash
-python src/api/run_server.py
-# Или: uvicorn src.api.main:app --host 0.0.0.0 --port 8001 --reload
+python -m deeptutor.api.run_server
+# Или: uvicorn deeptutor.api.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 **Интерфейс** (Next.js):
@@ -538,7 +538,7 @@ data/
 
 ```python
 import asyncio
-from src.agents.solve import MainSolver
+from deeptutor.agents.solve import MainSolver
 
 async def main():
     solver = MainSolver(kb_name="ai_textbook")
@@ -618,7 +618,7 @@ data/user/solve/solve_YYYYMMDD_HHMMSS/
 **Пользовательский режим - Полный конвейер:**
 ```python
 import asyncio
-from src.agents.question import AgentCoordinator
+from deeptutor.agents.question import AgentCoordinator
 
 async def main():
     coordinator = AgentCoordinator(
@@ -643,7 +643,7 @@ asyncio.run(main())
 
 **Режим имитации - Загрузка PDF:**
 ```python
-from src.agents.question.tools.exam_mimic import mimic_exam_questions
+from deeptutor.agents.question.tools.exam_mimic import mimic_exam_questions
 
 result = await mimic_exam_questions(
     pdf_path="exams/midterm.pdf",
@@ -911,16 +911,16 @@ data/user/co-writer/
 
 ```bash
 # Режим быстрого (быстрое исследование)
-python src/agents/research/main.py --topic "Основы глубокого обучения" --preset quick
+python -m deeptutor.agents.research.main --topic "Основы глубокого обучения" --preset quick
 
 # Режим среднего (сбалансированный)
-python src/agents/research/main.py --topic "Архитектура Transformer" --preset medium
+python -m deeptutor.agents.research.main --topic "Архитектура Transformer" --preset medium
 
 # Режим глубокого (тщательное исследование)
-python src/agents/research/main.py --topic "Графовые нейронные сети" --preset deep
+python -m deeptutor.agents.research.main --topic "Графовые нейронные сети" --preset deep
 
 # Режим авто (агент решает глубину)
-python src/agents/research/main.py --topic "Обучение с подкреплением" --preset auto
+python -m deeptutor.agents.research.main --topic "Обучение с подкреплением" --preset auto
 ```
 
 </details>
@@ -930,8 +930,8 @@ python src/agents/research/main.py --topic "Обучение с подкрепл
 
 ```python
 import asyncio
-from src.agents.research import ResearchPipeline
-from src.core.core import get_llm_config, load_config_with_main
+from deeptutor.agents.research import ResearchPipeline
+from deeptutor.core.core import get_llm_config, load_config_with_main
 
 async def main():
     # Загрузка конфигурации (main.yaml объединяется с любыми модульными переопределениями)
@@ -1077,8 +1077,8 @@ tools:
 
 ```python
 import asyncio
-from src.agents.ideagen import IdeaGenerationWorkflow, MaterialOrganizerAgent
-from src.core.core import get_llm_config
+from deeptutor.agents.ideagen import IdeaGenerationWorkflow, MaterialOrganizerAgent
+from deeptutor.core.core import get_llm_config
 
 async def main():
     llm_config = get_llm_config()
@@ -1164,23 +1164,23 @@ asyncio.run(main())
 <tr>
 <td align="center"><a href="config/README.md">Конфигурация</a></td>
 <td align="center"><a href="data/README.md">Каталог данных</a></td>
-<td align="center"><a href="src/api/README.md">API Backend</a></td>
-<td align="center"><a href="src/core/README.md">Основные утилиты</a></td>
+<td align="center"><a href="deeptutor/api/">API Backend</a></td>
+<td align="center"><a href="deeptutor/core/README.md">Основные утилиты</a></td>
 </tr>
 <tr>
-<td align="center"><a href="src/knowledge/README.md">База знаний</a></td>
-<td align="center"><a href="src/tools/README.md">Инструменты</a></td>
+<td align="center"><a href="deeptutor/knowledge/">База знаний</a></td>
+<td align="center"><a href="deeptutor/tools/README.md">Инструменты</a></td>
 <td align="center"><a href="web/README.md">Веб-интерфейс</a></td>
-<td align="center"><a href="src/agents/solve/README.md">Модуль решения</a></td>
+<td align="center"><a href="deeptutor/agents/solve/">Модуль решения</a></td>
 </tr>
 <tr>
-<td align="center"><a href="src/agents/question/README.md">Модуль вопросов</a></td>
-<td align="center"><a href="src/agents/research/README.md">Модуль исследования</a></td>
-<td align="center"><a href="src/agents/co_writer/README.md">Модуль интерактивной генерации идей</a></td>
-<td align="center"><a href="src/agents/guide/README.md">Модуль руководства</a></td>
+<td align="center"><a href="deeptutor/agents/question/">Модуль вопросов</a></td>
+<td align="center"><a href="deeptutor/agents/research/">Модуль исследования</a></td>
+<td align="center"><a href="deeptutor/agents/co_writer/">Модуль интерактивной генерации идей</a></td>
+<td align="center"><a href="deeptutor/agents/guide/">Модуль руководства</a></td>
 </tr>
 <tr>
-<td align="center" colspan="4"><a href="src/agents/ideagen/README.md">Модуль автоматической генерации идей</a></td>
+<td align="center" colspan="4"><a href="deeptutor/agents/ideagen/">Модуль автоматической генерации идей</a></td>
 </tr>
 </table>
 
@@ -1458,7 +1458,7 @@ NEXT_PUBLIC_API_BASE=https://your-domain.com:port
 
 **CLI**
 ```bash
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+deeptutor kb create <kb_name> --doc <pdf_path>
 ```
 
 </details>
@@ -1468,7 +1468,7 @@ python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 **CLI (рекомендуется)**
 ```bash
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
 ```
 
 **Преимущества**
@@ -1496,10 +1496,10 @@ ValueError: Can't patch loop of type <class 'uvloop.Loop'>
 
 ```bash
 # Вариант 1: Использование shell-скрипта (рекомендуется)
-./scripts/extract_numbered_items.sh <kb_name>
+# Deprecated: numbered-item extraction was removed
 
 # Вариант 2: Прямая команда Python
-python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/knowledge_bases
+# Deprecated: numbered-item extraction was removed
 ```
 
 Это извлечет нумерованные элементы (Определения, Теоремы, Уравнения и т.д.) из вашей базы знаний без повторной инициализации.

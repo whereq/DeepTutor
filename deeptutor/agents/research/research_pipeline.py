@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 ResearchPipeline 2.0 - Research workflow based on dynamic topic queue
 Coordinates three stages: Planning -> Researching -> Reporting

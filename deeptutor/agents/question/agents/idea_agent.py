@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 IdeaAgent - Generate candidate question directions from topic and preference.
 """

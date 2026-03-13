@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 LLM Client
 ==========
@@ -14,7 +13,6 @@ from typing import cast
 
 from deeptutor.logging import get_logger
 
-from .capabilities import system_in_messages
 from .config import LLMConfig, get_llm_config
 from .utils import sanitize_url
 
@@ -38,19 +36,12 @@ class LLMClient:
         self.config = config or get_llm_config()
         self.logger = get_logger("LLMClient")
 
-        # Set environment variables for LightRAG compatibility
-        # LightRAG's internal functions (openai_complete_if_cache, etc.) read from
-        # os.environ["OPENAI_API_KEY"] even when api_key is passed as parameter.
-        # We must set these env vars early to ensure all LightRAG operations work.
+        # Keep OPENAI_* env vars aligned for libraries that still read from env.
         self._setup_openai_env_vars()
 
     def _setup_openai_env_vars(self) -> None:
         """
-        Set OpenAI environment variables for LightRAG compatibility.
-
-        LightRAG's internal functions read from os.environ["OPENAI_API_KEY"]
-        even when api_key is passed as parameter. This method ensures the
-        environment variables are set for all LightRAG operations.
+        Set OpenAI environment variables for compatibility with OpenAI-style SDKs.
         """
         import os
 
@@ -60,7 +51,7 @@ class LLMClient:
         if binding in ("openai", "azure_openai", "gemini"):
             if self.config.api_key:
                 os.environ["OPENAI_API_KEY"] = self.config.api_key
-                self.logger.debug("Set OPENAI_API_KEY env var for LightRAG compatibility")
+                self.logger.debug("Set OPENAI_API_KEY env var")
 
             if self.config.base_url:
                 from .utils import sanitize_url as _sanitize
@@ -99,6 +90,8 @@ class LLMClient:
             base_url=self.config.base_url,
             api_version=getattr(self.config, "api_version", None),
             binding=getattr(self.config, "binding", "openai"),
+            reasoning_effort=getattr(self.config, "reasoning_effort", None),
+            extra_headers=getattr(self.config, "extra_headers", None),
             messages=messages,
             **kwargs,
         )
@@ -130,203 +123,63 @@ class LLMClient:
 
     def get_model_func(self) -> Callable[..., object]:
         """
-        Get a function compatible with LightRAG's llm_model_func parameter.
+        Get an async callable compatible with generic llm_model_func hooks.
 
         Returns:
             Callable that can be used as llm_model_func
         """
-        binding = getattr(self.config, "binding", "openai")
-
-        # Use capabilities to determine if provider uses OpenAI-style messages
-        uses_openai_style = system_in_messages(binding, self.config.model)
-
-        # For non-OpenAI-compatible providers (e.g., Anthropic), use Factory
-        if not uses_openai_style:
-            from . import factory
-
-            def llm_model_func_via_factory(
-                prompt: str,
-                system_prompt: str | None = None,
-                history_messages: list[dict[str, object]] | None = None,
-                **kwargs: object,
-            ) -> object:
-                factory_complete = cast(Callable[..., object], factory.complete)
-                return factory_complete(
-                    prompt=prompt,
-                    system_prompt=system_prompt or "You are a helpful assistant.",
-                    model=self.config.model,
-                    api_key=self.config.api_key,
-                    base_url=self.config.base_url,
-                    binding=binding,
-                    history_messages=history_messages,
-                    **kwargs,
-                )
-
-            return llm_model_func_via_factory
-
-        # OpenAI-compatible bindings use lightrag (has caching)
-        # Note: Environment variables are already set in __init__ via _setup_openai_env_vars()
-        from lightrag.llm.openai import openai_complete_if_cache
-
-        # Sanitize once so LightRAG never receives a URL with /chat/completions appended
-        sanitized_base = sanitize_url(self.config.base_url) if self.config.base_url else self.config.base_url
-
-        def llm_model_func(
-            prompt: str,
-            system_prompt: str | None = None,
-            history_messages: list[dict[str, object]] | None = None,
-            **kwargs: object,
-        ) -> object:
-            lightrag_kwargs: dict[str, object] = {
-                "system_prompt": system_prompt,
-                "history_messages": history_messages or [],
-                "api_key": self.config.api_key,
-                "base_url": sanitized_base,
-                **kwargs,
-            }
-            api_version = getattr(self.config, "api_version", None)
-            if api_version:
-                lightrag_kwargs["api_version"] = api_version
-            return openai_complete_if_cache(self.config.model, prompt, **lightrag_kwargs)
-
-        return llm_model_func
+        return self._build_factory_model_func(allow_multimodal=False)
 
     def get_vision_model_func(self) -> Callable[..., object]:
         """
-        Get a function compatible with RAG-Anything's vision_model_func parameter.
+        Get an async callable compatible with vision_model_func hooks.
 
         Returns:
             Callable that can be used as vision_model_func
         """
-        binding = getattr(self.config, "binding", "openai")
+        return self._build_factory_model_func(allow_multimodal=True)
 
-        # Use capabilities to determine if provider uses OpenAI-style messages
-        uses_openai_style = system_in_messages(binding, self.config.model)
+    def _build_factory_model_func(self, allow_multimodal: bool) -> Callable[..., object]:
+        """Build adapter callables on top of the unified factory.complete API."""
+        from . import factory
 
-        # For non-OpenAI-compatible providers, use Factory
-        if not uses_openai_style:
-            from . import factory
-
-            def vision_model_func_via_factory(
-                prompt: str,
-                system_prompt: str | None = None,
-                history_messages: list[dict[str, object]] | None = None,
-                image_data: str | None = None,
-                messages: list[dict[str, object]] | None = None,
-                **kwargs: object,
-            ) -> object:
-                # Use factory for unified handling
-                factory_complete = cast(Callable[..., object], factory.complete)
-                return factory_complete(
-                    prompt=prompt,
-                    system_prompt=system_prompt or "You are a helpful assistant.",
-                    model=self.config.model,
-                    api_key=self.config.api_key,
-                    base_url=self.config.base_url,
-                    binding=binding,
-                    messages=messages,
-                    history_messages=history_messages,
-                    image_data=image_data,
-                    **kwargs,
-                )
-
-            return vision_model_func_via_factory
-
-        # OpenAI-compatible bindings
-        # Note: Environment variables are already set in __init__ via _setup_openai_env_vars()
-        from lightrag.llm.openai import openai_complete_if_cache
-
-        # Sanitize once so LightRAG never receives a URL with /chat/completions appended
-        sanitized_base = sanitize_url(self.config.base_url) if self.config.base_url else self.config.base_url
-        # Get api_version once for reuse
-        api_version = getattr(self.config, "api_version", None)
-
-        def vision_model_func(
+        async def model_func(
             prompt: str,
             system_prompt: str | None = None,
             history_messages: list[dict[str, object]] | None = None,
             image_data: str | None = None,
             messages: list[dict[str, object]] | None = None,
             **kwargs: object,
-        ) -> object:
-            if messages:
-                user_content = None
-                sys_content = None
-                for msg in messages:
-                    if msg["role"] == "user":
-                        user_content = msg["content"]
-                    elif msg["role"] == "system":
-                        sys_content = msg["content"]
+        ) -> str:
+            payload_kwargs: dict[str, object] = dict(kwargs)
 
-                clean_kwargs = {
-                    k: v
-                    for k, v in kwargs.items()
-                    if k not in ["messages", "prompt", "system_prompt", "history_messages"]
-                }
-                lightrag_kwargs = {
-                    "system_prompt": sys_content,
-                    "history_messages": [],
-                    "api_key": self.config.api_key,
-                    "base_url": sanitized_base,
-                    **clean_kwargs,
-                }
-                if api_version:
-                    lightrag_kwargs["api_version"] = api_version
+            # Normalize aliases from legacy callsites.
+            payload_kwargs.pop("history_messages", None)
+            payload_kwargs.pop("messages", None)
+            payload_kwargs.pop("prompt", None)
+            payload_kwargs.pop("system_prompt", None)
 
-                return openai_complete_if_cache(
-                    self.config.model,
-                    prompt=user_content,  # Pass multimodal content list as prompt
-                    **lightrag_kwargs,
-                )
+            resolved_messages = messages or cast(list[dict[str, object]] | None, history_messages)
 
-            # Handle image data (base64 encoded)
-            if image_data:
-                # Build multimodal content list
-                multimodal_content = [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
-                    },
-                ]
-                clean_kwargs = {
-                    k: v
-                    for k, v in kwargs.items()
-                    if k not in ["messages", "prompt", "system_prompt", "history_messages"]
-                }
-                lightrag_kwargs = {
-                    "system_prompt": None,
-                    "history_messages": [],
-                    "api_key": self.config.api_key,
-                    "base_url": sanitized_base,
-                    **clean_kwargs,
-                }
-                if api_version:
-                    lightrag_kwargs["api_version"] = api_version
+            if allow_multimodal and image_data is not None:
+                payload_kwargs["image_data"] = image_data
 
-                return openai_complete_if_cache(
-                    self.config.model,
-                    prompt=multimodal_content,
-                    **lightrag_kwargs,
-                )
-
-            # Fallback to regular completion
-            lightrag_kwargs = {
-                "system_prompt": system_prompt,
-                "history_messages": history_messages or [],
-                "api_key": self.config.api_key,
-                "base_url": sanitized_base,
-                **kwargs,
-            }
-            if api_version:
-                lightrag_kwargs["api_version"] = api_version
-            return openai_complete_if_cache(
-                self.config.model,
-                prompt,
-                **lightrag_kwargs,
+            factory_complete = cast(Callable[..., Awaitable[str]], factory.complete)
+            return await factory_complete(
+                prompt=prompt,
+                system_prompt=system_prompt or "You are a helpful assistant.",
+                model=self.config.model,
+                api_key=self.config.api_key,
+                base_url=sanitize_url(self.config.base_url) if self.config.base_url else None,
+                api_version=getattr(self.config, "api_version", None),
+                binding=getattr(self.config, "binding", "openai"),
+                reasoning_effort=getattr(self.config, "reasoning_effort", None),
+                extra_headers=getattr(self.config, "extra_headers", None),
+                messages=resolved_messages,
+                **payload_kwargs,
             )
 
-        return vision_model_func
+        return model_func
 
 
 _client: LLMClient | None = None

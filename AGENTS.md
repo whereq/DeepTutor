@@ -49,7 +49,7 @@ Multi-step agent pipelines that take over the conversation:
 
 ### Playground Plugins
 
-Extended features in `src/plugins/`:
+Extended features in `deeptutor/plugins/`:
 
 | Plugin            | Type       | Description                          |
 | ----------------- | ---------- | ------------------------------------ |
@@ -83,25 +83,25 @@ deeptutor serve --port 8001
 
 | Path                          | Purpose                              |
 | ----------------------------- | ------------------------------------ |
-| `src/runtime/orchestrator.py` | ChatOrchestrator — unified entry     |
-| `src/core/stream.py`          | StreamEvent protocol                 |
-| `src/core/stream_bus.py`      | Async event fan-out                  |
-| `src/core/tool_protocol.py`   | BaseTool abstract class              |
-| `src/core/capability_protocol.py` | BaseCapability abstract class    |
-| `src/core/context.py`         | UnifiedContext dataclass             |
-| `src/runtime/registry/tool_registry.py` | Tool discovery & registration |
-| `src/runtime/registry/capability_registry.py` | Capability discovery & registration |
-| `src/runtime/mode.py`         | RunMode (CLI vs SERVER)              |
-| `src/capabilities/`           | Built-in capability wrappers         |
-| `src/tools/builtin/`          | Built-in tool wrappers               |
-| `src/plugins/`                | Playground plugins                   |
-| `src/plugins/loader.py`       | Plugin discovery from manifest.yaml  |
-| `src/cli/main.py`             | Typer CLI entry point                |
-| `src/api/routers/unified_ws.py` | Unified WebSocket endpoint         |
+| `deeptutor/runtime/orchestrator.py` | ChatOrchestrator — unified entry     |
+| `deeptutor/core/stream.py`          | StreamEvent protocol                 |
+| `deeptutor/core/stream_bus.py`      | Async event fan-out                  |
+| `deeptutor/core/tool_protocol.py`   | BaseTool abstract class              |
+| `deeptutor/core/capability_protocol.py` | BaseCapability abstract class    |
+| `deeptutor/core/context.py`         | UnifiedContext dataclass             |
+| `deeptutor/runtime/registry/tool_registry.py` | Tool discovery & registration |
+| `deeptutor/runtime/registry/capability_registry.py` | Capability discovery & registration |
+| `deeptutor/runtime/mode.py`         | RunMode (CLI vs SERVER)              |
+| `deeptutor/capabilities/`           | Built-in capability wrappers         |
+| `deeptutor/tools/builtin/`          | Built-in tool wrappers               |
+| `deeptutor/plugins/`                | Playground plugins                   |
+| `deeptutor/plugins/loader.py`       | Plugin discovery from manifest.yaml  |
+| `deeptutor_cli/main.py`             | Typer CLI entry point                |
+| `deeptutor/api/routers/unified_ws.py` | Unified WebSocket endpoint         |
 
 ## Plugin Development
 
-Create a directory under `src/plugins/<name>/` with:
+Create a directory under `deeptutor/plugins/<name>/` with:
 
 ```
 manifest.yaml     # name, version, type, description, stages
@@ -119,9 +119,9 @@ stages: [step1, step2]
 
 Minimal `capability.py`:
 ```python
-from src.core.capability_protocol import BaseCapability, CapabilityManifest
-from src.core.context import UnifiedContext
-from src.core.stream_bus import StreamBus
+from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
+from deeptutor.core.context import UnifiedContext
+from deeptutor.core.stream_bus import StreamBus
 
 class MyPlugin(BaseCapability):
     manifest = CapabilityManifest(
@@ -142,7 +142,7 @@ class MyPlugin(BaseCapability):
 requirements/core.txt       — CLI minimum (~80MB)
 requirements/server.txt     — + FastAPI/uvicorn
 requirements/rag-lite.txt   — + LlamaIndex RAG
-requirements/rag-full.txt   — + raganything + docling
+requirements/rag-full.txt   — compatibility alias of rag-lite (LlamaIndex-only)
 requirements/providers.txt  — + native LLM SDKs
 requirements/dev.txt        — + test/lint tools
 ```

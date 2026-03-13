@@ -9,11 +9,11 @@ import time
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from deeptutor.services.config import resolve_search_runtime_config
 from deeptutor.services.embedding import get_embedding_client, get_embedding_config
 from deeptutor.services.llm import complete as llm_complete
 from deeptutor.services.llm import get_llm_config, get_token_limit_kwargs
 from deeptutor.services.search import web_search
-from deeptutor.services.config import get_env_store
 
 router = APIRouter()
 
@@ -100,10 +100,30 @@ async def get_system_status():
         result["embeddings"]["status"] = "error"
         result["embeddings"]["error"] = str(e)
 
-    search_provider = get_env_store().get("SEARCH_PROVIDER", "")
-    if search_provider:
-        result["search"]["provider"] = search_provider
-        result["search"]["status"] = "configured"
+    try:
+        search_config = resolve_search_runtime_config()
+        if search_config.requested_provider:
+            result["search"]["provider"] = search_config.provider
+            if search_config.unsupported_provider:
+                result["search"]["status"] = "unsupported"
+                result["search"]["error"] = (
+                    f"{search_config.requested_provider} is deprecated/unsupported. "
+                    "Switch to brave/tavily/jina/searxng/duckduckgo."
+                )
+            elif search_config.deprecated_provider:
+                result["search"]["status"] = "deprecated"
+                result["search"]["error"] = (
+                    f"{search_config.requested_provider} is deprecated. "
+                    "Switch to brave/tavily/jina/searxng/duckduckgo."
+                )
+            else:
+                result["search"]["status"] = "configured"
+                if search_config.fallback_reason:
+                    result["search"]["status"] = "fallback"
+                    result["search"]["error"] = search_config.fallback_reason
+    except Exception as e:
+        result["search"]["status"] = "error"
+        result["search"]["error"] = str(e)
 
     return result
 
@@ -232,14 +252,22 @@ async def test_search_connection():
     start_time = time.time()
 
     try:
-        provider = get_env_store().get("SEARCH_PROVIDER", "")
-        if not provider:
+        search_config = resolve_search_runtime_config()
+        if not search_config.requested_provider:
             return TestResponse(
                 success=False,
                 message="Search not configured",
                 error="Missing SEARCH_PROVIDER",
             )
-        result = web_search("DeepTutor health check", provider=provider)
+        if search_config.unsupported_provider:
+            return TestResponse(
+                success=False,
+                message=(
+                    f"Search provider `{search_config.requested_provider}` is deprecated/unsupported."
+                ),
+                error="Switch to brave/tavily/jina/searxng/duckduckgo",
+            )
+        result = web_search("DeepTutor health check", provider=search_config.provider)
         response_time = (time.time() - start_time) * 1000
         answer = result.get("answer") or result.get("search_results")
         if not answer:
@@ -247,7 +275,7 @@ async def test_search_connection():
         return TestResponse(
             success=True,
             message="Search connection successful",
-            model=provider,
+            model=search_config.provider,
             response_time_ms=round(response_time, 2),
         )
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Vector Indexer
 ==============
@@ -12,7 +11,10 @@ from pathlib import Path
 import pickle
 from typing import List, Optional
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - optional dependency in minimal envs
+    np = None
 
 from ...types import Document
 from ..base import BaseComponent
@@ -44,6 +46,10 @@ class VectorIndexer(BaseComponent):
 
         # Try to import FAISS, fallback to simple storage if not available
         self.use_faiss = False
+        if np is None:
+            self.logger.warning("NumPy not available, vector indexer is disabled")
+            return
+
         try:
             import faiss
 
@@ -89,6 +95,10 @@ class VectorIndexer(BaseComponent):
         kb_dir.mkdir(parents=True, exist_ok=True)
 
         # Convert embeddings to numpy array
+        if np is None:
+            self.logger.warning("NumPy not available, skipping vector indexing")
+            return False
+
         embeddings = np.array(
             [
                 chunk.embedding if isinstance(chunk.embedding, list) else chunk.embedding.tolist()

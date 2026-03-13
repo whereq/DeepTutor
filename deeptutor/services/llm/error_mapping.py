@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Error Mapping - Map provider-specific errors to unified exceptions.
 """

@@ -32,12 +32,13 @@ from deeptutor.knowledge.add_documents import DocumentAdder
 from deeptutor.knowledge.initializer import KnowledgeBaseInitializer
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
+from deeptutor.services.rag.components.routing import FileTypeRouter
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER, has_pipeline, normalize_provider_name
 from deeptutor.utils.document_validator import DocumentValidator
 from deeptutor.utils.error_utils import format_exception_message
 
 from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
-from deeptutor.services.llm import get_llm_config
 
 # Initialize logger with config
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
@@ -104,7 +105,11 @@ def _build_unique_task_id(task_type: str, task_key_prefix: str) -> str:
     return task_manager.generate_task_id(task_type, task_key)
 
 
-def _save_uploaded_files(files: list[UploadFile], target_dir: Path) -> tuple[list[str], list[str]]:
+def _save_uploaded_files(
+    files: list[UploadFile],
+    target_dir: Path,
+    allowed_extensions: set[str] | None = None,
+) -> tuple[list[str], list[str]]:
     uploaded_files: list[str] = []
     uploaded_file_paths: list[str] = []
 
@@ -112,7 +117,9 @@ def _save_uploaded_files(files: list[UploadFile], target_dir: Path) -> tuple[lis
         file_path = None
         original_filename = file.filename or "upload"
         try:
-            sanitized_filename = DocumentValidator.validate_upload_safety(original_filename, None)
+            sanitized_filename = DocumentValidator.validate_upload_safety(
+                original_filename, None, allowed_extensions=allowed_extensions
+            )
             file.filename = sanitized_filename
 
             file_path = target_dir / sanitized_filename
@@ -130,7 +137,9 @@ def _save_uploaded_files(files: list[UploadFile], target_dir: Path) -> tuple[lis
                         )
                     buffer.write(chunk)
 
-            DocumentValidator.validate_upload_safety(sanitized_filename, written_bytes)
+            DocumentValidator.validate_upload_safety(
+                sanitized_filename, written_bytes, allowed_extensions=allowed_extensions
+            )
             uploaded_files.append(sanitized_filename)
             uploaded_file_paths.append(str(file_path))
         except Exception as e:
@@ -149,6 +158,57 @@ def _save_uploaded_files(files: list[UploadFile], target_dir: Path) -> tuple[lis
     return uploaded_files, uploaded_file_paths
 
 
+def _task_log(task_id: str, message: str, level: str = "info") -> None:
+    manager = get_task_stream_manager()
+    manager.ensure_task(task_id)
+    manager.emit_log(task_id, message)
+
+    log_method = getattr(logger, level, None)
+    if callable(log_method):
+        log_method(f"[{task_id}] {message}")
+    else:
+        logger.info(f"[{task_id}] {message}")
+
+
+def _validate_registered_provider(raw_provider: str | None) -> str:
+    candidate = (raw_provider or DEFAULT_PROVIDER).strip().lower()
+    if not candidate:
+        candidate = DEFAULT_PROVIDER
+
+    if not has_pipeline(candidate):
+        from deeptutor.services.rag.service import RAGService
+
+        available_providers = [item["id"] for item in RAGService.list_providers()]
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unsupported RAG provider '{candidate}'. "
+                f"Available providers: {available_providers}"
+            ),
+        )
+
+    return normalize_provider_name(candidate)
+
+
+def _load_kb_entry_or_404(manager: KnowledgeBaseManager, kb_name: str) -> dict:
+    manager.config = manager._load_config()
+    kb_entry = manager.config.get("knowledge_bases", {}).get(kb_name)
+    if kb_entry is None:
+        raise HTTPException(status_code=404, detail=f"Knowledge base '{kb_name}' not found")
+    return kb_entry
+
+
+def _assert_kb_writable_or_409(kb_name: str, kb_entry: dict) -> None:
+    if bool(kb_entry.get("needs_reindex", False)):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Knowledge base '{kb_name}' uses legacy index format and needs reindex "
+                "before accepting incremental uploads."
+            ),
+        )
+
+
 async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id: str):
     """Background task for knowledge base initialization"""
     task_manager = TaskIDManager.get_instance()
@@ -164,16 +224,18 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
 
             initializer.progress_tracker.task_id = task_id
 
-            logger.info(f"[{task_id}] Initializing KB: {initializer.kb_name}")
+            _task_log(task_id, f"Initializing knowledge base '{initializer.kb_name}'")
 
             await initializer.process_documents()
+            _task_log(task_id, "Document processing complete")
             initializer.extract_numbered_items()
+            _task_log(task_id, "Finalizing initialization")
 
             initializer.progress_tracker.update(
                 ProgressStage.COMPLETED, "Knowledge base initialization complete!", current=1, total=1
             )
 
-            logger.success(f"[{task_id}] KB '{initializer.kb_name}' initialized")
+            _task_log(task_id, f"Knowledge base '{initializer.kb_name}' initialized", level="success")
             task_manager.update_task_status(task_id, "completed")
             task_stream_manager.emit_complete(
                 task_id, f"Knowledge base '{initializer.kb_name}' initialization complete"
@@ -181,7 +243,7 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
         except Exception as e:
             error_msg = str(e)
 
-            logger.error(f"[{task_id}] KB '{initializer.kb_name}' init failed: {error_msg}")
+            _task_log(task_id, f"Initialization failed: {error_msg}", level="error")
 
             task_manager.update_task_status(task_id, "error", error=error_msg)
 
@@ -195,8 +257,6 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
 async def run_upload_processing_task(
     kb_name: str,
     base_dir: str,
-    api_key: str,
-    base_url: str,
     uploaded_file_paths: list[str],
     task_id: str,
     rag_provider: str = None,
@@ -207,8 +267,6 @@ async def run_upload_processing_task(
     Args:
         kb_name: Knowledge base name
         base_dir: Base directory for knowledge bases
-        api_key: LLM API key
-        base_url: LLM API base URL
         uploaded_file_paths: List of file paths to process
         rag_provider: RAG provider (ignored - we use the one from KB metadata)
         folder_id: Optional folder ID for sync state update
@@ -222,7 +280,7 @@ async def run_upload_processing_task(
 
     with capture_task_logs(task_id):
         try:
-            logger.info(f"[{task_id}] Processing {len(uploaded_file_paths)} files to KB '{kb_name}'")
+            _task_log(task_id, f"Processing {len(uploaded_file_paths)} file(s) for KB '{kb_name}'")
             progress_tracker.update(
                 ProgressStage.PROCESSING_DOCUMENTS,
                 f"Processing {len(uploaded_file_paths)} files...",
@@ -233,16 +291,15 @@ async def run_upload_processing_task(
             adder = DocumentAdder(
                 kb_name=kb_name,
                 base_dir=base_dir,
-                api_key=api_key,
-                base_url=base_url,
                 progress_tracker=progress_tracker,
                 rag_provider=rag_provider,
             )
 
             staged_files = adder.add_documents(uploaded_file_paths, allow_duplicates=False)
+            _task_log(task_id, f"Staged {len(staged_files)} new file(s)")
 
             if not staged_files:
-                logger.info(f"[{task_id}] No new files to process (all duplicates or invalid)")
+                _task_log(task_id, "No new files to process (all duplicates or invalid)")
                 progress_tracker.update(
                     ProgressStage.COMPLETED,
                     "No new files to process (all duplicates or invalid)",
@@ -256,6 +313,7 @@ async def run_upload_processing_task(
                 return
 
             processed_files = await adder.process_new_documents(staged_files)
+            _task_log(task_id, f"Indexed {len(processed_files)} file(s)")
 
             if processed_files:
                 progress_tracker.update(
@@ -274,9 +332,9 @@ async def run_upload_processing_task(
                     manager.update_folder_sync_state(
                         kb_name, folder_id, [str(f) for f in processed_files]
                     )
-                    logger.info(f"[{task_id}] Updated folder sync state for folder '{folder_id}'")
+                    _task_log(task_id, f"Updated folder sync state: {folder_id}")
                 except Exception as sync_err:
-                    logger.warning(f"[{task_id}] Failed to update folder sync state: {sync_err}")
+                    _task_log(task_id, f"Folder sync state update failed: {sync_err}", level="warning")
 
             num_processed = len(processed_files) if processed_files else 0
             progress_tracker.update(
@@ -286,14 +344,14 @@ async def run_upload_processing_task(
                 total=num_processed,
             )
 
-            logger.success(f"[{task_id}] Processed {num_processed} files to KB '{kb_name}'")
+            _task_log(task_id, f"Processed {num_processed} file(s) for '{kb_name}'", level="success")
             task_manager.update_task_status(task_id, "completed")
             task_stream_manager.emit_complete(
                 task_id, f"Successfully processed {num_processed} files for '{kb_name}'"
             )
         except Exception as e:
             error_msg = f"Upload processing failed (KB '{kb_name}'): {e}"
-            logger.error(f"[{task_id}] {error_msg}")
+            _task_log(task_id, error_msg, level="error")
 
             task_manager.update_task_status(task_id, "error", error=error_msg)
 
@@ -368,9 +426,14 @@ async def update_kb_config(kb_name: str, config: dict):
     try:
         from deeptutor.services.config import get_kb_config_service
 
+        if "rag_provider" in config:
+            config["rag_provider"] = _validate_registered_provider(config.get("rag_provider"))
+
         service = get_kb_config_service()
         service.set_kb_config(kb_name, config)
         return {"status": "success", "kb_name": kb_name, "config": service.get_kb_config(kb_name)}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating config for KB '{kb_name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -428,10 +491,10 @@ async def list_knowledge_bases():
         manager = get_kb_manager()
         kb_names = manager.list_knowledge_bases()
 
-        logger.info(f"Found {len(kb_names)} knowledge bases: {kb_names}")
+        logger.debug(f"Found {len(kb_names)} knowledge bases: {kb_names}")
 
         if not kb_names:
-            logger.info("No knowledge bases found, returning empty list")
+            logger.debug("No knowledge bases found, returning empty list")
             return []
 
         result = []
@@ -457,7 +520,7 @@ async def list_knowledge_bases():
                 try:
                     kb_dir = manager.base_dir / name
                     if kb_dir.exists():
-                        logger.info(f"KB '{name}' directory exists, creating fallback info")
+                        logger.debug(f"KB '{name}' directory exists, creating fallback info")
                         result.append(
                             KnowledgeBaseInfo(
                                 name=name,
@@ -485,7 +548,7 @@ async def list_knowledge_bases():
                 f"Some KBs had errors, returning {len(result)} results. Errors: {errors}"
             )
 
-        logger.info(f"Returning {len(result)} knowledge bases")
+        logger.debug(f"Returning {len(result)} knowledge bases")
         return result
     except HTTPException:
         raise
@@ -549,14 +612,25 @@ async def upload_files(
         raw_dir = kb_path / "raw"
         raw_dir.mkdir(parents=True, exist_ok=True)
 
-        try:
-            llm_config = get_llm_config()
-            api_key = llm_config.api_key
-            base_url = llm_config.base_url
-        except ValueError as e:
-            raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
+        requested_provider = None
+        if rag_provider is not None and str(rag_provider).strip():
+            requested_provider = _validate_registered_provider(rag_provider)
 
-        uploaded_files, uploaded_file_paths = _save_uploaded_files(files, raw_dir)
+        kb_entry = _load_kb_entry_or_404(manager, kb_name)
+        _assert_kb_writable_or_409(kb_name, kb_entry)
+        kb_provider = _validate_registered_provider(kb_entry.get("rag_provider") or DEFAULT_PROVIDER)
+        if requested_provider and requested_provider != kb_provider:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Requested provider '{requested_provider}' does not match KB provider '{kb_provider}'. "
+                    "Update KB config first."
+                ),
+            )
+        allowed_extensions = FileTypeRouter.get_extensions_for_provider(kb_provider)
+        uploaded_files, uploaded_file_paths = _save_uploaded_files(
+            files, raw_dir, allowed_extensions=allowed_extensions
+        )
         task_id = _build_unique_task_id("kb_upload", kb_name)
         get_task_stream_manager().ensure_task(task_id)
 
@@ -566,11 +640,9 @@ async def upload_files(
             run_upload_processing_task,
             kb_name=kb_name,
             base_dir=str(_kb_base_dir),
-            api_key=api_key,
-            base_url=base_url,
             uploaded_file_paths=uploaded_file_paths,
             task_id=task_id,
-            rag_provider=rag_provider,
+            rag_provider=kb_provider,
         )
 
         return {
@@ -578,6 +650,8 @@ async def upload_files(
             "files": uploaded_files,
             "task_id": task_id,
         }
+    except HTTPException:
+        raise
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Knowledge base '{kb_name}' not found")
     except Exception as e:
@@ -591,7 +665,7 @@ async def create_knowledge_base(
     background_tasks: BackgroundTasks,
     name: str = Form(...),
     files: list[UploadFile] = File(...),
-    rag_provider: str = Form("raganything"),
+    rag_provider: str = Form(DEFAULT_PROVIDER),
 ):
     """Create a new knowledge base and initialize it with files."""
     try:
@@ -599,12 +673,7 @@ async def create_knowledge_base(
         if name in manager.list_knowledge_bases():
             raise HTTPException(status_code=400, detail=f"Knowledge base '{name}' already exists")
 
-        try:
-            llm_config = get_llm_config()
-            api_key = llm_config.api_key
-            base_url = llm_config.base_url
-        except ValueError as e:
-            raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
+        rag_provider = _validate_registered_provider(rag_provider)
 
         logger.info(f"Creating KB: {name}")
         task_id = _build_unique_task_id("kb_init", name)
@@ -628,6 +697,7 @@ async def create_knowledge_base(
         manager.config = manager._load_config()
         if name in manager.config.get("knowledge_bases", {}):
             manager.config["knowledge_bases"][name]["rag_provider"] = rag_provider
+            manager.config["knowledge_bases"][name]["needs_reindex"] = False
             manager._save_config()
 
         progress_tracker = ProgressTracker(name, _kb_base_dir)
@@ -635,8 +705,6 @@ async def create_knowledge_base(
         initializer = KnowledgeBaseInitializer(
             kb_name=name,
             base_dir=str(_kb_base_dir),
-            api_key=api_key,
-            base_url=base_url,
             progress_tracker=progress_tracker,
             rag_provider=rag_provider,
         )
@@ -649,7 +717,10 @@ async def create_knowledge_base(
             logger.warning(f"KB {name} not found in config, registering manually")
             initializer._register_to_config()
 
-        uploaded_files, _ = _save_uploaded_files(files, initializer.raw_dir)
+        allowed_extensions = FileTypeRouter.get_extensions_for_provider(rag_provider)
+        uploaded_files, _ = _save_uploaded_files(
+            files, initializer.raw_dir, allowed_extensions=allowed_extensions
+        )
 
         progress_tracker.update(
             ProgressStage.PROCESSING_DOCUMENTS,
@@ -717,14 +788,10 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
         initial_progress = progress_tracker.get_progress()
         expected_task_id = websocket.query_params.get("task_id")
 
-        # Check if KB is already ready (has rag_storage)
+        # Check if KB is already ready (has llamaindex storage)
         kb_dir = _kb_base_dir / kb_name
-        rag_storage_dir = kb_dir / "rag_storage"
         llamaindex_storage_dir = kb_dir / "llamaindex_storage"
-        kb_is_ready = (
-            (rag_storage_dir.exists() and rag_storage_dir.is_dir())
-            or (llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir())
-        )
+        kb_is_ready = llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir()
 
         if initial_progress:
             stage = initial_progress.get("stage")
@@ -860,6 +927,9 @@ async def sync_folder(kb_name: str, folder_id: str, background_tasks: Background
     """
     try:
         manager = get_kb_manager()
+        kb_entry = _load_kb_entry_or_404(manager, kb_name)
+        _assert_kb_writable_or_409(kb_name, kb_entry)
+        kb_provider = _validate_registered_provider(kb_entry.get("rag_provider") or DEFAULT_PROVIDER)
 
         # Get linked folders and find the one with matching ID
         folders = manager.get_linked_folders(kb_name)
@@ -877,14 +947,6 @@ async def sync_folder(kb_name: str, folder_id: str, background_tasks: Background
         if not files_to_process:
             return {"message": "No new or modified files to sync", "files": [], "file_count": 0}
 
-        # Get LLM config
-        try:
-            llm_config = get_llm_config()
-            api_key = llm_config.api_key
-            base_url = llm_config.base_url
-        except ValueError as e:
-            raise HTTPException(status_code=500, detail=f"LLM config error: {e!s}")
-
         logger.info(
             f"Syncing {len(files_to_process)} files from folder '{folder_path}' to KB '{kb_name}'"
         )
@@ -900,10 +962,9 @@ async def sync_folder(kb_name: str, folder_id: str, background_tasks: Background
             run_upload_processing_task,
             kb_name=kb_name,
             base_dir=str(_kb_base_dir),
-            api_key=api_key,
-            base_url=base_url,
             uploaded_file_paths=files_to_process,
             task_id=task_id,
+            rag_provider=kb_provider,
             folder_id=folder_id,  # Pass folder_id to update state on success
         )
 

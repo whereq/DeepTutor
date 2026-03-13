@@ -9,8 +9,8 @@
 data/user/
 data/knowledge_bases/
 run_code_workspace/
-src/agents/question/reference_papers/
-src/services/rag/eg_only_for_analysis/
+deeptutor/agents/question/reference_papers/
+deeptutor/services/rag/eg_only_for_analysis/
 paper/
 
 # ============================================

@@ -16,6 +16,7 @@ from .kb import register as register_kb
 from .memory import register as register_memory
 from .notebook import register as register_notebook
 from .plugin import register as register_plugin
+from .provider_cmd import register as register_provider
 from .session_cmd import register as register_session
 
 set_mode(RunMode.CLI)
@@ -34,6 +35,7 @@ plugin_app = typer.Typer(help="List plugins.")
 config_app = typer.Typer(help="Inspect configuration.")
 session_app = typer.Typer(help="Manage shared sessions.")
 notebook_app = typer.Typer(help="Manage notebooks and imported markdown records.")
+provider_app = typer.Typer(help="Manage provider OAuth login.")
 
 app.add_typer(chat_app, name="chat")
 app.add_typer(kb_app, name="kb")
@@ -42,6 +44,7 @@ app.add_typer(plugin_app, name="plugin")
 app.add_typer(config_app, name="config")
 app.add_typer(session_app, name="session")
 app.add_typer(notebook_app, name="notebook")
+app.add_typer(provider_app, name="provider")
 
 register_chat(chat_app)
 register_kb(kb_app)
@@ -50,6 +53,7 @@ register_plugin(plugin_app)
 register_config(config_app)
 register_session(session_app)
 register_notebook(notebook_app)
+register_provider(provider_app)
 
 
 @app.command("run")

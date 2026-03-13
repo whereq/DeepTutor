@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 PathService - centralized runtime storage layout for ``data/user``.
 

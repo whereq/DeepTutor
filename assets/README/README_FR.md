@@ -432,23 +432,23 @@ Tous les résultats sont automatiquement enregistrés lorsque vous effectuez n'i
 <tr>
 <td align="center"><a href="../../config/README.md">Configuration</a></td>
 <td align="center"><a href="../../data/README.md">Répertoire de Données</a></td>
-<td align="center"><a href="../../src/api/README.md">Backend API</a></td>
-<td align="center"><a href="../../src/core/README.md">Utilitaires Principaux</a></td>
+<td align="center"><a href="../../deeptutor/api/README.md">Backend API</a></td>
+<td align="center"><a href="../../deeptutor/core/README.md">Utilitaires Principaux</a></td>
 </tr>
 <tr>
-<td align="center"><a href="../../src/knowledge/README.md">Base de Connaissances</a></td>
-<td align="center"><a href="../../src/tools/README.md">Outils</a></td>
+<td align="center"><a href="../../deeptutor/knowledge/README.md">Base de Connaissances</a></td>
+<td align="center"><a href="../../deeptutor/tools/README.md">Outils</a></td>
 <td align="center"><a href="../../web/README.md">Frontend Web</a></td>
-<td align="center"><a href="../../src/agents/solve/README.md">Module de Résolution</a></td>
+<td align="center"><a href="../../deeptutor/agents/solve/README.md">Module de Résolution</a></td>
 </tr>
 <tr>
-<td align="center"><a href="../../src/agents/question/README.md">Module de Question</a></td>
-<td align="center"><a href="../../src/agents/research/README.md">Module de Recherche</a></td>
-<td align="center"><a href="../../src/agents/co_writer/README.md">Module Co-Writer</a></td>
-<td align="center"><a href="../../src/agents/guide/README.md">Module de Guide</a></td>
+<td align="center"><a href="../../deeptutor/agents/question/README.md">Module de Question</a></td>
+<td align="center"><a href="../../deeptutor/agents/research/README.md">Module de Recherche</a></td>
+<td align="center"><a href="../../deeptutor/agents/co_writer/README.md">Module Co-Writer</a></td>
+<td align="center"><a href="../../deeptutor/agents/guide/README.md">Module de Guide</a></td>
 </tr>
 <tr>
-<td align="center" colspan="4"><a href="../../src/agents/ideagen/README.md">Module de Génération d'Idées</a></td>
+<td align="center" colspan="4"><a href="../../deeptutor/agents/ideagen/README.md">Module de Génération d'Idées</a></td>
 </tr>
 </table>
 
@@ -589,7 +589,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8001
 
 **CLI**
 ```bash
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+deeptutor kb create <kb_name> --doc <pdf_path>
 ```
 
 </details>
@@ -599,7 +599,7 @@ python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 **CLI (Recommandé)**
 ```bash
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
 ```
 
 **Avantages**
@@ -627,10 +627,10 @@ Utilisez l'une des méthodes suivantes pour extraire les éléments numérotés:
 
 ```bash
 # Option 1: Utiliser le script shell (recommandé)
-./scripts/extract_numbered_items.sh <kb_name>
+# Deprecated: numbered-item extraction was removed
 
 # Option 2: Commande Python directe
-python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/knowledge_bases
+# Deprecated: numbered-item extraction was removed
 ```
 
 Ceci extraira les éléments numérotés (Définitions, Théorèmes, Équations, etc.) de votre base de connaissances sans la réinitialiser.

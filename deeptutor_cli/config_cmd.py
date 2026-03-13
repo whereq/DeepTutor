@@ -20,14 +20,25 @@ def register(app: typer.Typer) -> None:
         """Show current configuration."""
         import json
 
-        from deeptutor.services.config import get_env_store, load_config_with_main
+        from deeptutor.services.config import (
+            get_env_store,
+            load_config_with_main,
+            resolve_llm_runtime_config,
+            resolve_search_runtime_config,
+        )
 
         summary = get_env_store().as_summary()
+        llm_runtime = resolve_llm_runtime_config()
+        search_runtime = resolve_search_runtime_config()
         llm_info = {
-            "binding": summary.llm["binding"],
-            "model": summary.llm["model"],
-            "base_url": summary.llm["host"],
-            "api_key": "***" if summary.llm["api_key"] else "(not set)",
+            "binding_hint": summary.llm["binding"],
+            "provider": llm_runtime.provider_name,
+            "provider_mode": llm_runtime.provider_mode,
+            "model": llm_runtime.model,
+            "base_url": llm_runtime.effective_url,
+            "api_version": llm_runtime.api_version,
+            "extra_headers": llm_runtime.extra_headers,
+            "api_key": "***" if llm_runtime.api_key else "(not set)",
         }
 
         try:
@@ -51,9 +62,13 @@ def register(app: typer.Typer) -> None:
                         "dimension": summary.embedding["dimension"],
                     },
                     "search": {
-                        "provider": summary.search["provider"] or "(optional)",
-                        "base_url": summary.search["base_url"],
-                        "api_key": "***" if summary.search["api_key"] else "(not set)",
+                        "provider": search_runtime.provider or "(optional)",
+                        "requested_provider": search_runtime.requested_provider or "(optional)",
+                        "status": search_runtime.status,
+                        "fallback_reason": search_runtime.fallback_reason,
+                        "base_url": search_runtime.base_url,
+                        "proxy": search_runtime.proxy,
+                        "api_key": "***" if search_runtime.api_key else "(not set)",
                     },
                     "language": main_cfg.get("system", {}).get("language", "en"),
                     "tools": list(main_cfg.get("tools", {}).keys()),

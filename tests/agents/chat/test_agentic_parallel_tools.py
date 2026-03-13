@@ -170,7 +170,7 @@ async def test_execute_tool_call_streams_retrieve_progress_for_rag(monkeypatch: 
         async def execute(self, name: str, **kwargs):
             event_sink = kwargs.get("event_sink")
             if event_sink is not None:
-                await event_sink("status", "Selecting provider: raganything", {"provider": "raganything"})
+                await event_sink("status", "Selecting provider: llamaindex", {"provider": "llamaindex"})
                 await event_sink("status", "Retrieving chunks...", {"mode": "hybrid"})
             return ToolResult(
                 content=f"{name} => grounded answer",
@@ -232,7 +232,7 @@ async def test_execute_tool_call_streams_retrieve_progress_for_rag(monkeypatch: 
     ]
     assert [event.content for event in retrieve_events] == [
         "Query: transformer model",
-        "Selecting provider: raganything",
+        "Selecting provider: llamaindex",
         "Retrieving chunks...",
         "Retrieve complete (22 chars)",
     ]

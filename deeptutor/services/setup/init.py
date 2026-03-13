@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 System Setup and Initialization
 Combines user directory initialization and port configuration management.
 """
 
 import json
-import os
 from pathlib import Path
+
+import yaml
 
 from deeptutor.logging import get_logger
 from deeptutor.services.config import get_env_store
@@ -15,6 +15,93 @@ from deeptutor.services.path_service import get_path_service
 
 # Initialize logger for setup operations
 _setup_logger = None
+
+DEFAULT_INTERFACE_SETTINGS = {
+    "theme": "light",
+    "language": "en",
+    "sidebar_description": "✨ Data Intelligence Lab @ HKU",
+    "sidebar_nav_order": {
+        "start": ["/", "/history", "/knowledge", "/notebook"],
+        "learnResearch": ["/question", "/solver", "/guide", "/research", "/co_writer"],
+    },
+}
+
+DEFAULT_MAIN_SETTINGS = {
+    "system": {
+        "language": "en",
+    },
+    "logging": {
+        "level": "WARNING",
+        "save_to_file": True,
+        "console_output": True,
+    },
+    "personalization": {
+        "auto_update": True,
+        "max_react_rounds": 6,
+        "agents": {
+            "reflection": True,
+            "summary": True,
+            "weakness": True,
+        },
+    },
+    "tools": {
+        "run_code": {
+            "allowed_roots": ["./data/user"],
+        },
+        "web_search": {
+            "enabled": True,
+            "consolidation": "template",
+            "consolidation_template": "",
+        },
+    },
+    "capabilities": {
+        "question": {
+            "rag_query_count": 3,
+            "max_parallel_questions": 1,
+            "rag_mode": "naive",
+            "idea_loop": {"max_rounds": 3, "ideas_per_round": 5},
+            "generation": {"max_retries": 2},
+        },
+        "solve": {
+            "max_react_iterations": 10,
+            "max_plan_steps": 10,
+            "max_replans": 2,
+            "observation_max_tokens": 2000,
+            "enable_citations": True,
+            "save_intermediate_results": True,
+            "detailed_answer": True,
+        },
+        "research": {
+            "researching": {
+                "note_agent_mode": "auto",
+                "tool_timeout": 60,
+                "tool_max_retries": 2,
+                "paper_search_years_limit": 3,
+            },
+            "rag": {"default_mode": "hybrid", "fallback_mode": "naive"},
+        },
+    },
+}
+
+DEFAULT_AGENTS_SETTINGS = {
+    "capabilities": {
+        "solve": {"temperature": 0.3, "max_tokens": 8192},
+        "research": {"temperature": 0.5, "max_tokens": 12000},
+        "question": {"temperature": 0.7, "max_tokens": 4096},
+        "guide": {"temperature": 0.5, "max_tokens": 16192},
+        "co_writer": {"temperature": 0.7, "max_tokens": 4096},
+    },
+    "tools": {
+        "brainstorm": {"temperature": 0.8, "max_tokens": 2048},
+    },
+    "services": {
+        "personalization": {"temperature": 0.5, "max_tokens": 8192},
+    },
+    "plugins": {
+        "vision_solver": {"temperature": 0.3, "max_tokens": 12000},
+        "math_animator": {"temperature": 0.4, "max_tokens": 12000},
+    },
+}
 
 
 def _get_setup_logger():
@@ -66,7 +153,8 @@ def init_user_directories(project_root: Path | None = None) -> None:
     """
     # Use PathService for all paths
     path_service = get_path_service()
-    
+    path_service.ensure_all_directories()
+
     # Only initialize essential configuration files
     # Directories will be created on-demand when files are saved
     _ensure_essential_settings(path_service)
@@ -80,27 +168,39 @@ def _ensure_essential_settings(path_service) -> None:
     All other directories are created on-demand when files are saved.
     """
     interface_file = path_service.get_settings_file("interface")
-    if not interface_file.exists():
-        try:
-            # Create settings directory
-            interface_file.parent.mkdir(parents=True, exist_ok=True)
-            # Create default interface settings
-            initial_settings = {
-                "theme": "light",
-                "language": "en",
-                "sidebar_description": "✨ Data Intelligence Lab @ HKU",
-                "sidebar_nav_order": {
-                    "start": ["/", "/history", "/knowledge", "/notebook"],
-                    "learnResearch": ["/question", "/solver", "/guide", "/research", "/co_writer"],
-                },
-            }
-            with open(interface_file, "w", encoding="utf-8") as f:
-                json.dump(initial_settings, f, indent=2, ensure_ascii=False)
-            logger = _get_setup_logger()
-            logger.info(f"Created default settings: {interface_file}")
-        except Exception as e:
-            logger = _get_setup_logger()
-            logger.warning(f"Failed to create settings/interface.json: {e}")
+    _write_json_if_missing(interface_file, DEFAULT_INTERFACE_SETTINGS)
+
+    main_file = path_service.get_runtime_config_file("main")
+    _write_yaml_if_missing(main_file, DEFAULT_MAIN_SETTINGS)
+
+    agents_file = path_service.get_runtime_config_file("agents")
+    _write_yaml_if_missing(agents_file, DEFAULT_AGENTS_SETTINGS)
+
+
+def _write_json_if_missing(file_path: Path, payload: dict) -> None:
+    """Write JSON defaults once; never overwrite user-managed files."""
+    if file_path.exists():
+        return
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        _get_setup_logger().info(f"Created default settings: {file_path}")
+    except Exception as e:
+        _get_setup_logger().warning(f"Failed to create default JSON file {file_path}: {e}")
+
+
+def _write_yaml_if_missing(file_path: Path, payload: dict) -> None:
+    """Write YAML defaults once; never overwrite user-managed files."""
+    if file_path.exists():
+        return
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=True)
+        _get_setup_logger().info(f"Created default settings: {file_path}")
+    except Exception as e:
+        _get_setup_logger().warning(f"Failed to create default YAML file {file_path}: {e}")
 
 
 # ============================================================================

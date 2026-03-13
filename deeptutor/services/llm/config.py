@@ -14,7 +14,9 @@ import os
 import re
 from typing import TYPE_CHECKING, TypedDict
 
-from deeptutor.services.config import get_env_store
+from deeptutor.services.config import get_env_store, resolve_llm_runtime_config
+
+from .exceptions import LLMConfigError
 
 if TYPE_CHECKING:
     from .traffic_control import TrafficController
@@ -29,15 +31,15 @@ class LLMConfigUpdate(TypedDict, total=False):
     effective_url: str | None
     binding: str
     provider_name: str
+    provider_mode: str
     api_version: str | None
+    extra_headers: dict[str, str]
+    reasoning_effort: str | None
     max_tokens: int
     temperature: float
     max_concurrency: int
     requests_per_minute: int
     traffic_controller: "TrafficController" | None
-
-
-from .exceptions import LLMConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -46,35 +48,48 @@ PROJECT_ROOT = get_env_store().path.parent
 
 def _setup_openai_env_vars_early() -> None:
     """
-    Set OPENAI_API_KEY environment variable early for LightRAG compatibility.
+    Set OPENAI_* environment variables early for OpenAI-compatible SDKs.
 
-    LightRAG's internal functions (e.g., create_openai_async_client) read directly
-    from os.environ["OPENAI_API_KEY"] instead of using the api_key parameter.
-    This function ensures the environment variable is set as soon as this module
-    is imported, before any LightRAG operations can occur.
-
-    This is called at module load time to ensure env vars are set before any
-    RAG operations, including those in worker threads/processes.
+    Some SDK helpers read credentials/endpoints from process environment.
+    This is called at module import time so downstream calls have consistent
+    environment regardless of entrypoint.
     """
     env_store = get_env_store()
     binding = env_store.get("LLM_BINDING", "openai")
     api_key = env_store.get("LLM_API_KEY", "")
     base_url = env_store.get("LLM_HOST", "")
 
-    # Only set env vars for OpenAI-compatible bindings
-    if binding in ("openai", "azure_openai", "gemini"):
+    if binding in {
+        "openai",
+        "azure_openai",
+        "gemini",
+        "custom",
+        "openrouter",
+        "deepseek",
+        "groq",
+        "minimax",
+        "dashscope",
+        "moonshot",
+        "zhipu",
+        "ollama",
+        "vllm",
+        "aihubmix",
+        "siliconflow",
+        "volcengine",
+        "byteplus",
+        "volcengine_coding_plan",
+        "byteplus_coding_plan",
+    }:
         if api_key and not os.getenv("OPENAI_API_KEY"):
             os.environ["OPENAI_API_KEY"] = api_key
-            logger.debug("Set OPENAI_API_KEY env var for LightRAG compatibility (early init)")
+            logger.debug("Set OPENAI_API_KEY env var (early init)")
 
         if base_url and not os.getenv("OPENAI_BASE_URL"):
             from .utils import sanitize_url
+
             clean_url = sanitize_url(base_url)
             os.environ["OPENAI_BASE_URL"] = clean_url
-            logger.debug(
-                "Set OPENAI_BASE_URL env var to %s (early init)",
-                clean_url,
-            )
+            logger.debug("Set OPENAI_BASE_URL env var to %s (early init)", clean_url)
 
 
 # Execute early setup at module import time
@@ -91,7 +106,10 @@ class LLMConfig:
     effective_url: str | None = None
     binding: str = "openai"
     provider_name: str = "routing"
+    provider_mode: str = "standard"
     api_version: str | None = None
+    extra_headers: dict[str, str] | None = None
+    reasoning_effort: str | None = None
     max_tokens: int = 4096
     temperature: float = 0.7
     max_concurrency: int = 20
@@ -118,25 +136,48 @@ def initialize_environment() -> None:
     """
     Explicitly initialize environment variables for compatibility.
 
-    LightRAG's internal functions (e.g., create_openai_async_client) read directly
-    from os.environ["OPENAI_API_KEY"] instead of using the api_key parameter.
-    This function ensures the environment variable is set.
-
-    Should be called during application startup (main.py/run_server.py).
+    This should be called during application startup to keep OPENAI_* env vars
+    aligned with current config values.
     """
-    env_store = get_env_store()
-    binding = _strip_value(env_store.get("LLM_BINDING")) or "openai"
-    api_key = _strip_value(env_store.get("LLM_API_KEY"))
-    base_url = _strip_value(env_store.get("LLM_HOST"))
+    try:
+        resolved = resolve_llm_runtime_config()
+        binding = resolved.binding
+        api_key = resolved.api_key
+        base_url = resolved.effective_url
+    except Exception:
+        env_store = get_env_store()
+        binding = _strip_value(env_store.get("LLM_BINDING")) or "openai"
+        api_key = _strip_value(env_store.get("LLM_API_KEY"))
+        base_url = _strip_value(env_store.get("LLM_HOST"))
 
-    # Only set env vars for OpenAI-compatible bindings
-    if binding in ("openai", "azure_openai", "gemini"):
+    if binding in {
+        "openai",
+        "azure_openai",
+        "gemini",
+        "custom",
+        "openrouter",
+        "deepseek",
+        "groq",
+        "minimax",
+        "dashscope",
+        "moonshot",
+        "zhipu",
+        "ollama",
+        "vllm",
+        "aihubmix",
+        "siliconflow",
+        "volcengine",
+        "byteplus",
+        "volcengine_coding_plan",
+        "byteplus_coding_plan",
+    }:
         if api_key and not os.getenv("OPENAI_API_KEY"):
             os.environ["OPENAI_API_KEY"] = api_key
-            logger.debug("Set OPENAI_API_KEY env var (LightRAG compatibility)")
+            logger.debug("Set OPENAI_API_KEY env var")
 
         if base_url and not os.getenv("OPENAI_BASE_URL"):
             from .utils import sanitize_url
+
             clean_url = sanitize_url(base_url)
             os.environ["OPENAI_BASE_URL"] = clean_url
             logger.debug("Set OPENAI_BASE_URL env var to %s", clean_url)
@@ -177,6 +218,31 @@ def _get_llm_config_from_env() -> LLMConfig:
     )
 
 
+def _get_llm_config_from_resolver() -> LLMConfig:
+    """Resolve LLM config from the nanobot-style runtime adapter."""
+    resolved = resolve_llm_runtime_config()
+    if not resolved.model:
+        raise LLMConfigError(
+            "No active LLM model is configured. Please set it in Settings > Catalog."
+        )
+    if not resolved.effective_url and resolved.provider_mode != "oauth":
+        raise LLMConfigError(
+            "No effective LLM endpoint resolved. Please configure base_url or provider defaults."
+        )
+    return LLMConfig(
+        model=resolved.model,
+        api_key=resolved.api_key,
+        base_url=resolved.base_url,
+        effective_url=resolved.effective_url,
+        binding=resolved.binding,
+        provider_name=resolved.provider_name,
+        provider_mode=resolved.provider_mode,
+        api_version=resolved.api_version,
+        extra_headers=resolved.extra_headers,
+        reasoning_effort=resolved.reasoning_effort,
+    )
+
+
 def get_llm_config() -> LLMConfig:
     """
     Load LLM configuration.
@@ -192,7 +258,14 @@ def get_llm_config() -> LLMConfig:
     if _LLM_CONFIG_CACHE is not None:
         return _LLM_CONFIG_CACHE
 
-    _LLM_CONFIG_CACHE = _get_llm_config_from_env()
+    try:
+        _LLM_CONFIG_CACHE = _get_llm_config_from_resolver()
+    except Exception as exc:
+        logger.warning(
+            "LLM runtime resolver failed, falling back to env compatibility path: %s",
+            exc,
+        )
+        _LLM_CONFIG_CACHE = _get_llm_config_from_env()
     return _LLM_CONFIG_CACHE
 
 

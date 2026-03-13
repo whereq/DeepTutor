@@ -108,6 +108,7 @@ class ModelCatalogService:
                         "base_url": summary.llm["host"],
                         "api_key": summary.llm["api_key"],
                         "api_version": summary.llm["api_version"],
+                        "extra_headers": {},
                         "models": [
                             {
                                 "id": model_id,
@@ -135,6 +136,7 @@ class ModelCatalogService:
                         "base_url": summary.embedding["host"],
                         "api_key": summary.embedding["api_key"],
                         "api_version": summary.embedding["api_version"],
+                        "extra_headers": {},
                         "models": [
                             {
                                 "id": model_id,
@@ -159,10 +161,11 @@ class ModelCatalogService:
                     {
                         "id": profile_id,
                         "name": "Default Search Provider",
-                        "provider": summary.search["provider"] or "perplexity",
+                        "provider": summary.search["provider"] or "brave",
                         "base_url": summary.search["base_url"],
                         "api_key": summary.search["api_key"],
                         "api_version": "",
+                        "proxy": "",
                         "models": [],
                     }
                 ],
@@ -186,10 +189,12 @@ class ModelCatalogService:
                 profile.setdefault("base_url", "")
                 profile.setdefault("api_key", "")
                 if service_name == "search":
-                    profile.setdefault("provider", "perplexity")
+                    profile.setdefault("provider", "brave")
+                    profile.setdefault("proxy", "")
                     profile["models"] = []
                 else:
                     profile.setdefault("binding", "openai")
+                    profile.setdefault("extra_headers", {})
                     models = profile.setdefault("models", [])
                     for model in models:
                         model.setdefault("id", f"{service_name}-model-{uuid4().hex[:8]}")

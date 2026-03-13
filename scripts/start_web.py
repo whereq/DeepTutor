@@ -15,9 +15,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from _cli_kit import accent, banner, bold, dim, log_error, log_info, log_success, warn  # noqa: E402
 
-from deeptutor.services.config import get_env_store  # noqa: E402
+def _load_runtime_deps():
+    from _cli_kit import accent, banner, bold, dim, log_error, log_info, log_success, warn
+    from deeptutor.services.config import get_env_store
+
+    return accent, banner, bold, dim, log_error, log_info, log_success, warn, get_env_store
+
+
+accent, banner, bold, dim, log_error, log_info, log_success, warn, get_env_store = (
+    _load_runtime_deps()
+)
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +116,7 @@ def main() -> None:
     frontend_env = os.environ.copy()
     frontend_env["NEXT_PUBLIC_API_BASE"] = f"http://localhost:{backend_port}"
 
-    backend_cmd = [sys.executable, str(PROJECT_ROOT / "src" / "api" / "run_server.py")]
+    backend_cmd = [sys.executable, "-m", "deeptutor.api.run_server"]
     frontend_cmd = [npm, "run", "dev", "--", "--port", str(frontend_port)]
 
     log_info("Starting backend ...")

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Jina AI embedding adapter with task-aware embeddings and late chunking."""
 
 import logging

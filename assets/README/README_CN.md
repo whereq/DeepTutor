@@ -502,7 +502,7 @@ data/
 
 ```python
 import asyncio
-from src.agents.solve import MainSolver
+from deeptutor.agents.solve import MainSolver
 
 async def main():
     solver = MainSolver(kb_name="ai_textbook")
@@ -582,7 +582,7 @@ data/user/solve/solve_YYYYMMDD_HHMMSS/
 **自定义模式 - 完整流程：**
 ```python
 import asyncio
-from src.agents.question import AgentCoordinator
+from deeptutor.agents.question import AgentCoordinator
 
 async def main():
     coordinator = AgentCoordinator(
@@ -607,7 +607,7 @@ asyncio.run(main())
 
 **模仿模式 - PDF 上传：**
 ```python
-from src.agents.question.tools.exam_mimic import mimic_exam_questions
+from deeptutor.agents.question.tools.exam_mimic import mimic_exam_questions
 
 result = await mimic_exam_questions(
     pdf_path="exams/midterm.pdf",
@@ -875,16 +875,16 @@ data/user/co-writer/
 
 ```bash
 # 快速模式（快速研究）
-python src/agents/research/main.py --topic "深度学习基础" --preset quick
+python -m deeptutor.agents.research.main --topic "深度学习基础" --preset quick
 
 # 中等模式（平衡）
-python src/agents/research/main.py --topic "Transformer 架构" --preset medium
+python -m deeptutor.agents.research.main --topic "Transformer 架构" --preset medium
 
 # 深度模式（深入研究）
-python src/agents/research/main.py --topic "图神经网络" --preset deep
+python -m deeptutor.agents.research.main --topic "图神经网络" --preset deep
 
 # 自动模式（Agent 自主决定深度）
-python src/agents/research/main.py --topic "强化学习" --preset auto
+python -m deeptutor.agents.research.main --topic "强化学习" --preset auto
 ```
 
 </details>
@@ -894,8 +894,8 @@ python src/agents/research/main.py --topic "强化学习" --preset auto
 
 ```python
 import asyncio
-from src.agents.research import ResearchPipeline
-from src.core.core import get_llm_config, load_config_with_main
+from deeptutor.agents.research import ResearchPipeline
+from deeptutor.core.core import get_llm_config, load_config_with_main
 
 async def main():
     # 加载配置
@@ -1041,8 +1041,8 @@ tools:
 
 ```python
 import asyncio
-from src.agents.ideagen import IdeaGenerationWorkflow, MaterialOrganizerAgent
-from src.core.core import get_llm_config
+from deeptutor.agents.ideagen import IdeaGenerationWorkflow, MaterialOrganizerAgent
+from deeptutor.core.core import get_llm_config
 
 async def main():
     llm_config = get_llm_config()
@@ -1128,23 +1128,23 @@ asyncio.run(main())
 <tr>
 <td align="center"><a href="../../config/README.md">配置</a></td>
 <td align="center"><a href="../../data/README.md">数据目录</a></td>
-<td align="center"><a href="../../src/api/README.md">API 后端</a></td>
-<td align="center"><a href="../../src/core/README.md">核心工具</a></td>
+<td align="center"><a href="../../deeptutor/api/README.md">API 后端</a></td>
+<td align="center"><a href="../../deeptutor/core/README.md">核心工具</a></td>
 </tr>
 <tr>
-<td align="center"><a href="../../src/knowledge/README.md">知识库</a></td>
-<td align="center"><a href="../../src/tools/README.md">工具</a></td>
+<td align="center"><a href="../../deeptutor/knowledge/README.md">知识库</a></td>
+<td align="center"><a href="../../deeptutor/tools/README.md">工具</a></td>
 <td align="center"><a href="../../web/README.md">Web 前端</a></td>
-<td align="center"><a href="../../src/agents/solve/README.md">求解模块</a></td>
+<td align="center"><a href="../../deeptutor/agents/solve/README.md">求解模块</a></td>
 </tr>
 <tr>
-<td align="center"><a href="../../src/agents/question/README.md">题目模块</a></td>
-<td align="center"><a href="../../src/agents/research/README.md">研究模块</a></td>
-<td align="center"><a href="../../src/agents/co_writer/README.md">交互式想法生成模块</a></td>
-<td align="center"><a href="../../src/agents/guide/README.md">引导模块</a></td>
+<td align="center"><a href="../../deeptutor/agents/question/README.md">题目模块</a></td>
+<td align="center"><a href="../../deeptutor/agents/research/README.md">研究模块</a></td>
+<td align="center"><a href="../../deeptutor/agents/co_writer/README.md">交互式想法生成模块</a></td>
+<td align="center"><a href="../../deeptutor/agents/guide/README.md">引导模块</a></td>
 </tr>
 <tr>
-<td align="center" colspan="4"><a href="../../src/agents/ideagen/README.md">想法生成模块</a></td>
+<td align="center" colspan="4"><a href="../../deeptutor/agents/ideagen/README.md">想法生成模块</a></td>
 </tr>
 </table>
 
@@ -1285,7 +1285,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8001
 
 **CLI**
 ```bash
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+deeptutor kb create <kb_name> --doc <pdf_path>
 ```
 
 </details>
@@ -1295,7 +1295,7 @@ python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 **CLI（推荐）**
 ```bash
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
 ```
 
 **优势**
@@ -1323,10 +1323,10 @@ ValueError: Can't patch loop of type <class 'uvloop.Loop'>
 
 ```bash
 # 选项 1：使用 shell 脚本（推荐）
-./scripts/extract_numbered_items.sh <kb_name>
+# Deprecated: numbered-item extraction was removed
 
 # 选项 2：直接 Python 命令
-python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/knowledge_bases
+# Deprecated: numbered-item extraction was removed
 ```
 
 这将从知识库中提取编号项（定义、定理、方程等），无需重新初始化。

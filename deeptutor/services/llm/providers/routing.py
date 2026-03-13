@@ -17,14 +17,15 @@ from typing import Protocol, cast
 
 from deeptutor.logging import get_logger
 
-cloud_provider = import_module("deeptutor.services.llm.cloud_provider")
-local_provider = import_module("deeptutor.services.llm.local_provider")
 from ..config import LLMConfig
 from ..exceptions import LLMConfigError
 from ..registry import register_provider
 from ..types import AsyncStreamGenerator, TutorResponse, TutorStreamChunk
 from ..utils import is_local_llm_server
 from .base_provider import BaseLLMProvider
+
+cloud_provider = import_module("deeptutor.services.llm.cloud_provider")
+local_provider = import_module("deeptutor.services.llm.local_provider")
 
 logger = get_logger(__name__)
 

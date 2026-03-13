@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Semi-automatic sync of prompt structure from prompts/en to prompts/zh|prompts/cn.
@@ -22,7 +21,7 @@ from typing import Any
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-AGENTS_DIR = PROJECT_ROOT / "src" / "agents"
+AGENTS_DIR = PROJECT_ROOT / "deeptutor" / "agents"
 
 
 def _load_yaml(path: Path) -> Any:

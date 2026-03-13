@@ -25,8 +25,15 @@ if str(PROJECT_ROOT) not in sys.path:
 
 load_dotenv(PROJECT_ROOT / ".env", override=False)
 
-from deeptutor.services.llm import factory
-from deeptutor.services.llm.config import clear_llm_config_cache, get_llm_config
+
+def _load_llm_services():
+    from deeptutor.services.llm import factory
+    from deeptutor.services.llm.config import clear_llm_config_cache, get_llm_config
+
+    return factory, clear_llm_config_cache, get_llm_config
+
+
+factory, clear_llm_config_cache, get_llm_config = _load_llm_services()
 
 
 def _mask_key(key: str) -> str:

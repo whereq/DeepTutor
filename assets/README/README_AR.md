@@ -430,23 +430,23 @@ data/
 <tr>
 <td align="center"><a href="../../config/README.md">Configuration</a></td>
 <td align="center"><a href="../../data/README.md">Data Directory</a></td>
-<td align="center"><a href="../../src/api/README.md">API Backend</a></td>
-<td align="center"><a href="../../src/core/README.md">Core Utilities</a></td>
+<td align="center"><a href="../../deeptutor/api/README.md">API Backend</a></td>
+<td align="center"><a href="../../deeptutor/core/README.md">Core Utilities</a></td>
 </tr>
 <tr>
-<td align="center"><a href="../../src/knowledge/README.md">Knowledge Base</a></td>
-<td align="center"><a href="../../src/tools/README.md">Tools</a></td>
+<td align="center"><a href="../../deeptutor/knowledge/README.md">Knowledge Base</a></td>
+<td align="center"><a href="../../deeptutor/tools/README.md">Tools</a></td>
 <td align="center"><a href="../../web/README.md">Web Frontend</a></td>
-<td align="center"><a href="../../src/agents/solve/README.md">Solve Module</a></td>
+<td align="center"><a href="../../deeptutor/agents/solve/README.md">Solve Module</a></td>
 </tr>
 <tr>
-<td align="center"><a href="../../src/agents/question/README.md">Question Module</a></td>
-<td align="center"><a href="../../src/agents/research/README.md">Research Module</a></td>
-<td align="center"><a href="../../src/agents/co_writer/README.md">Co-Writer Module</a></td>
-<td align="center"><a href="../../src/agents/guide/README.md">Guide Module</a></td>
+<td align="center"><a href="../../deeptutor/agents/question/README.md">Question Module</a></td>
+<td align="center"><a href="../../deeptutor/agents/research/README.md">Research Module</a></td>
+<td align="center"><a href="../../deeptutor/agents/co_writer/README.md">Co-Writer Module</a></td>
+<td align="center"><a href="../../deeptutor/agents/guide/README.md">Guide Module</a></td>
 </tr>
 <tr>
-<td align="center" colspan="4"><a href="../../src/agents/ideagen/README.md">Idea Generation Module</a></td>
+<td align="center" colspan="4"><a href="../../deeptutor/agents/ideagen/README.md">Idea Generation Module</a></td>
 </tr>
 </table>
 
@@ -587,7 +587,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8001
 
 **واجهة الأوامر**
 ```bash
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+deeptutor kb create <kb_name> --doc <pdf_path>
 ```
 
 </details>
@@ -597,7 +597,7 @@ python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
 
 **واجهة الأوامر (موصى به)**
 ```bash
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
 ```
 
 **الفوائد**
@@ -625,10 +625,10 @@ ValueError: Can't patch loop of type <class 'uvloop.Loop'>
 
 ```bash
 # الخيار 1: استخدام سكريبت shell (موصى به)
-./scripts/extract_numbered_items.sh <kb_name>
+# Deprecated: numbered-item extraction was removed
 
 # الخيار 2: أمر Python مباشر
-python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/knowledge_bases
+# Deprecated: numbered-item extraction was removed
 ```
 
 سيؤدي هذا إلى استخراج العناصر المرقمة (التعريفات والنظريات والمعادلات وما إلى ذلك) من قاعدة معرفتك دون إعادة تهيئتها.

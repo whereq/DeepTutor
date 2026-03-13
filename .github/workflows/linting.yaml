@@ -4,16 +4,31 @@ on:
   push:
     branches:
       - main
-      - develop
+      - dev
+    paths:
+      - "deeptutor/**"
+      - "deeptutor_cli/**"
+      - "web/**"
+      - "scripts/**"
+      - "tests/**"
+      - ".pre-commit-config.yaml"
+      - "pyproject.toml"
+      - ".github/workflows/linting.yaml"
   pull_request:
     branches:
       - main
-      - develop
+      - dev
+    paths:
+      - "deeptutor/**"
+      - "deeptutor_cli/**"
+      - "web/**"
+      - "scripts/**"
+      - "tests/**"
+      - ".pre-commit-config.yaml"
+      - "pyproject.toml"
+      - ".github/workflows/linting.yaml"
 
 jobs:
-  # ============================================
-  # Python Linting with pre-commit
-  # ============================================
   python-lint:
     name: Python Linting
     runs-on: ubuntu-latest
@@ -38,35 +53,13 @@ jobs:
       - name: Install pre-commit
         run: |
           python -m pip install --upgrade pip
-          # Install pre-commit and tomli (required for bandit to read pyproject.toml)
           pip install pre-commit tomli
 
       - name: Run pre-commit on Python files
         run: |
           echo "🔍 Running pre-commit hooks on Python files..."
-          pre-commit run --all-files --verbose 2>&1 || {
-            echo ""
-            echo "╔═══════════════════════════════════════════════════════════════════════════╗"
-            echo "║                     ❌ Pre-commit checks failed!                          ║"
-            echo "╠═══════════════════════════════════════════════════════════════════════════╣"
-            echo "║  Please run the following commands locally to fix formatting issues:      ║"
-            echo "║                                                                           ║"
-            echo "║    pip install pre-commit       # Install pre-commit (if not installed)  ║"
-            echo "║    pre-commit install           # Set up git hooks (recommended)         ║"
-            echo "║    pre-commit run --all-files   # Fix all formatting issues              ║"
-            echo "║                                                                           ║"
-            echo "║  Then commit and push the changes.                                        ║"
-            echo "║                                                                           ║"
-            echo "║  💡 Tip: After running 'pre-commit install', hooks will run              ║"
-            echo "║     automatically on every commit!                                        ║"
-            echo "╚═══════════════════════════════════════════════════════════════════════════╝"
-            echo ""
-            exit 1
-          }
+          pre-commit run --all-files --verbose
 
-  # ============================================
-  # Frontend Linting (TypeScript/JavaScript)
-  # ============================================
   frontend-lint:
     name: Frontend Linting
     runs-on: ubuntu-latest
@@ -88,44 +81,12 @@ jobs:
 
       - name: Run ESLint
         working-directory: ./web
-        run: |
-          echo "🔍 Running ESLint on frontend code..."
-          # Run ESLint directly (Next.js 16 removed the 'next lint' command)
-          npm run lint 2>&1 || {
-            echo ""
-            echo "╔═══════════════════════════════════════════════════════════════════════════╗"
-            echo "║                     ❌ ESLint checks failed!                              ║"
-            echo "╠═══════════════════════════════════════════════════════════════════════════╣"
-            echo "║  Please run the following commands locally to fix linting issues:         ║"
-            echo "║                                                                           ║"
-            echo "║    cd web                                                                 ║"
-            echo "║    npm run lint          # Check for linting issues                       ║"
-            echo "║    npm run lint -- --fix # Auto-fix linting issues                        ║"
-            echo "║                                                                           ║"
-            echo "║  Then commit and push the changes.                                        ║"
-            echo "╚═══════════════════════════════════════════════════════════════════════════╝"
-            echo ""
-            exit 1
-          }
+        run: npm run lint
 
       - name: TypeScript type check
         working-directory: ./web
-        run: |
-          echo "🔍 Running TypeScript type check..."
-          npx tsc --noEmit 2>&1 || {
-            echo ""
-            echo "╔═══════════════════════════════════════════════════════════════════════════╗"
-            echo "║                     ❌ TypeScript type check failed!                      ║"
-            echo "╠═══════════════════════════════════════════════════════════════════════════╣"
-            echo "║  Please fix the TypeScript errors shown above.                            ║"
-            echo "╚═══════════════════════════════════════════════════════════════════════════╝"
-            echo ""
-            exit 1
-          }
+        run: npx tsc --noEmit
 
-  # ============================================
-  # Lint Summary
-  # ============================================
   lint-summary:
     name: Lint Summary
     runs-on: ubuntu-latest

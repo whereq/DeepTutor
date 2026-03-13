@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Serper Google SERP Provider
 

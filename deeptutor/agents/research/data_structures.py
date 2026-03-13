@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 DR-in-KG 2.0 Core Data Structures
 Includes: TopicBlock, ToolTrace, DynamicTopicQueue

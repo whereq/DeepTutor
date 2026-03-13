@@ -93,10 +93,6 @@ async def test_cloud_complete_fallback(monkeypatch: MonkeyPatch) -> None:
         },
     )
 
-    async def _no_cache(*_args: object, **_kwargs: object) -> None:
-        return None
-
-    monkeypatch.setattr(cloud_provider, "_get_openai_complete_if_cache", lambda: _no_cache)
     monkeypatch.setattr(
         cloud_provider.aiohttp,
         "ClientSession",
@@ -147,10 +143,6 @@ async def test_cloud_complete_error(monkeypatch: MonkeyPatch) -> None:
     """Non-200 responses should raise LLMAPIError."""
     response = _FakeResponse(500, {})
 
-    async def _no_cache(*_args: object, **_kwargs: object) -> None:
-        return None
-
-    monkeypatch.setattr(cloud_provider, "_get_openai_complete_if_cache", lambda: _no_cache)
     monkeypatch.setattr(
         cloud_provider.aiohttp,
         "ClientSession",
@@ -165,26 +157,6 @@ async def test_cloud_complete_error(monkeypatch: MonkeyPatch) -> None:
             base_url="https://api.openai.com/v1",
             binding="openai",
         )
-
-
-@pytest.mark.asyncio
-async def test_cloud_complete_cached(monkeypatch: MonkeyPatch) -> None:
-    """Cache hit should return cached content without fallback calls."""
-
-    async def _cached(*_args: object, **_kwargs: object) -> str:
-        return "cached"
-
-    monkeypatch.setattr(cloud_provider, "_get_openai_complete_if_cache", lambda: _cached)
-
-    result = await cloud_provider.complete(
-        prompt="hello",
-        model="gpt-test",
-        api_key="",
-        base_url="https://api.openai.com/v1",
-        binding="openai",
-    )
-
-    assert result == "cached"
 
 
 def test_cloud_helpers(monkeypatch: MonkeyPatch) -> None:

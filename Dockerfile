@@ -9,7 +9,7 @@
 #
 # Prerequisites:
 #   1. Copy .env.example to .env and configure your API keys
-#   2. Optionally customize config/main.yaml
+#   2. Runtime settings are created under data/user/settings on first start
 # ============================================
 
 # ============================================
@@ -74,6 +74,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Copy requirements and install Python dependencies
+COPY requirements/ ./requirements/
 COPY requirements.txt ./
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
@@ -132,25 +133,28 @@ COPY --from=frontend-builder /app/web/next.config.js ./web/next.config.js
 COPY --from=frontend-builder /app/web/node_modules ./web/node_modules
 
 # Copy application source code
-COPY src/ ./src/
-COPY config/ ./config/
+COPY deeptutor/ ./deeptutor/
+COPY deeptutor_cli/ ./deeptutor_cli/
 COPY scripts/ ./scripts/
 COPY pyproject.toml ./
+COPY requirements/ ./requirements/
 COPY requirements.txt ./
 
 # Create necessary directories (these will be overwritten by volume mounts)
 RUN mkdir -p \
-    data/user/solve \
-    data/user/question \
-    data/user/research/cache \
-    data/user/research/reports \
-    data/user/guide \
-    data/user/notebook \
-    data/user/co-writer/audio \
-    data/user/co-writer/tool_calls \
+    data/user/settings \
+    data/user/workspace/memory \
+    data/user/workspace/notebook \
+    data/user/workspace/co-writer/audio \
+    data/user/workspace/co-writer/tool_calls \
+    data/user/workspace/guide \
+    data/user/workspace/chat/chat \
+    data/user/workspace/chat/deep_solve \
+    data/user/workspace/chat/deep_question \
+    data/user/workspace/chat/deep_research/reports \
+    data/user/workspace/chat/math_animator \
+    data/user/workspace/chat/_detached_code_execution \
     data/user/logs \
-    data/user/run_code_workspace \
-    data/user/performance \
     data/knowledge_bases
 
 # Create supervisord configuration for running both services
@@ -202,7 +206,7 @@ echo "[Backend]  🚀 Starting FastAPI backend on port ${BACKEND_PORT}..."
 # Run uvicorn directly - the application's logging system already handles:
 # 1. Console output (visible in docker logs)
 # 2. File logging to data/user/logs/ai_tutor_*.log
-exec python -m uvicorn src.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT}
+exec python -m uvicorn deeptutor.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT}
 EOF
 
 RUN sed -i 's/\r$//' /app/start-backend.sh && chmod +x /app/start-backend.sh
@@ -281,20 +285,18 @@ fi
 
 # Initialize user data directories if empty
 echo "📁 Checking data directories..."
-if [ ! -f "/app/data/user/user_history.json" ]; then
-    echo "   Initializing user data directories..."
-    python -c "
+echo "   Ensuring runtime settings and workspace layout..."
+python -c "
 from pathlib import Path
-from src.services.setup import init_user_directories
+from deeptutor.services.setup import init_user_directories
 init_user_directories(Path('/app'))
 " 2>/dev/null || echo "   ⚠️ Directory initialization skipped (will be created on first use)"
-fi
 
 echo "============================================"
 echo "📦 Configuration loaded from:"
 echo "   - Environment variables (.env file)"
-echo "   - config/main.yaml"
-echo "   - config/agents.yaml"
+echo "   - data/user/settings/main.yaml"
+echo "   - data/user/settings/agents.yaml"
 echo "============================================"
 
 # Start supervisord
@@ -340,7 +342,7 @@ logfile_maxbytes=0
 pidfile=/var/run/supervisord.pid
 
 [program:backend]
-command=python -m uvicorn src.api.main:app --host 0.0.0.0 --port %(ENV_BACKEND_PORT)s --reload
+command=python -m uvicorn deeptutor.api.main:app --host 0.0.0.0 --port %(ENV_BACKEND_PORT)s --reload
 directory=/app
 autostart=true
 autorestart=true

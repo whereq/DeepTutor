@@ -5,7 +5,10 @@ Uses Python API instead of command line to avoid Windows path parsing issues.
 """
 
 import os
+from pathlib import Path
 import sys
+
+import uvicorn
 
 # Force unbuffered output
 os.environ["PYTHONUNBUFFERED"] = "1"
@@ -13,11 +16,6 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(line_buffering=True)
-
-from pathlib import Path
-
-import uvicorn
-
 
 def main() -> None:
     # Get project root directory

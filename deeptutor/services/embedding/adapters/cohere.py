@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Cohere Embedding Adapter for v1 and v2 API."""
 
 import logging

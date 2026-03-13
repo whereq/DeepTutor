@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version tag (e.g., 0.5.2, 0.6.0) - without 'v' prefix"
+        description: "Version tag (e.g., 0.6.0, 1.0.0) - without 'v' prefix"
         required: true
         type: string
       push_latest:
@@ -68,10 +68,10 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.version }}"
 
-          # Validate version format (e.g., 0.5.2, 1.0.0)
+          # Validate version format (e.g., 0.6.0, 1.0.0)
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "❌ Error: Invalid version format '$VERSION'"
-            echo "   Expected format: X.Y.Z (e.g., 0.5.2, 1.0.0)"
+            echo "   Expected format: X.Y.Z (e.g., 0.6.0, 1.0.0)"
             exit 1
           fi
 
@@ -231,12 +231,13 @@ jobs:
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run -d --name deeptutor \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  -p 8001:8001 -p 3782:3782 \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  --env-file .env \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  -e LLM_MODEL=gpt-4o \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  -e LLM_API_KEY=your-api-key \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  -e EMBEDDING_MODEL=text-embedding-3-large \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  -e EMBEDDING_API_KEY=your-api-key \\\\" >> $GITHUB_STEP_SUMMARY
-          echo "  -v \$(pwd)/data:/app/data \\\\" >> $GITHUB_STEP_SUMMARY
-          echo "  -v \$(pwd)/config:/app/config:ro \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  -v \$(pwd)/data/user:/app/data/user \\\\" >> $GITHUB_STEP_SUMMARY
+          echo "  -v \$(pwd)/data/knowledge_bases:/app/data/knowledge_bases \\\\" >> $GITHUB_STEP_SUMMARY
           echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 LlamaIndex Pipeline
 ===================
@@ -22,6 +21,7 @@ from llama_index.core.bridge.pydantic import PrivateAttr
 
 from deeptutor.logging import get_logger
 from deeptutor.services.embedding import get_embedding_client, get_embedding_config
+from deeptutor.services.rag.components.routing import FileTypeRouter
 
 # Default knowledge base directory
 DEFAULT_KB_BASE_DIR = str(
@@ -141,31 +141,48 @@ class LlamaIndexPipeline:
         storage_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Parse documents
+            # Parse documents with centralized file routing
             documents = []
-            for file_path in file_paths:
-                file_path = Path(file_path)
-                self.logger.info(f"Parsing: {file_path.name}")
+            classification = FileTypeRouter.classify_files(file_paths)
 
-                # Extract text based on file type
-                if file_path.suffix.lower() == ".pdf":
-                    text = self._extract_pdf_text(file_path)
-                else:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        text = f.read()
-
+            for file_path_str in classification.parser_files:
+                file_path = Path(file_path_str)
+                self.logger.info(f"Parsing PDF: {file_path.name}")
+                text = self._extract_pdf_text(file_path)
                 if text.strip():
-                    doc = Document(
-                        text=text,
-                        metadata={
-                            "file_name": file_path.name,
-                            "file_path": str(file_path),
-                        },
+                    documents.append(
+                        Document(
+                            text=text,
+                            metadata={
+                                "file_name": file_path.name,
+                                "file_path": str(file_path),
+                            },
+                        )
                     )
-                    documents.append(doc)
                     self.logger.info(f"Loaded: {file_path.name} ({len(text)} chars)")
                 else:
                     self.logger.warning(f"Skipped empty document: {file_path.name}")
+
+            for file_path_str in classification.text_files:
+                file_path = Path(file_path_str)
+                self.logger.info(f"Parsing text: {file_path.name}")
+                text = await FileTypeRouter.read_text_file(str(file_path))
+                if text.strip():
+                    documents.append(
+                        Document(
+                            text=text,
+                            metadata={
+                                "file_name": file_path.name,
+                                "file_path": str(file_path),
+                            },
+                        )
+                    )
+                    self.logger.info(f"Loaded: {file_path.name} ({len(text)} chars)")
+                else:
+                    self.logger.warning(f"Skipped empty document: {file_path.name}")
+
+            for file_path_str in classification.unsupported:
+                self.logger.warning(f"Skipped unsupported file: {Path(file_path_str).name}")
 
             if not documents:
                 self.logger.error("No valid documents found")
@@ -178,7 +195,7 @@ class LlamaIndexPipeline:
             loop = asyncio.get_event_loop()
             index = await loop.run_in_executor(
                 None,  # Use default ThreadPoolExecutor
-                lambda: VectorStoreIndex.from_documents(documents, show_progress=True),
+                lambda: VectorStoreIndex.from_documents(documents, show_progress=False),
             )
 
             # Persist index
@@ -313,35 +330,48 @@ class LlamaIndexPipeline:
         storage_dir = kb_dir / "llamaindex_storage"
 
         try:
-            # Parse new documents
+            # Parse new documents with centralized file routing
             documents = []
-            for file_path in file_paths:
-                file_path = Path(file_path)
-                self.logger.info(f"Parsing: {file_path.name}")
+            classification = FileTypeRouter.classify_files(file_paths)
 
-                # Extract text based on file type
-                if file_path.suffix.lower() == ".pdf":
-                    text = self._extract_pdf_text(file_path)
-                else:
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            text = f.read()
-                    except UnicodeDecodeError:
-                        with open(file_path, "r", encoding="latin-1") as f:
-                            text = f.read()
-
+            for file_path_str in classification.parser_files:
+                file_path = Path(file_path_str)
+                self.logger.info(f"Parsing PDF: {file_path.name}")
+                text = self._extract_pdf_text(file_path)
                 if text.strip():
-                    doc = Document(
-                        text=text,
-                        metadata={
-                            "file_name": file_path.name,
-                            "file_path": str(file_path),
-                        },
+                    documents.append(
+                        Document(
+                            text=text,
+                            metadata={
+                                "file_name": file_path.name,
+                                "file_path": str(file_path),
+                            },
+                        )
                     )
-                    documents.append(doc)
                     self.logger.info(f"Loaded: {file_path.name} ({len(text)} chars)")
                 else:
                     self.logger.warning(f"Skipped empty document: {file_path.name}")
+
+            for file_path_str in classification.text_files:
+                file_path = Path(file_path_str)
+                self.logger.info(f"Parsing text: {file_path.name}")
+                text = await FileTypeRouter.read_text_file(str(file_path))
+                if text.strip():
+                    documents.append(
+                        Document(
+                            text=text,
+                            metadata={
+                                "file_name": file_path.name,
+                                "file_path": str(file_path),
+                            },
+                        )
+                    )
+                    self.logger.info(f"Loaded: {file_path.name} ({len(text)} chars)")
+                else:
+                    self.logger.warning(f"Skipped empty document: {file_path.name}")
+
+            for file_path_str in classification.unsupported:
+                self.logger.warning(f"Skipped unsupported file: {Path(file_path_str).name}")
 
             if not documents:
                 self.logger.warning("No valid documents to add")
@@ -373,7 +403,7 @@ class LlamaIndexPipeline:
                 storage_dir.mkdir(parents=True, exist_ok=True)
 
                 def create_index():
-                    index = VectorStoreIndex.from_documents(documents, show_progress=True)
+                    index = VectorStoreIndex.from_documents(documents, show_progress=False)
                     index.storage_context.persist(persist_dir=str(storage_dir))
                     return len(documents)
 

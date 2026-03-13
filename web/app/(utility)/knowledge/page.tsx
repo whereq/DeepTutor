@@ -59,6 +59,7 @@ interface KnowledgeBase {
   statistics?: {
     raw_documents?: number;
     rag_provider?: string;
+    needs_reindex?: boolean;
     status?: string;
     progress?: ProgressInfo;
   };
@@ -116,6 +117,14 @@ const EMPTY_PROCESS_STATE: ProcessState = {
   executing: false,
   error: null,
 };
+
+const resolveKbStatus = (kb: KnowledgeBase): string => kb.status ?? kb.statistics?.status ?? "unknown";
+
+const kbNeedsReindex = (kb: KnowledgeBase): boolean =>
+  Boolean(kb.statistics?.needs_reindex) || resolveKbStatus(kb) === "needs_reindex";
+
+const kbIsUploadable = (kb: KnowledgeBase): boolean =>
+  resolveKbStatus(kb) === "ready" && !kbNeedsReindex(kb);
 
 export default function KnowledgePage() {
   const router = useRouter();
@@ -249,7 +258,17 @@ export default function KnowledgePage() {
         listNotebooks(),
       ]);
       setKnowledgeBases(kbs);
-      setProviders(providerData);
+      setProviders(
+        providerData.length
+          ? providerData
+          : [
+              {
+                id: "llamaindex",
+                name: "LlamaIndex",
+                description: "Pure vector retrieval, fastest processing speed.",
+              },
+            ],
+      );
       setNotebooks(nextNotebooks);
       if (!selectedNotebookId && nextNotebooks.length > 0) {
         void loadNotebookDetail(nextNotebooks[0].id);
@@ -263,10 +282,16 @@ export default function KnowledgePage() {
         }
       }
 
-      const defaultKb = kbs.find((kb: KnowledgeBase) => kb.is_default);
-      if (!uploadTarget && defaultKb?.name) {
-        setUploadTarget(defaultKb.name);
-      }
+      const preferredUploadTarget =
+        kbs.find((kb: KnowledgeBase) => kb.is_default && kbIsUploadable(kb))?.name ??
+        kbs.find((kb: KnowledgeBase) => kbIsUploadable(kb))?.name ??
+        "";
+      setUploadTarget((prev) => {
+        if (prev && kbs.some((kb: KnowledgeBase) => kb.name === prev && kbIsUploadable(kb))) {
+          return prev;
+        }
+        return preferredUploadTarget;
+      });
 
       for (const kb of kbs) {
         const status = kb.status ?? kb.statistics?.status;
@@ -527,9 +552,34 @@ export default function KnowledgePage() {
     [knowledgeBases, progressMap],
   );
 
+  const hasUploadableKb = useMemo(
+    () => combinedKbs.some((kb) => kbIsUploadable(kb)),
+    [combinedKbs],
+  );
+
+  const uploadTargetKb = useMemo(
+    () => combinedKbs.find((kb) => kb.name === uploadTarget) ?? null,
+    [combinedKbs, uploadTarget],
+  );
+
+  const uploadBlockedReason = useMemo(() => {
+    if (!uploadTargetKb) return null;
+    if (kbNeedsReindex(uploadTargetKb)) {
+      return "This knowledge base is in legacy index format and needs reindex before upload.";
+    }
+    const status = resolveKbStatus(uploadTargetKb);
+    if (status !== "ready") {
+      return `This knowledge base is currently ${status.replaceAll("_", " ")} and cannot accept uploads yet.`;
+    }
+    return null;
+  }, [uploadTargetKb]);
+
+  const uploadDisabled =
+    !uploadTarget || !uploadFiles.length || !!uploadingKb || Boolean(uploadBlockedReason);
+
   return (
-    <div className="min-h-screen bg-[var(--background)]">
-      <div className="mx-auto max-w-5xl px-6 py-8">
+    <div className="h-full overflow-y-auto bg-[var(--background)] [scrollbar-gutter:stable]">
+      <div className="mx-auto max-w-5xl px-6 py-8 pb-10">
         {/* Header */}
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
@@ -687,12 +737,36 @@ export default function KnowledgePage() {
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none"
                   >
                     <option value="">Select a knowledge base</option>
-                    {knowledgeBases.map((kb) => (
-                      <option key={kb.name} value={kb.name}>
-                        {kb.name}
-                      </option>
-                    ))}
+                    {combinedKbs.map((kb) => {
+                      const status = resolveKbStatus(kb);
+                      const needsReindex = kbNeedsReindex(kb);
+                      const uploadable = kbIsUploadable(kb);
+                      let suffix = "";
+                      if (needsReindex) {
+                        suffix = " (needs reindex)";
+                      } else if (status !== "ready") {
+                        suffix = ` (${status.replaceAll("_", " ")})`;
+                      }
+                      return (
+                        <option key={kb.name} value={kb.name} disabled={!uploadable}>
+                          {kb.name}
+                          {suffix}
+                        </option>
+                      );
+                    })}
                   </select>
+
+                  {!hasUploadableKb && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                      No ready knowledge base is available for upload. Create a new KB or reindex legacy KBs first.
+                    </div>
+                  )}
+
+                  {uploadBlockedReason && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                      {uploadBlockedReason}
+                    </div>
+                  )}
 
                   <button
                     type="button"
@@ -729,7 +803,7 @@ export default function KnowledgePage() {
 
                   <button
                     onClick={uploadToKnowledgeBase}
-                    disabled={!uploadTarget || !uploadFiles.length || !!uploadingKb}
+                    disabled={uploadDisabled}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {uploadingKb ? (
@@ -777,7 +851,14 @@ export default function KnowledgePage() {
               <div className="space-y-3">
                 {combinedKbs.map((kb) => {
                   const progress = kb.progress;
-                  const status = kb.status ?? kb.statistics?.status;
+                  const status = resolveKbStatus(kb);
+                  const needsReindex = kbNeedsReindex(kb);
+                  const displayStatus =
+                    needsReindex
+                      ? "needs reindex"
+                      : status !== "ready"
+                        ? status.replaceAll("_", " ")
+                        : null;
                   const percent =
                     progress?.progress_percent ??
                     progress?.percent ??
@@ -803,10 +884,18 @@ export default function KnowledgePage() {
                             )}
                           </div>
                           <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--muted-foreground)]">
-                            <span>Provider: {kb.statistics?.rag_provider || "unknown"}</span>
+                            <span>Provider: {kb.statistics?.rag_provider || "llamaindex"}</span>
                             <span>Documents: {kb.statistics?.raw_documents ?? 0}</span>
-                            {status && status !== "ready" && (
-                              <span className="capitalize">Status: {status}</span>
+                            {displayStatus && (
+                              <span
+                                className={
+                                  needsReindex
+                                    ? "font-medium text-amber-600 dark:text-amber-400"
+                                    : "capitalize"
+                                }
+                              >
+                                Status: {displayStatus}
+                              </span>
                             )}
                           </div>
                         </div>

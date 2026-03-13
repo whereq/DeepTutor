@@ -90,9 +90,8 @@ async def lifespan(app: FastAPI):
     # Validate configuration consistency
     validate_tool_consistency()
 
-    # Initialize LLM client early to set environment variables for LightRAG
-    # LightRAG reads OPENAI_API_KEY from os.environ internally, so we must
-    # set it before any RAG operations can happen
+    # Initialize LLM client early so OPENAI_* env vars are available before
+    # any downstream provider integrations start.
     try:
         from deeptutor.services.llm import get_llm_client
 

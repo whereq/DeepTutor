@@ -11,11 +11,11 @@ from pydantic import BaseModel
 from deeptutor.agents.notebook import NotebookAnalysisAgent
 from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.agents.guide.guide_manager import GuideManager
-from deeptutor.api.utils.notebook_manager import notebook_manager
 from deeptutor.api.utils.task_id_manager import TaskIDManager
 from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm import get_llm_config
+from deeptutor.services.notebook import notebook_manager
 from deeptutor.services.settings.interface_settings import get_ui_language
 
 router = APIRouter()

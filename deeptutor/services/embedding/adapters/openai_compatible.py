@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """OpenAI-compatible embedding adapter for OpenAI, Azure, HuggingFace, LM Studio, etc."""
 
 import json

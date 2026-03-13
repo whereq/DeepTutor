@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 LLM Service
 ===========
@@ -49,7 +48,7 @@ Usage:
 """
 
 # Note: cloud_provider and local_provider are lazy-loaded via __getattr__
-# to avoid importing lightrag at module load time
+# to avoid importing optional heavy dependencies at module load time
 from .capabilities import (
     DEFAULT_CAPABILITIES,
     MODEL_OVERRIDES,

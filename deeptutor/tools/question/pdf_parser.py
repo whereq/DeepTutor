@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Parse PDF files using MinerU and save results to reference_papers directory
 """

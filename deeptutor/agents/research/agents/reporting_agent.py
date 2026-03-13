@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 ReportingAgent - Report generation Agent (DR-in-KG 2.0)
 - Deduplication and cleaning

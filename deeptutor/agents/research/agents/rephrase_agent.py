@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 RephraseAgent - Topic rephrasing Agent
 Responsible for rephrasing and optimizing user input

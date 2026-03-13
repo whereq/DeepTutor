@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RAG Pipeline
 ============
@@ -34,8 +33,8 @@ class RAGPipeline:
             .parser(PDFParser())
             .chunker(SemanticChunker())
             .embedder(OpenAIEmbedder())
-            .indexer(GraphIndexer())
-            .retriever(HybridRetriever())
+            .indexer(VectorIndexer())
+            .retriever(DenseRetriever())
         )
 
         await pipeline.initialize("kb_name", ["doc1.pdf"])
@@ -112,7 +111,7 @@ class RAGPipeline:
         # Classify files by type
         classification = FileTypeRouter.classify_files(file_paths)
         self.logger.info(
-            f"File classification: {len(classification.needs_mineru)} complex, "
+            f"File classification: {len(classification.parser_files)} parser, "
             f"{len(classification.text_files)} text, "
             f"{len(classification.unsupported)} unsupported"
         )
@@ -120,7 +119,7 @@ class RAGPipeline:
         documents = []
 
         # Process complex files (PDF, etc.) with configured parser
-        for path in classification.needs_mineru:
+        for path in classification.parser_files:
             self.logger.info(f"Parsing (parser): {Path(path).name}")
             doc = await self._parser.process(path, **kwargs)
             documents.append(doc)

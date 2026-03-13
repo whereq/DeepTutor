@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unified Logging System for DeepTutor
 =====================================
@@ -10,7 +9,7 @@ A clean, consistent logging system with:
 - WebSocket streaming support
 - Color-coded console output
 - LLM usage statistics tracking
-- External library log forwarding (LightRAG, LlamaIndex)
+- External library log forwarding (LlamaIndex)
 
 Usage:
     from deeptutor.logging import get_logger, LLMStats
@@ -29,11 +28,8 @@ Usage:
 # Core logging
 # Adapters for external libraries
 from .adapters import (
-    LightRAGLogContext,
-    LightRAGLogForwarder,
     LlamaIndexLogContext,
     LlamaIndexLogForwarder,
-    get_lightrag_forwarding_config,
 )
 
 # Configuration
@@ -89,9 +85,6 @@ __all__ = [
     "WebSocketLogHandler",
     "LogInterceptor",
     # Adapters
-    "LightRAGLogContext",
-    "LightRAGLogForwarder",
-    "get_lightrag_forwarding_config",
     "LlamaIndexLogContext",
     "LlamaIndexLogForwarder",
     # Stats

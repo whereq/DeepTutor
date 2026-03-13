@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Thin mimic entrypoint.
 
@@ -8,12 +7,7 @@ The orchestration now lives in deeptutor/agents/question/coordinator.py.
 
 from __future__ import annotations
 
-from pathlib import Path
-import sys
 from typing import Any, Callable
-
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from deeptutor.agents.question import AgentCoordinator
 from deeptutor.services.llm.config import get_llm_config

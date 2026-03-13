@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 ManagerAgent - Queue management Agent
 Responsible for managing DynamicTopicQueue state and task distribution

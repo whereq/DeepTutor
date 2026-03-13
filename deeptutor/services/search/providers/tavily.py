@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tavily Search Provider
 
@@ -33,6 +32,7 @@ class TavilyProvider(BaseSearchProvider):
     description = "Research-focused search"
     supports_answer = True
     BASE_URL = "https://api.tavily.com/search"
+    API_KEY_ENV_VARS = ("TAVILY_API_KEY", "SEARCH_API_KEY")
 
     def search(
         self,
@@ -88,7 +88,10 @@ class TavilyProvider(BaseSearchProvider):
         if exclude_domains:
             payload["exclude_domains"] = exclude_domains
 
-        response = requests.post(self.BASE_URL, json=payload, timeout=timeout)
+        request_kwargs: dict[str, Any] = {"json": payload, "timeout": timeout}
+        if self.proxy:
+            request_kwargs["proxies"] = {"http": self.proxy, "https": self.proxy}
+        response = requests.post(self.BASE_URL, **request_kwargs)
 
         if response.status_code != 200:
             try:

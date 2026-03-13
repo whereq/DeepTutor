@@ -21,6 +21,8 @@ dependencies = [
     "aiohttp>=3.9.4",
     "httpx>=0.27.0",
     "requests>=2.32.2",
+    "litellm>=1.79.0",
+    "ddgs>=9.9.1",
     "nest_asyncio>=1.5.8",
     "tenacity>=8.0.0",
     "pydantic>=2.0.0",
@@ -37,6 +39,7 @@ deeptutor = "deeptutor_cli.main:main"
 anthropic = ["anthropic>=0.30.0"]
 dashscope = ["dashscope>=1.14.0"]
 search = ["perplexityai>=0.1.0"]
+oauth = ["oauth-cli-kit>=0.2.0"]
 server = [
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.24.0",
@@ -48,6 +51,7 @@ all = [
     "anthropic>=0.30.0",
     "dashscope>=1.14.0",
     "perplexityai>=0.1.0",
+    "oauth-cli-kit>=0.2.0",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.24.0",
     "websockets>=12.0",
@@ -98,19 +102,19 @@ target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-# 只启用最基础的规则（放宽要求）
+# Enable only foundational lint rules (intentionally relaxed)
 select = [
     "E",   # pycodestyle errors (语法错误)
     "F",   # pyflakes (未使用的导入、变量等)
     "I",   # isort (import 排序)
-    # 其他规则都忽略，不强制要求
+    # Keep only essential checks; other rules stay relaxed
 ]
 
 extend-select = [
     "B006",  # Do not use mutable data structures for argument defaults
 ]
 
-# Ignore specific rules (放宽检查，只保留重要规则)
+# Ignore specific rules (keep the lint profile relaxed)
 ignore = [
     "E501",  # Line too long (handled by formatter)
     "B008",  # Do not perform function calls in argument defaults
@@ -120,13 +124,13 @@ ignore = [
     "PLR0915", # Too many statements
     "PLR2004", # Magic value used in comparison
     "TRY003", # Avoid specifying long messages outside exception class
-    "T201",  # print found (允许 print 语句，用于调试)
-    "E722",  # Do not use bare except (某些情况下需要)
-    "E402",  # Module level import not at top of file (某些情况下需要)
-    "PLC0415", # import should be at top-level (某些情况下需要)
-    "PTH123", # open() should be replaced by Path.open() (允许使用 open)
-    "PTH103", # os.makedirs() should be replaced by Path.mkdir() (允许使用 os.makedirs)
-    "PTH118", # os.path.join() should be replaced by Path (允许使用 os.path.join)
+    "T201",  # print found (allowed for debugging scripts)
+    "E722",  # Do not use bare except (kept relaxed for legacy paths)
+    "E402",  # Module level import not at top of file (kept relaxed)
+    "PLC0415", # import should be at top-level (kept relaxed)
+    "PTH123", # open() should be replaced by Path.open() (standard open allowed)
+    "PTH103", # os.makedirs() should be replaced by Path.mkdir() (os.makedirs allowed)
+    "PTH118", # os.path.join() should be replaced by Path (os.path.join allowed)
     "EM101",  # Exception must not use a string literal
     "EM102",  # Exception must not use an f-string literal
     "TRY002", # Create your own exception
@@ -135,7 +139,7 @@ ignore = [
     "RET504", # Unnecessary assignment before return
     "PLW2901", # for loop variable overwritten by assignment target
     "F841",  # Local variable assigned but never used
-    "ERA001", # Found commented-out code (允许注释代码)
+    "ERA001", # Found commented-out code (kept relaxed)
 ]
 
 # Exclude patterns

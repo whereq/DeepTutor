@@ -22,15 +22,11 @@ import asyncio
 import os
 from pathlib import Path
 import shutil
-import sys
 import tempfile
-
-# Add project root to path
-project_root = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
 
+project_root = Path(__file__).resolve().parents[3]
 load_dotenv(project_root / ".env", override=False)
 
 

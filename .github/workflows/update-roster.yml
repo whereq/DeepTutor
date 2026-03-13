@@ -6,10 +6,11 @@ on:
     - cron: '0 0 * * *'
   # Allow manual trigger
   workflow_dispatch:
-  # Run when stars/forks might change (on push to main)
+  # Run when stars/forks might change (on push to main/dev)
   push:
     branches:
       - main
+      - dev
     paths:
       - 'scripts/generate_roster.py'
 
@@ -21,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5

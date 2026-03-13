@@ -1,23 +1,28 @@
 #!/usr/bin/env python
-"""
-Knowledge Base Initialization Module
+"""Knowledge base package exports (lazy-loaded)."""
 
-Includes:
-- init_knowledge_base: Knowledge base initializer
-- add_documents: Incremental document addition (new feature)
-- kb_manager: Knowledge base manager
-- extract_numbered_items: Extract numbered items
-- config: Path configuration
-"""
+from __future__ import annotations
 
-from . import config
-from .add_documents import DocumentAdder
-from .initializer import KnowledgeBaseInitializer
-from .manager import KnowledgeBaseManager
+from typing import Any
 
 __all__ = [
     "DocumentAdder",
     "KnowledgeBaseInitializer",
     "KnowledgeBaseManager",
-    "config",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "DocumentAdder":
+        from .add_documents import DocumentAdder
+
+        return DocumentAdder
+    if name == "KnowledgeBaseInitializer":
+        from .initializer import KnowledgeBaseInitializer
+
+        return KnowledgeBaseInitializer
+    if name == "KnowledgeBaseManager":
+        from .manager import KnowledgeBaseManager
+
+        return KnowledgeBaseManager
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

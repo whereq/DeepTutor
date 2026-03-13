@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Extract question information from MinerU-parsed exam papers
 
@@ -17,12 +16,7 @@ import asyncio
 from datetime import datetime
 import json
 from pathlib import Path
-import sys
 from typing import Any
-
-# Project root is 3 levels up from deeptutor/tools/question/
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from deeptutor.services.config import get_agent_params
 from deeptutor.services.llm import complete as llm_complete

@@ -19,8 +19,8 @@ We provide two pre-built knowledge bases on [Google Drive](https://drive.google.
     <ul>
       <li><a href="https://github.com/HKUDS/AI-Researcher">AI-Researcher</a> - Automated research paper generation</li>
       <li><a href="https://github.com/HKUDS/AutoAgent">AutoAgent</a> - Autonomous agent framework</li>
-      <li><a href="https://github.com/HKUDS/RAG-Anything">RAG-Anything</a> - Multimodal RAG system</li>
-      <li><a href="https://github.com/HKUDS/LightRAG">LightRAG</a> - Simple and fast RAG</li>
+      <li><a href="https://github.com/HKUDS/AutoAgent">AutoAgent</a> - Autonomous agent framework</li>
+      <li><a href="https://github.com/HKUDS/DeepCode">DeepCode</a> - AI code assistant</li>
       <li><a href="https://github.com/HKUDS/VideoRAG">VideoRAG</a> - Video understanding with RAG</li>
     </ul>
     <p><strong>Best for:</strong> Research scenarios, broad knowledge coverage</p>
@@ -109,10 +109,10 @@ If your embedding model has different dimensions, you'll need to create your own
 
 ```bash
 # Initialize a new knowledge base with documents
-python -m deeptutor.knowledge.start_kb init <kb_name> --docs <pdf_path>
+deeptutor kb create <kb_name> --doc <pdf_path>
 
 # Add documents to existing knowledge base
-python -m deeptutor.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+deeptutor kb add <kb_name> --doc <new_document.pdf>
 ```
 
 ## Data Storage Structure

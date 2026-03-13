@@ -78,15 +78,15 @@ The <abbr title="Large Language Model">LLM</abbr> layer powers DeepTutor while t
 
 #### Code Blocks (Indented style)
 
-    from src.runtime.orchestrator import ChatOrchestrator
+    from deeptutor.runtime.orchestrator import ChatOrchestrator
     orchestrator = ChatOrchestrator()
     print("DeepTutor is ready.")
 
 #### Python
 
 ${FENCE}python
-from src.runtime.orchestrator import ChatOrchestrator
-from src.core.context import UnifiedContext
+from deeptutor.runtime.orchestrator import ChatOrchestrator
+from deeptutor.core.context import UnifiedContext
 
 
 async def run_demo() -> str:

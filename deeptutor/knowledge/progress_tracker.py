@@ -8,11 +8,7 @@ from datetime import datetime
 from enum import Enum
 import json
 from pathlib import Path
-import sys
-
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
+import logging
 
 # Use unified logging system
 from deeptutor.logging import get_logger
@@ -83,7 +79,7 @@ class ProgressTracker:
             try:
                 callback(progress)
             except Exception as e:
-                print(f"[ProgressTracker] Callback error: {e}")
+                _get_logger().debug("Progress callback error: %s", e)
 
     def _save_progress(self, progress: dict):
         """Save progress to kb_config.json and local .progress.json file"""
@@ -126,7 +122,7 @@ class ProgressTracker:
                 },
             )
         except Exception as e:
-            print(f"[ProgressTracker] Failed to save progress to kb_config.json: {e}")
+            _get_logger().warning("Failed to save progress to kb_config.json: %s", e)
 
     def update(
         self,
@@ -174,11 +170,18 @@ class ProgressTracker:
             else:
                 logger.progress(progress_msg)
         except Exception:
-            # If logging fails, print to console
+            # If unified logging fails unexpectedly, use stdlib logger as fallback.
+            fallback_logger = logging.getLogger("deeptutor.ProgressTracker")
             prefix = f"[{self.task_id}]" if self.task_id else ""
-            print(f"{prefix} [ProgressTracker] {message} ({current}/{total if total > 0 else '?'})")
+            fallback_logger.warning(
+                "%s [ProgressTracker] %s (%s/%s)",
+                prefix,
+                message,
+                current,
+                total if total > 0 else "?",
+            )
             if error:
-                print(f"{prefix} [ProgressTracker] Error: {error}")
+                fallback_logger.error("%s [ProgressTracker] Error: %s", prefix, error)
 
         self._save_progress(progress)
         self._notify(progress)
@@ -192,7 +195,7 @@ class ProgressTracker:
             with open(self.progress_file, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"[ProgressTracker] Failed to read progress: {e}")
+            _get_logger().debug(f"Failed to read progress file for '{self.kb_name}': {e}")
             return None
 
     def clear(self):
@@ -201,4 +204,4 @@ class ProgressTracker:
             try:
                 self.progress_file.unlink()
             except Exception as e:
-                print(f"[ProgressTracker] Failed to clear progress: {e}")
+                _get_logger().debug(f"Failed to clear progress file for '{self.kb_name}': {e}")

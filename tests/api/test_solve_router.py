@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,11 +8,10 @@ import pytest
 
 pytest.importorskip("fastapi")
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from deeptutor.api.routers.solve import router
-from deeptutor.capabilities.deep_solve import DeepSolveCapability
+FastAPI = pytest.importorskip("fastapi").FastAPI
+TestClient = pytest.importorskip("fastapi.testclient").TestClient
+router = importlib.import_module("deeptutor.api.routers.solve").router
+DeepSolveCapability = importlib.import_module("deeptutor.capabilities.deep_solve").DeepSolveCapability
 
 
 class _DummyLogInterceptor:

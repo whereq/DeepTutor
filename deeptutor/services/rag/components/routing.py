@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 File Type Router
 ================
@@ -20,7 +19,7 @@ logger = get_logger("FileTypeRouter")
 class DocumentType(Enum):
     """Document type classification"""
 
-    PDF = "pdf"  # Requires MinerU complex parsing
+    PDF = "pdf"  # Requires PDF parser
     TEXT = "text"  # Plain text, direct read
     MARKDOWN = "markdown"  # Structured text
     DOCX = "docx"  # Word documents
@@ -34,22 +33,21 @@ class FileClassification:
     Result of file classification.
 
     Attributes:
-        needs_mineru: Files requiring MinerU parsing (PDF, etc.)
+        parser_files: Files requiring parser processing (currently PDF)
         text_files: Files that can be read directly as text
         unsupported: Files with unsupported formats
     """
 
-    needs_mineru: List[str]
+    parser_files: List[str]
     text_files: List[str]
     unsupported: List[str]
-
 
 class FileTypeRouter:
     """
     File type router for RAG pipelines.
 
     Classifies files before processing to route them to appropriate handlers:
-    - PDF files -> MinerU parser (complex document parsing)
+    - PDF files -> PDF parsing
     - Text files -> Direct read (fast, simple)
     - Unsupported -> Skip with warning
 
@@ -57,18 +55,18 @@ class FileTypeRouter:
         router = FileTypeRouter()
         classification = router.classify_files(file_paths)
 
-        # Process PDF files with MinerU
-        for pdf in classification.needs_mineru:
-            await rag.process_document_complete(pdf, ...)
+        # Process PDF files with parser
+        for pdf in classification.parser_files:
+            ...
 
         # Process text files directly
         for txt in classification.text_files:
             content = await FileTypeRouter.read_text_file(txt)
-            await rag.lightrag.ainsert(content)
+            ...
     """
 
-    # Extensions requiring MinerU parsing (complex document formats)
-    MINERU_EXTENSIONS = {".pdf"}
+    # Extensions requiring parser processing (currently PDF)
+    PARSER_EXTENSIONS = {".pdf"}
 
     # Extensions for direct text reading
     TEXT_EXTENSIONS = {
@@ -132,10 +130,10 @@ class FileTypeRouter:
         ".properties",
     }
 
-    # Word document extensions (special handling)
+    # Word document extensions (unsupported in llamaindex-only mode)
     DOCX_EXTENSIONS = {".docx", ".doc"}
 
-    # Image extensions (may need OCR)
+    # Image extensions (unsupported in llamaindex-only mode)
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
 
     @classmethod
@@ -151,7 +149,7 @@ class FileTypeRouter:
         """
         ext = Path(file_path).suffix.lower()
 
-        if ext in cls.MINERU_EXTENSIONS:
+        if ext in cls.PARSER_EXTENSIONS:
             return DocumentType.PDF
         elif ext in cls.TEXT_EXTENSIONS:
             return DocumentType.TEXT
@@ -202,7 +200,7 @@ class FileTypeRouter:
         Returns:
             FileClassification with files grouped by processing method
         """
-        needs_mineru = []
+        parser_files = []
         text_files = []
         unsupported = []
 
@@ -210,26 +208,19 @@ class FileTypeRouter:
             doc_type = cls.get_document_type(path)
 
             if doc_type == DocumentType.PDF:
-                needs_mineru.append(path)
+                parser_files.append(path)
             elif doc_type in (DocumentType.TEXT, DocumentType.MARKDOWN):
                 text_files.append(path)
-            elif doc_type == DocumentType.DOCX:
-                # DOCX files need special handling
-                # For now, route to MinerU which can handle them
-                needs_mineru.append(path)
-            elif doc_type == DocumentType.IMAGE:
-                # Images might need OCR - route to MinerU if multimodal is enabled
-                needs_mineru.append(path)
             else:
                 unsupported.append(path)
 
         logger.debug(
             f"Classified {len(file_paths)} files: "
-            f"{len(needs_mineru)} MinerU, {len(text_files)} text, {len(unsupported)} unsupported"
+            f"{len(parser_files)} parser, {len(text_files)} text, {len(unsupported)} unsupported"
         )
 
         return FileClassification(
-            needs_mineru=needs_mineru,
+            parser_files=parser_files,
             text_files=text_files,
             unsupported=unsupported,
         )
@@ -259,15 +250,15 @@ class FileTypeRouter:
             return f.read().decode("utf-8", errors="replace")
 
     @classmethod
-    def needs_mineru(cls, file_path: str) -> bool:
+    def needs_parser(cls, file_path: str) -> bool:
         """
-        Quick check if a single file needs MinerU parsing.
+        Quick check if a single file needs parser processing.
 
         Args:
             file_path: Path to the file
 
         Returns:
-            True if file requires MinerU
+            True if file requires parser processing
         """
         doc_type = cls.get_document_type(file_path)
         return doc_type in (DocumentType.PDF, DocumentType.DOCX, DocumentType.IMAGE)
@@ -292,32 +283,15 @@ class FileTypeRouter:
         Get supported file extensions for a specific RAG provider.
 
         Args:
-            provider: RAG provider name (llamaindex, lightrag, raganything, raganything_docling)
+            provider: RAG provider name
 
         Returns:
             Set of supported file extensions (with leading dot, e.g., {".pdf", ".txt"})
         """
-        # Base text extensions supported by all providers
-        text_extensions = cls.TEXT_EXTENSIONS.copy()
-
-        if provider == "llamaindex":
-            # LlamaIndex: PDF + all text files (reads any text file directly)
-            return cls.MINERU_EXTENSIONS | text_extensions
-
-        elif provider == "lightrag":
-            # LightRAG: PDF + all text files (uses FileTypeRouter)
-            return cls.MINERU_EXTENSIONS | text_extensions
-
-        elif provider in ("raganything", "raganything_docling"):
-            # RAGAnything: PDF + Word + Images + all text files (full multimodal via MinerU)
-            return (
-                cls.MINERU_EXTENSIONS | cls.DOCX_EXTENSIONS | cls.IMAGE_EXTENSIONS | text_extensions
-            )
-
-        else:
-            # Default: same as llamaindex (most conservative)
-            logger.warning(f"Unknown provider '{provider}', using default extensions")
-            return cls.MINERU_EXTENSIONS | text_extensions
+        # Only llamaindex is supported; keep provider param for forward compatibility.
+        if provider and provider != "llamaindex":
+            logger.warning("Unknown/legacy provider '%s', using llamaindex extension set", provider)
+        return cls.PARSER_EXTENSIONS | cls.TEXT_EXTENSIONS
 
     @classmethod
     def get_glob_patterns_for_provider(cls, provider: str) -> list[str]:
@@ -325,7 +299,7 @@ class FileTypeRouter:
         Get glob patterns for file searching based on RAG provider.
 
         Args:
-            provider: RAG provider name (llamaindex, lightrag, raganything, raganything_docling)
+            provider: RAG provider name
 
         Returns:
             List of glob patterns (e.g., ["*.pdf", "*.txt", "*.md"])
