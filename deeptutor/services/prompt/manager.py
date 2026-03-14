@@ -83,25 +83,33 @@ class PromptManager:
         subdirectory: str | None,
     ) -> dict[str, Any]:
         """Load prompt file with language fallback."""
-        # Handle modules that are not under deeptutor/agents/
-        if module_name in self.NON_AGENT_MODULES:
-            prompts_dir = PROJECT_ROOT / "src" / module_name / "prompts"
-        else:
-            prompts_dir = PROJECT_ROOT / "src" / "agents" / module_name / "prompts"
+        prompt_dirs = self._candidate_prompt_dirs(module_name)
         fallback_chain = self.LANGUAGE_FALLBACKS.get(lang_code, ["en"])
 
-        for lang in fallback_chain:
-            prompt_file = self._resolve_prompt_path(prompts_dir, lang, agent_name, subdirectory)
-            if prompt_file and prompt_file.exists():
-                try:
-                    with open(prompt_file, encoding="utf-8") as f:
-                        return yaml.safe_load(f) or {}
-                except Exception as e:
-                    print(f"Warning: Failed to load {prompt_file}: {e}")
-                    continue
+        for prompts_dir in prompt_dirs:
+            for lang in fallback_chain:
+                prompt_file = self._resolve_prompt_path(prompts_dir, lang, agent_name, subdirectory)
+                if prompt_file and prompt_file.exists():
+                    try:
+                        with open(prompt_file, encoding="utf-8") as f:
+                            return yaml.safe_load(f) or {}
+                    except Exception as e:
+                        print(f"Warning: Failed to load {prompt_file}: {e}")
+                        continue
 
         print(f"Warning: No prompt file found for {module_name}/{agent_name}")
         return {}
+
+    def _candidate_prompt_dirs(self, module_name: str) -> list[Path]:
+        """Return legacy and current prompt roots for a module."""
+        if module_name in self.NON_AGENT_MODULES:
+            legacy_dir = PROJECT_ROOT / "src" / module_name / "prompts"
+            current_dir = PROJECT_ROOT / "deeptutor" / module_name / "prompts"
+            return [legacy_dir, current_dir]
+
+        legacy_dir = PROJECT_ROOT / "src" / "agents" / module_name / "prompts"
+        current_dir = PROJECT_ROOT / "deeptutor" / "agents" / module_name / "prompts"
+        return [legacy_dir, current_dir]
 
     def _resolve_prompt_path(
         self,

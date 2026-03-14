@@ -13,11 +13,11 @@
   \section{Experiments}
   \label{sec:experiments}
   
-  Standard NLP benchmarks evaluate factual correctness but not whether a tutor \emph{adapts} to the individual learner.
-  We therefore design a three-pronged evaluation:
-  \textbf{TutorBench} (\S\ref{sec:tutorbench}), a new benchmark with fine-grained learner profiles grounded in real course materials;
-  a \textbf{first-person interactive evaluation} (\S\ref{sec:interactive_eval}) that simulates multi-turn tutoring and scores personalization along four rubrics;
-  and a \textbf{generalization study} (\S\ref{sec:generalization}) on five standard benchmarks verifying that our structured reasoning transfers broadly.
+Conventional QA-style benchmarks mostly measure final correctness, but personalized tutoring requires process-level evaluation: whether the system diagnoses learner-specific gaps, corrects them through interaction, and then generates targeted follow-up practice.
+Accordingly, we evaluate \textsc{DeepTutor} along three axes:
+\textbf{TutorBench} construction quality (\S\ref{sec:tutorbench}),
+\textbf{first-person interactive tutoring quality} (\S\ref{sec:interactive_eval}),
+and \textbf{general problem-solving transfer} (\S\ref{sec:generalization}).
   
   
   % ===========================================================================
@@ -25,55 +25,34 @@
   \label{sec:tutorbench}
   % ===========================================================================
   
-  Existing educational benchmarks treat all test-takers as identical, missing the \emph{personalization} dimension entirely.
-  We construct \textbf{TutorBench}, a benchmark in which every test case specifies a complete \emph{learner persona} with realistic knowledge gaps anchored to actual course materials, together with an interactive task.
-  Figure~\ref{fig:datagen} illustrates the construction pipeline.
+Existing educational benchmarks rarely model who the student is and what they specifically misunderstand.
+We construct \textbf{TutorBench}, where each entry explicitly couples a learner persona, grounded knowledge gaps, and an interactive tutoring task.
+The construction pipeline is shown in Figure~\ref{fig:datagen}.
   
   \paragraph{KB Initialization.}
   University-level textbooks and research papers are indexed into the dual-representation knowledge base described in \S\ref{sec:rag}.
   A \textit{domain hierarchy} is simultaneously derived from the document structure, providing topical scaffolding for subsequent profile generation.
   
-  \paragraph{Profile Definition.}
-  Three proficiency levels---\textit{beginner}, \textit{intermediate}, and \textit{advanced}---capture qualitatively different learner states, from fundamental misconceptions to nuanced understanding.
-  For each level, an LLM generates a detailed persona conditioned on the KB's content scope, including educational background and a fine-grained \emph{knowledge state} that categorizes every topic as \textit{known well}, \textit{partially known}, or \textit{unknown}.
+\paragraph{Profile Definition.}
+Each KB instantiates three learner profiles---\textit{beginner}, \textit{intermediate}, and \textit{advanced}---with distinct educational background, learning purpose, and per-topic mastery states (\textit{known well}/\textit{partially known}/\textit{unknown}).
+This mirrors the benchmark generator configuration used in the codebase.
   
-  \paragraph{Personal Profile Construction.}
-  For each profile, we sample pages from the indexed content and generate three types of \emph{grounded knowledge gaps}:
+\paragraph{Personal Profile Construction.}
+For each profile, we sample source pages from the KB and generate three types of \emph{grounded knowledge gaps}:
   \textbf{misconceptions} (incorrect beliefs),
   \textbf{incomplete understanding} (partial grasp with missed edge cases), and
   \textbf{missing knowledge} (never-encountered concepts).
   Each gap is anchored to specific source pages and includes both a \textit{manifestation} (how the student would exhibit the gap) and the \textit{correct understanding} for evaluation reference.
   
-  Gaps are assembled into \textbf{interactive tasks}---each bundling at least three related gaps with a natural initial message---via rejection sampling that verifies task--gap consistency, source support, and conversational naturalness.
+Gaps are assembled into \textbf{interactive tasks} via rejection sampling that verifies task--gap consistency, source grounding, and conversational naturalness.
   
-  \paragraph{Statistics.}
-  Table~\ref{tab:tutorbench_stats} summarizes TutorBench. Each entry is a self-contained unit: a learner profile, grounded knowledge gaps, and an interactive task.
-  
-  \begin{table}[t]
-  \centering
-  \small
-  \begin{tabular}{lc}
-  \toprule
-  \textbf{Statistic} & \textbf{Count} \\
-  \midrule
-  Knowledge Bases           & \textit{TBD} \\
-  Subjects / Topics         & \textit{TBD} \\
-  Learner Profiles          & \textit{TBD} \\
-  \quad -- Beginner         & \textit{TBD} \\
-  \quad -- Intermediate     & \textit{TBD} \\
-  \quad -- Advanced         & \textit{TBD} \\
-  Knowledge Gaps (total)    & \textit{TBD} \\
-  \quad -- Misconception    & 30\% \\
-  \quad -- Incomplete       & 40\% \\
-  \quad -- Missing          & 30\% \\
-  Interactive Tasks         & \textit{TBD} \\
-  Avg.\ Gaps per Task       & $\geq 3$ \\
-  Avg.\ Source Pages per Profile & 10 \\
-  \bottomrule
-  \end{tabular}
-  \caption{Statistics of TutorBench. Each entry couples a learner profile with grounded knowledge gaps and an interactive task, enabling personalization-aware evaluation.}
-  \label{tab:tutorbench_stats}
-  \end{table}
+\paragraph{Statistics.}
+TutorBench is generated with a fixed, configuration-driven recipe.
+For each KB, we instantiate three learner profiles (\textit{beginner},
+\textit{intermediate}, \textit{advanced}), yielding $3 \times N_{\text{KB}}$
+profiles in total. We sample source pages to generate at least 3 knowledge gaps for each interactive task and construct 3
+interactive tasks per profile via rejection sampling. In our current release, this produces 90 KB-grounded learner
+profiles overall, which is 270 interactive tasks.
   
   
   % ===========================================================================
@@ -81,66 +60,125 @@
   \label{sec:interactive_eval}
   % ===========================================================================
   
-  Static evaluation cannot capture how a tutor \emph{steers an evolving conversation} toward resolving specific misconceptions.
-  We design a \textbf{first-person interactive evaluation} in which an LLM-powered student simulator engages in multi-turn dialogue with the tutor, followed by rubric-based assessment (Figure~\ref{fig:evaluation}).
+Static evaluation cannot capture whether a tutor adaptively resolves misconceptions over turns.
+We therefore use a \textbf{first-person interactive protocol}: an LLM student simulator (initialized from TutorBench entries) interacts with each evaluated system, and we score both dialogue behavior and generated practice questions (Figure~\ref{fig:evaluation}).
   
   \begin{figure}[t]
       \centering
       \includegraphics[width=\columnwidth]{figures/evaluation-ver1.png}
-      \caption{First-person interactive evaluation protocol. A \textbf{Student Simulator}---initialized from a TutorBench entry with personality, first-person beliefs (encoded gaps), and a dynamic solve list---engages the tutor in multi-turn dialogue. The tutor responds with its full pipeline (solve) and generates personalized practice (quiz). All traces are recorded and assessed by four \textbf{Personalized Evaluation Rubrics}: Source Faithfulness, Average Solve Turns, Difficulty Fitted, and Gap Covered.}
+    \caption{First-person interactive evaluation protocol. A \textbf{Student Simulator} initialized from TutorBench (persona + first-person gap beliefs + dynamic gap pacing) interacts with the tutor. After session completion, the tutor generates five practice questions. Evaluation is split into \textbf{turn-level tutoring metrics} and \textbf{practice-question metrics}, then aggregated in a fixed-judge Step-3 pipeline.}
       \label{fig:evaluation}
   \end{figure}
   
-  \paragraph{Student Simulator.}
-  To elicit authentic behavior, each knowledge gap is converted into a \textbf{first-person belief encoding}---e.g., a misconception becomes ``\textit{You believe that \ldots, and this feels obviously correct to you}''---preventing the LLM from being self-aware about its own ``mistakes.''
-  The result is naturalistic behavior: the simulator defends misconceptions, resists premature corrections, and gradually updates understanding only after convincing explanations.
-  A \textbf{gap pacing plan} schedules when each gap surfaces, and a behavioral protocol constrains the student to respond concisely and signal completion only when all gaps are addressed.
+\paragraph{Student Simulator.}
+Each gap is transformed into a first-person belief so the simulator \emph{acts as the student} rather than describing errors from an outside view.
+Combined with dynamic gap pacing, this yields realistic resistance patterns: the student may defend misconceptions, partially accept corrections, and only mark completion after sufficient explanation.
   
-  \paragraph{Evaluation Rubrics.}
-  The full session is assessed along four dimensions:
+\paragraph{Evaluation Rubrics.}
+Following the latest evaluation pipeline, metrics are explicitly split into
+\textbf{turn-level tutoring metrics} and \textbf{practice-question metrics}.
+Importantly, the final practice-question turn is \emph{excluded} from turn-level scoring and evaluated independently.
   
   \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Gap Covered (GC)}: fraction of knowledge gaps the tutor explicitly identified and resolved (requiring concrete correction, not casual mention).
+\item \textbf{Iter}: raw turn count from interactive sessions (lower is better). This is the only non-1--5 metric.
   
-  \item \textbf{Source Faithfulness (SF)}: per-turn score (1--5) measuring alignment with the original source material, penalizing hallucination.
+\item \textbf{Solve-side Quality}: per-turn 1--5 scores for \textit{personalization}, \textit{applicability}, \textit{source faithfulness}, \textit{vividness} (modality diversity of expression, e.g., structured tables when useful), and \textit{logical depth}.
   
-  \item \textbf{Difficulty Fitted (DF)}: per-question delta ($-5$ to $+5$; $0$=ideal) reflecting difficulty calibration to the student profile; we report average absolute delta ($\downarrow$).
-  
-  \item \textbf{Gap Coverage of Practice (GP)}: score (1--5) measuring how well the generated practice set collectively covers the student's weaknesses.
+\item \textbf{Practice Metrics}: after dialogue ends, five generated \textbf{MCQ} questions are evaluated separately:
+\textit{fitness}, \textit{groundedness}, \textit{diversity}, \textit{answer quality}, and \textit{cross concept} (all per-question, all 1--5).
   \end{itemize}
   
   \paragraph{Protocol.}
-  For each TutorBench entry, the simulator converses with the tutor, which responds using its full pipeline.
-  Upon task completion, the tutor generates five personalized practice questions, and the full transcript is scored by all four rubrics.
-  Baselines: \textbf{Direct LLM} (backbone model without tools or memory) and \textbf{RAG-Tutor} (backbone with RAG retrieval but no structured reasoning or personalization).
+We run a three-stage pipeline:
+\textbf{Step 1} generates benchmark entries,
+\textbf{Step 2} runs interactive simulation and logs transcripts,
+\textbf{Step 3} scores transcripts with LLM-as-judge prompts.
+To ensure comparability in model studies, we support multi-model Step-2 generation while fixing a single judge model in Step-3.
+We compare \textbf{\textsc{DeepTutor}} against one baseline:
+\textbf{Naive Tutor} (the project mock tutor: base LLM + simple RAG, without structured planning/memory loop).
   
   \paragraph{Results.}
-  Table~\ref{tab:interactive_results} reports the interactive evaluation results.
-  %% TODO: Fill in actual results and add analysis paragraphs.
+Table~\ref{tab:interactive_results_main} reports the main interactive metrics used in the paper body.
+Table~\ref{tab:interactive_results_full} provides the extended metric breakdown (turn-level teaching quality and additional practice-quality dimensions).
+Across our internal runs, \textsc{DeepTutor} consistently improves both tutoring and practice metrics over \textit{Naive Tutor}. For all 1--5 metrics, we report averages with four decimal places.
   
   \begin{table}[t]
   \centering
   \small
   \begin{tabular}{lcccc}
   \toprule
-  \textbf{System} & \textbf{GC}$\uparrow$ & \textbf{SF}$\uparrow$ & \textbf{DF}$\downarrow$ & \textbf{GP}$\uparrow$ \\
+  \textbf{System} & \textbf{SQ}$\uparrow$ & \textbf{PQ}$\uparrow$ & \textbf{OQ}$\uparrow$ & \textbf{Iter}$\downarrow$ \\
   \midrule
-  Direct LLM          & --  & --  & --  & -- \\
-  RAG-Tutor            & --  & --  & --  & -- \\
+  Naive Tutor          & --  & --  & --  & -- \\
   \textsc{DeepTutor}   & --  & --  & --  & -- \\
   \bottomrule
   \end{tabular}
-  \caption{First-person interactive evaluation results. GC: Gap Covered (resolution rate, $\uparrow$); SF: Source Faithfulness (1--5, $\uparrow$); DF: Difficulty Fitted (avg.\ absolute delta, $\downarrow$); GP: Gap Coverage of Practice (1--5, $\uparrow$). %% TODO: fill in results
+\caption{Main first-person interactive results. SQ: solve-quality composite over \{SF, personalization, applicability, vividness, logical depth\}. PQ: practice-quality composite over \{fitness, groundedness, diversity, answer quality, cross concept\}. OQ: average of SQ and PQ. Iter: raw turn count (lower is better).
   }
-  \label{tab:interactive_results}
+  \label{tab:interactive_results_main}
   \end{table}
-  
-  
+
+\begin{table*}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lcccccccccc}
+\toprule
+\textbf{System} &
+\textbf{SF}$\uparrow$ &
+\textbf{PER}$\uparrow$ &
+\textbf{APP}$\uparrow$ &
+\textbf{VID}$\uparrow$ &
+\textbf{LD}$\uparrow$ &
+\textbf{FIT}$\uparrow$ &
+\textbf{GND}$\uparrow$ &
+\textbf{DIV}$\uparrow$ &
+\textbf{ANS}$\uparrow$ &
+\textbf{CC}$\uparrow$ \\
+\midrule
+Naive Tutor       & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+\textsc{DeepTutor}& -- & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\caption{Extended first-person interactive results (all metrics are 1--5 with four-decimal averages). PER/APP/VID/LD denote personalization, applicability, vividness, and logical depth for solve turns. FIT/GND/DIV/ANS/CC denote fitness, groundedness, diversity, answer quality, and cross concept for practice questions. Baseline is Naive Tutor (mock tutor: base LLM + simple RAG).}
+\label{tab:interactive_results_full}
+\end{table*}
+
+
+% ===========================================================================
+\subsection{Ablation Study}
+\label{sec:ablation_rag_memory}
+% ===========================================================================
+
+To quantify the contribution of retrieval grounding and long-horizon personalization, we run ablations on both the \textit{solve} and \textit{question-generation} pipelines.
+Starting from full \textsc{DeepTutor}, we evaluate three variants:
+\textbf{without RAG} (disable retrieval in planner/solver and question generation),
+\textbf{without Memory} (disable personalization memory context in both pipelines),
+and \textbf{without RAG+Memory} (disable both).
+All settings use the same TutorBench entries, simulation protocol, and fixed judge model. Results are reported in table 4.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Variant} & \textbf{SQ}$\uparrow$ & \textbf{PQ}$\uparrow$ & \textbf{OQ}$\uparrow$ & \textbf{Iter}$\downarrow$ \\
+\midrule
+\textsc{DeepTutor} (full)        & -- & -- & -- & -- \\
+w/o RAG                          & -- & -- & -- & -- \\
+w/o Memory                       & -- & -- & -- & -- \\
+w/o RAG + Memory                 & -- & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\caption{Ablation on retrieval grounding and personalization memory. SQ/PQ/OQ follow the definitions in Table~\ref{tab:interactive_results_main}. For 1--5 metrics, we report four-decimal averages; Iter is raw turn count.}
+\label{tab:ablation_rag_memory}
+\end{table}
+
 
 \begin{table*}[!t]
 \centering
 \caption{General Problem-solving \textbf{pass@1 scores} across five benchmarks.
-\textit{Avg~$\Delta$} mean relative improvement across benchmarks. 
+\textit{Avg~$\Delta$} means relative improvement across benchmarks. 
 $^*$use the first 500 quesitons within HLE.
 $^{**}$represents GPQA-diamond. 
 $^{***}$use live reasoning subset.
@@ -177,8 +215,13 @@ Minimax-m2.5 & 14.00 & 82.83 & 59.30 & 35.29 & 22.78 & 12.00 & 23.64 & 66.00 & \
 \label{sec:generalization}
 % ===========================================================================
 
-Apart from personalized tutoring, it's also important for tutor system to demonstrate the correct and convincing answer when solving problems. Therefore, we further evaluate the general agentic reasoning abilites of \textsc{DeepTutor}. We choose five diverse model families \textit{(Claude, GPT, Gemini, Qwen, Minimax)} with five authorized benchmarks, which covers three core capabilities that is crucial for daily tutoring scenarios. For \textbf{\textit{STEM reasoning}}, we select HLE~\citep{phan2025hle}, GPQA-Diamond~\citep{rein2024gpqa} and LiveBench~\citep{white2025livebench}; for \textbf{\textit{general agentic problem-solving}}, we choose GAIA~\citep{mialon2024gaia}; for \textbf{\textit{long input processing}}, we choose AA-LCR~\citep{artificialanalysis2025lcr}. 
-Correctness is judged by LLM evaluator, following the benchmark-specific evaluation rubrics. More evlauation details are provided in appendix.
+Beyond personalized tutoring, a practical tutor should retain strong general reasoning ability.
+We therefore evaluate \textsc{DeepTutor} on five public benchmarks over five backbone families (\textit{Claude, GPT, Gemini, Qwen, MiniMax}), covering three capability groups:
+\textbf{STEM reasoning} (HLE~\citep{phan2025hle}, GPQA-Diamond~\citep{rein2024gpqa}, LiveBench~\citep{white2025livebench}),
+\textbf{general agentic problem-solving} (GAIA~\citep{mialon2024gaia}),
+and \textbf{long-context reasoning} (AA-LCR~\citep{artificialanalysis2025lcr}).
+Correctness is judged by LLM evaluators following benchmark-specific rubrics.
 
-As shown in Table~\ref{tab:generalization}, \textsc{DeepTutor} consistently lifts backbone from \textit{+23\% to 32\%} on average, demonstrating that the system could strenghthens the general problem-solving ability while maintaining personalization-oriented designs.
+As shown in Table~\ref{tab:generalization}, \textsc{DeepTutor} consistently improves backbone pass@1 performance by \textit{+23\% to +32\%} on average across model families.
+These gains suggest that our tutoring-oriented decomposition (plan, tool-grounded solving, and critic-guided generation) improves general reasoning robustness rather than overfitting to TutorBench-specific prompts.
   

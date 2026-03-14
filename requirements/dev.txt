@@ -2,6 +2,7 @@
 # DeepTutor Development Dependencies
 # ============================================
 # Install: pip install -r requirements/dev.txt
+# Includes runtime bundle layers + development tooling.
 
 -r server.txt
 -r rag-lite.txt

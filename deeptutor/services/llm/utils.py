@@ -200,6 +200,20 @@ def build_completion_url(
     return url
 
 
+def _extract_content_field(content: object) -> str:
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, Mapping) and "text" in part:
+                parts.append(str(part["text"]))
+            elif isinstance(part, str):
+                parts.append(part)
+        return "".join(parts)
+    if content is None:
+        return ""
+    return str(content)
+
+
 def extract_response_content(message: object) -> str:
     """Extract textual content from response payloads."""
     if message is None:
@@ -209,19 +223,29 @@ def extract_response_content(message: object) -> str:
         return message
 
     if isinstance(message, Mapping):
-        content = message.get("content")
-        if isinstance(content, list):
-            parts: list[str] = []
-            for part in content:
-                if isinstance(part, Mapping) and "text" in part:
-                    parts.append(str(part["text"]))
-                elif isinstance(part, str):
-                    parts.append(part)
-            return "".join(parts)
-        if content is not None:
-            return str(content)
-        if "text" in message:
+        content = _extract_content_field(message.get("content"))
+        if content:
+            return content
+        if "text" in message and message["text"] is not None:
             return str(message["text"])
+
+    # LiteLLM/OpenAI SDK response models often expose attributes instead of dict keys.
+    if hasattr(message, "content"):
+        content = _extract_content_field(getattr(message, "content"))
+        if content:
+            return content
+    if hasattr(message, "text"):
+        text_value = getattr(message, "text")
+        if text_value is not None:
+            return str(text_value)
+
+    if hasattr(message, "model_dump"):
+        try:
+            dumped = message.model_dump()
+        except Exception:
+            dumped = None
+        if dumped is not None and dumped is not message:
+            return extract_response_content(dumped)
 
     return str(message)
 

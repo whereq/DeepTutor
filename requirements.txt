@@ -1,5 +1,5 @@
 # ============================================
-# DeepTutor Python Dependencies (Full Install)
+# DeepTutor Python Dependencies (Runtime Bundle)
 # ============================================
 # Python >= 3.10 required
 #
@@ -10,15 +10,10 @@
 #   pip install -r requirements/rag-full.txt    # compatibility alias of rag-lite
 #   pip install -r requirements/providers.txt   # + native LLM SDKs
 #   pip install -r requirements/dev.txt         # + dev/test tools
+#
+# This file intentionally installs runtime-only dependencies.
+# Development tooling (pytest, pre-commit, security linters) lives in dev.txt.
 
 -r requirements/server.txt
 -r requirements/rag-lite.txt
 -r requirements/providers.txt
-
-# ============================================
-# Development and testing tools
-# ============================================
-pytest>=7.0.0
-pre-commit>=3.0.0
-safety<3.0.0
-bandit>=1.8.0

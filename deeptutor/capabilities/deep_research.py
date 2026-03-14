@@ -8,6 +8,7 @@ Wraps ``ResearchPipeline`` as a first-class built-in capability.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from deeptutor.capabilities.request_contracts import get_capability_request_schema
@@ -101,7 +102,7 @@ class DeepResearchCapability(BaseCapability):
                 str(data.get("message") or status or data.get("type") or "").strip(),
             )
 
-        async def _progress_cb(data: dict[str, Any]) -> None:
+        async def _emit_progress(data: dict[str, Any]) -> None:
             raw_stage = str(data.get("stage") or "researching")
             stage = _normalize_stage(raw_stage)
             status = str(data.get("status") or data.get("type") or "")
@@ -122,6 +123,13 @@ class DeepResearchCapability(BaseCapability):
                     "research_status": status,
                 },
             )
+
+        def _progress_cb(data: dict[str, Any]) -> None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+            loop.create_task(_emit_progress(data))
 
         def _label_from_update(update: dict[str, Any], stage: str) -> str:
             agent_name = str(update.get("agent_name") or "")

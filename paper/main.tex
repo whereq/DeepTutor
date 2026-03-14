@@ -64,24 +64,20 @@
 \footnotetext{\hspace{-1.8em}$^*$Equal contribution.\newline $^\dagger$Corresponding author.}%
 \renewcommand{\thefootnote}{\arabic{footnote}}%
 \setcounter{footnote}{0}%
-Education is among the most promising real-world applications of large language models (LLMs). 
-While current LLMs exhibit strong abilities, they rely heavily on static knowledge acquired during pre-training stages.
-While current RAG systems can anchor responses in course
-content, they optimize for retrieval precision rather than the adaptive,
-guided explanations that effective tutoring demands.
-In this paper, we present \textsc{DeepTutor}, among the first open-source agentic frameworks to unify citation-grounded problem-solving and difficulty-calibrated question generation.
-These two capabilities are unified through a hybrid personalization engine that couples static knowledge grounding with a trace forest that continuously refines an evolving learner profile to customize every interaction.
-To further evaluate personalized tutoring abilities, we construct TutorBench, a benchmark containing 100 KB-grounded learner profiles to perform first-person interactive assessments via profile-driven student simulator. 
-Generalization experiments on five standard benchmarks further show that our reasoning pipeline lifts solving accuracy by approximately 25\% on average over the backbone model across these datasets. 
-\textsc{DeepTutor} system with full evaluation suites are open-sourced at \url{https://github.com/HKUDS/DeepTutor/tree/eval}.
-
+Education is one of the most promising real-world applications for Large Language Models (LLMs). However, current LLMs rely heavily on static knowledge from pre-training, and existing Retrieval-Augmented Generation (RAG) systems often prioritize retrieval precision over the adaptive, guided explanations essential for effective tutoring. 
+In this paper, we present \textsc{DeepTutor}, a fully open-source agentic framework that unifies citation-grounded problem-solving with difficulty-calibrated question generation. 
+These capabilities are integrated through a hybrid personalization engine that couples static knowledge grounding with a trace forest, which continuously refines evolving learner profiles to customize every interaction. 
+To evaluate personalized tutoring, we construct TutorBench, featuring 100 KB-grounded customized learner profiles. 
+We further conduct interactive assessments via a profile-driven student simulator, complemented by general problem-solving evaluations on authoritative benchmarks. 
+Our results demonstrate that \textsc{DeepTutor} excels in personalized scenarios while maintaining robust generalized agentic abilities. 
+The \textsc{DeepTutor} system and its evaluation suites are open-sourced at \url{https://github.com/HKUDS/DeepTutor}.
 \end{abstract}
 
 % ===== Sections =====
 \input{sections/intro}
+\input{sections/related-work}
 \input{sections/method}
 \input{sections/experiments}
-\input{sections/related-work}
 \input{sections/conclusion}
 \input{sections/limitation}
 

@@ -125,7 +125,7 @@ def check_backend_packages() -> tuple[bool, int, int]:
         # HTTP & API
         ("requests", "requests", "2.32.0", False),
         ("openai", "openai", "1.30.0", False),
-        ("anthropic", "anthropic", "0.30.0", False),
+        ("anthropic", "anthropic", "0.30.0", True),
         ("aiohttp", "aiohttp", "3.9.0", False),
         ("httpx", "httpx", "0.27.0", False),
         # Async

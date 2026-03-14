@@ -54,7 +54,7 @@ class BaseAgent(ABC):
         model: str | None = None,
         api_version: str | None = None,
         language: str = "zh",
-        binding: str = "openai",
+        binding: str | None = None,
         config: dict[str, Any] | None = None,
         token_tracker: Any | None = None,
         log_dir: str | None = None,
@@ -106,7 +106,7 @@ class BaseAgent(ABC):
             self.base_url = base_url or os.getenv("LLM_HOST")
             self.model = model or os.getenv("LLM_MODEL")
             self.api_version = api_version or os.getenv("LLM_API_VERSION")
-            self.binding = binding
+            self.binding = binding or os.getenv("LLM_BINDING", "openai")
 
         # Get Agent-specific configuration (if config provided)
         self.agent_config = self.config.get("agents", {}).get(agent_name, {})

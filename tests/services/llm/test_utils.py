@@ -64,6 +64,27 @@ def test_extract_response_content() -> None:
     assert extract_response_content(payload) == "HelloWorld"
 
 
+def test_extract_response_content_from_object_attributes() -> None:
+    """Response content extraction should handle SDK-like objects."""
+
+    class _Message:
+        content = "Hello from object"
+
+    assert extract_response_content(_Message()) == "Hello from object"
+
+
+def test_extract_response_content_from_model_dump() -> None:
+    """Response content extraction should fallback to model_dump payload."""
+
+    class _Message:
+        content = None
+
+        def model_dump(self):
+            return {"content": [{"text": "A"}, {"text": "B"}]}
+
+    assert extract_response_content(_Message()) == "AB"
+
+
 def test_collect_model_names() -> None:
     """Model name collection should extract names from payload entries."""
     entries = ["m1", {"id": "m2"}, {"name": "m3"}, {"model": "m4"}]

@@ -190,7 +190,7 @@ class IdeaAgent(BaseAgent):
                 "Existing concentrations:\n{existing_concentrations}\n"
                 "Knowledge context:\n{knowledge_context}\n\n"
                 "Generate {num_ideas} candidate question ideas.\n"
-                'Return JSON {"ideas":[{"concentration":"","question_type":"","difficulty":"","rationale":""}]}'
+                'Return JSON {{"ideas":[{{"concentration":"","question_type":"","difficulty":"","rationale":""}}]}}'
             )
 
         constraints: list[str] = []

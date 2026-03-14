@@ -199,12 +199,19 @@ def animate(
     message: str = typer.Argument(..., help="Animation prompt."),
     session: str | None = typer.Option(None, "--session", help="Existing session id."),
     language: str = typer.Option("en", "--language", "-l", help="Response language."),
-    output_mode: str = typer.Option("video", "--output-mode", help="video | frames | storyboard"),
+    output_mode: str = typer.Option(
+        "video",
+        "--output-mode",
+        help="video | image (legacy aliases: frames | storyboard)",
+    ),
     quality: str = typer.Option("medium", "--quality", help="low | medium | high"),
     style_hint: str = typer.Option("", "--style-hint", help="Visual style hint."),
     fmt: str = typer.Option("rich", "--format", "-f", help="Output format: rich | json."),
 ) -> None:
     """Alias for ``run math_animator``."""
+    normalized_output_mode = output_mode
+    if output_mode in {"frames", "storyboard"}:
+        normalized_output_mode = "image"
     _run_alias(
         capability="math_animator",
         message=message,
@@ -216,7 +223,7 @@ def animate(
         language=language,
         fmt=fmt,
         config_items=[
-            f"output_mode={output_mode}",
+            f"output_mode={normalized_output_mode}",
             f"quality={quality}",
             f"style_hint={style_hint}",
         ],

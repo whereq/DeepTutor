@@ -238,7 +238,8 @@ class NotebookManager:
     ) -> dict:
         record_id = str(uuid.uuid4())[:8]
         now = time.time()
-        resolved_type = RecordType(str(record_type))
+        # Accept both enum instances and plain string values from callers.
+        resolved_type = record_type if isinstance(record_type, RecordType) else RecordType(str(record_type))
 
         record = {
             "id": record_id,
@@ -410,4 +411,3 @@ def get_notebook_manager() -> NotebookManager:
 
 
 notebook_manager = get_notebook_manager()
-
