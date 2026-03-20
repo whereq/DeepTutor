@@ -334,12 +334,10 @@ class ChatAgent(BaseAgent):
                 user_prompt = msg.get("content", "")
                 break
 
-        # Use BaseAgent's call_llm which routes through the factory
-        # Note: call_llm expects simple prompt/system_prompt, but for multi-turn
-        # we need to use the factory directly with messages
-        from deeptutor.services.llm import complete as llm_complete
+        from deeptutor.services.llm import stream as llm_stream
 
-        response = await llm_complete(
+        _chunks: list[str] = []
+        async for _c in llm_stream(
             prompt=user_prompt,
             system_prompt=system_prompt,
             model=self.get_model(),
@@ -347,7 +345,9 @@ class ChatAgent(BaseAgent):
             base_url=self.base_url,
             messages=messages,
             temperature=self.get_temperature(),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         # Track token usage
         self._track_tokens(

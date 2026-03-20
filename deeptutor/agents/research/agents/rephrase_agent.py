@@ -51,8 +51,8 @@ class RephraseAgent(BaseAgent):
             language=language,
             config=config,
         )
-        # Store complete conversation history for multi-turn optimization
         self.conversation_history: list[dict[str, Any]] = []
+        self.session_history: list[dict[str, Any]] = config.get("conversation_history", [])
         intent_mode = str(config.get("intent", {}).get("mode", "") or "")
         reporting_style = str(config.get("reporting", {}).get("style", "") or "")
         self._research_style = reporting_style or self._MODE_TO_STYLE.get(intent_mode, "report")
@@ -128,12 +128,26 @@ class RephraseAgent(BaseAgent):
             }
         )
 
-        # Get system prompt
         system_prompt = self.get_prompt("system", "role")
         if not system_prompt:
             raise ValueError(
                 "RephraseAgent missing system prompt, please configure system.role in prompts/{lang}/rephrase_agent.yaml"
             )
+        if self.session_history:
+            ctx_parts = []
+            for msg in self.session_history:
+                role = msg.get("role", "user")
+                content = str(msg.get("content", "")).strip()
+                if content:
+                    ctx_parts.append(f"[{role}]: {content}")
+            if ctx_parts:
+                system_prompt += (
+                    "\n\n<session_history>\n"
+                    "The following is the earlier conversation in this session. "
+                    "Use it to understand what the user previously discussed or planned.\n\n"
+                    + "\n\n".join(ctx_parts)
+                    + "\n</session_history>"
+                )
 
         # Get user prompt template
         user_prompt_template = self.get_prompt("process", "rephrase")
@@ -154,13 +168,15 @@ class RephraseAgent(BaseAgent):
             mode_instruction=self._get_mode_contract("rephrase"),
         )
 
-        # Call LLM
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="rephrase",
             trace_meta=self._build_trace_meta(iteration),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         # Parse JSON output
         data = extract_json_from_text(response)

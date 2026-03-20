@@ -215,7 +215,17 @@ class PathService:
         return self.get_notebook_dir() / "notebooks_index.json"
 
     def get_memory_dir(self) -> Path:
-        return self.get_workspace_feature_dir("memory")
+        new_dir = self.project_root / "data" / "memory"
+        old_dir = self.get_workspace_feature_dir("memory")
+        if old_dir.exists() and not new_dir.exists():
+            new_dir.mkdir(parents=True, exist_ok=True)
+            for f in old_dir.iterdir():
+                if f.is_file() and f.suffix == ".md":
+                    target = new_dir / f.name
+                    if not target.exists():
+                        import shutil
+                        shutil.copy2(f, target)
+        return new_dir
 
     def get_solve_dir(self) -> Path:
         return self.get_chat_feature_dir("deep_solve")

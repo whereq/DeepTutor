@@ -239,7 +239,12 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             status: "running",
             messages: [
               ...(state.sessions[action.key]?.messages ?? []),
-              { role: "assistant", content: "", events: [] },
+              {
+                role: "assistant",
+                content: "",
+                events: [],
+                capability: (state.sessions[action.key] ?? createSessionEntry(action.key)).activeCapability || "",
+              },
             ],
             updatedAt: Date.now(),
           },
@@ -250,13 +255,14 @@ function reducer(state: ProviderState, action: Action): ProviderState {
       const msgs = [...session.messages];
       let last = msgs[msgs.length - 1];
       if (last?.role !== "assistant") {
-        msgs.push({ role: "assistant", content: "", events: [] });
+        msgs.push({ role: "assistant", content: "", events: [], capability: session.activeCapability || "" });
         last = msgs[msgs.length - 1];
       }
       const events = [...(last?.events || []), action.event];
       let content = last?.content || "";
       if (shouldAppendEventContent(action.event)) content += action.event.content;
-      msgs[msgs.length - 1] = { ...(last || { role: "assistant", content: "" }), content, events };
+      const capability = last?.capability || session.activeCapability || "";
+      msgs[msgs.length - 1] = { ...(last || { role: "assistant", content: "" }), content, events, capability };
       return {
         ...state,
         sessions: {

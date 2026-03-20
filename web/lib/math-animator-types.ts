@@ -80,10 +80,28 @@ export function extractMathAnimatorResult(
     resultMetadata.code && typeof resultMetadata.code === "object"
       ? (resultMetadata.code as Record<string, unknown>)
       : {};
-  const outputMode =
-    resultMetadata.output_mode === "image" ? "image" : "video";
+  const hasOutputMode =
+    resultMetadata.output_mode === "image" || resultMetadata.output_mode === "video";
+  const timings =
+    resultMetadata.timings && typeof resultMetadata.timings === "object"
+      ? (resultMetadata.timings as Record<string, number>)
+      : {};
+  const render =
+    resultMetadata.render && typeof resultMetadata.render === "object"
+      ? (resultMetadata.render as MathAnimatorResult["render"])
+      : {};
+  const outputMode = resultMetadata.output_mode === "image" ? "image" : "video";
 
-  if (!artifacts.length && !codeRaw.content && !resultMetadata.response) {
+  // A plain `response` field is common across capabilities. Only treat the
+  // payload as a math-animator result when it carries math-animator-specific
+  // artifacts or render metadata.
+  if (
+    !artifacts.length &&
+    !codeRaw.content &&
+    !hasOutputMode &&
+    Object.keys(timings).length === 0 &&
+    Object.keys(render).length === 0
+  ) {
     return null;
   }
 
@@ -95,14 +113,8 @@ export function extractMathAnimatorResult(
       content: String(codeRaw.content ?? ""),
     },
     artifacts,
-    timings:
-      resultMetadata.timings && typeof resultMetadata.timings === "object"
-        ? (resultMetadata.timings as Record<string, number>)
-        : {},
-    render:
-      resultMetadata.render && typeof resultMetadata.render === "object"
-        ? (resultMetadata.render as MathAnimatorResult["render"])
-        : {},
+    timings,
+    render,
     summary:
       resultMetadata.summary && typeof resultMetadata.summary === "object"
         ? (resultMetadata.summary as MathAnimatorResult["summary"])

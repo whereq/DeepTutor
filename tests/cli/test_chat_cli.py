@@ -31,36 +31,24 @@ def _install_fake_runtime(monkeypatch, captured_requests: list[TurnRequest]) -> 
     monkeypatch.setattr("deeptutor.app.facade.DeepTutorApp.stream_turn", _stream_turn)
 
 
-def test_chat_cli_json_mode_supports_runtime_payloads(monkeypatch) -> None:
+def test_run_command_json_mode(monkeypatch) -> None:
     captured_requests: list[TurnRequest] = []
     _install_fake_runtime(monkeypatch, captured_requests)
 
-    capability_args = [
-        [],
-        ["--capability", "chat"],
-        ["--capability", "deep_solve"],
-        ["--capability", "deep_question"],
-        ["--capability", "deep_research"],
-    ]
+    capabilities = ["chat", "deep_solve", "deep_question", "deep_research"]
 
-    for extra_args in capability_args:
+    for cap in capabilities:
         result = runner.invoke(
             app,
             [
-                "chat",
-                "--once",
-                "--format",
-                "json",
-                "--tool",
-                "rag",
-                "--kb",
-                "demo-kb",
-                "--history-ref",
-                "session-old",
-                "--notebook-ref",
-                "nb1:rec1,rec2",
-                *extra_args,
+                "run",
+                cap,
                 "hello world",
+                "--format", "json",
+                "--tool", "rag",
+                "--kb", "demo-kb",
+                "--history-ref", "session-old",
+                "--notebook-ref", "nb1:rec1,rec2",
             ],
         )
 
@@ -68,7 +56,8 @@ def test_chat_cli_json_mode_supports_runtime_payloads(monkeypatch) -> None:
         lines = [json.loads(line) for line in result.output.splitlines() if line.strip()]
         assert any(line["type"] == "result" for line in lines)
 
-    assert len(captured_requests) == 5
+    assert len(captured_requests) == 4
+    assert captured_requests[0].capability == "chat"
     assert captured_requests[0].tools == ["rag"]
     assert captured_requests[0].knowledge_bases == ["demo-kb"]
     assert captured_requests[0].history_references == ["session-old"]
@@ -76,34 +65,29 @@ def test_chat_cli_json_mode_supports_runtime_payloads(monkeypatch) -> None:
     assert captured_requests[-1].capability == "deep_research"
 
 
-def test_chat_cli_rich_single_shot_mode_uses_turn_runtime(monkeypatch) -> None:
+def test_run_command_rich_mode(monkeypatch) -> None:
     captured_requests: list[TurnRequest] = []
     _install_fake_runtime(monkeypatch, captured_requests)
 
-    result = runner.invoke(app, ["chat", "--once", "hello rich"])
+    result = runner.invoke(app, ["run", "chat", "hello rich"])
 
     assert result.exit_code == 0, result.output
     assert "response body" in result.output
     assert captured_requests[0].capability == "chat"
 
 
-def test_research_alias_maps_flags_to_typed_config(monkeypatch) -> None:
+def test_run_command_with_config(monkeypatch) -> None:
     captured_requests: list[TurnRequest] = []
     _install_fake_runtime(monkeypatch, captured_requests)
 
     result = runner.invoke(
         app,
         [
-            "research",
-            "--mode",
-            "report",
-            "--depth",
-            "deep",
-            "--source",
-            "web",
-            "--source",
-            "papers",
+            "run",
+            "deep_research",
             "compare retrieval stacks",
+            "--config-json",
+            '{"mode":"report","depth":"deep","sources":["web","papers"]}',
         ],
     )
 

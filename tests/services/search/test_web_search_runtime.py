@@ -1,4 +1,4 @@
-"""Tests for nanobot-style web_search runtime behavior."""
+"""Tests for TutorBot-style web_search runtime behavior."""
 
 from __future__ import annotations
 

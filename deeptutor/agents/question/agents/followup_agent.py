@@ -44,7 +44,8 @@ class FollowupAgent(BaseAgent):
             user_message=user_message.strip() or "(empty)",
         )
 
-        return await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt or "",
             stage="followup_answer",
@@ -58,7 +59,9 @@ class FollowupAgent(BaseAgent):
                 trace_id=str(question_context.get("question_id", "question")),
                 question_id=str(question_context.get("question_id", "")),
             ),
-        )
+        ):
+            _chunks.append(_c)
+        return "".join(_chunks)
 
     @staticmethod
     def _humanize_question_id(question_id: Any) -> str:

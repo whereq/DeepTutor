@@ -26,7 +26,6 @@ class Generator(BaseAgent):
     def __init__(
         self,
         kb_name: str | None = None,
-        rag_mode: str = "naive",
         language: str = "en",
         tool_flags: dict[str, bool] | None = None,
         **kwargs: Any,
@@ -38,7 +37,6 @@ class Generator(BaseAgent):
             **kwargs,
         )
         self.kb_name = kb_name
-        self.rag_mode = rag_mode
         self.tool_flags = tool_flags or {}
         self._tool_registry = get_tool_registry()
 
@@ -137,7 +135,8 @@ class Generator(BaseAgent):
             available_tools=available_tools,
         )
 
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt or "",
             response_format={"type": "json_object"},
@@ -150,7 +149,9 @@ class Generator(BaseAgent):
                 trace_id=template.question_id,
                 question_id=template.question_id,
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
         payload = self._parse_json_like(response)
 
         if "question" not in payload or not str(payload.get("question", "")).strip():
@@ -242,7 +243,8 @@ class Generator(BaseAgent):
             "- Return JSON only with keys: question_type, question, options, correct_answer, explanation.\n"
         )
 
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=repair_prompt,
             system_prompt="You fix malformed quiz payloads and return valid JSON only.",
             response_format={"type": "json_object"},
@@ -255,7 +257,9 @@ class Generator(BaseAgent):
                 trace_id=template.question_id,
                 question_id=template.question_id,
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
         return self._parse_json_like(response)
 
     @classmethod

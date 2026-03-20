@@ -199,17 +199,19 @@ class DeepResearchCapability(BaseCapability):
                         )
                     return
                 if state == "complete":
-                    response = str(update.get("response", "") or "")
-                    if response:
-                        await stream.thinking(
-                            response,
-                            source=self.name,
-                            stage=stage,
-                            metadata=merge_trace_metadata(
-                                base_metadata,
-                                {"trace_kind": "llm_output"},
-                            ),
-                        )
+                    was_streaming = update.get("streaming", False)
+                    if not was_streaming:
+                        response = str(update.get("response", "") or "")
+                        if response:
+                            await stream.thinking(
+                                response,
+                                source=self.name,
+                                stage=stage,
+                                metadata=merge_trace_metadata(
+                                    base_metadata,
+                                    {"trace_kind": "llm_output"},
+                                ),
+                            )
                     await stream.progress(
                         message=label,
                         source=self.name,
@@ -274,6 +276,51 @@ class DeepResearchCapability(BaseCapability):
                 )
                 return
 
+        confirmed_outline = request_config.confirmed_outline
+        conversation_history = context.conversation_history or []
+
+        if confirmed_outline is None:
+            outline_items = await self._generate_outline_preview(
+                config=config,
+                llm_config=llm_config,
+                kb_name=kb_name,
+                topic=topic,
+                stream=stream,
+                progress_callback=_progress_cb,
+                trace_callback=_trace_cb,
+                conversation_history=conversation_history,
+            )
+            sub_topics_data = (
+                [item.model_dump() for item in outline_items]
+                if hasattr(outline_items[0], "model_dump")
+                else outline_items
+            )
+
+            outline_md = self._outline_to_markdown(topic, sub_topics_data)
+            await stream.content(outline_md, source=self.name, stage="decomposing")
+
+            await stream.result(
+                {
+                    "outline_preview": True,
+                    "sub_topics": sub_topics_data,
+                    "topic": topic,
+                    "research_config": {
+                        "mode": request_config.mode,
+                        "depth": request_config.depth,
+                        "sources": list(request_config.sources),
+                        **({"manual_subtopics": request_config.manual_subtopics} if request_config.manual_subtopics is not None else {}),
+                        **({"manual_max_iterations": request_config.manual_max_iterations} if request_config.manual_max_iterations is not None else {}),
+                    },
+                },
+                source=self.name,
+            )
+            return
+
+        pre_outline = [
+            {"title": item.title, "overview": item.overview}
+            for item in confirmed_outline
+        ]
+
         pipeline = ResearchPipeline(
             config=config,
             api_key=llm_config.api_key,
@@ -282,6 +329,7 @@ class DeepResearchCapability(BaseCapability):
             kb_name=kb_name,
             progress_callback=_progress_cb,
             trace_callback=_trace_cb,
+            pre_confirmed_outline=pre_outline,
         )
 
         async with stream.stage("researching", source=self.name):
@@ -297,3 +345,58 @@ class DeepResearchCapability(BaseCapability):
             {"response": report, "metadata": result.get("metadata", {})},
             source=self.name,
         )
+
+    @staticmethod
+    def _outline_to_markdown(
+        topic: str, sub_topics: list[dict[str, str]]
+    ) -> str:
+        """Serialize an outline to Markdown so it is persisted in session history."""
+        lines = [f"**Research Outline — {topic}**\n"]
+        for i, item in enumerate(sub_topics, 1):
+            lines.append(f"{i}. **{item.get('title', '')}**")
+            overview = item.get("overview", "")
+            if overview:
+                lines.append(f"   {overview}")
+        return "\n".join(lines)
+
+    async def _generate_outline_preview(
+        self,
+        *,
+        config: dict[str, Any],
+        llm_config: Any,
+        kb_name: str | None,
+        topic: str,
+        stream: StreamBus,
+        progress_callback: Any,
+        trace_callback: Any,
+        conversation_history: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, str]]:
+        """Run only the planning phase (rephrase + decompose) and return sub-topics."""
+        from deeptutor.agents.research.research_pipeline import ResearchPipeline
+
+        if conversation_history:
+            config = {**config, "conversation_history": conversation_history}
+
+        pipeline = ResearchPipeline(
+            config=config,
+            api_key=llm_config.api_key,
+            base_url=llm_config.base_url,
+            api_version=llm_config.api_version,
+            kb_name=kb_name,
+            progress_callback=progress_callback,
+            trace_callback=trace_callback,
+        )
+
+        async with stream.stage("decomposing", source=self.name):
+            await stream.thinking(
+                f"Generating research outline for: {topic}",
+                source=self.name,
+                stage="decomposing",
+            )
+            optimized_topic = await pipeline._phase1_planning(topic)
+
+        sub_topics = []
+        for block in pipeline.queue.blocks:
+            sub_topics.append({"title": block.sub_topic, "overview": block.overview})
+
+        return sub_topics

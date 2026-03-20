@@ -242,17 +242,19 @@ class MathAnimatorCapability(BaseCapability):
                     )
                 return
             if state == "complete":
-                response = str(update.get("response", "") or "")
-                if response:
-                    await stream.thinking(
-                        response,
-                        source=self.name,
-                        stage=stage,
-                        metadata=merge_trace_metadata(
-                            base_metadata,
-                            {"trace_kind": "llm_output"},
-                        ),
-                    )
+                was_streaming = update.get("streaming", False)
+                if not was_streaming:
+                    response = str(update.get("response", "") or "")
+                    if response:
+                        await stream.thinking(
+                            response,
+                            source=self.name,
+                            stage=stage,
+                            metadata=merge_trace_metadata(
+                                base_metadata,
+                                {"trace_kind": "llm_output"},
+                            ),
+                        )
                 await stream.progress(
                     message=label,
                     source=self.name,

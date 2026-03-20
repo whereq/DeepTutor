@@ -63,7 +63,7 @@ async def reason(
     Returns:
         dict with keys ``query``, ``answer``, ``model``.
     """
-    from deeptutor.services.llm import complete as llm_complete
+    from deeptutor.services.llm import complete as llm_complete, stream as llm_stream
     from deeptutor.services.llm.config import get_llm_config
     from deeptutor.services.llm import get_token_limit_kwargs
     from deeptutor.services.config import get_agent_params
@@ -100,14 +100,17 @@ async def reason(
 
     logger.debug("reason tool: model=%s, query=%s...", model, query[:80])
 
-    answer = await llm_complete(
+    _chunks: list[str] = []
+    async for _c in llm_stream(
         prompt=user_prompt,
         system_prompt=_SYSTEM_PROMPT,
         model=model,
         api_key=api_key,
         base_url=base_url,
         **kwargs,
-    )
+    ):
+        _chunks.append(_c)
+    answer = "".join(_chunks)
 
     return {
         "query": query,

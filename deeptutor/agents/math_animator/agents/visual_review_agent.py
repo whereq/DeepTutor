@@ -70,7 +70,8 @@ class VisualReviewAgent(BaseAgent):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             messages=messages,
@@ -86,7 +87,9 @@ class VisualReviewAgent(BaseAgent):
                 trace_role="review",
                 trace_kind="llm_output",
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
         payload = extract_json_object(response)
         payload.setdefault("reviewed_frames", len(attachments))
         return VisualReviewResult.model_validate(payload)

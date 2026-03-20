@@ -11,6 +11,8 @@ interface AutoScrollOptions {
   lastEventCount?: number;
 }
 
+const THROTTLE_MS = 80;
+
 export function useChatAutoScroll({
   hasMessages,
   isStreaming,
@@ -22,15 +24,12 @@ export function useChatAutoScroll({
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
+  const lastScrollTimeRef = useRef(0);
+  const pendingRafRef = useRef(0);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
     const container = containerRef.current;
-    const anchor = endRef.current;
     if (!container) return;
-    if (anchor) {
-      anchor.scrollIntoView({ block: "end", behavior });
-      return;
-    }
     container.scrollTo({
       top: container.scrollHeight,
       behavior,
@@ -39,26 +38,40 @@ export function useChatAutoScroll({
 
   useEffect(() => {
     if (!shouldAutoScrollRef.current) return;
-    let raf1 = 0;
-    let raf2 = 0;
-    raf1 = window.requestAnimationFrame(() => {
-      scrollToBottom(isStreaming ? "auto" : "smooth");
-      if (isStreaming) {
-        raf2 = window.requestAnimationFrame(() => {
-          scrollToBottom("auto");
-        });
-      }
+
+    const now = performance.now();
+    const elapsed = now - lastScrollTimeRef.current;
+
+    if (isStreaming && elapsed < THROTTLE_MS) {
+      if (pendingRafRef.current) return;
+      pendingRafRef.current = window.setTimeout(() => {
+        pendingRafRef.current = 0;
+        if (shouldAutoScrollRef.current) {
+          scrollToBottom("instant");
+          lastScrollTimeRef.current = performance.now();
+        }
+      }, THROTTLE_MS - elapsed);
+      return;
+    }
+
+    const raf = window.requestAnimationFrame(() => {
+      scrollToBottom(isStreaming ? "instant" : "smooth");
+      lastScrollTimeRef.current = performance.now();
     });
+
     return () => {
-      window.cancelAnimationFrame(raf1);
-      window.cancelAnimationFrame(raf2);
+      window.cancelAnimationFrame(raf);
+      if (pendingRafRef.current) {
+        clearTimeout(pendingRafRef.current);
+        pendingRafRef.current = 0;
+      }
     };
   }, [isStreaming, lastEventCount, lastMessageContent, messageCount, scrollToBottom]);
 
   useEffect(() => {
     if (!hasMessages || !shouldAutoScrollRef.current) return;
     const raf = window.requestAnimationFrame(() => {
-      scrollToBottom("auto");
+      scrollToBottom("instant");
     });
     return () => window.cancelAnimationFrame(raf);
   }, [composerHeight, hasMessages, scrollToBottom]);

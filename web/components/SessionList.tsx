@@ -16,9 +16,27 @@ interface SessionListProps {
   sessions: SessionSummary[];
   activeSessionId: string | null;
   loading?: boolean;
+  compact?: boolean;
   onSelect: (sessionId: string) => void | Promise<void>;
   onRename: (sessionId: string, title: string) => void | Promise<void>;
   onDelete: (sessionId: string) => void | Promise<void>;
+}
+
+function statusColor(status?: SessionRuntimeStatus): string {
+  switch (status) {
+    case "running":
+      return "bg-blue-500";
+    case "completed":
+      return "bg-emerald-400";
+    case "failed":
+      return "bg-rose-500";
+    case "rejected":
+      return "bg-fuchsia-500";
+    case "cancelled":
+      return "bg-amber-500";
+    default:
+      return "bg-[var(--muted-foreground)]/25";
+  }
 }
 
 function StatusIndicator({ status }: { status?: SessionRuntimeStatus }) {
@@ -86,6 +104,7 @@ export default function SessionList({
   sessions,
   activeSessionId,
   loading = false,
+  compact = false,
   onSelect,
   onRename,
   onDelete,
@@ -123,6 +142,15 @@ export default function SessionList({
   };
 
   if (loading) {
+    if (compact) {
+      return (
+        <div className="ml-5 space-y-1.5 border-l border-[var(--border)]/30 py-1 pl-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-4 w-3/4 animate-pulse rounded bg-[var(--muted)]/40" />
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="space-y-2 px-1.5 py-2">
         {[1, 2, 3].map((i) => (
@@ -133,6 +161,7 @@ export default function SessionList({
   }
 
   if (sessions.length === 0) {
+    if (compact) return null;
     return (
       <div className="px-3 py-4 text-center text-[11px] text-[var(--muted-foreground)]/70">
         No conversations yet
@@ -140,11 +169,104 @@ export default function SessionList({
     );
   }
 
+  /* ---- Compact tree-line style (under Chat nav item) ---- */
+  if (compact) {
+    return (
+      <div className="ml-5 border-l border-[var(--border)]/30 py-1">
+        {grouped.map(([label, items], groupIdx) => (
+          <div key={label}>
+            {groupIdx > 0 && (
+              <div className="my-1 ml-3 mr-2 border-t border-[var(--border)]/20" />
+            )}
+            <div className="px-3 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]/40">
+              {label}
+            </div>
+            {items.map((session) => {
+              const active = activeSessionId === session.session_id;
+              const isEditing = editingId === session.session_id;
+              return (
+                <div
+                  key={session.session_id}
+                  onClick={() => void onSelect(session.session_id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void onSelect(session.session_id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  className={`group flex items-center gap-2 rounded-r-lg py-1 pl-3 pr-2 transition-colors ${
+                    active
+                      ? "bg-[var(--background)]/50 text-[var(--foreground)]"
+                      : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/40 hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  <span className={`block h-1.5 w-1.5 shrink-0 rounded-full ${
+                    active ? "bg-[var(--foreground)]/60" : statusColor(session.status)
+                  }`} />
+                  {isEditing ? (
+                    <input
+                      value={draftTitle}
+                      autoFocus
+                      onChange={(event) => setDraftTitle(event.target.value)}
+                      onBlur={() => void commitEdit()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void commitEdit();
+                        if (event.key === "Escape") {
+                          setEditingId(null);
+                          setDraftTitle("");
+                        }
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                      className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-1.5 py-px text-[12px] text-[var(--foreground)] outline-none focus:ring-1 focus:ring-[var(--primary)]/40"
+                    />
+                  ) : (
+                    <span className={`min-w-0 flex-1 truncate text-[13px] ${active ? "font-medium" : ""}`}>
+                      {session.title || "Untitled chat"}
+                    </span>
+                  )}
+                  <div className="flex shrink-0 items-center gap-px opacity-0 transition-opacity group-hover:opacity-100">
+                    {isEditing ? (
+                      <button
+                        onClick={(event) => { event.stopPropagation(); void commitEdit(); }}
+                        className="rounded p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                        aria-label="Save title"
+                      >
+                        <Check size={10} />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(event) => { event.stopPropagation(); startEdit(session); }}
+                        className="rounded p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                        aria-label="Rename chat"
+                      >
+                        <Pencil size={10} />
+                      </button>
+                    )}
+                    <button
+                      onClick={(event) => { event.stopPropagation(); void onDelete(session.session_id); }}
+                      className="rounded p-0.5 text-[var(--muted-foreground)] hover:text-[var(--destructive)]"
+                      aria-label="Delete chat"
+                    >
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  /* ---- Classic style ---- */
   return (
     <div className="space-y-3">
       {grouped.map(([label, items]) => (
         <div key={label}>
-          <div className="mb-1 px-2 text-[10px] font-medium uppercase tracking-widest text-[var(--muted-foreground)]/50">
+          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
             {label}
           </div>
           <div className="space-y-px">
@@ -163,10 +285,10 @@ export default function SessionList({
                   }}
                   role="button"
                   tabIndex={0}
-                  className={`group relative w-full rounded-lg px-2.5 py-[7px] text-left transition-all duration-150 ${
+                  className={`group relative w-full rounded-lg px-2.5 py-2 text-left transition-all duration-150 ${
                     active
-                      ? "bg-[var(--muted)] text-[var(--foreground)]"
-                      : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/50 hover:text-[var(--foreground)]"
+                      ? "bg-[var(--background)]/70 text-[var(--foreground)]"
+                      : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
                   }`}
                 >
                   {active && (
@@ -188,13 +310,13 @@ export default function SessionList({
                             }
                           }}
                           onClick={(event) => event.stopPropagation()}
-                          className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-2 py-0.5 text-[11.5px] text-[var(--foreground)] outline-none focus:ring-1 focus:ring-[var(--primary)]/40"
+                          className="w-full rounded border border-[var(--border)] bg-[var(--background)] px-2 py-0.5 text-[12px] text-[var(--foreground)] outline-none focus:ring-1 focus:ring-[var(--primary)]/40"
                         />
                       ) : (
                         <div className="flex items-center">
                           <span
-                            className={`line-clamp-1 min-w-0 flex-1 text-[11.5px] leading-snug ${
-                              active ? "font-semibold" : "font-normal"
+                            className={`line-clamp-1 min-w-0 flex-1 text-[12px] leading-snug ${
+                              active ? "font-medium" : "font-normal"
                             }`}
                           >
                             {session.title || "Untitled chat"}
@@ -203,7 +325,7 @@ export default function SessionList({
                         </div>
                       )}
                       {!isEditing && (
-                        <div className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-[var(--muted-foreground)]/60">
+                        <div className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-[var(--muted-foreground)]">
                           {session.last_message || relativeTime(session.updated_at)}
                         </div>
                       )}

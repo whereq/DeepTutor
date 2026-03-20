@@ -157,6 +157,11 @@ async def litellm_stream(
             delta = choice.get("delta")
         if delta is None:
             continue
+        # Skip stop-chunks where content is explicitly None (avoids
+        # extract_response_content converting the delta repr to string).
+        raw_content = getattr(delta, "content", None) if not isinstance(delta, dict) else delta.get("content")
+        if raw_content is None:
+            continue
         content = extract_response_content(delta)
         if content:
             yield content

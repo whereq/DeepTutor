@@ -66,14 +66,15 @@ class DeepQuestionCapability(BaseCapability):
                 )
                 if answer:
                     await stream.content(answer, source=self.name, stage="generation")
-                await stream.result(
-                    {
-                        "response": answer or "",
-                        "mode": "followup",
-                        "question_id": followup_question_context.get("question_id", ""),
-                    },
-                    source=self.name,
-                )
+                followup_payload: dict[str, Any] = {
+                    "response": answer or "",
+                    "mode": "followup",
+                    "question_id": followup_question_context.get("question_id", ""),
+                }
+                cost_meta = self._collect_cost_summary("question")
+                if cost_meta:
+                    followup_payload["metadata"] = {"cost_summary": cost_meta}
+                await stream.result(followup_payload, source=self.name)
             return
 
         mode = str(overrides.get("mode", "custom") or "custom").strip().lower()
@@ -177,14 +178,29 @@ class DeepQuestionCapability(BaseCapability):
         if content:
             await stream.content(content, source=self.name, stage="generation")
 
-        await stream.result(
-            {
-                "response": content or "No questions generated.",
-                "summary": result,
-                "mode": mode,
-            },
-            source=self.name,
-        )
+        result_payload: dict[str, Any] = {
+            "response": content or "No questions generated.",
+            "summary": result,
+            "mode": mode,
+        }
+        cost_meta = self._collect_cost_summary("question")
+        if cost_meta:
+            result_payload["metadata"] = {"cost_summary": cost_meta}
+        await stream.result(result_payload, source=self.name)
+
+    @staticmethod
+    def _collect_cost_summary(module_name: str) -> dict[str, Any] | None:
+        from deeptutor.agents.base_agent import BaseAgent
+        stats = BaseAgent._shared_stats.get(module_name)
+        if not stats or not stats.calls:
+            return None
+        s = stats.get_summary()
+        stats.reset()
+        return {
+            "total_cost_usd": s.get("cost_usd", 0),
+            "total_tokens": s.get("total_tokens", 0),
+            "total_calls": s.get("calls", 0),
+        }
 
     async def _run_mimic_mode(
         self,
@@ -382,17 +398,19 @@ class DeepQuestionCapability(BaseCapability):
                         )
                     return
                 if state == "complete":
-                    response = str(update.get("response", "") or "")
-                    if response:
-                        await stream.thinking(
-                            response,
-                            source=self.name,
-                            stage=stage,
-                            metadata=merge_trace_metadata(
-                                base_metadata,
-                                {"trace_kind": "llm_output"},
-                            ),
-                        )
+                    was_streaming = update.get("streaming", False)
+                    if not was_streaming:
+                        response = str(update.get("response", "") or "")
+                        if response:
+                            await stream.thinking(
+                                response,
+                                source=self.name,
+                                stage=stage,
+                                metadata=merge_trace_metadata(
+                                    base_metadata,
+                                    {"trace_kind": "llm_output"},
+                                ),
+                            )
                     await stream.progress(
                         message="",
                         source=self.name,

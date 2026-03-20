@@ -84,10 +84,10 @@ def _load_runtime_deps():
 # ---------------------------------------------------------------------------
 
 PROFILE_COMMANDS: dict[str, list[str]] = {
-    "cli-core": ["requirements/core.txt"],
-    "cli-rag": ["requirements/core.txt", "requirements/rag-lite.txt"],
+    "cli-core": ["requirements/cli.txt"],
+    "cli-rag": ["requirements/cli.txt"],
     "web-basic": ["requirements/server.txt"],
-    "web-rag": ["requirements/server.txt", "requirements/rag-lite.txt"],
+    "web-rag": ["requirements/server.txt"],
 }
 
 # Legacy aliases kept for backward compatibility (hidden from UI).
@@ -164,7 +164,7 @@ def _node_install_cmd() -> list[str] | None:
 
 
 # ---------------------------------------------------------------------------
-# Provider detection (for requirements/providers.txt)
+# Provider detection (providers are now bundled in cli.txt)
 # ---------------------------------------------------------------------------
 
 _NATIVE_BINDINGS = frozenset(
@@ -199,8 +199,7 @@ def _install_commands(profile: str, catalog: dict[str, Any]) -> list[tuple[list[
     cmds.append(([sys.executable, "-m", "pip", "install", "-e", ".", "--no-deps"], PROJECT_ROOT))
     if profile.startswith("web"):
         cmds.append((["npm", "install"], PROJECT_ROOT / "web"))
-    if _needs_providers(catalog):
-        cmds.append(([sys.executable, "-m", "pip", "install", "-r", "requirements/providers.txt"], PROJECT_ROOT))
+    # Provider SDKs are now bundled in cli.txt, no separate install needed.
     return cmds
 
 

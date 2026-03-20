@@ -165,7 +165,7 @@ class NoteAgent(BaseAgent):
 
         tool_type = (tool_type or "").lower()
 
-        if tool_type in {"rag_hybrid", "rag_naive", "rag"}:
+        if tool_type in {"rag_hybrid", "rag_naive", "rag"}:  # aliases kept for backward compat
             answer = data.get("answer") or data.get("content") or ""
             return self._truncate_text(answer)
 
@@ -270,13 +270,15 @@ class NoteAgent(BaseAgent):
             mode_instruction=self._get_mode_instruction_text("note"),
         )
 
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="generate_summary",
-            verbose=False,
             trace_meta=self._build_trace_meta(tool_type, query),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         # Parse JSON output (strict validation)
         from ..utils.json_utils import ensure_json_dict, ensure_keys

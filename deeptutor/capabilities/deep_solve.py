@@ -107,17 +107,19 @@ class DeepSolveCapability(BaseCapability):
                         )
                     return
                 if state == "complete":
-                    response = str(update.get("response", "") or "")
-                    if response:
-                        await stream.thinking(
-                            response,
-                            source=self.name,
-                            stage=stage,
-                            metadata=merge_trace_metadata(
-                                base_metadata,
-                                {"trace_kind": "llm_output"},
-                            ),
-                        )
+                    was_streaming = update.get("streaming", False)
+                    if not was_streaming:
+                        response = str(update.get("response", "") or "")
+                        if response:
+                            await stream.thinking(
+                                response,
+                                source=self.name,
+                                stage=stage,
+                                metadata=merge_trace_metadata(
+                                    base_metadata,
+                                    {"trace_kind": "llm_output"},
+                                ),
+                            )
                     await stream.progress(
                         message="",
                         source=self.name,
@@ -226,6 +228,20 @@ class DeepSolveCapability(BaseCapability):
         if hasattr(solver, "set_trace_callback"):
             solver.set_trace_callback(_trace_bridge)
 
+        # Content callback — streams writer tokens to the main chat area
+        content_streamed = False
+
+        async def _content_sink(chunk: str) -> None:
+            nonlocal content_streamed
+            content_streamed = True
+            await stream.content(
+                chunk,
+                source=self.name,
+                stage="writing",
+            )
+
+        solver._content_callback = _content_sink
+
         result = await solver.solve(
             question=context.user_message,
             verbose=False,
@@ -236,7 +252,8 @@ class DeepSolveCapability(BaseCapability):
         )
 
         final_answer = result.get("final_answer", "")
-        if final_answer:
+
+        if final_answer and not content_streamed:
             async with stream.stage("writing", source=self.name):
                 await stream.content(final_answer, source=self.name, stage="writing")
 

@@ -10,6 +10,11 @@ test("normalizeMarkdownForDisplay removes empty details blocks", () => {
   assert.equal(normalizeMarkdownForDisplay(input), "Before\n\nAfter");
 });
 
+test("normalizeMarkdownForDisplay removes raw html control placeholders", () => {
+  const input = "Before\n\n<progress></progress>\n<input type=\"text\" />\n<textarea> </textarea>\n\nAfter";
+  assert.equal(normalizeMarkdownForDisplay(input), "Before\n\nAfter");
+});
+
 test("normalizeMarkdownForDisplay removes empty markdown tables", () => {
   const input = "Before\n\n| |\n|---|\n\nAfter";
   assert.equal(normalizeMarkdownForDisplay(input), "Before\n\nAfter");
@@ -28,6 +33,13 @@ test("normalizeMarkdownForDisplay keeps meaningful tables", () => {
 test("hasVisibleMarkdownContent rejects empty raw-html placeholders", () => {
   assert.equal(
     hasVisibleMarkdownContent("<details><summary></summary></details>"),
+    false,
+  );
+});
+
+test("hasVisibleMarkdownContent rejects raw html control placeholders", () => {
+  assert.equal(
+    hasVisibleMarkdownContent("<progress></progress>\n<input type=\"text\" />"),
     false,
   );
 });

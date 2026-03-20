@@ -40,34 +40,56 @@ async function loadMermaid() {
   return mermaidLoader;
 }
 
+function cleanupMermaidOrphans(id: string) {
+  try {
+    document.getElementById(id)?.remove();
+    document.getElementById(`d${id}`)?.remove();
+  } catch {
+    /* ignore */
+  }
+}
+
 let mermaidIdCounter = 0;
+
+const DEBOUNCE_MS = 600;
 
 export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [stable, setStable] = useState(false);
   const [id] = useState(() => `mermaid-${++mermaidIdCounter}`);
+  const lastChartRef = useRef(chart);
 
   useEffect(() => {
-    let cancelled = false;
+    lastChartRef.current = chart;
+    setStable(false);
 
+    const timer = window.setTimeout(() => {
+      if (lastChartRef.current === chart) setStable(true);
+    }, DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [chart]);
+
+  useEffect(() => {
+    if (!stable) return;
+
+    let cancelled = false;
     const renderChart = async () => {
-      if (!chart || !containerRef.current) return;
+      if (!chart.trim() || !containerRef.current) return;
 
       try {
         const mermaid = await loadMermaid();
-        // Clean up the chart code
-        const cleanedChart = chart.trim();
-
-        // Validate and render
-        const { svg: renderedSvg } = await mermaid.render(id, cleanedChart);
+        cleanupMermaidOrphans(id);
+        const { svg: renderedSvg } = await mermaid.render(id, chart.trim());
         if (!cancelled) {
           setSvg(renderedSvg);
           setError(null);
         }
       } catch (err) {
-        console.error("Mermaid rendering error:", err);
+        cleanupMermaidOrphans(id);
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to render diagram");
         }
@@ -75,11 +97,10 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
     };
 
     void renderChart();
-
     return () => {
       cancelled = true;
     };
-  }, [chart, id]);
+  }, [stable, chart, id]);
 
   if (error) {
     return (
@@ -98,6 +119,14 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
             {chart}
           </pre>
         </details>
+      </div>
+    );
+  }
+
+  if (!stable && !svg) {
+    return (
+      <div className={`my-4 rounded-xl border border-[var(--border)] bg-[var(--muted)]/50 px-4 py-3 text-sm text-[var(--muted-foreground)] ${className}`}>
+        Rendering diagram...
       </div>
     );
   }

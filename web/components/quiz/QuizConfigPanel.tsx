@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
 import type { DeepQuestionFormConfig, DeepQuestionMode } from "@/lib/quiz-types";
+import { Field, INPUT_CLS } from "@/components/chat/home/composer-field";
 
 interface QuizConfigPanelProps {
   value: DeepQuestionFormConfig;
@@ -10,9 +11,6 @@ interface QuizConfigPanelProps {
   uploadedPdf: File | null;
   onUploadPdf: (file: File | null) => void;
 }
-
-const INPUT_CLS =
-  "h-[32px] rounded-md border border-[var(--border)]/30 bg-[var(--background)]/50 px-2.5 text-[12px] text-[var(--foreground)] outline-none transition-colors hover:border-[var(--border)]/50 focus:border-[var(--primary)]/35 placeholder:text-[var(--muted-foreground)]/40";
 
 export default function QuizConfigPanel({
   value,
@@ -32,17 +30,16 @@ export default function QuizConfigPanel({
 
   return (
     <div className="px-3.5 py-2.5 space-y-2.5">
-      {/* Mode tabs — baseline-aligned */}
-      <div className="flex items-baseline gap-4">
+      <div className="inline-flex rounded-lg border border-[var(--border)]/25 p-0.5">
         {(["custom", "mimic"] as const).map((m) => (
           <button
             key={m}
             type="button"
             onClick={() => setMode(m)}
-            className={`pb-0.5 text-[11px] font-medium transition-colors border-b ${
+            className={`rounded-md px-3 py-1 text-[11px] font-medium transition-all ${
               value.mode === m
-                ? "border-[var(--foreground)]/30 text-[var(--foreground)]"
-                : "border-transparent text-[var(--muted-foreground)]/45 hover:text-[var(--muted-foreground)]"
+                ? "bg-[var(--muted)] text-[var(--foreground)] shadow-sm"
+                : "text-[var(--muted-foreground)]/50 hover:text-[var(--muted-foreground)]"
             }`}
           >
             {m === "custom" ? "Custom" : "Mimic Paper"}
@@ -105,7 +102,7 @@ export default function QuizConfigPanel({
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
           <Field label="Paper" width="min-w-[180px] flex-[1.3]">
             {uploadedPdf ? (
-              <div className="flex h-[32px] items-center gap-2 rounded-md border border-[var(--border)]/30 bg-[var(--background)]/50 px-2.5 text-[12px]">
+              <div className="flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border)]/30 bg-[var(--background)]/50 px-2.5 text-[12px]">
                 <FileText size={12} className="shrink-0 text-[var(--primary)]/60" />
                 <span className="min-w-0 truncate text-[var(--foreground)]">{uploadedPdf.name}</span>
                 <button
@@ -119,7 +116,7 @@ export default function QuizConfigPanel({
               </div>
             ) : (
               <label
-                className={`flex h-[32px] cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed px-2.5 text-[12px] transition-colors ${
+                className={`flex h-[30px] cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed px-2.5 text-[12px] transition-colors ${
                   dragOver
                     ? "border-[var(--primary)]/35 text-[var(--primary)]"
                     : "border-[var(--border)]/35 text-[var(--muted-foreground)]/50 hover:border-[var(--border)]/55 hover:text-[var(--foreground)]"
@@ -190,21 +187,3 @@ export default function QuizConfigPanel({
   );
 }
 
-function Field({
-  label,
-  width,
-  children,
-}: {
-  label: string;
-  width?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={width}>
-      <div className="mb-1 text-[9px] font-medium uppercase tracking-[0.08em] text-[var(--muted-foreground)]/40">
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}

@@ -9,14 +9,13 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Valid tools for investigate agent
-VALID_INVESTIGATE_TOOLS = ["rag_naive", "rag_hybrid", "web_search", "none"]
+VALID_INVESTIGATE_TOOLS = ["rag", "web_search", "none"]
 
 # Valid tools for solve agent
 VALID_SOLVE_TOOLS = [
     "web_search",
     "code_execution",
-    "rag_naive",
-    "rag_hybrid",
+    "rag",
     "none",
     "finish",
 ]

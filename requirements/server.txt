@@ -1,11 +1,12 @@
 # ============================================
-# DeepTutor API Server Dependencies
+# DeepTutor Server — Full Dependencies (CLI + Web)
 # ============================================
-# Install: pip install -r requirements/server.txt
-# Adds FastAPI/uvicorn on top of core
+# Install: pip install -r requirements/server.txt && pip install -e .
+# Everything needed to run the API server and web frontend.
 
--r core.txt
+-r cli.txt
 
+# --- API server ---
 fastapi>=0.100.0
 uvicorn[standard]>=0.24.0
 websockets>=12.0

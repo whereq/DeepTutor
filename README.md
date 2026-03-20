@@ -1091,8 +1091,8 @@ tools:
 **Checklist**
 - Confirm Python version >= 3.10
 - Confirm dependencies installed for your mode:
-  - CLI only: `pip install -r requirements/core.txt`
-  - Web/API: `pip install -r requirements/server.txt`
+  - CLI only: `pip install -r requirements/cli.txt && pip install -e .`
+  - Web/API: `pip install -r requirements/server.txt && pip install -e .`
 - Check if port 8001 is in use
 - Check `.env` file configuration
 

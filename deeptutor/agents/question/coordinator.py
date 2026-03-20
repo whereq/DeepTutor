@@ -56,7 +56,6 @@ class AgentCoordinator:
         self.logger: Logger = get_logger("QuestionCoordinator", log_dir=log_dir)
 
         question_cfg = self.config.get("capabilities", {}).get("question", {})
-        self.rag_mode = question_cfg.get("rag_mode", "naive")
         generation_cfg = question_cfg.get("generation", {})
         default_tool_flags = generation_cfg.get(
             "tools",
@@ -85,7 +84,6 @@ class AgentCoordinator:
     def _create_idea_agent(self) -> IdeaAgent:
         agent = IdeaAgent(
             kb_name=self.kb_name,
-            rag_mode=self.rag_mode,
             enable_rag=self.enable_idea_rag,
             language=self.language,
             api_key=self._api_key,
@@ -98,7 +96,6 @@ class AgentCoordinator:
     def _create_generator(self) -> Generator:
         agent = Generator(
             kb_name=self.kb_name,
-            rag_mode=self.rag_mode,
             language=self.language,
             tool_flags=self.tool_flags,
             api_key=self._api_key,

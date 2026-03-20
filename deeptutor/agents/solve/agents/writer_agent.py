@@ -9,12 +9,15 @@ Supports two modes:
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.core.trace import build_trace_metadata, new_call_id
 
 from ..memory.scratchpad import Scratchpad
+
+ContentChunkCallback = Callable[[str], Awaitable[None]]
 
 
 class WriterAgent(BaseAgent):
@@ -52,36 +55,54 @@ class WriterAgent(BaseAgent):
         scratchpad: Scratchpad,
         language: str = "en",
         preference: str = "",
+        on_content_chunk: ContentChunkCallback | None = None,
     ) -> str:
         """Generate the final Markdown answer in a single LLM call.
 
-        Args:
-            question: Original user question.
-            scratchpad: Completed scratchpad with all evidence.
-            language: Output language hint (e.g. "en", "zh").
-            preference: Optional personalisation context.
-
-        Returns:
-            Markdown-formatted answer string.
+        When *on_content_chunk* is provided the LLM response is streamed
+        token-by-token; each chunk is forwarded via the callback so the
+        caller can push it to the frontend in real time.
         """
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_user_prompt(question, scratchpad, language, preference)
 
-        response = await self.call_llm(
-            user_prompt=user_prompt,
-            system_prompt=system_prompt,
-            max_tokens=self.get_max_tokens() or 8192,
-            stage="write",
-            trace_meta=build_trace_metadata(
-                call_id=new_call_id("write"),
-                phase="writing",
-                label="Write answer",
-                call_kind="llm_generation",
-                trace_id="write",
-            ),
+        trace_meta = build_trace_metadata(
+            call_id=new_call_id("write"),
+            phase="writing",
+            label="Write answer",
+            call_kind="llm_final_answer",
+            trace_id="write",
         )
 
-        return response.strip()
+        if on_content_chunk is not None:
+            chunks: list[str] = []
+            async for chunk in self.stream_llm(
+                user_prompt=user_prompt,
+                system_prompt=system_prompt,
+                max_tokens=self.get_max_tokens() or 8192,
+                stage="write",
+                trace_meta=trace_meta,
+            ):
+                chunks.append(chunk)
+                await on_content_chunk(chunk)
+            response = "".join(chunks)
+        else:
+            response = await self.call_llm(
+                user_prompt=user_prompt,
+                system_prompt=system_prompt,
+                max_tokens=self.get_max_tokens() or 8192,
+                stage="write",
+                trace_meta=trace_meta,
+            )
+
+        full_answer = self._ensure_references(response.strip(), scratchpad)
+
+        if on_content_chunk is not None:
+            suffix = full_answer[len(response.strip()):]
+            if suffix:
+                await on_content_chunk(suffix)
+
+        return full_answer
 
     # ==================================================================
     # Detailed / Iterative mode
@@ -93,6 +114,7 @@ class WriterAgent(BaseAgent):
         scratchpad: Scratchpad,
         language: str = "en",
         preference: str = "",
+        on_content_chunk: ContentChunkCallback | None = None,
     ) -> str:
         """Generate a detailed answer through iterative step-by-step writing.
 
@@ -103,18 +125,14 @@ class WriterAgent(BaseAgent):
             Final        : draft_N → concise_answer
             Output       : concise_answer + "---" + draft_N
 
-        Args:
-            question: Original user question.
-            scratchpad: Completed scratchpad with all evidence.
-            language: Output language hint.
-            preference: Optional personalisation context.
-
-        Returns:
-            Combined Markdown string: concise answer + detailed answer.
+        Individual draft/concise LLM calls stream via trace panel.
+        The assembled final answer is sent to *on_content_chunk* if provided.
         """
         if scratchpad.plan is None:
-            # Fallback: no plan, use simple mode
-            return await self.process(question, scratchpad, language, preference)
+            return await self.process(
+                question, scratchpad, language, preference,
+                on_content_chunk=on_content_chunk,
+            )
 
         # Collect completed/in_progress steps that have entries
         steps_with_evidence = []
@@ -176,7 +194,12 @@ class WriterAgent(BaseAgent):
 
         # --- Assemble final output ---
         final = f"## Summary\n\n{concise}\n\n---\n\n{draft}"
-        return final
+        full_answer = self._ensure_references(final, scratchpad)
+
+        if on_content_chunk is not None:
+            await on_content_chunk(full_answer)
+
+        return full_answer
 
     # ------------------------------------------------------------------
     # Internal helpers for iterative mode
@@ -215,7 +238,8 @@ class WriterAgent(BaseAgent):
                 f"## Language\n{language}"
             )
 
-        response = await self.call_llm(
+        chunks: list[str] = []
+        async for chunk in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             max_tokens=self.get_max_tokens() or 8192,
@@ -228,8 +252,9 @@ class WriterAgent(BaseAgent):
                 trace_id=f"write-draft-{iteration}",
                 iteration=iteration,
             ),
-        )
-        return response.strip()
+        ):
+            chunks.append(chunk)
+        return "".join(chunks).strip()
 
     async def _write_concise(
         self,
@@ -255,7 +280,8 @@ class WriterAgent(BaseAgent):
                 f"## Language\n{language}"
             )
 
-        response = await self.call_llm(
+        chunks: list[str] = []
+        async for chunk in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             max_tokens=1024,
@@ -267,8 +293,9 @@ class WriterAgent(BaseAgent):
                 call_kind="llm_summary",
                 trace_id="write-concise",
             ),
-        )
-        return response.strip()
+        ):
+            chunks.append(chunk)
+        return "".join(chunks).strip()
 
     @staticmethod
     def _format_step_evidence(step, entries) -> str:
@@ -281,6 +308,23 @@ class WriterAgent(BaseAgent):
             )
             parts.append(block)
         return "\n\n".join(parts)
+
+    # ------------------------------------------------------------------
+    # Post-processing
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _ensure_references(answer: str, scratchpad: Scratchpad) -> str:
+        """Append a References section if the LLM omitted one."""
+        if not answer:
+            return answer
+        has_refs = ("## References" in answer or "## 参考文献" in answer)
+        if has_refs:
+            return answer
+        refs = scratchpad.format_sources_markdown()
+        if not refs:
+            return answer
+        return f"{answer}\n\n---\n\n{refs}"
 
     # ------------------------------------------------------------------
     # Prompt construction

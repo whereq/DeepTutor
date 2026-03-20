@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from deeptutor.api.routers import (
     settings,
     solve,
     system,
+    tutorbot,
     unified_ws,
     vision_solver,
 )
@@ -29,6 +31,25 @@ from deeptutor.services.path_service import get_path_service
 
 # Note: Don't set service_prefix here - start_web.py already adds [Backend] prefix
 logger = get_logger("API")
+
+
+class _ProgressWsAccessFilter(logging.Filter):
+    """Suppress noisy uvicorn access logs for progress WebSocket endpoints.
+
+    These endpoints are polled every few seconds by the frontend for every KB,
+    generating hundreds of ``connection open`` / ``connection closed`` lines
+    that drown out useful output.
+    """
+
+    _SUPPRESSED_FRAGMENTS = ("progress/ws", "connection open", "connection closed")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return not any(f in msg for f in self._SUPPRESSED_FRAGMENTS)
+
+
+for _uv_name in ("uvicorn.access", "uvicorn.error"):
+    logging.getLogger(_uv_name).addFilter(_ProgressWsAccessFilter())
 
 CONFIG_DRIFT_ERROR_TEMPLATE = (
     "Configuration Drift Detected: Capability tool references {drift} are not "
@@ -109,10 +130,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to start EventBus: {e}")
 
+    try:
+        from deeptutor.services.tutorbot import get_tutorbot_manager
+        await get_tutorbot_manager().auto_start_bots()
+    except Exception as e:
+        logger.warning(f"Failed to auto-start TutorBots: {e}")
+
     yield
 
     # Execute on shutdown
     logger.info("Application shutdown")
+
+    # Stop TutorBots
+    try:
+        from deeptutor.services.tutorbot import get_tutorbot_manager
+        await get_tutorbot_manager().stop_all()
+        logger.info("TutorBots stopped")
+    except Exception as e:
+        logger.warning(f"Failed to stop TutorBots: {e}")
 
     # Stop EventBus
     try:
@@ -182,6 +217,7 @@ app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
 app.include_router(plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"])
 app.include_router(agent_config.router, prefix="/api/v1/agent-config", tags=["agent-config"])
 app.include_router(vision_solver.router, prefix="/api/v1", tags=["vision-solver"])
+app.include_router(tutorbot.router, prefix="/api/v1/tutorbot", tags=["tutorbot"])
 
 # Unified WebSocket endpoint
 app.include_router(unified_ws.router, prefix="/api/v1", tags=["unified-ws"])

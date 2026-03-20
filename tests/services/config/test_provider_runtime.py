@@ -1,4 +1,4 @@
-"""Tests for nanobot-style runtime config adapter."""
+"""Tests for TutorBot-style runtime config adapter."""
 
 from __future__ import annotations
 

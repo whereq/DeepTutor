@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
+
 import {
   BrainCircuit,
   Clapperboard,
@@ -48,6 +48,7 @@ import {
   createEmptyResearchConfig,
   validateResearchConfig,
   type DeepResearchFormConfig,
+  type OutlineItem,
   type ResearchSource,
 } from "@/lib/research-types";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
@@ -662,20 +663,39 @@ export default function HomePage() {
     setShowAtPopup(false);
   };
 
+  const handleConfirmOutline = useCallback(
+    (outline: OutlineItem[], _topic: string, originalConfig?: Record<string, unknown> | null) => {
+      const config: Record<string, unknown> = {
+        ...(originalConfig ?? {
+          mode: researchConfig.mode,
+          depth: researchConfig.depth,
+          sources: [...researchConfig.sources],
+        }),
+        confirmed_outline: outline,
+      };
+      sendMessage(_topic, [], config, undefined, undefined, {
+        displayUserMessage: false,
+        persistUserMessage: false,
+      });
+      shouldAutoScrollRef.current = true;
+    },
+    [researchConfig, sendMessage],
+  );
+
   return (
-    <div className="flex h-full flex-col bg-[var(--background)]">
-      <div className="mx-auto flex w-full max-w-[960px] flex-1 min-h-0 flex-col px-6">
+    <div className="flex h-full flex-col overflow-hidden bg-[var(--background)]">
+      <div className="mx-auto flex w-full max-w-[960px] flex-1 min-h-0 flex-col overflow-hidden px-6">
 
         {/* ===== Welcome / Messages ===== */}
         {!hasMessages ? (
           <div className="flex flex-1 min-h-0 flex-col items-center justify-center animate-fade-in">
-            <div className="mb-8 text-center">
-              <div className="mb-5 inline-flex">
-                <Image src="/logo-ver2.png" alt={t("DeepTutor")} width={56} height={56} priority />
-              </div>
-              <h1 className="text-[32px] font-semibold tracking-tight text-[var(--foreground)]">
+            <div className="text-center">
+              <h1 className="font-serif text-[36px] font-medium tracking-[-0.01em] text-[var(--foreground)]">
                 {t("What would you like to learn?")}
               </h1>
+              <p className="mt-4 text-[15px] text-[var(--muted-foreground)]">
+                {t("Ask anything — I'm here to help you understand.")}
+              </p>
             </div>
           </div>
         ) : (
@@ -683,7 +703,7 @@ export default function HomePage() {
             ref={messagesContainerRef}
             data-chat-scroll-root="true"
             onScroll={handleMessagesScroll}
-            className={`mx-auto w-full flex-1 min-h-0 space-y-6 overflow-y-auto scroll-smooth pt-6 pr-4 [scrollbar-gutter:stable] ${
+            className={`mx-auto w-full flex-1 min-h-0 space-y-7 overflow-y-auto pt-6 pr-4 [scrollbar-gutter:stable] ${
               hasMessages ? "" : "pb-6"
             }`}
             style={hasMessages ? { paddingBottom: `${Math.max(composerHeight + 24, 120)}px` } : undefined}
@@ -719,6 +739,7 @@ export default function HomePage() {
               onAnswerNow={handleAnswerNow}
               onCopyAssistantMessage={copyAssistantMessage}
               onRetryMessage={(snapshot) => replaySnapshot(snapshot)}
+              onConfirmOutline={handleConfirmOutline}
             />
             <div ref={messagesEndRef} className="h-px w-full shrink-0" />
           </div>

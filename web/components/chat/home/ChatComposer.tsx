@@ -254,7 +254,7 @@ export default function ChatComposer({
         />
 
         <div
-          className={`relative rounded-2xl border bg-[var(--card)] shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition-colors ${
+          className={`relative rounded-2xl border bg-[var(--card)] shadow-[0_1px_8px_rgba(0,0,0,0.03)] transition-colors ${
             dragging
               ? "border-[var(--primary)] bg-[var(--primary)]/[0.03]"
               : "border-[var(--border)]"
@@ -332,15 +332,15 @@ export default function ChatComposer({
             </div>
           )}
 
-          <div className="border-t border-[var(--border)]/45 px-3 py-2">
+          <div className="border-t border-[var(--border)]/35 px-3 py-2">
             <div className="flex items-center gap-2">
-              <button
+                <button
                 ref={capBtnRef}
                 onClick={() => onSetCapMenuOpen((v) => !v)}
                 className={`inline-flex shrink-0 items-center gap-1.5 py-1.5 px-1 text-[12px] transition-colors ${
                   capMenuOpen
                     ? "text-[var(--foreground)]"
-                    : "text-[var(--muted-foreground)]/78 hover:text-[var(--foreground)]"
+                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                 }`}
               >
                 <CapIcon size={14} strokeWidth={1.6} />
@@ -348,7 +348,7 @@ export default function ChatComposer({
                 <ChevronDown size={11} className={`transition-transform ${capMenuOpen ? "rotate-180" : ""}`} />
               </button>
 
-              <div className="h-3.5 w-px bg-[var(--border)]/40" />
+              <div className="h-3.5 w-px bg-[var(--border)]/30" />
 
               <div className="flex min-w-0 flex-1 items-center gap-1">
                 {isResearchMode ? (
@@ -359,13 +359,13 @@ export default function ChatComposer({
                       <button
                         key={source.name}
                         onClick={() => onToggleResearchSource(source.name)}
-                        className={`inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium transition-colors ${
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-[3px] text-[10px] font-medium transition-all ${
                           active
-                            ? "text-[var(--primary)]"
-                            : "text-[var(--muted-foreground)]/60 hover:text-[var(--foreground)]"
+                            ? "border-[var(--primary)]/25 bg-[var(--primary)]/8 text-[var(--primary)]"
+                            : "border-[var(--border)]/30 text-[var(--muted-foreground)]/60 hover:border-[var(--border)]/50 hover:text-[var(--foreground)]"
                         }`}
                       >
-                        <Icon size={12} strokeWidth={1.7} />
+                        <Icon size={11} strokeWidth={1.7} />
                         {source.label}
                       </button>
                     );
@@ -375,16 +375,21 @@ export default function ChatComposer({
                     <button
                       ref={toolBtnRef}
                       onClick={() => onSetToolMenuOpen((v) => !v)}
-                      className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)]/70 transition-colors hover:text-[var(--foreground)]"
+                      className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
                     >
                       <Sparkles size={12} strokeWidth={1.7} />
-                        {t("Tools")}
+                      {t("Tools")}
                       <ChevronDown size={10} className={`transition-transform ${toolMenuOpen ? "rotate-180" : ""}`} />
                     </button>
                     {selectedTools.size > 0 && (
-                      <span className="text-[10px] text-[var(--muted-foreground)]/55">
-                        {visibleTools.filter((t) => selectedTools.has(t.name)).map((t) => t.label).join(", ")}
-                      </span>
+                      <div className="flex items-center gap-[3px] overflow-hidden">
+                        {visibleTools.filter((vt) => selectedTools.has(vt.name)).map((vt, i) => (
+                          <span key={vt.name} className="shrink-0 text-[10px] text-[var(--muted-foreground)]/35">
+                            {i > 0 && <span className="text-[12px] leading-none">·</span>}
+                            {vt.label}
+                          </span>
+                        ))}
+                      </div>
                     )}
                     {toolMenuOpen && (
                       <div
@@ -422,11 +427,12 @@ export default function ChatComposer({
                   onChange={(e) => onSetKB(e.target.value)}
                   disabled={!ragActive}
                   title={ragActive ? "Select knowledge base" : "Enable Knowledge Base source first"}
-                  className={`h-[30px] rounded-lg border border-transparent bg-transparent py-0.5 pl-2 pr-6 text-[11px] outline-none transition-colors ${
+                  className={`h-[28px] appearance-none rounded-full border bg-transparent py-0 pl-2.5 pr-5 text-[11px] outline-none transition-colors ${
                     ragActive
-                      ? "cursor-pointer text-[var(--muted-foreground)]/70 hover:text-[var(--foreground)]"
-                      : "cursor-not-allowed text-[var(--border)]"
+                      ? "cursor-pointer border-[var(--border)]/40 text-[var(--muted-foreground)] hover:border-[var(--border)] hover:text-[var(--foreground)]"
+                      : "cursor-not-allowed border-transparent text-[var(--border)]"
                   }`}
+                  style={{ backgroundImage: ragActive ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" : "none", backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center" }}
                 >
                   <option value="">{ragActive ? "No KB" : "—"}</option>
                   {knowledgeBases.map((kb) => (
@@ -444,7 +450,7 @@ export default function ChatComposer({
                     isStreaming ||
                     (isResearchMode && Object.keys(researchValidationErrors).length > 0)
                   }
-                  className="rounded-full bg-[var(--primary)] p-[7px] text-white shadow-[0_6px_16px_rgba(139,92,246,0.15)] transition-[transform,opacity,box-shadow] hover:shadow-[0_8px_20px_rgba(139,92,246,0.2)] disabled:opacity-25 disabled:shadow-none"
+                  className="rounded-full bg-[var(--primary)] p-[7px] text-white shadow-[0_4px_12px_rgba(195,90,44,0.15)] transition-[transform,opacity,box-shadow] hover:shadow-[0_6px_16px_rgba(195,90,44,0.22)] disabled:opacity-25 disabled:shadow-none"
                   aria-label={t("Send")}
                 >
                   {isStreaming ? (
@@ -458,7 +464,7 @@ export default function ChatComposer({
           </div>
 
           {(isQuizMode || isMathAnimatorMode || isResearchMode) && (
-            <div className="border-t border-[var(--border)]/30">
+            <div className="border-t border-[var(--border)]/15">
               {isQuizMode ? (
                 <QuizConfigPanel
                   value={quizConfig}

@@ -208,10 +208,13 @@ Original knowledge point information:
             )
 
         try:
-            response = await self.call_llm(
+            _chunks: list[str] = []
+            async for _c in self.stream_llm(
                 user_prompt=user_prompt,
                 system_prompt=system_prompt,
-            )
+            ):
+                _chunks.append(_c)
+            response = "".join(_chunks)
 
             html_code = self._extract_html(response)
 

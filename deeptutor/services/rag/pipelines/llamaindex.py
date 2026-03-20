@@ -41,14 +41,28 @@ class CustomEmbedding(BaseEmbedding):
     """
 
     _client: Any = PrivateAttr()
+    _logger: Any = PrivateAttr()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._client = get_embedding_client()
+        self._logger = get_logger("CustomEmbedding")
 
     @classmethod
     def class_name(cls) -> str:
         return "custom_embedding"
+
+    def _run_in_new_loop(self, coro):
+        """Run an async coroutine from sync context using a fresh event loop.
+
+        Avoids nest_asyncio which can deadlock when called from thread pools
+        inside a running server event loop.
+        """
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
 
     async def _aget_query_embedding(self, query: str) -> List[float]:
         """Get embedding for a query."""
@@ -60,25 +74,24 @@ class CustomEmbedding(BaseEmbedding):
         embeddings = await self._client.embed([text])
         return embeddings[0]
 
-    def _get_query_embedding(self, query: str) -> List[float]:
-        """Sync version - called by LlamaIndex sync API."""
-        # Use nest_asyncio to allow nested event loops
-        import nest_asyncio
-
-        nest_asyncio.apply()
-        return asyncio.run(self._aget_query_embedding(query))
-
-    def _get_text_embedding(self, text: str) -> List[float]:
-        """Sync version - called by LlamaIndex sync API."""
-        # Use nest_asyncio to allow nested event loops
-        import nest_asyncio
-
-        nest_asyncio.apply()
-        return asyncio.run(self._aget_text_embedding(text))
-
     async def _aget_text_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Get embeddings for multiple texts."""
         return await self._client.embed(texts)
+
+    def _get_query_embedding(self, query: str) -> List[float]:
+        """Sync version - called by LlamaIndex sync API."""
+        return self._run_in_new_loop(self._aget_query_embedding(query))
+
+    def _get_text_embedding(self, text: str) -> List[float]:
+        """Sync version - called by LlamaIndex sync API."""
+        return self._run_in_new_loop(self._aget_text_embedding(text))
+
+    def _get_text_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Sync batch version - called by LlamaIndex for bulk embedding."""
+        self._logger.info(f"Embedding batch of {len(texts)} texts...")
+        result = self._run_in_new_loop(self._aget_text_embeddings(texts))
+        self._logger.info(f"Batch embedding complete: {len(result)} vectors")
+        return result
 
 
 class LlamaIndexPipeline:
@@ -105,13 +118,9 @@ class LlamaIndexPipeline:
 
     def _configure_settings(self):
         """Configure LlamaIndex global settings."""
-        # Get embedding config
         embedding_cfg = get_embedding_config()
 
-        # Configure custom embedding that works with any OpenAI-compatible API
         Settings.embed_model = CustomEmbedding()
-
-        # Configure chunking
         Settings.chunk_size = 512
         Settings.chunk_overlap = 50
 
@@ -119,6 +128,23 @@ class LlamaIndexPipeline:
             f"LlamaIndex configured: embedding={embedding_cfg.model} "
             f"({embedding_cfg.dim}D, {embedding_cfg.binding}), chunk_size=512"
         )
+
+    async def _verify_embedding_connectivity(self) -> None:
+        """Quick smoke-test: embed a single token to catch config/network issues early."""
+        self.logger.info("Verifying embedding API connectivity...")
+        try:
+            client = get_embedding_client()
+            result = await client.embed(["connectivity test"])
+            if not result or not result[0]:
+                raise RuntimeError("Embedding API returned empty result")
+            self.logger.info(
+                f"Embedding API OK (returned {len(result[0])}-dim vector)"
+            )
+        except Exception as e:
+            self.logger.error(f"Embedding API connectivity check failed: {e}")
+            raise RuntimeError(
+                f"Cannot reach embedding API. Please check your embedding configuration. Error: {e}"
+            ) from e
 
     async def initialize(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
         """
@@ -141,6 +167,9 @@ class LlamaIndexPipeline:
         storage_dir.mkdir(parents=True, exist_ok=True)
 
         try:
+            # Verify embedding API is reachable before doing any heavy work
+            await self._verify_embedding_connectivity()
+
             # Parse documents with centralized file routing
             documents = []
             classification = FileTypeRouter.classify_files(file_paths)
@@ -188,14 +217,15 @@ class LlamaIndexPipeline:
                 self.logger.error("No valid documents found")
                 return False
 
-            # Create index with LlamaIndex (run sync code in thread pool to avoid blocking)
-            self.logger.info(f"Creating VectorStoreIndex with {len(documents)} documents...")
+            self.logger.info(
+                f"Creating VectorStoreIndex with {len(documents)} documents "
+                f"(chunking + embedding)..."
+            )
 
-            # Run sync LlamaIndex code in thread pool to avoid blocking async event loop
             loop = asyncio.get_event_loop()
             index = await loop.run_in_executor(
-                None,  # Use default ThreadPoolExecutor
-                lambda: VectorStoreIndex.from_documents(documents, show_progress=False),
+                None,
+                lambda: VectorStoreIndex.from_documents(documents, show_progress=True),
             )
 
             # Persist index
@@ -234,33 +264,32 @@ class LlamaIndexPipeline:
         self,
         query: str,
         kb_name: str,
-        mode: str = "hybrid",
         **kwargs,
     ) -> Dict[str, Any]:
         """
-        Search using LlamaIndex query engine.
+        Search using LlamaIndex retriever.
 
         Args:
             query: Search query
             kb_name: Knowledge base name
-            mode: Search mode (ignored, LlamaIndex uses similarity)
             **kwargs: Additional arguments (top_k, etc.)
 
         Returns:
-            Search results dictionary
+            Search results dictionary with answer, content, and sources
         """
+        kwargs.pop("mode", None)
         self.logger.info(f"Searching KB '{kb_name}' with query: {query[:50]}...")
 
         kb_dir = Path(self.kb_base_dir) / kb_name
         storage_dir = kb_dir / "llamaindex_storage"
 
-        if not storage_dir.exists():
+        docstore_path = storage_dir / "docstore.json"
+        if not storage_dir.exists() or not docstore_path.exists():
             self.logger.warning(f"No LlamaIndex storage found at {storage_dir}")
             return {
                 "query": query,
                 "answer": "No documents indexed. Please upload documents first.",
                 "content": "",
-                "mode": mode,
                 "provider": "llamaindex",
             }
 
@@ -281,18 +310,27 @@ class LlamaIndexPipeline:
             # Execute retrieval in thread pool to avoid blocking
             nodes = await loop.run_in_executor(None, load_and_retrieve)
 
-            # Extract text from retrieved nodes
             context_parts = []
-            for node in nodes:
+            sources = []
+            for i, node in enumerate(nodes):
                 context_parts.append(node.node.text)
+                meta = node.node.metadata or {}
+                sources.append({
+                    "title": meta.get("file_name", meta.get("title", f"Document {i + 1}")),
+                    "content": node.node.text[:200],
+                    "source": meta.get("file_path", meta.get("file_name", "")),
+                    "page": meta.get("page_label", meta.get("page", "")),
+                    "chunk_id": node.node.node_id or str(i),
+                    "score": round(node.score, 4) if node.score is not None else "",
+                })
 
             content = "\n\n".join(context_parts) if context_parts else ""
 
             return {
                 "query": query,
-                "answer": content,  # Return context for ChatAgent to use
+                "answer": content,
                 "content": content,
-                "mode": mode,
+                "sources": sources,
                 "provider": "llamaindex",
             }
 
@@ -305,7 +343,6 @@ class LlamaIndexPipeline:
                 "query": query,
                 "answer": f"Search failed: {str(e)}",
                 "content": "",
-                "mode": mode,
                 "provider": "llamaindex",
             }
 
@@ -330,6 +367,8 @@ class LlamaIndexPipeline:
         storage_dir = kb_dir / "llamaindex_storage"
 
         try:
+            await self._verify_embedding_connectivity()
+
             # Parse new documents with centralized file routing
             documents = []
             classification = FileTypeRouter.classify_files(file_paths)
@@ -380,30 +419,30 @@ class LlamaIndexPipeline:
             loop = asyncio.get_event_loop()
 
             if storage_dir.exists():
-                # Load existing index and insert new documents
                 self.logger.info(f"Loading existing index from {storage_dir}...")
 
                 def load_and_insert():
                     storage_context = StorageContext.from_defaults(persist_dir=str(storage_dir))
                     index = load_index_from_storage(storage_context)
 
-                    # Insert new documents
-                    for doc in documents:
+                    for i, doc in enumerate(documents, 1):
+                        self.logger.info(
+                            f"Inserting document {i}/{len(documents)}: "
+                            f"{doc.metadata.get('file_name', 'unknown')}"
+                        )
                         index.insert(doc)
 
-                    # Persist updated index
                     index.storage_context.persist(persist_dir=str(storage_dir))
                     return len(documents)
 
                 num_added = await loop.run_in_executor(None, load_and_insert)
                 self.logger.info(f"Added {num_added} documents to existing index")
             else:
-                # Create new index (first time)
                 self.logger.info(f"Creating new index with {len(documents)} documents...")
                 storage_dir.mkdir(parents=True, exist_ok=True)
 
                 def create_index():
-                    index = VectorStoreIndex.from_documents(documents, show_progress=False)
+                    index = VectorStoreIndex.from_documents(documents, show_progress=True)
                     index.storage_context.persist(persist_dir=str(storage_dir))
                     return len(documents)
 

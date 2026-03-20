@@ -272,13 +272,16 @@ class ContextBuilder:
                 f"{source_text}"
             )
         try:
-            summary = await agent.call_llm(
+            _chunks: list[str] = []
+            async for _c in agent.stream_llm(
                 user_prompt=user_prompt,
                 system_prompt=system_prompt,
                 max_tokens=summary_budget,
                 stage="summarize_context",
                 trace_meta=trace_meta,
-            )
+            ):
+                _chunks.append(_c)
+            summary = "".join(_chunks)
             return summary.strip(), events
         finally:
             await self._append_event(

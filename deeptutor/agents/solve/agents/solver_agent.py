@@ -127,7 +127,10 @@ class SolverAgent(BaseAgent):
                 system_prompt, user_prompt, image_url,
             )
 
-        response = await self.call_llm(**llm_kwargs)
+        chunks: list[str] = []
+        async for chunk in self.stream_llm(**llm_kwargs):
+            chunks.append(chunk)
+        response = "".join(chunks)
 
         decision = self._parse_decision(response)
         decision["_trace"] = trace_meta

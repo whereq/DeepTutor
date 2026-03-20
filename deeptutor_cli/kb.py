@@ -17,10 +17,17 @@ from rich.console import Console
 from rich.table import Table
 
 from deeptutor.knowledge.manager import KnowledgeBaseManager
+from deeptutor.services.path_service import get_path_service
 from deeptutor.services.rag.components.routing import FileTypeRouter
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 
 console = Console()
+
+
+def _get_kb_manager() -> KnowledgeBaseManager:
+    """Return a KnowledgeBaseManager rooted at the canonical project-level KB directory."""
+    base_dir = get_path_service().project_root / "data" / "knowledge_bases"
+    return KnowledgeBaseManager(base_dir=str(base_dir))
 
 
 def _collect_documents(docs: list[str], docs_dir: Optional[str]) -> list[str]:
@@ -53,12 +60,33 @@ def _collect_documents(docs: list[str], docs_dir: Optional[str]) -> list[str]:
 
 def register(app: typer.Typer) -> None:
     @app.command("list")
-    def kb_list() -> None:
+    def kb_list(
+        fmt: str = typer.Option("rich", "--format", "-f", help="Output format: rich | json."),
+    ) -> None:
         """List all knowledge bases."""
-        mgr = KnowledgeBaseManager()
+        mgr = _get_kb_manager()
         kb_names = mgr.list_knowledge_bases()
         if not kb_names:
-            console.print("[dim]No knowledge bases found.[/]")
+            if fmt == "json":
+                console.print_json("[]")
+            else:
+                console.print("[dim]No knowledge bases found.[/]")
+            return
+
+        if fmt == "json":
+            items = []
+            for name in kb_names:
+                info = mgr.get_info(name)
+                stats = info.get("statistics", {})
+                metadata = info.get("metadata", {})
+                items.append({
+                    "name": name,
+                    "status": info.get("status", "unknown"),
+                    "documents": stats.get("raw_documents", 0),
+                    "rag_provider": metadata.get("rag_provider", stats.get("rag_provider", DEFAULT_PROVIDER)),
+                    "is_default": bool(info.get("is_default")),
+                })
+            console.print_json(json.dumps(items, ensure_ascii=False, default=str))
             return
 
         table = Table(title="Knowledge Bases")
@@ -85,7 +113,7 @@ def register(app: typer.Typer) -> None:
     @app.command("info")
     def kb_info(name: str = typer.Argument(..., help="Knowledge base name.")) -> None:
         """Show details of a knowledge base."""
-        mgr = KnowledgeBaseManager()
+        mgr = _get_kb_manager()
         try:
             info = mgr.get_info(name)
         except Exception as exc:
@@ -96,7 +124,7 @@ def register(app: typer.Typer) -> None:
     @app.command("set-default")
     def kb_set_default(name: str = typer.Argument(..., help="Knowledge base name.")) -> None:
         """Set the default knowledge base."""
-        mgr = KnowledgeBaseManager()
+        mgr = _get_kb_manager()
         try:
             mgr.set_default(name)
         except Exception as exc:
@@ -111,7 +139,7 @@ def register(app: typer.Typer) -> None:
         docs_dir: Optional[str] = typer.Option(None, "--docs-dir", help="Directory of documents."),
     ) -> None:
         """Initialize a new knowledge base from documents."""
-        mgr = KnowledgeBaseManager()
+        mgr = _get_kb_manager()
         if name in mgr.list_knowledge_bases():
             console.print(f"[red]Knowledge base '{name}' already exists.[/]")
             raise typer.Exit(code=1)
@@ -152,7 +180,7 @@ def register(app: typer.Typer) -> None:
         docs_dir: Optional[str] = typer.Option(None, "--docs-dir", help="Directory of documents."),
     ) -> None:
         """Add documents to an existing knowledge base."""
-        mgr = KnowledgeBaseManager()
+        mgr = _get_kb_manager()
         if name not in mgr.list_knowledge_bases():
             console.print(f"[red]Knowledge base '{name}' not found.[/]")
             raise typer.Exit(code=1)
@@ -199,7 +227,7 @@ def register(app: typer.Typer) -> None:
             if not confirm:
                 raise typer.Abort()
 
-        mgr = KnowledgeBaseManager()
+        mgr = _get_kb_manager()
         try:
             deleted = mgr.delete_knowledge_base(name, confirm=True)
         except Exception as exc:
@@ -221,7 +249,7 @@ def register(app: typer.Typer) -> None:
         """Search a knowledge base."""
         from deeptutor.tools.rag_tool import rag_search
 
-        mgr = KnowledgeBaseManager()
+        mgr = _get_kb_manager()
         if name not in mgr.list_knowledge_bases():
             console.print(f"[red]Knowledge base '{name}' not found.[/]")
             raise typer.Exit(code=1)

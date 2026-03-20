@@ -229,13 +229,15 @@ class ReportingAgent(BaseAgent):
             [f"{i + 1}. {b.sub_topic}: {b.overview[:200]}" for i, b in enumerate(blocks)]
         )
         filled = self._safe_format(user_prompt, topics=topics_text, total_topics=len(blocks))
-        resp = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             filled,
             system_prompt,
             stage="deduplicate",
-            verbose=False,
             trace_meta=self._build_trace_meta("Deduplicate topics"),
-        )
+        ):
+            _chunks.append(_c)
+        resp = "".join(_chunks)
         data = extract_json_from_text(resp)
         try:
             obj = ensure_json_dict(data)
@@ -291,13 +293,15 @@ class ReportingAgent(BaseAgent):
             self._get_mode_contract("outline"),
         )
 
-        resp = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             filled,
             system_prompt,
             stage="generate_outline",
-            verbose=False,
             trace_meta=self._build_trace_meta("Generate outline"),
-        )
+        ):
+            _chunks.append(_c)
+        resp = "".join(_chunks)
         data = extract_json_from_text(resp)
         try:
             obj = ensure_json_dict(data)
@@ -500,8 +504,7 @@ class ReportingAgent(BaseAgent):
             # Truncate query for readability
             query_preview = trace.query[:60] + "..." if len(trace.query) > 60 else trace.query
             tool_display = {
-                "rag_naive": "RAG",
-                "rag_hybrid": "Hybrid RAG",
+                "rag": "RAG",
                 "paper_search": "Paper",
                 "web_search": "Web",
                 "run_code": "Code",
@@ -559,13 +562,15 @@ class ReportingAgent(BaseAgent):
             self._get_mode_contract("introduction"),
         )
 
-        resp = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             filled,
             system_prompt,
             stage="write_introduction",
-            verbose=False,
             trace_meta=self._build_trace_meta("Write introduction"),
-        )
+        ):
+            _chunks.append(_c)
+        resp = "".join(_chunks)
         data = extract_json_from_text(resp)
 
         try:
@@ -633,13 +638,15 @@ class ReportingAgent(BaseAgent):
             self._get_mode_contract("section"),
         )
 
-        resp = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             filled,
             system_prompt,
             stage="write_section_body",
-            verbose=False,
             trace_meta=self._build_trace_meta("Write section"),
-        )
+        ):
+            _chunks.append(_c)
+        resp = "".join(_chunks)
         data = extract_json_from_text(resp)
 
         try:
@@ -703,13 +710,15 @@ class ReportingAgent(BaseAgent):
             self._get_mode_contract("conclusion"),
         )
 
-        resp = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             filled,
             system_prompt,
             stage="write_conclusion",
-            verbose=False,
             trace_meta=self._build_trace_meta("Write conclusion"),
-        )
+        ):
+            _chunks.append(_c)
+        resp = "".join(_chunks)
         data = extract_json_from_text(resp)
 
         try:
@@ -885,7 +894,7 @@ class ReportingAgent(BaseAgent):
             elif tool_type == "web_search":
                 formatted = self._format_web_search_citation(citation)
                 parts.append(formatted)
-            elif tool_type in ("rag_naive", "rag_hybrid"):
+            elif tool_type in ("rag", "rag_naive", "rag_hybrid"):
                 formatted = self._format_rag_citation(citation)
                 parts.append(formatted)
             elif tool_type == "run_code":
@@ -999,12 +1008,7 @@ class ReportingAgent(BaseAgent):
         sources = citation.get("sources", [])
 
         # Tool name display
-        tool_display = {
-            "rag_naive": "RAG Retrieval",
-            "rag_hybrid": "Hybrid RAG Retrieval",
-        }.get(tool_type, tool_type)
-
-        result = f"**{tool_display}**"
+        result = f"**RAG**"
         if kb_name:
             result += f" (KB: {kb_name})"
         result += "\n\n"
@@ -1138,8 +1142,7 @@ class ReportingAgent(BaseAgent):
 
             # Tool name display
             tool_display = {
-                "rag_naive": "RAG Retrieval",
-                "rag_hybrid": "Hybrid RAG Retrieval",
+                "rag": "RAG",
                 "paper_search": "Paper Search",
                 "web_search": "Web Search",
                 "run_code": "Code Execution",
@@ -1438,13 +1441,15 @@ class ReportingAgent(BaseAgent):
             self._get_mode_contract("single_pass"),
         )
 
-        resp = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             filled,
             system_prompt,
             stage="write_full_report",
-            verbose=False,
             trace_meta=self._build_trace_meta("Write full report"),
-        )
+        ):
+            _chunks.append(_c)
+        resp = "".join(_chunks)
         data = extract_json_from_text(resp)
 
         try:
@@ -1453,13 +1458,70 @@ class ReportingAgent(BaseAgent):
             report = obj.get("report", "")
             if not isinstance(report, str) or not report.strip():
                 raise ValueError("LLM returned empty report field")
-        except Exception as e:
-            raise ValueError(f"Unable to parse single-pass report content: {e!s}.") from e
+        except Exception:
+            if isinstance(data, dict) and ("sections" in data or "title" in data):
+                report = self._assemble_markdown_from_structured(data)
+            else:
+                stripped = resp.strip()
+                if stripped and stripped.startswith("#"):
+                    report = stripped
+                else:
+                    report = self._strip_json_wrapper(resp)
 
         if self.enable_citation_list:
             report = report.rstrip() + "\n\n" + self._generate_references(blocks)
 
         return report
+
+    @staticmethod
+    def _assemble_markdown_from_structured(obj: dict[str, Any]) -> str:
+        """Reconstruct markdown from a structured JSON report the LLM returned
+        instead of the expected {report: "..."} wrapper."""
+        parts: list[str] = []
+        if obj.get("title"):
+            parts.append(str(obj["title"]))
+        if obj.get("introduction"):
+            parts.append(str(obj["introduction"]))
+        for section in obj.get("sections", []):
+            if isinstance(section, str):
+                parts.append(section)
+                continue
+            if not isinstance(section, dict):
+                continue
+            if section.get("title"):
+                parts.append(str(section["title"]))
+            if section.get("content"):
+                parts.append(str(section["content"]))
+            for sub in section.get("subsections", []):
+                if isinstance(sub, str):
+                    parts.append(sub)
+                elif isinstance(sub, dict):
+                    if sub.get("title"):
+                        parts.append(str(sub["title"]))
+                    if sub.get("content"):
+                        parts.append(str(sub["content"]))
+        if obj.get("conclusion"):
+            parts.append(str(obj["conclusion"]))
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _strip_json_wrapper(resp: str) -> str:
+        """Best-effort extraction of readable text from a JSON response."""
+        import json as _json
+        try:
+            obj = _json.loads(resp.strip())
+            if isinstance(obj, dict):
+                for key in ("report", "content", "text", "markdown", "output"):
+                    if key in obj and isinstance(obj[key], str):
+                        return obj[key]
+        except (ValueError, TypeError):
+            pass
+        stripped = resp.strip()
+        if stripped.startswith("{") or stripped.startswith("["):
+            for line in stripped.split("\\n"):
+                if line.strip().startswith("#"):
+                    return stripped.replace("\\n", "\n")
+        return stripped
 
     async def _write_section_with_subsections(
         self,
@@ -1550,13 +1612,15 @@ class ReportingAgent(BaseAgent):
         )
 
         # TODO Implement retry logic for LLM calls when JSON parsing or post-processing fails (e.g., malformed output, schema violations).
-        resp = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             filled,
             system_prompt,
             stage="write_section_with_subsections",
-            verbose=False,
             trace_meta=self._build_trace_meta("Write section"),
-        )
+        ):
+            _chunks.append(_c)
+        resp = "".join(_chunks)
         data = extract_json_from_text(resp)
 
         try:

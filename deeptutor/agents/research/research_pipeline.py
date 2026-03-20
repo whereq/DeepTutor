@@ -41,6 +41,7 @@ class ResearchPipeline:
         kb_name: str | None = None,
         progress_callback: Callable | None = None,
         trace_callback: Callable[[dict[str, Any]], Any] | None = None,
+        pre_confirmed_outline: list[dict[str, str]] | None = None,
     ):
         """
         Initialize research workflow
@@ -53,10 +54,12 @@ class ResearchPipeline:
             research_id: Research task ID (optional)
             kb_name: Knowledge base name (optional, if provided overrides config file setting)
             progress_callback: Progress callback function (optional), signature: callback(event: Dict[str, Any])
+            pre_confirmed_outline: Pre-confirmed sub-topics from outline preview (skips decompose)
         """
         self.config = config
         self.progress_callback = progress_callback
         self.trace_callback = trace_callback
+        self.pre_confirmed_outline = pre_confirmed_outline
 
         # If kb_name is provided, override config
         if kb_name is not None:
@@ -292,36 +295,15 @@ class ResearchPipeline:
             if tool_type in ("rag_hybrid", "rag_naive", "rag"):
                 rag_cfg = self.config.get("rag", {})
                 kb_name = rag_cfg.get("kb_name", "DE-all")
-                default_mode = rag_cfg.get("default_mode", "hybrid")
-                fallback_mode = rag_cfg.get("fallback_mode", "naive")
-                if tool_type == "rag_hybrid":
-                    mode = "hybrid"
-                elif tool_type == "rag_naive":
-                    mode = "naive"
-                else:
-                    mode = default_mode
-                try:
-                    result = await self._call_tool_with_retry(
-                        self._tool_registry.execute,
-                        tool_type,
-                        query=query,
-                        kb_name=kb_name,
-                        mode=mode,
-                        max_retries=max_retries,
-                        timeout=default_timeout,
-                        tool_name=f"{tool_type}({mode})",
-                    )
-                except Exception:
-                    result = await self._call_tool_with_retry(
-                        self._tool_registry.execute,
-                        tool_type,
-                        query=query,
-                        kb_name=kb_name,
-                        mode=fallback_mode,
-                        max_retries=1,
-                        timeout=default_timeout,
-                        tool_name=f"{tool_type}({fallback_mode})",
-                    )
+                result = await self._call_tool_with_retry(
+                    self._tool_registry.execute,
+                    "rag",
+                    query=query,
+                    kb_name=kb_name,
+                    max_retries=max_retries,
+                    timeout=default_timeout,
+                    tool_name="rag",
+                )
             elif tool_type == "web_search":
                 result = await self._call_tool_with_retry(
                     self._tool_registry.execute,
@@ -356,16 +338,16 @@ class ResearchPipeline:
                     tool_name="run_code",
                 )
             else:
-                kb_name = self.config.get("rag", {}).get("kb_name", "ai_textbook")
+                rag_cfg = self.config.get("rag", {})
+                kb_name = rag_cfg.get("kb_name", "DE-all")
                 result = await self._call_tool_with_retry(
                     self._tool_registry.execute,
                     "rag",
                     query=query,
                     kb_name=kb_name,
-                    mode="hybrid",
                     max_retries=max_retries,
                     timeout=default_timeout,
-                    tool_name="rag(hybrid)",
+                    tool_name="rag",
                 )
         except Exception as e:
             failure = json.dumps(
@@ -409,7 +391,10 @@ class ResearchPipeline:
         if "content" not in payload:
             payload["content"] = result.content
         if result.sources:
-            payload["sources"] = result.sources
+            if "sources" not in payload:
+                payload["sources"] = result.sources
+            else:
+                payload["tool_sources"] = result.sources
         payload.setdefault("success", result.success)
         return json.dumps(payload, ensure_ascii=False)
 
@@ -493,11 +478,18 @@ class ResearchPipeline:
                 from deeptutor.agents.research.utils.token_tracker import get_token_tracker
 
                 tracker = get_token_tracker()
-                cost_summary = tracker.format_summary()
-                self.logger.info(cost_summary)
+                cost_summary_text = tracker.format_summary()
+                self.logger.info(cost_summary_text)
                 cost_file = self.cache_dir / "token_cost_summary.json"
                 tracker.save(str(cost_file))
                 self.logger.success(f"Cost statistics saved: {cost_file}")
+                t_summary = tracker.get_summary()
+                if t_summary.get("total_calls", 0) > 0:
+                    metadata["cost_summary"] = {
+                        "total_cost_usd": t_summary.get("total_cost_usd", 0),
+                        "total_tokens": t_summary.get("total_tokens", 0),
+                        "total_calls": t_summary.get("total_calls", 0),
+                    }
             except Exception as _e:
                 self.logger.warning(f"Cost statistics failed: {_e}")
 
@@ -541,7 +533,44 @@ class ResearchPipeline:
         """
         self._log_progress("planning", "planning_started", user_topic=topic)
 
-        # Check if topic rephrasing is enabled
+        if self.pre_confirmed_outline:
+            self.logger.info("\n【Step 1-2】Using pre-confirmed outline (skipping rephrase + decompose)...")
+            optimized_topic = topic
+            self.optimized_topic = optimized_topic
+            self._log_progress(
+                "planning",
+                "rephrase_skipped",
+                optimized_topic=optimized_topic,
+                reason="pre-confirmed outline provided",
+            )
+
+            self.logger.info("\n【Step 3】Initializing Queue from confirmed outline...")
+            for item in self.pre_confirmed_outline:
+                title = (item.get("title") or "").strip()
+                overview = item.get("overview", "")
+                if not title:
+                    continue
+                try:
+                    block = self.queue.add_block(sub_topic=title, overview=overview)
+                    self._log_progress(
+                        "planning",
+                        "queue_seeded",
+                        block_id=block.block_id,
+                        sub_topic=block.sub_topic,
+                        total_blocks=len(self.queue.blocks),
+                    )
+                except RuntimeError as err:
+                    self.logger.warning(f"Queue reached capacity limit: {err}")
+                    break
+
+            stats = self.queue.get_statistics()
+            self._log_progress("planning", "planning_completed", total_blocks=stats["total_blocks"])
+            self.logger.success("\nPhase 1 Completed (from confirmed outline):")
+            self.logger.info(f"  - Topic: {optimized_topic}")
+            self.logger.info(f"  - Subtopic Count: {stats['total_blocks']}")
+            self.agents["manager"].set_primary_topic(optimized_topic)
+            return optimized_topic
+
         rephrase_config = self.config.get("planning", {}).get("rephrase", {})
         rephrase_enabled = rephrase_config.get("enabled", True)
 
@@ -588,18 +617,15 @@ class ResearchPipeline:
 
         self.logger.info("\n【Step 2】Topic Decomposition...")
 
-        # Use DecomposeAgent to decompose topic
         decompose_config = self.config.get("planning", {}).get("decompose", {})
         mode = decompose_config.get("mode", "manual")
 
         if mode == "auto":
-            # Auto mode: use auto_max_subtopics as limit
             num_subtopics = decompose_config.get(
                 "auto_max_subtopics", decompose_config.get("initial_subtopics", 5)
             )
             self.logger.info(f"📌 Using Auto mode, max subtopics: {num_subtopics}")
         else:
-            # Manual mode: use initial_subtopics
             num_subtopics = decompose_config.get("initial_subtopics", 5)
             self.logger.info(f"📌 Using Manual mode, expected subtopics: {num_subtopics}")
 
@@ -607,7 +633,6 @@ class ResearchPipeline:
             "planning", "decompose_started", requested_subtopics=num_subtopics, mode=mode
         )
 
-        # Set citation manager to DecomposeAgent
         self.agents["decompose"].set_citation_manager(self.citation_manager)
 
         decompose_result = await self.agents["decompose"].process(
@@ -620,7 +645,6 @@ class ResearchPipeline:
             rag_context_length=len(decompose_result.get("rag_context", "") or ""),
         )
 
-        # Save Planning stage results (includes sub_queries / rag_context / sub_topics)
         try:
             step1_path = self.cache_dir / "step1_planning.json"
             with open(step1_path, "w", encoding="utf-8") as f:
@@ -641,7 +665,6 @@ class ResearchPipeline:
         except Exception as _e:
             self.logger.warning(f"Failed to save Planning stage data: {_e}")
 
-        # Add subtopics to queue
         self.logger.info("\n【Step 3】Initializing Queue...")
         for sub_topic_data in decompose_result.get("sub_topics", []):
             title = (sub_topic_data.get("title") or "").strip()

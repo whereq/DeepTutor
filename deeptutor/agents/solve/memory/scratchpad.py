@@ -356,13 +356,18 @@ class Scratchpad:
     # ------------------------------------------------------------------
 
     def get_all_sources(self) -> list[dict[str, Any]]:
-        """Return deduplicated list of all sources with IDs."""
+        """Return deduplicated list of all sources with IDs.
+
+        Each distinct (type, file, url, chunk_id) tuple is a unique source.
+        For RAG sources this means different queries produce separate citations
+        even when they target the same knowledge base.
+        """
         seen: set[str] = set()
         result: list[dict[str, Any]] = []
         counter: dict[str, int] = {}
         for entry in self.entries:
             for src in entry.sources:
-                key = f"{src.type}:{src.file or src.url or src.chunk_id}"
+                key = f"{src.type}|{src.file or ''}|{src.url or ''}|{src.chunk_id or ''}"
                 if key not in seen:
                     seen.add(key)
                     prefix = src.type if src.type in ("rag", "web", "code") else "src"
@@ -374,15 +379,32 @@ class Scratchpad:
         return result
 
     def format_sources_markdown(self) -> str:
-        """Format sources as a Markdown references section."""
+        """Format sources as a Markdown references section with clickable URLs."""
         sources = self.get_all_sources()
         if not sources:
             return ""
         lines = ["## References\n"]
         for s in sources:
-            label = s.get("file") or s.get("url") or s.get("chunk_id") or "unknown"
-            lines.append(f"- **[{s['id']}]** {label}")
+            label = self._source_label(s)
+            url = s.get("url", "")
+            if url:
+                lines.append(f"- **[{s['id']}]** [{label}]({url})")
+            else:
+                lines.append(f"- **[{s['id']}]** {label}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _source_label(s: dict[str, Any]) -> str:
+        """Build a human-readable label for a source entry.
+
+        RAG sources use the query text as primary label with the knowledge-base
+        name as qualifier, so different queries are visually distinguishable.
+        """
+        if s.get("type") == "rag" and s.get("chunk_id"):
+            query_text = s["chunk_id"]
+            kb = s.get("file")
+            return f"{query_text} ({kb})" if kb else query_text
+        return s.get("file") or s.get("url") or s.get("chunk_id") or "unknown"
 
     # ------------------------------------------------------------------
     # Persistence

@@ -63,11 +63,14 @@ class DesignAgent(BaseAgent):
         user_prompt = user_template.format(user_input=user_input.strip())
 
         try:
-            response = await self.call_llm(
+            _chunks: list[str] = []
+            async for _c in self.stream_llm(
                 user_prompt=user_prompt,
                 system_prompt=system_prompt,
                 response_format={"type": "json_object"},
-            )
+            ):
+                _chunks.append(_c)
+            response = "".join(_chunks)
 
             try:
                 result = json.loads(response)

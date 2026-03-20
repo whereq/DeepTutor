@@ -1,10 +1,8 @@
 """
-CLI memory command.
+CLI memory commands for the two-file public memory system (SUMMARY/PROFILE).
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -16,47 +14,55 @@ from deeptutor.services.memory import get_memory_service
 console = Console()
 
 
-def _get_memory_path() -> Path:
-    return get_memory_service().memory_path
-
-
 def register(app: typer.Typer) -> None:
     @app.command("show")
-    def memory_show() -> None:
-        """Display the current long-term memory."""
-        snapshot = get_memory_service().read_snapshot()
-        if snapshot.content:
-            console.print(Panel(Markdown(snapshot.content), title="[bold]memory.md[/]"))
+    def memory_show(
+        file: str = typer.Argument(
+            "all", help="File to show: summary, profile, or all.",
+        ),
+    ) -> None:
+        """Display memory file content."""
+        svc = get_memory_service()
+        if file == "all":
+            snap = svc.read_snapshot()
+            for label, content in [
+                ("SUMMARY", snap.summary),
+                ("PROFILE", snap.profile),
+            ]:
+                if content:
+                    console.print(Panel(Markdown(content), title=f"[bold]{label}.md[/]"))
+                else:
+                    console.print(f"[dim]{label}.md: (empty)[/]")
+        elif file in ("summary", "profile"):
+            content = svc.read_file(file)
+            if content:
+                console.print(Panel(Markdown(content), title=f"[bold]{file.upper()}.md[/]"))
+            else:
+                console.print(f"[dim]{file.upper()}.md: (empty)[/]")
         else:
-            console.print("[dim]memory.md: (empty)[/]")
+            console.print(f"[red]Unknown file: {file}. Use summary, profile, or all.[/]")
 
     @app.command("clear")
     def memory_clear(
+        file: str = typer.Argument(
+            "all", help="File to clear: summary, profile, or all.",
+        ),
         force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation."),
     ) -> None:
-        """Clear the long-term memory file."""
+        """Clear memory file(s)."""
+        svc = get_memory_service()
+        if file not in ("summary", "profile", "all"):
+            console.print(f"[red]Unknown file: {file}[/]")
+            raise typer.Exit(1)
+
         if not force:
-            confirm = typer.confirm("Clear memory.md?")
-            if not confirm:
+            target = "all memory files" if file == "all" else f"{file.upper()}.md"
+            if not typer.confirm(f"Clear {target}?"):
                 raise typer.Abort()
 
-        path = _get_memory_path()
-        get_memory_service().clear_memory()
-        console.print(f"[green]Cleared {path.name}.[/]")
-
-    @app.command("export")
-    def memory_export(
-        dest: str = typer.Argument(..., help="Destination directory."),
-    ) -> None:
-        """Export memory.md to a directory."""
-        import shutil
-
-        source = _get_memory_path()
-        if not source.exists():
-            console.print("[yellow]memory.md is empty.[/]")
-            return
-
-        dest_path = Path(dest)
-        dest_path.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, dest_path / source.name)
-        console.print(f"[green]Exported {source.name} to {dest_path}[/]")
+        if file == "all":
+            svc.clear_memory()
+            console.print("[green]Cleared all memory files.[/]")
+        else:
+            svc.clear_file(file)
+            console.print(f"[green]Cleared {file.upper()}.md.[/]")

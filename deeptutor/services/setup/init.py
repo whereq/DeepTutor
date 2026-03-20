@@ -58,7 +58,6 @@ DEFAULT_MAIN_SETTINGS = {
         "question": {
             "rag_query_count": 3,
             "max_parallel_questions": 1,
-            "rag_mode": "naive",
             "idea_loop": {"max_rounds": 3, "ideas_per_round": 5},
             "generation": {"max_retries": 2},
         },
@@ -78,7 +77,7 @@ DEFAULT_MAIN_SETTINGS = {
                 "tool_max_retries": 2,
                 "paper_search_years_limit": 3,
             },
-            "rag": {"default_mode": "hybrid", "fallback_mode": "naive"},
+            "rag": {},
         },
     },
 }

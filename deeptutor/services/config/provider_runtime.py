@@ -286,7 +286,7 @@ def resolve_llm_runtime_config(
     env_store: EnvStore | None = None,
     service: ModelCatalogService | None = None,
 ) -> ResolvedLLMConfig:
-    """Resolve active LLM config with nanobot-style provider matching."""
+    """Resolve active LLM config with TutorBot-style provider matching."""
     env = env_store or get_env_store()
     catalog_service = service or get_model_catalog_service()
     loaded = _load_catalog(catalog)
@@ -553,7 +553,7 @@ def resolve_search_runtime_config(
     env_store: EnvStore | None = None,
     service: ModelCatalogService | None = None,
 ) -> ResolvedSearchConfig:
-    """Resolve active web-search config with nanobot-style fallback behavior."""
+    """Resolve active web-search config with TutorBot-style fallback behavior."""
     env = env_store or get_env_store()
     catalog_service = service or get_model_catalog_service()
     loaded = _load_catalog(catalog)

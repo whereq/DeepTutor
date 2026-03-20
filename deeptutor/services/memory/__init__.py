@@ -1,4 +1,5 @@
 from .service import (
+    MemoryFile,
     MemoryService,
     MemorySnapshot,
     MemoryUpdateResult,
@@ -6,6 +7,7 @@ from .service import (
 )
 
 __all__ = [
+    "MemoryFile",
     "MemoryService",
     "MemorySnapshot",
     "MemoryUpdateResult",

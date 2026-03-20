@@ -271,13 +271,13 @@ async def _run_react_edit(
 
     response_chunks: list[str] = []
     if stream is None:
-        response_chunks.append(
-            await agent.call_llm(
-                user_prompt=final_prompt,
-                system_prompt=system_prompt,
-                stage=f"react_edit_{request.mode}",
-            )
-        )
+        async for _c in agent.stream_llm(
+            user_prompt=final_prompt,
+            system_prompt=system_prompt,
+            stage=f"react_edit_{request.mode}",
+        ):
+            if _c:
+                response_chunks.append(_c)
     else:
         async with active_stream.stage("responding", source="co_writer_react_edit"):
             await active_stream.progress(

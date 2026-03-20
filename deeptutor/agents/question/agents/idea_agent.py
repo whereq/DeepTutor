@@ -25,7 +25,6 @@ class IdeaAgent(BaseAgent):
     def __init__(
         self,
         kb_name: str | None = None,
-        rag_mode: str = "naive",
         enable_rag: bool = True,
         language: str = "en",
         **kwargs: Any,
@@ -37,7 +36,6 @@ class IdeaAgent(BaseAgent):
             **kwargs,
         )
         self.kb_name = kb_name
-        self.rag_mode = rag_mode
         self.enable_rag = enable_rag
 
     async def process(
@@ -116,7 +114,6 @@ class IdeaAgent(BaseAgent):
                     "tool_args": {
                         "query": user_topic,
                         "kb_name": self.kb_name,
-                        "mode": self.rag_mode,
                         "only_need_context": True,
                     },
                     **trace_meta,
@@ -125,7 +122,6 @@ class IdeaAgent(BaseAgent):
             result = await rag_search(
                 query=user_topic,
                 kb_name=self.kb_name,
-                mode=self.rag_mode,
                 only_need_context=True,
             )
             await self._emit_trace_event(
@@ -141,7 +137,7 @@ class IdeaAgent(BaseAgent):
                 {
                     "query": user_topic,
                     "answer": result.get("answer", ""),
-                    "mode": result.get("mode", self.rag_mode),
+                    "provider": result.get("provider", ""),
                 }
             )
         except Exception as exc:
@@ -210,7 +206,8 @@ class IdeaAgent(BaseAgent):
             existing_concentrations=json.dumps(existing_concentrations or [], ensure_ascii=False, indent=2),
         )
         try:
-            response = await self.call_llm(
+            _chunks: list[str] = []
+            async for _c in self.stream_llm(
                 user_prompt=user_prompt,
                 system_prompt=system_prompt or "",
                 response_format={"type": "json_object"},
@@ -227,7 +224,9 @@ class IdeaAgent(BaseAgent):
                     trace_id=trace_id,
                     batch=batch_number,
                 ),
-            )
+            ):
+                _chunks.append(_c)
+            response = "".join(_chunks)
             payload = json.loads(response)
             ideas_raw = payload.get("ideas", [])
             if not isinstance(ideas_raw, list):

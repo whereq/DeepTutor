@@ -49,7 +49,8 @@ class SummaryAgent(BaseAgent):
             design_json=json.dumps(design.model_dump(), ensure_ascii=False, indent=2),
             render_json=json.dumps(render_result.model_dump(), ensure_ascii=False, indent=2),
         )
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             response_format={"type": "json_object"},
@@ -62,5 +63,7 @@ class SummaryAgent(BaseAgent):
                 trace_role="summarize",
                 trace_kind="llm_output",
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
         return SummaryPayload.model_validate(extract_json_object(response))

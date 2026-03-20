@@ -93,17 +93,17 @@ class RAGService:
         self,
         query: str,
         kb_name: str,
-        mode: str = "hybrid",
         event_sink=None,
         **kwargs,
     ) -> Dict[str, Any]:
+        kwargs.pop("mode", None)
         provider = self._get_provider_for_kb(kb_name)
         with self._capture_raw_logs(event_sink, provider):
             await self._emit_tool_event(
                 event_sink,
                 "status",
                 f"Query: {query}",
-                {"query": query, "kb_name": kb_name, "mode": mode, "trace_layer": "summary"},
+                {"query": query, "kb_name": kb_name, "trace_layer": "summary"},
             )
             await self._emit_tool_event(
                 event_sink,
@@ -121,10 +121,10 @@ class RAGService:
                 event_sink,
                 "status",
                 f"Retrieving from knowledge base '{kb_name}'...",
-                {"provider": provider, "mode": mode, "trace_layer": "summary"},
+                {"provider": provider, "trace_layer": "summary"},
             )
 
-            result = await pipeline.search(query=query, kb_name=kb_name, mode=mode, **kwargs)
+            result = await pipeline.search(query=query, kb_name=kb_name, **kwargs)
 
             if "query" not in result:
                 result["query"] = query
@@ -133,8 +133,6 @@ class RAGService:
             if "content" not in result and "answer" in result:
                 result["content"] = result["answer"]
             result["provider"] = normalize_provider_name(result.get("provider") or provider)
-            if "mode" not in result:
-                result["mode"] = mode
 
             answer = result.get("answer") or result.get("content") or ""
             await self._emit_tool_event(
@@ -143,7 +141,6 @@ class RAGService:
                 f"Retrieved {len(answer)} characters of grounded context.",
                 {
                     "provider": result["provider"],
-                    "mode": mode,
                     "kb_name": kb_name,
                     "trace_layer": "summary",
                 },
@@ -234,14 +231,13 @@ class RAGService:
         context: str,
         kb_name: str,
         query_hints: Optional[List[str]] = None,
-        mode: str = "hybrid",
         max_queries: int = 3,
     ) -> Dict[str, Any]:
         import asyncio
 
         queries = query_hints if query_hints else await self._generate_queries(context, max_queries)
 
-        tasks = [self.search(query=q, kb_name=kb_name, mode=mode) for q in queries]
+        tasks = [self.search(query=q, kb_name=kb_name) for q in queries]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         passages: list[str] = []

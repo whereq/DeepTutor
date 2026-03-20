@@ -1,11 +1,19 @@
 export type ResearchMode = "" | "notes" | "report" | "comparison" | "learning_path";
-export type ResearchDepth = "" | "quick" | "standard" | "deep";
+export type ResearchDepth = "" | "quick" | "standard" | "deep" | "manual";
 export type ResearchSource = "kb" | "web" | "papers";
+
+export interface OutlineItem {
+  title: string;
+  overview: string;
+}
 
 export interface DeepResearchFormConfig {
   mode: ResearchMode;
   depth: ResearchDepth;
   sources: ResearchSource[];
+  manual_subtopics?: number;
+  manual_max_iterations?: number;
+  confirmed_outline?: OutlineItem[];
 }
 
 export interface ResearchConfigValidationResult {
@@ -34,7 +42,7 @@ export function normalizeResearchConfig(
         ? raw.mode
         : empty.mode,
     depth:
-      raw?.depth === "quick" || raw?.depth === "standard" || raw?.depth === "deep"
+      raw?.depth === "quick" || raw?.depth === "standard" || raw?.depth === "deep" || raw?.depth === "manual"
         ? raw.depth
         : empty.depth,
     sources: Array.isArray(raw?.sources)
@@ -63,17 +71,30 @@ export function validateResearchConfig(
 
 export function buildResearchWSConfig(
   cfg: DeepResearchFormConfig,
+  confirmedOutline?: OutlineItem[],
 ): Record<string, unknown> {
   const validation = validateResearchConfig(cfg);
   if (!validation.valid) {
     throw new Error("Deep research settings are incomplete.");
   }
 
-  return {
+  const result: Record<string, unknown> = {
     mode: cfg.mode,
     depth: cfg.depth,
     sources: [...cfg.sources],
   };
+
+  if (cfg.depth === "manual") {
+    if (cfg.manual_subtopics != null) result.manual_subtopics = cfg.manual_subtopics;
+    if (cfg.manual_max_iterations != null) result.manual_max_iterations = cfg.manual_max_iterations;
+  }
+
+  const outline = confirmedOutline ?? cfg.confirmed_outline;
+  if (outline && outline.length > 0) {
+    result.confirmed_outline = outline;
+  }
+
+  return result;
 }
 
 export function summarizeResearchConfig(cfg: DeepResearchFormConfig): string {

@@ -512,6 +512,7 @@ class BaseAgent(ABC):
         temperature: float | None = None,
         max_tokens: int | None = None,
         model: str | None = None,
+        response_format: dict[str, Any] | None = None,
         stage: str | None = None,
         attachments: list[Any] | None = None,
         trace_meta: dict[str, Any] | None = None,
@@ -529,6 +530,7 @@ class BaseAgent(ABC):
             temperature: Temperature parameter (optional, uses config by default)
             max_tokens: Maximum tokens (optional, uses config by default)
             model: Model name (optional, uses config by default)
+            response_format: JSON schema for structured output (optional)
             stage: Stage marker for logging
             attachments: Image/file attachments for multimodal input (optional)
 
@@ -547,6 +549,19 @@ class BaseAgent(ABC):
         # Handle token limit for newer OpenAI models
         if max_tokens:
             kwargs.update(get_token_limit_kwargs(model, max_tokens))
+
+        # Handle response_format with capability check
+        if response_format:
+            try:
+                config = get_llm_config()
+                binding = getattr(config, "binding", None) or "openai"
+            except Exception:
+                binding = "openai"
+
+            if supports_response_format(binding, model):
+                kwargs["response_format"] = response_format
+            else:
+                self.logger.debug(f"response_format not supported for {binding}/{model}, skipping")
 
         # Inject image attachments into messages when provided
         if messages and attachments:

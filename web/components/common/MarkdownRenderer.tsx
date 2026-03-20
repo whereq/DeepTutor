@@ -18,7 +18,12 @@ export interface MarkdownRendererProps {
 }
 
 function detectMathContent(content: string): boolean {
-  return /(^|[^\\])\$\$[\s\S]+?\$\$|\\\(|\\\[/.test(content);
+  if (/(^|[^\\])\$\$[\s\S]+?\$\$/.test(content)) return true;
+  if (/\\\(|\\\[/.test(content)) return true;
+  // Single-dollar inline math containing LaTeX commands (\cmd) or math operators ({}_^)
+  if (/(?:^|[^$\\])\$(?!\$|\s)(?:[^$\n]*(?:\\[a-zA-Z]+|[{}_^]))[^$\n]*\$(?!\$)/m.test(content))
+    return true;
+  return false;
 }
 
 function detectCodeContent(content: string): boolean {

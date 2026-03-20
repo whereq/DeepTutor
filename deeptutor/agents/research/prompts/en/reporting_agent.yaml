@@ -53,13 +53,19 @@ mode_contracts:
     - Write like a high-quality study sheet.
     - Prefer bullets, short explanation bursts, worked mini-examples, pitfall lists, and key-takeaway blocks.
     - Never let the section read like a long formal essay.
+    - For every major concept, include a definition box: `> **Definition — <Term>**: <concise definition>`
+    - End each section with a "Test Yourself" micro-question: `> 💡 **Test Yourself**: Can you explain <concept> without looking at the notes?`
+    - Where appropriate, add a memory anchor: `> 🧠 **Memory Anchor**: <mnemonic, analogy, or visual cue to aid recall>`
   study_notes_conclusion: |
     - End with a recap checklist or takeaway block.
     - Include key takeaways and optional common mistakes.
+    - Add a **Self-Test Checklist**: a numbered list of core claims/concepts the learner should be able to explain from memory.
     - Do not write a formal conclusion with limitations or future work.
   study_notes_single_pass: |
     - The full output must read like revision notes prepared for a learner.
     - It should be compact, scannable, memorable, and clearly segmented for review.
+    - Include definition boxes, "Test Yourself" micro-questions, and memory anchors throughout.
+    - End with a Self-Test Checklist of core concepts to verify recall.
     - The finished artifact should feel optimized for understanding, recall, and quick revision.
 
   report_outline: |
@@ -90,12 +96,18 @@ mode_contracts:
     - Every main section must compare alternatives side by side.
     - Use dimension-based analysis, explicit contrasts, tables, and scenario-based judgments.
     - Do not drift into isolated topic summaries.
+    - For each comparison dimension, assign a quantitative score (1-5) to every option. Present scores in a mini table.
+    - Format: `| Criterion | Option A | Option B | ... |` with numeric scores.
   comparison_conclusion: |
     - End with a verdict and recommendation by scenario, constraint, or priority.
     - Make selection guidance explicit.
+    - Include a **Scoring Summary Table** that aggregates all per-dimension scores into one table:
+      `| Dimension | Option A | Option B | ... | (with numeric 1-5 scores)`
+    - Below the table, state overall weighted impressions and scenario-based recommendations.
   comparison_single_pass: |
     - The whole output must be dimension-first, trade-off-heavy, and recommendation-oriented.
     - It should feel unmistakably like a comparison document.
+    - Include quantitative 1-5 scores per dimension per option, and a scoring summary table in the conclusion.
     - The finished artifact should help a reader make a decision under explicit scenarios or constraints.
 
   learning_path_outline: |
@@ -109,10 +121,21 @@ mode_contracts:
     - Write as a study roadmap, not a report.
     - Make sequence, prerequisites, exercises, checkpoints, milestones, and what-to-study-next explicit.
     - Every section should help the learner act, not just understand.
+    - Start each stage with metadata: `> ⏱️ **Estimated Time**: X hours` and `> 📊 **Difficulty**: Foundation / Intermediate / Advanced`
+    - Include a **Recommended Resources** block: `> 📚 **Resources**: [books, courses, tools, or links]`
   learning_path_conclusion: |
     - End with milestone checks, next-step advice, and how to continue after completing the path.
+    - Include a Mermaid roadmap diagram showing the stage progression:
+      ```mermaid
+      graph LR
+        A[Stage 1: ...] --> B[Stage 2: ...]
+        B --> C[Stage 3: ...]
+      ```
+    - Below the diagram, summarize total estimated time and a final competency checklist.
   learning_path_single_pass: |
     - The final output must read like a staged study plan with progression logic, checkpoints, exercises, and sequence.
+    - Each stage must include estimated time, difficulty label, and recommended resources.
+    - End with a Mermaid roadmap diagram and total time estimate.
     - The finished artifact should help a learner decide what to do first, next, and how to judge progress.
 
 process:
@@ -587,13 +610,21 @@ process:
        ```
     6. **Tables**: Use comparison tables for contrasting concepts, parameter summaries, or method comparisons.
     7. **Formulas**: Preserve LaTeX. Inline: `$...$`. Block: `$$...$$`.
-    8. **NEVER** write like a report: no "In this section, we examine…", no lengthy analytical prose, no formal transitions.
+    8. **Test Yourself**: End with a micro-question that tests recall:
+       ```
+       > 💡 **Test Yourself**: Can you explain <concept> without looking at the notes?
+       ```
+    9. **Memory Anchor**: Where helpful, provide a mnemonic, analogy, or visual cue:
+       ```
+       > 🧠 **Memory Anchor**: <mnemonic or analogy to aid recall>
+       ```
+    10. **NEVER** write like a report: no "In this section, we examine…", no lengthy analytical prose, no formal transitions.
 
     {citation_instruction}
 
     Output:
     {{
-        "section_content": "## Section Title\n\n> **Definition — X**: ...\n\n- Point 1\n- Point 2\n\n**Example**:\n...\n\n> ⚠️ **Common Mistake**: ...\n\n> 🔑 **Key Takeaway**: ...{citation_output_hint}"
+        "section_content": "## Section Title\n\n> **Definition — X**: ...\n\n- Point 1\n- Point 2\n\n**Example**:\n...\n\n> ⚠️ **Common Mistake**: ...\n\n> 🧠 **Memory Anchor**: ...\n\n> 🔑 **Key Takeaway**: ...\n\n> 💡 **Test Yourself**: ...{citation_output_hint}"
     }}
 
     **Word Count**: 400-700 words. Prioritize clarity over length.
@@ -616,11 +647,12 @@ process:
       1. **Key Terms Table**: Term | Definition (one row per key concept)
       2. **Top Takeaways**: Numbered list of the 3-5 most important points
       3. **Common Pitfalls**: Bullet list of mistakes to avoid
+      4. **Self-Test Checklist**: Numbered list of core claims/concepts the learner should be able to explain from memory. Format: `✅ 1. Can you explain ...?`
     - Keep it compact and scannable — this is a cheat sheet, not a summary essay.
 
     Output:
     {{
-        "conclusion": "| Term | Definition |\n|---|---|\n| ... | ... |\n\n**Top Takeaways**\n1. ...\n2. ...\n\n**Pitfalls to Avoid**\n- ..."
+        "conclusion": "| Term | Definition |\n|---|---|\n| ... | ... |\n\n**Top Takeaways**\n1. ...\n2. ...\n\n**Pitfalls to Avoid**\n- ...\n\n**Self-Test Checklist**\n✅ 1. Can you explain ...?\n✅ 2. ..."
     }}
 
     **Now directly output the JSON object.**
@@ -649,8 +681,10 @@ process:
     - Mini-examples with code/math/steps
     - Pitfall alerts: `> ⚠️ **Common Mistake**: ...`
     - Key takeaway blocks: `> 🔑 **Key Takeaway**: ...`
+    - Test Yourself micro-questions: `> 💡 **Test Yourself**: Can you explain ...?`
+    - Memory anchors: `> 🧠 **Memory Anchor**: <mnemonic or analogy>`
     - Comparison tables where relevant
-    - A Quick Reference section at the end with a terms table + top takeaways + pitfalls list
+    - A Quick Reference section at the end with a terms table + top takeaways + pitfalls list + Self-Test Checklist
     - Short paragraphs and bullet lists — NO long prose
 
     Output:
@@ -750,15 +784,16 @@ process:
        ```
     2. **Dimension Analysis**: After the table, discuss the key trade-offs, nuances, and edge cases for this dimension.
     3. **Strengths & Weaknesses**: Use explicit `**Strengths**:` and `**Weaknesses**:` sub-blocks for each option.
-    4. **Scenario-Fit Judgment**: End with a clear statement: "For scenario X, Option Y is preferable because…"
-    5. **NEVER** write isolated option profiles. Every paragraph must compare.
-    6. Use bold labels, tables, and structured lists. Minimize long prose.
+    4. **Quantitative Score**: For this dimension, assign each option a score from 1-5 (1=poor, 5=excellent).
+    5. **Scenario-Fit Judgment**: End with a clear statement: "For scenario X, Option Y is preferable because…"
+    6. **NEVER** write isolated option profiles. Every paragraph must compare.
+    7. Use bold labels, tables, and structured lists. Minimize long prose.
 
     {citation_instruction}
 
     Output:
     {{
-        "section_content": "## Dimension Title\n\n| Criterion | A | B |\n|---|---|---|\n| ... | ... | ... |\n\n**Analysis**: ...\n\n**Strengths & Weaknesses**:\n- Option A: ...\n- Option B: ...\n\n**Best fit**: For scenario X, prefer ...{citation_output_hint}"
+        "section_content": "## Dimension Title\n\n| Criterion | A | B | Score A | Score B |\n|---|---|---|---|---|\n| ... | ... | ... | 4 | 3 |\n\n**Analysis**: ...\n\n**Strengths & Weaknesses**:\n- Option A: ...\n- Option B: ...\n\n**Best fit**: For scenario X, prefer ...{citation_output_hint}"
     }}
 
     **Word Count**: 500-800 words per dimension section.
@@ -776,20 +811,28 @@ process:
     Total Topics: {total_topics}
 
     **Rules** (MANDATORY):
-    - **Decision Matrix Table**: MUST include a table mapping scenarios/priorities to recommended options:
+    - **Scoring Summary Table**: MUST include an aggregate scoring table with 1-5 scores per dimension per option:
+      ```
+      | Dimension   | Option A | Option B | Option C |
+      |-------------|----------|----------|----------|
+      | Dim 1       | 4        | 3        | 5        |
+      | Dim 2       | 3        | 5        | 2        |
+      | **Average** | **3.5**  | **4.0**  | **3.5**  |
+      ```
+    - **Decision Matrix Table**: Include a table mapping scenarios/priorities to recommended options:
       ```
       | If you prioritize… | Recommended | Why |
       |---------------------|-------------|-----|
       | Performance         | Option A    | ... |
       | Cost                | Option B    | ... |
       ```
-    - **Per-Scenario Recommendations**: After the table, write 2-3 sentences per scenario explaining the recommendation.
+    - **Per-Scenario Recommendations**: After the tables, write 2-3 sentences per scenario explaining the recommendation.
     - **NEVER** write a vague "it depends" conclusion. Be specific and opinionated.
     - No formal "limitations and future work" section.
 
     Output:
     {{
-        "conclusion": "| If you prioritize… | Recommended | Why |\n|---|---|---|\n| ... | ... | ... |\n\n**Scenario 1**: ...\n\n**Scenario 2**: ..."
+        "conclusion": "**Scoring Summary**\n\n| Dimension | A | B |\n|---|---|---|\n| ... | 4 | 3 |\n| **Average** | **3.5** | **4.0** |\n\n**Recommendation by Scenario**\n\n| If you prioritize… | Recommended | Why |\n|---|---|---|\n| ... | ... | ... |\n\n**Scenario 1**: ...\n\n**Scenario 2**: ..."
     }}
 
     **Now directly output the JSON object.**
@@ -911,27 +954,36 @@ process:
 
     **Learning Path Stage Rules** (MANDATORY):
 
-    1. **Learning Objectives**: Start with a bulleted list: "After this stage you will be able to: …"
-    2. **Why Now**: Briefly explain the prerequisite chain — why this stage comes at this point.
-    3. **Core Content**: Teach the key concepts. Use definition boxes, examples, diagrams, and code as appropriate. Keep explanations clear and progressive.
-    4. **Practice Plan**: Include specific exercises, mini-projects, or problems to solve:
+    1. **Stage Metadata**: Start each stage with:
+       ```
+       > ⏱️ **Estimated Time**: X hours
+       > 📊 **Difficulty**: Foundation / Intermediate / Advanced
+       ```
+    2. **Learning Objectives**: A bulleted list: "After this stage you will be able to: …"
+    3. **Why Now**: Briefly explain the prerequisite chain — why this stage comes at this point.
+    4. **Core Content**: Teach the key concepts. Use definition boxes, examples, diagrams, and code as appropriate. Keep explanations clear and progressive.
+    5. **Practice Plan**: Include specific exercises, mini-projects, or problems to solve:
        ```
        > 📝 **Exercise**: Description of what to do, expected outcome, and how to check your answer.
        ```
-    5. **Checkpoint**: End with a self-assessment block:
+    6. **Recommended Resources**: Suggest books, courses, tools, or links:
+       ```
+       > 📚 **Resources**: [list of recommended materials]
+       ```
+    7. **Checkpoint**: End with a self-assessment block:
        ```
        > ✅ **Checkpoint — Ready for Stage N+1?**
        > - Can you explain X?
        > - Can you implement Y?
        > - Can you identify when Z applies?
        ```
-    6. **NEVER** write like a report section. Every paragraph should help the learner ACT, not just understand.
+    8. **NEVER** write like a report section. Every paragraph should help the learner ACT, not just understand.
 
     {citation_instruction}
 
     Output:
     {{
-        "section_content": "## Stage N. Title\n\n**Learning Objectives**:\n- ...\n\n**Why Now**: ...\n\n### Core Content\n...\n\n> 📝 **Exercise**: ...\n\n> ✅ **Checkpoint — Ready for Stage N+1?**\n> - ...{citation_output_hint}"
+        "section_content": "## Stage N. Title\n\n> ⏱️ **Estimated Time**: X hours\n> 📊 **Difficulty**: Intermediate\n\n**Learning Objectives**:\n- ...\n\n**Why Now**: ...\n\n### Core Content\n...\n\n> 📝 **Exercise**: ...\n\n> 📚 **Resources**: ...\n\n> ✅ **Checkpoint — Ready for Stage N+1?**\n> - ...{citation_output_hint}"
     }}
 
     **Word Count**: 500-800 words per stage.
@@ -949,19 +1001,26 @@ process:
     Total Topics: {total_topics}
 
     **Rules** (MANDATORY):
-    - **Milestone Checklist**: A table or checklist covering all stages:
+    - **Roadmap Diagram**: Include a Mermaid flowchart showing stage progression:
+      ```mermaid
+      graph LR
+        A["Stage 1: ..."] --> B["Stage 2: ..."]
+        B --> C["Stage 3: ..."]
       ```
-      | Stage | Milestone | Self-Check |
-      |-------|-----------|------------|
-      | 1     | ...       | Can you…?  |
+    - **Milestone Checklist**: A table covering all stages with time estimates:
       ```
+      | Stage | Milestone | Est. Time | Self-Check |
+      |-------|-----------|-----------|------------|
+      | 1     | ...       | X hours   | Can you…?  |
+      ```
+    - **Total Time Estimate**: Sum up all stage times for the full path.
     - **Self-Assessment**: Help the learner judge their overall readiness.
     - **What's Next**: Concrete advice on where to go after completing this path — advanced topics, projects, communities, resources.
     - **NEVER** write a formal conclusion with "limitations". This is forward-looking and action-oriented.
 
     Output:
     {{
-        "conclusion": "**Milestone Checklist**\n\n| Stage | Milestone | Self-Check |\n|---|---|---|\n| ... | ... | ... |\n\n**Self-Assessment**: ...\n\n**What's Next**: ..."
+        "conclusion": "**Learning Roadmap**\n\n```mermaid\ngraph LR\n  A[Stage 1] --> B[Stage 2]\n  B --> C[Stage 3]\n```\n\n**Milestone Checklist**\n\n| Stage | Milestone | Est. Time | Self-Check |\n|---|---|---|---|\n| ... | ... | X hours | ... |\n\n**Total Estimated Time**: X hours\n\n**Self-Assessment**: ...\n\n**What's Next**: ..."
     }}
 
     **Now directly output the JSON object.**
@@ -987,10 +1046,13 @@ process:
 
     **Mandatory elements**:
     - "Who This Path Is For" section with learner profile, prerequisites, end goal
-    - Sequential stages (Stage 1 → 2 → 3…), each with: objectives, why-now, core content, practice, checkpoint
+    - Sequential stages (Stage 1 → 2 → 3…), each with:
+      - Stage metadata: `> ⏱️ **Estimated Time**: X hours` and `> 📊 **Difficulty**: Foundation/Intermediate/Advanced`
+      - Objectives, why-now, core content, practice, recommended resources, checkpoint
     - Exercise blocks: `> 📝 **Exercise**: ...`
+    - Resource blocks: `> 📚 **Resources**: ...`
     - Checkpoint blocks: `> ✅ **Checkpoint**: ...`
-    - "Milestones & What's Next" section with milestone table + continuation advice
+    - "Milestones & What's Next" section with Mermaid roadmap diagram + milestone table + total time estimate + continuation advice
     - Clear prerequisite chain visible throughout
     - NEVER write as a flat topical report
 

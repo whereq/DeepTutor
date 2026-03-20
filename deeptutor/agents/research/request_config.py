@@ -8,8 +8,13 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 
 ResearchMode = Literal["notes", "report", "comparison", "learning_path"]
-ResearchDepth = Literal["quick", "standard", "deep"]
+ResearchDepth = Literal["quick", "standard", "deep", "manual"]
 ResearchSource = Literal["kb", "web", "papers"]
+
+
+class OutlineItem(BaseModel):
+    title: str
+    overview: str = ""
 
 
 class DeepResearchRequestConfig(BaseModel):
@@ -19,11 +24,30 @@ class DeepResearchRequestConfig(BaseModel):
     depth: ResearchDepth
     sources: list[ResearchSource]
 
+    manual_subtopics: int | None = None
+    manual_max_iterations: int | None = None
+
+    confirmed_outline: list[OutlineItem] | None = None
+
     @field_validator("sources")
     @classmethod
     def validate_sources(cls, value: list[ResearchSource]) -> list[ResearchSource]:
         deduped = list(dict.fromkeys(value))
         return deduped
+
+    @field_validator("manual_subtopics")
+    @classmethod
+    def validate_manual_subtopics(cls, value: int | None) -> int | None:
+        if value is not None:
+            return max(1, min(value, 10))
+        return value
+
+    @field_validator("manual_max_iterations")
+    @classmethod
+    def validate_manual_max_iterations(cls, value: int | None) -> int | None:
+        if value is not None:
+            return max(1, min(value, 10))
+        return value
 
 
 def validate_research_request_config(raw_config: dict[str, Any] | None) -> DeepResearchRequestConfig:
@@ -44,8 +68,19 @@ def build_research_execution_policy(
     request_config: DeepResearchRequestConfig,
     enabled_tools: set[str],
 ) -> dict[str, Any]:
-    depth_policy = _build_depth_policy(request_config.depth)
+    depth_policy = _build_depth_policy(
+        request_config.depth,
+        manual_max_iterations=request_config.manual_max_iterations,
+        manual_subtopics=request_config.manual_subtopics,
+    )
     mode_policy = _build_mode_policy(request_config.mode, request_config.depth)
+
+    if request_config.depth == "manual" and request_config.manual_subtopics is not None:
+        n = request_config.manual_subtopics
+        if mode_policy.get("decompose_mode") == "auto":
+            mode_policy["auto_max_subtopics"] = n
+        else:
+            mode_policy["initial_subtopics"] = n
 
     source_tools: set[str] = set()
     if "kb" in request_config.sources:
@@ -80,8 +115,7 @@ def build_research_execution_policy(
         "execution_mode": depth_policy["execution_mode"],
         "max_parallel_topics": depth_policy["max_parallel_topics"],
         "new_topic_min_score": depth_policy["new_topic_min_score"],
-        "enable_rag_hybrid": "rag" in source_tools,
-        "enable_rag_naive": "rag" in source_tools,
+        "enable_rag": "rag" in source_tools,
         "enable_web_search": "web_search" in source_tools,
         "enable_paper_search": "paper_search" in source_tools,
         "enable_run_code": allow_code_execution,
@@ -187,8 +221,13 @@ def build_research_runtime_config(
     return runtime_config
 
 
-def _build_depth_policy(depth: ResearchDepth) -> dict[str, Any]:
-    policies: dict[ResearchDepth, dict[str, Any]] = {
+def _build_depth_policy(
+    depth: ResearchDepth,
+    *,
+    manual_max_iterations: int | None = None,
+    manual_subtopics: int | None = None,
+) -> dict[str, Any]:
+    presets: dict[str, dict[str, Any]] = {
         "quick": {
             "max_iterations": 1,
             "iteration_mode": "fixed",
@@ -214,75 +253,27 @@ def _build_depth_policy(depth: ResearchDepth) -> dict[str, Any]:
             "queue_max_length": 8,
         },
     }
-    return dict(policies[depth])
+
+    if depth == "manual":
+        iters = manual_max_iterations or 3
+        subtopics = manual_subtopics or 3
+        return {
+            "max_iterations": iters,
+            "iteration_mode": "fixed",
+            "execution_mode": "series" if subtopics <= 3 else "parallel",
+            "max_parallel_topics": min(subtopics, 3),
+            "new_topic_min_score": 0.88,
+            "queue_max_length": subtopics + 2,
+        }
+
+    return dict(presets[depth])
 
 
 def _build_mode_policy(mode: ResearchMode, depth: ResearchDepth) -> dict[str, Any]:
-    manual_subtopics_by_depth: dict[ResearchDepth, int] = {
-        "quick": 2,
-        "standard": 3,
-        "deep": 4,
-    }
-    auto_subtopics_by_depth: dict[ResearchDepth, int] = {
-        "quick": 2,
-        "standard": 4,
-        "deep": 6,
-    }
-    policies: dict[ResearchMode, dict[str, Any]] = {
-        "notes": {
-            "rephrase_enabled": False,
-            "rephrase_iterations": 1,
-            "decompose_mode": "manual",
-            "initial_subtopics": manual_subtopics_by_depth[depth],
-            "auto_max_subtopics": None,
-            "min_section_length": 260,
-            "report_single_pass_threshold": 99,
-            "enable_citation_list": True,
-            "enable_inline_citations": False,
-            "deduplicate_enabled": False,
-            "style": "study_notes",
-        },
-        "report": {
-            "rephrase_enabled": False,
-            "rephrase_iterations": 1,
-            "decompose_mode": "auto",
-            "initial_subtopics": None,
-            "auto_max_subtopics": auto_subtopics_by_depth[depth],
-            "min_section_length": 650,
-            "report_single_pass_threshold": 2,
-            "enable_citation_list": True,
-            "enable_inline_citations": False,
-            "deduplicate_enabled": False,
-            "style": "report",
-        },
-        "comparison": {
-            "rephrase_enabled": True,
-            "rephrase_iterations": 1 if depth != "deep" else 2,
-            "decompose_mode": "manual",
-            "initial_subtopics": max(2, manual_subtopics_by_depth[depth]),
-            "auto_max_subtopics": None,
-            "min_section_length": 520,
-            "report_single_pass_threshold": 2,
-            "enable_citation_list": True,
-            "enable_inline_citations": False,
-            "deduplicate_enabled": False,
-            "style": "comparison",
-        },
-        "learning_path": {
-            "rephrase_enabled": True,
-            "rephrase_iterations": 1,
-            "decompose_mode": "auto",
-            "initial_subtopics": None,
-            "auto_max_subtopics": auto_subtopics_by_depth[depth],
-            "min_section_length": 420,
-            "report_single_pass_threshold": 99,
-            "enable_citation_list": True,
-            "enable_inline_citations": False,
-            "deduplicate_enabled": False,
-            "style": "learning_path",
-        },
-    }
-    return dict(policies[mode])
+    from deeptutor.agents.research.mode_strategy import get_strategy
+
+    strategy = get_strategy(mode)
+    return dict(strategy.build_policy(depth))
 
 
 __all__ = [

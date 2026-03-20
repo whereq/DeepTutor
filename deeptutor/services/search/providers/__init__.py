@@ -12,10 +12,10 @@ from ..base import BaseSearchProvider
 
 _PROVIDERS: dict[str, Type[BaseSearchProvider]] = {}
 _DEPRECATED_UNSUPPORTED: dict[str, str] = {
-    "exa": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
-    "serper": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
-    "baidu": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
-    "openrouter": "Deprecated in nanobot migration; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
+    "exa": "Deprecated; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
+    "serper": "Deprecated; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
+    "baidu": "Deprecated; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
+    "openrouter": "Deprecated; use brave/tavily/jina/searxng/duckduckgo/perplexity.",
 }
 
 

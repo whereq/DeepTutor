@@ -33,8 +33,8 @@ def _login_openai_codex() -> None:
         from oauth_cli_kit import get_token, login_oauth_interactive
     except ImportError:
         typer.echo(
-            "oauth_cli_kit is not installed. Install optional deps: "
-            "pip install -r requirements/providers.txt"
+            "oauth_cli_kit is not installed. Install CLI deps: "
+            "pip install -r requirements/cli.txt"
         )
         raise typer.Exit(code=1)
 
@@ -58,7 +58,7 @@ async def _login_github_copilot() -> None:
     try:
         from litellm import acompletion
     except ImportError:
-        typer.echo("litellm is not installed. Install core deps: pip install -r requirements/core.txt")
+        typer.echo("litellm is not installed. Install CLI deps: pip install -r requirements/cli.txt")
         raise typer.Exit(code=1)
     try:
         await acompletion(

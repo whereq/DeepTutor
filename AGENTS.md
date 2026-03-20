@@ -58,24 +58,26 @@ Extended features in `deeptutor/plugins/`:
 ## CLI Usage
 
 ```bash
-# Install (CLI only, ~80MB)
-pip install -r requirements/core.txt
+# Install CLI
+pip install -r requirements/cli.txt && pip install -e .
 
-# Chat
+# Run any capability (agent-first entry point)
+deeptutor run chat "Explain Fourier transform"
+deeptutor run deep_solve "Solve x^2=4" -t rag --kb my-kb
+deeptutor run deep_question "Linear algebra" --config num_questions=5
+
+# Interactive REPL
 deeptutor chat
-deeptutor chat --once "Solve x^2=4" --capability deep-solve --tool rag
 
 # Knowledge bases
 deeptutor kb list
 deeptutor kb create my-kb --doc textbook.pdf
 
-# Memory
+# Plugins & memory
+deeptutor plugin list
 deeptutor memory show
 
-# Plugins
-deeptutor plugin list
-
-# API server (requires requirements/server.txt)
+# API server (requires server.txt)
 deeptutor serve --port 8001
 ```
 
@@ -139,10 +141,8 @@ class MyPlugin(BaseCapability):
 ## Dependency Layers
 
 ```
-requirements/core.txt       — CLI minimum (~80MB)
-requirements/server.txt     — + FastAPI/uvicorn
-requirements/rag-lite.txt   — + LlamaIndex RAG
-requirements/rag-full.txt   — compatibility alias of rag-lite (LlamaIndex-only)
-requirements/providers.txt  — + native LLM SDKs
-requirements/dev.txt        — + test/lint tools
+requirements/cli.txt            — CLI full (LLM + RAG + providers + tools)
+requirements/server.txt         — CLI + FastAPI/uvicorn (for Web/API)
+requirements/math-animator.txt  — Manim addon (for `deeptutor animate`)
+requirements/dev.txt            — Server + test/lint tools
 ```

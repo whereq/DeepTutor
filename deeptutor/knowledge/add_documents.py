@@ -44,8 +44,6 @@ class DocumentAdder:
             raise ValueError(f"Knowledge base does not exist: {kb_name}")
 
         self.raw_dir = self.kb_dir / "raw"
-        self.images_dir = self.kb_dir / "images"
-        self.content_list_dir = self.kb_dir / "content_list"
         self.llamaindex_storage_dir = self.kb_dir / "llamaindex_storage"
         self.legacy_rag_storage_dir = self.kb_dir / "rag_storage"
         self.metadata_file = self.kb_dir / "metadata.json"
@@ -68,8 +66,6 @@ class DocumentAdder:
         self.progress_tracker = progress_tracker
 
         self.raw_dir.mkdir(parents=True, exist_ok=True)
-        self.images_dir.mkdir(parents=True, exist_ok=True)
-        self.content_list_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_file_hash(self, file_path: Path) -> str:
         sha256_hash = hashlib.sha256()

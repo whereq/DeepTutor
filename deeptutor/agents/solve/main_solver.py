@@ -318,6 +318,11 @@ class MainSolver:
                     self.logger.info(f"\n{self.token_tracker.format_summary()}")
                     cost_file = os.path.join(output_dir, "cost_report.json")
                     self.token_tracker.save(cost_file)
+                    result["metadata"]["cost_summary"] = {
+                        "total_cost_usd": summary.get("total_cost_usd", 0),
+                        "total_tokens": summary.get("total_tokens", 0),
+                        "total_calls": summary.get("total_calls", 0),
+                    }
                     self.token_tracker.reset()
 
             self.logger.success("Problem solving completed")
@@ -590,12 +595,15 @@ class MainSolver:
 
         preference = "" if self.disable_memory else self._get_user_preference()
 
+        content_cb = getattr(self, "_content_callback", None)
+
         if detailed:
             final_answer = await self.writer_agent.process_iterative(
                 question=question,
                 scratchpad=scratchpad,
                 language=lang_code,
                 preference=preference,
+                on_content_chunk=content_cb,
             )
         else:
             final_answer = await self.writer_agent.process(
@@ -603,6 +611,7 @@ class MainSolver:
                 scratchpad=scratchpad,
                 language=lang_code,
                 preference=preference,
+                on_content_chunk=content_cb,
             )
 
         if self.logger.display_manager:

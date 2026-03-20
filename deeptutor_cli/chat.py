@@ -1,4 +1,4 @@
-"""Chat and capability execution commands."""
+"""Interactive chat REPL."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from rich.panel import Panel
 
 from deeptutor.app import DeepTutorApp, TurnRequest
 
-from .common import build_turn_request, console, maybe_run, run_turn_and_render
+from .common import console, maybe_run, run_turn_and_render
 
 
 @dataclass
@@ -30,44 +30,16 @@ def register(app: typer.Typer) -> None:
     @app.callback(invoke_without_command=True)
     def chat(
         ctx: typer.Context,
-        message: str | None = typer.Argument(None, help="Message to send."),
-        tool: list[str] = typer.Option([], "--tool", "-t", help="Enable tool(s)."),
-        capability: str = typer.Option("chat", "--capability", "-c", help="Capability name or alias."),
-        kb: list[str] = typer.Option([], "--kb", help="Knowledge base name."),
-        session: str | None = typer.Option(None, "--session", help="Existing session id."),
-        notebook_ref: list[str] = typer.Option(
-            [],
-            "--notebook-ref",
-            help="Notebook reference in NOTEBOOK_ID[:record_id,record_id] format.",
-        ),
+        session: str | None = typer.Option(None, "--session", help="Resume an existing session."),
+        tool: list[str] = typer.Option([], "--tool", "-t", help="Pre-enable tool(s)."),
+        capability: str = typer.Option("chat", "--capability", "-c", help="Initial capability."),
+        kb: list[str] = typer.Option([], "--kb", help="Pre-attach knowledge base(s)."),
+        notebook_ref: list[str] = typer.Option([], "--notebook-ref", help="Notebook references."),
         history_ref: list[str] = typer.Option([], "--history-ref", help="Referenced session ids."),
         language: str = typer.Option("en", "--language", "-l", help="Response language."),
-        config: list[str] = typer.Option([], "--config", help="Capability config key=value."),
-        config_json: str | None = typer.Option(None, "--config-json", help="Capability config as JSON."),
-        once: bool = typer.Option(False, "--once", help="Single-shot mode."),
-        fmt: str = typer.Option("rich", "--format", "-f", help="Output format: rich | json."),
     ) -> None:
-        """Chat with DeepTutor through the unified turn runtime."""
+        """Enter interactive chat REPL. Use `deeptutor run` for single-turn execution."""
         if ctx.invoked_subcommand is not None:
-            return
-
-        if message or once:
-            if not message:
-                console.print("[red]Provide a message for single-shot mode.[/]")
-                raise typer.Exit(code=1)
-            request = build_turn_request(
-                content=message,
-                capability=capability,
-                session_id=session,
-                tools=tool,
-                knowledge_bases=kb,
-                language=language,
-                config_items=config,
-                config_json=config_json,
-                notebook_refs=notebook_ref,
-                history_refs=history_ref,
-            )
-            maybe_run(_run_single_turn(request=request, fmt=fmt))
             return
 
         state = ChatState(
@@ -78,14 +50,8 @@ def register(app: typer.Typer) -> None:
             language=language,
             notebook_references=_parse_notebook_refs(notebook_ref),
             history_references=[item.strip() for item in history_ref if item.strip()],
-            config=_merge_config(config, config_json),
         )
         maybe_run(_chat_repl(state))
-
-
-async def _run_single_turn(*, request: TurnRequest, fmt: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    client = DeepTutorApp()
-    return await run_turn_and_render(app=client, request=request, fmt=fmt)
 
 
 async def _chat_repl(state: ChatState) -> None:
@@ -110,18 +76,14 @@ async def _chat_repl(state: ChatState) -> None:
     console.print(
         Panel(
             "[bold]DeepTutor CLI[/]\n"
-            "直接输入消息即可继续对话。\n"
-            "Commands:\n"
-            "  /quit\n"
-            "  /session\n"
-            "  /new\n"
-            "  /tool on <name> | /tool off <name>\n"
+            "Type a message to chat. Commands:\n"
+            "  /quit  /session  /new\n"
+            "  /tool on|off <name>\n"
             "  /cap <name>\n"
             "  /kb <name>|none\n"
-            "  /history add <session_id> | /history clear\n"
-            "  /notebook add <id[:record1,record2]> | /notebook clear\n"
-            "  /refs\n"
-            "  /config show | /config set key=value | /config clear",
+            "  /history add <id> | /history clear\n"
+            "  /notebook add <ref> | /notebook clear\n"
+            "  /refs  /config show|set|clear",
             title="deeptutor chat",
         )
     )
@@ -232,21 +194,6 @@ def _print_state(state: ChatState) -> None:
         "[/]",
         highlight=False,
     )
-
-
-def _merge_config(config_items: list[str], config_json: str | None) -> dict[str, Any]:
-    base = {}
-    if config_json:
-        parsed = json.loads(config_json)
-        if not isinstance(parsed, dict):
-            raise typer.BadParameter("--config-json must be a JSON object.")
-        base.update(parsed)
-    for item in config_items:
-        key, sep, raw_value = item.partition("=")
-        if not sep:
-            raise typer.BadParameter(f"Invalid --config item `{item}`.")
-        base[key.strip()] = _parse_config_value(raw_value.strip())
-    return base
 
 
 def _parse_notebook_refs(values: list[str]) -> list[dict[str, Any]]:

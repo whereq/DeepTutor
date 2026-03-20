@@ -71,10 +71,7 @@ class ResearchAgent(BaseAgent):
         # In "fixed" mode, agent should be more conservative about declaring knowledge sufficient
         # In "flexible" mode (auto), agent can stop early when knowledge is truly sufficient
         self.iteration_mode = self.researching_config.get("iteration_mode", "fixed")
-        # Tool availability configuration
-        self.enable_rag = self.researching_config.get(
-            "enable_rag_hybrid", True
-        ) or self.researching_config.get("enable_rag_naive", True)
+        self.enable_rag = self.researching_config.get("enable_rag", True)
         # Web search: global switch (tools.web_search.enabled) has higher priority
         # Only enabled when both global switch and module switch are True
         tools_web_search_enabled = (
@@ -250,17 +247,19 @@ Only output JSON:
                 mode_instruction=self._get_mode_contract("research") or "(no extra mode instruction)",
             )
 
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="llm_self_research",
-            verbose=False,
             trace_meta=self._build_trace_meta(
                 label="LLM self research",
                 iteration=iteration,
                 block_id=block_id,
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         try:
             data = extract_json_from_text(response)
@@ -304,8 +303,8 @@ Only output JSON:
         # Tool diversity analysis
         unique_tools = set(used_tools)
         available_tools = []
-        if self.enable_rag and not any(t in unique_tools for t in ["rag_hybrid", "rag_naive", "rag"]):
-            available_tools.append("RAG tools (rag_hybrid/rag_naive)")
+        if self.enable_rag and "rag" not in unique_tools:
+            available_tools.append("rag")
         if self.enable_paper_search and "paper_search" not in unique_tools:
             available_tools.append("paper_search")
         if self.enable_web_search and "web_search" not in unique_tools:
@@ -441,17 +440,19 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
             iteration_mode_criteria=iteration_mode_criteria,
             mode_instruction=self._get_mode_contract("research"),
         )
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="plan_next_step",
-            verbose=False,
             trace_meta=self._build_trace_meta(
                 label="Plan next step",
                 iteration=iteration,
                 trace_role="plan",
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         from ..utils.json_utils import ensure_json_dict, ensure_keys
 
@@ -603,7 +604,7 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
                     print(f"{block_id_prefix}     Reason: {new_topic_reason}")
 
             query = plan.get("query", "").strip()
-            tool_type = "llm_self_research" if llm_only_mode else plan.get("tool_type", "rag_hybrid")
+            tool_type = "llm_self_research" if llm_only_mode else plan.get("tool_type", "rag")
             rationale = plan.get("rationale", "")
 
             if not query:

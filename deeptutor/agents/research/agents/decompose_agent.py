@@ -56,18 +56,14 @@ class DecomposeAgent(BaseAgent):
             language=language,
             config=config,
         )
-        # Load KB and RAG mode from config, no hardcoding
         rag_cfg = config.get("rag", {})
         self.kb_name = rag_cfg.get("kb_name", kb_name or "ai_textbook")
-        self.rag_mode = rag_cfg.get("default_mode", "hybrid")
 
-        # Check if RAG is enabled (from researching config)
         researching_cfg = config.get("researching", {})
-        self.enable_rag = researching_cfg.get("enable_rag_hybrid", True) or researching_cfg.get(
-            "enable_rag_naive", True
-        )
+        self.enable_rag = researching_cfg.get("enable_rag", True)
 
-        # Citation manager (will be set during process)
+        self.conversation_history: list[dict[str, Any]] = config.get("conversation_history", [])
+
         self.citation_manager = None
         intent_mode = str(config.get("intent", {}).get("mode", "") or "")
         reporting_style = str(config.get("reporting", {}).get("style", "") or "")
@@ -76,6 +72,28 @@ class DecomposeAgent(BaseAgent):
     def set_citation_manager(self, citation_manager):
         """Set citation manager"""
         self.citation_manager = citation_manager
+
+    def _format_conversation_context(self) -> str:
+        """Format conversation history into a context block for the LLM."""
+        if not self.conversation_history:
+            return ""
+        parts: list[str] = []
+        for msg in self.conversation_history:
+            role = msg.get("role", "user")
+            content = str(msg.get("content", "")).strip()
+            if not content:
+                continue
+            parts.append(f"[{role}]: {content}")
+        if not parts:
+            return ""
+        return (
+            "\n<conversation_history>\n"
+            "The following is the conversation history of this session. "
+            "If the user's current request references or modifies a previous outline, "
+            "use this history as context.\n\n"
+            + "\n\n".join(parts)
+            + "\n</conversation_history>\n"
+        )
 
     def _get_mode_contract(self, stage: str) -> str:
         return (
@@ -157,13 +175,13 @@ class DecomposeAgent(BaseAgent):
             return "", ""
 
         try:
-            result = await rag_search(query=source_query, kb_name=self.kb_name, mode=self.rag_mode)
+            result = await rag_search(query=source_query, kb_name=self.kb_name)
             rag_context = result.get("answer", "")
             print(f"  ✓ Retrieved background knowledge ({len(rag_context)} characters)")
 
             if self.citation_manager:
                 citation_id = self.citation_manager.get_next_citation_id(stage="planning")
-                tool_type = f"rag_{self.rag_mode}" if self.rag_mode else "rag_hybrid"
+                tool_type = "rag"
 
                 import time
 
@@ -211,6 +229,7 @@ class DecomposeAgent(BaseAgent):
             "role",
             "You are a research planning expert. Your task is to decompose complex topics into clear subtopics.",
         )
+        system_prompt += self._format_conversation_context()
 
         user_prompt_template = self.get_prompt("process", "decompose_without_rag")
         if not user_prompt_template:
@@ -239,12 +258,15 @@ Generate exactly {num_subtopics} subtopics. Please ensure exactly {num_subtopics
             mode_instruction=self._get_mode_contract("decompose"),
         )
 
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="decompose_no_rag",
             trace_meta=self._build_trace_meta(mode),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         # Parse JSON output
         from ..utils.json_utils import ensure_json_dict, ensure_keys, extract_json_from_text
@@ -298,6 +320,7 @@ Generate exactly {num_subtopics} subtopics. Please ensure exactly {num_subtopics
             raise ValueError(
                 "DecomposeAgent missing system prompt, please configure system.role in prompts/{lang}/decompose_agent.yaml"
             )
+        system_prompt += self._format_conversation_context()
 
         user_prompt_template = self.get_prompt("process", "decompose")
         if not user_prompt_template:
@@ -321,12 +344,15 @@ Dynamically generate no more than {max_subtopics} subtopics. Please carefully an
             mode_instruction=self._get_mode_contract("decompose"),
         )
 
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="decompose",
             trace_meta=self._build_trace_meta("auto"),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         # Parse JSON output (strict validation)
         from ..utils.json_utils import ensure_json_dict, ensure_keys, extract_json_from_text
@@ -369,6 +395,7 @@ Dynamically generate no more than {max_subtopics} subtopics. Please carefully an
             raise ValueError(
                 "DecomposeAgent missing system prompt, please configure system.role in prompts/{lang}/decompose_agent.yaml"
             )
+        system_prompt += self._format_conversation_context()
 
         user_prompt_template = self.get_prompt("process", "decompose")
         if not user_prompt_template:
@@ -389,12 +416,15 @@ Explicitly generate {num_subtopics} subtopics. Please ensure exactly {num_subtop
             mode_instruction=self._get_mode_contract("decompose"),
         )
 
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="decompose",
             trace_meta=self._build_trace_meta("manual"),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         # Parse JSON output (strict validation)
         from ..utils.json_utils import ensure_json_dict, ensure_keys, extract_json_from_text

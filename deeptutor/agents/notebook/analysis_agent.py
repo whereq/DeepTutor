@@ -8,7 +8,7 @@ from typing import Any, Awaitable, Callable
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.trace import build_trace_metadata, derive_trace_metadata, new_call_id
 from deeptutor.services.llm import clean_thinking_tags, get_llm_config, get_token_limit_kwargs
-from deeptutor.services.llm import complete as llm_complete
+from deeptutor.services.llm import complete as llm_complete, stream as llm_stream
 from deeptutor.services.llm import stream as llm_stream
 from deeptutor.utils.json_parser import parse_json_response
 
@@ -133,7 +133,8 @@ class NotebookAnalysisAgent:
             trace_group="tool_call",
         )
         await self._emit_stage_start("notebook_acting", trace_meta, emit)
-        raw = await llm_complete(
+        _chunks: list[str] = []
+        async for _c in llm_stream(
             prompt=self._acting_prompt(user_question, thinking_text, records),
             system_prompt=self._acting_system_prompt(),
             model=self.model,
@@ -143,7 +144,9 @@ class NotebookAnalysisAgent:
             binding=self.binding,
             temperature=0.1,
             **self._token_kwargs(500),
-        )
+        ):
+            _chunks.append(_c)
+        raw = "".join(_chunks)
         payload = parse_json_response(raw, logger_instance=logger, fallback={})
         selected_ids = payload.get("selected_record_ids") if isinstance(payload, dict) else []
         if not isinstance(selected_ids, list):

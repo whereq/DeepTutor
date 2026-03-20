@@ -215,7 +215,14 @@ def _extract_content_field(content: object) -> str:
 
 
 def extract_response_content(message: object) -> str:
-    """Extract textual content from response payloads."""
+    """Extract textual content from response payloads.
+
+    Returns empty string when the message carries no meaningful text
+    (e.g. a streaming delta with ``content=None``).  Never falls back
+    to ``str(message)`` for complex objects — that would inject garbage
+    like ``"{'provider_specific_fields': None, ...}"`` into the response
+    stream and corrupt downstream JSON parsing.
+    """
     if message is None:
         return ""
 
@@ -228,6 +235,7 @@ def extract_response_content(message: object) -> str:
             return content
         if "text" in message and message["text"] is not None:
             return str(message["text"])
+        return ""
 
     # LiteLLM/OpenAI SDK response models often expose attributes instead of dict keys.
     if hasattr(message, "content"):
@@ -247,7 +255,11 @@ def extract_response_content(message: object) -> str:
         if dumped is not None and dumped is not message:
             return extract_response_content(dumped)
 
-    return str(message)
+    # Only stringify simple/primitive values; complex SDK objects with no
+    # extractable content should yield empty string, not their repr.
+    if isinstance(message, (int, float, bool)):
+        return str(message)
+    return ""
 
 
 def _normalize_model_name(entry: object) -> str | None:

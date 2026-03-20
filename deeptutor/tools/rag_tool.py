@@ -17,19 +17,17 @@ from deeptutor.services.rag.factory import DEFAULT_PROVIDER as DEFAULT_RAG_PROVI
 async def rag_search(
     query: str,
     kb_name: Optional[str] = None,
-    mode: str = "hybrid",
     provider: Optional[str] = None,
     kb_base_dir: Optional[str] = None,
     event_sink=None,
     **kwargs,
 ) -> dict:
     """
-    Query knowledge base using configurable RAG pipeline.
+    Query knowledge base using LlamaIndex RAG pipeline.
 
     Args:
         query: Query question
         kb_name: Knowledge base name (optional, defaults to default knowledge base)
-        mode: Query mode (e.g., "hybrid", "local", "global", "naive")
         provider: RAG pipeline to use (defaults to configured provider or "llamaindex")
         kb_base_dir: Base directory for knowledge bases (for testing)
         **kwargs: Additional parameters passed to the RAG pipeline
@@ -40,20 +38,9 @@ async def rag_search(
                 "query": str,
                 "answer": str,
                 "content": str,
-                "mode": str,
+                "sources": list,
                 "provider": str
             }
-
-    Raises:
-        ValueError: If the specified RAG pipeline is not found
-        Exception: If the query fails
-
-    Example:
-        # Use default provider (from .env)
-        result = await rag_search("What is machine learning?", kb_name="textbook")
-
-        # Override provider
-        result = await rag_search("What is ML?", kb_name="textbook", provider="llamaindex")
     """
     service = RAGService(kb_base_dir=kb_base_dir, provider=provider)
 
@@ -61,7 +48,6 @@ async def rag_search(
         return await service.search(
             query=query,
             kb_name=kb_name,
-            mode=mode,
             event_sink=event_sink,
             **kwargs,
         )
@@ -164,7 +150,6 @@ if __name__ == "__main__":
         rag_search(
             "What is the lookup table (LUT) in FPGA?",
             kb_name="DE-all",
-            mode="naive",
         )
     )
 

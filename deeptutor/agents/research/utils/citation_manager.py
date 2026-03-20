@@ -251,9 +251,9 @@ class CitationManager:
         try:
             tool_type_lower = tool_type.lower()
 
-            if tool_type_lower in ("rag_naive", "rag_hybrid"):
+            if tool_type_lower in ("rag", "rag_naive", "rag_hybrid"):
                 citation_info = self._extract_rag_citation(
-                    citation_id, tool_type, raw_answer, tool_trace
+                    citation_id, "rag", raw_answer, tool_trace
                 )
             elif tool_type_lower == "web_search":
                 citation_info = self._extract_web_citation(
@@ -523,18 +523,12 @@ class CitationManager:
 
             return " ".join(parts) if parts else None
 
-        if tool_type in ("rag_naive", "rag_hybrid"):
-            # RAG citation with source info
+        if tool_type in ("rag", "rag_naive", "rag_hybrid"):
             query = citation.get("query", "")
             kb_name = citation.get("kb_name", "")
             sources = citation.get("sources", [])
 
-            tool_type_display = {
-                "rag_naive": "RAG Retrieval",
-                "rag_hybrid": "Hybrid RAG Retrieval",
-            }.get(tool_type, tool_type)
-
-            parts = [f"{tool_type_display}: {query}"]
+            parts = [f"RAG: {query}"]
             if kb_name:
                 parts.append(f"[KB: {kb_name}]")
             if sources:

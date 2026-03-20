@@ -66,6 +66,24 @@ class AgenticChatPipeline:
         self.base_url = getattr(self.llm_config, "base_url", None)
         self.api_version = getattr(self.llm_config, "api_version", None)
         self.registry = get_tool_registry()
+        self._usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
+
+    def _accumulate_usage(self, response: Any) -> None:
+        usage = getattr(response, "usage", None)
+        if usage:
+            self._usage["prompt_tokens"] += getattr(usage, "prompt_tokens", 0) or 0
+            self._usage["completion_tokens"] += getattr(usage, "completion_tokens", 0) or 0
+            self._usage["total_tokens"] += getattr(usage, "total_tokens", 0) or 0
+            self._usage["calls"] += 1
+
+    def _get_cost_summary(self) -> dict[str, Any] | None:
+        if self._usage["calls"] == 0:
+            return None
+        return {
+            "total_cost_usd": 0,
+            "total_tokens": self._usage["total_tokens"],
+            "total_calls": self._usage["calls"],
+        }
 
     async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
         answer_now_context = self._extract_answer_now_context(context)
@@ -75,14 +93,15 @@ class AgenticChatPipeline:
                 answer_now_context=answer_now_context,
                 stream=stream,
             )
-            await stream.result(
-                {
-                    "response": final_response,
-                    "answer_now": True,
-                    "source_trace": trace_meta.get("label", "Answer now"),
-                },
-                source="chat",
-            )
+            result_payload: dict[str, Any] = {
+                "response": final_response,
+                "answer_now": True,
+                "source_trace": trace_meta.get("label", "Answer now"),
+            }
+            cs = self._get_cost_summary()
+            if cs:
+                result_payload["metadata"] = {"cost_summary": cs}
+            await stream.result(result_payload, source="chat")
             return
 
         enabled_tools = self._normalize_enabled_tools(context.enabled_tools)
@@ -123,14 +142,15 @@ class AgenticChatPipeline:
                 ),
             )
 
-        await stream.result(
-            {
-                "response": final_response,
-                "observation": observation,
-                "tool_traces": [asdict(trace) for trace in tool_traces],
-            },
-            source="chat",
-        )
+        result_payload: dict[str, Any] = {
+            "response": final_response,
+            "observation": observation,
+            "tool_traces": [asdict(trace) for trace in tool_traces],
+        }
+        cs = self._get_cost_summary()
+        if cs:
+            result_payload["metadata"] = {"cost_summary": cs}
+        await stream.result(result_payload, source="chat")
 
     async def _stage_thinking(
         self,
@@ -496,6 +516,7 @@ class AgenticChatPipeline:
             tool_choice="auto",
             **self._completion_kwargs(max_tokens=1500),
         )
+        self._accumulate_usage(response)
         if not response.choices:
             return tool_traces
 
@@ -683,9 +704,12 @@ class AgenticChatPipeline:
                 {"trace_kind": "call_status", "call_state": "running"},
             ),
         )
-        response = await llm_complete(
-            prompt=self._acting_user_prompt(context, thinking_text),
-            system_prompt=self._react_fallback_system_prompt(tool_table),
+        _fb_prompt = self._acting_user_prompt(context, thinking_text)
+        _fb_system = self._react_fallback_system_prompt(tool_table)
+        _chunks: list[str] = []
+        async for _c in llm_stream(
+            prompt=_fb_prompt,
+            system_prompt=_fb_system,
             model=self.model,
             api_key=self.api_key,
             base_url=self.base_url,
@@ -695,7 +719,15 @@ class AgenticChatPipeline:
             if supports_response_format(self.binding, self.model)
             else None,
             **self._completion_kwargs(max_tokens=800),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
+        _fb_in = int((len(_fb_prompt) + len(_fb_system)) / 3.5)
+        _fb_out = int(len(response) / 3.5)
+        self._usage["prompt_tokens"] += _fb_in
+        self._usage["completion_tokens"] += _fb_out
+        self._usage["total_tokens"] += _fb_in + _fb_out
+        self._usage["calls"] += 1
 
         payload = parse_json_response(response, logger_instance=logger, fallback={})
         if not isinstance(payload, dict):
@@ -848,6 +880,7 @@ class AgenticChatPipeline:
         messages: list[dict[str, Any]],
         max_tokens: int,
     ):
+        output_chars = 0
         async for chunk in llm_stream(
             prompt="",
             system_prompt="",
@@ -859,7 +892,15 @@ class AgenticChatPipeline:
             messages=messages,
             **self._completion_kwargs(max_tokens=max_tokens),
         ):
+            output_chars += len(chunk)
             yield chunk
+        input_chars = sum(len(str(m.get("content", ""))) for m in messages)
+        est_input = int(input_chars / 3.5)
+        est_output = int(output_chars / 3.5)
+        self._usage["prompt_tokens"] += est_input
+        self._usage["completion_tokens"] += est_output
+        self._usage["total_tokens"] += est_input + est_output
+        self._usage["calls"] += 1
 
     def _build_openai_client(self):
         http_client = None

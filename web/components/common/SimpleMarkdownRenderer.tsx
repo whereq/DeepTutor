@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
@@ -34,12 +34,36 @@ function hasRenderableChildren(children: React.ReactNode): boolean {
   return extractText(children).replace(/[\s\u200B-\u200D\uFEFF]/g, "").length > 0;
 }
 
+function hasRenderableDetailsBody(children: React.ReactNode): boolean {
+  return React.Children.toArray(children).some((child) => {
+    if (typeof child === "string" || typeof child === "number") {
+      return String(child).replace(/[\s\u200B-\u200D\uFEFF]/g, "").length > 0;
+    }
+
+    if (!React.isValidElement(child)) return false;
+    if (typeof child.type === "string" && child.type.toLowerCase() === "summary") {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function stripLeadingHashes(children: React.ReactNode): React.ReactNode {
+  const arr = React.Children.toArray(children);
+  if (arr.length > 0 && typeof arr[0] === "string") {
+    const cleaned = arr[0].replace(/^#{1,6}\s+/, "");
+    if (cleaned !== arr[0]) return [cleaned, ...arr.slice(1)];
+  }
+  return children;
+}
+
 export default function SimpleMarkdownRenderer({
   content,
   className = "",
   variant = "default",
 }: MarkdownRendererProps) {
-  const normalizedContent = normalizeMarkdownForDisplay(content);
+  const normalizedContent = useMemo(() => normalizeMarkdownForDisplay(content), [content]);
   const isTrace = variant === "trace";
   const gap = isTrace ? "my-1" : variant === "compact" ? "my-2" : "my-4";
   const cellPad =
@@ -56,7 +80,7 @@ export default function SimpleMarkdownRenderer({
     h5: ({ node, children }: any) => <p className="mb-1.5 font-semibold">{children}</p>,
     h6: ({ node, children }: any) => <p className="mb-1.5 font-semibold">{children}</p>,
     strong: ({ node, children }: any) => (
-      <strong className="font-semibold text-[var(--foreground)]/92">{children}</strong>
+      <strong className="font-semibold text-[var(--foreground)]">{children}</strong>
     ),
     em: ({ node, children }: any) => <em className="italic">{children}</em>,
     a: ({ node, children }: any) => (
@@ -67,7 +91,7 @@ export default function SimpleMarkdownRenderer({
     ),
     pre: ({ children }: any) => <>{children}</>,
     code: ({ node, children }: any) => (
-      <code className="rounded bg-[var(--muted)] px-1 py-0.5 font-mono text-[0.95em] text-[var(--foreground)]/90">
+      <code className="rounded bg-[var(--muted)] px-1 py-0.5 font-mono text-[0.95em] text-[var(--foreground)]">
         {String(children).replace(/\n$/, "")}
       </code>
     ),
@@ -79,7 +103,9 @@ export default function SimpleMarkdownRenderer({
     table: ({ node, children, ...props }: any) =>
       hasRenderableChildren(children) ? (
         <div className="my-1 overflow-x-auto rounded border border-[var(--border)]/50">
-          <table className="min-w-full text-[inherit]" {...props} />
+          <table className="min-w-full text-[inherit]" {...props}>
+            {children}
+          </table>
         </div>
       ) : null,
     thead: ({ node, ...props }: any) => <thead className="bg-[var(--muted)]/50" {...props} />,
@@ -98,79 +124,103 @@ export default function SimpleMarkdownRenderer({
       type === "checkbox" ? (
         <input type="checkbox" readOnly className="mr-1 align-middle" {...props} />
       ) : null,
+    progress: () => null,
+    meter: () => null,
+    button: () => null,
+    select: () => null,
+    option: () => null,
+    textarea: () => null,
     details: ({ node, children }: any) =>
-      hasRenderableChildren(children) ? <div>{children}</div> : null,
+      hasRenderableDetailsBody(children) ? <div>{children}</div> : null,
     summary: ({ node, children }: any) =>
       hasRenderableChildren(children) ? <span>{children}</span> : null,
   };
 
   const headingComponents = {
-    h1: ({ node, children, className: headingClassName, ...props }: any) => (
-      <h1
-        id={headingId(children)}
-        className={`scroll-mt-20 text-3xl font-bold tracking-tight ${textColor} ${headingSpacing} ${
-          headingClassName || ""
-        }`}
-        {...props}
-      >
-        {children}
-      </h1>
-    ),
-    h2: ({ node, children, className: headingClassName, ...props }: any) => (
-      <h2
-        id={headingId(children)}
-        className={`scroll-mt-20 text-2xl font-semibold tracking-tight ${textColor} ${headingSpacing} ${
-          headingClassName || ""
-        }`}
-        {...props}
-      >
-        {children}
-      </h2>
-    ),
-    h3: ({ node, children, className: headingClassName, ...props }: any) => (
-      <h3
-        id={headingId(children)}
-        className={`scroll-mt-20 text-xl font-semibold tracking-tight ${textColor} ${headingSpacing} ${
-          headingClassName || ""
-        }`}
-        {...props}
-      >
-        {children}
-      </h3>
-    ),
-    h4: ({ node, children, className: headingClassName, ...props }: any) => (
-      <h4
-        id={headingId(children)}
-        className={`scroll-mt-20 text-lg font-semibold ${textColor} ${
-          variant === "compact" ? "mt-3 mb-1.5" : "mt-5 mb-2"
-        } ${headingClassName || ""}`}
-        {...props}
-      >
-        {children}
-      </h4>
-    ),
-    h5: ({ node, children, className: headingClassName, ...props }: any) => (
-      <h5
-        id={headingId(children)}
-        className={`scroll-mt-20 text-base font-semibold ${textColor} ${
-          variant === "compact" ? "mt-3 mb-1.5" : "mt-4 mb-2"
-        } ${headingClassName || ""}`}
-        {...props}
-      >
-        {children}
-      </h5>
-    ),
-    h6: ({ node, children, className: headingClassName, ...props }: any) => (
-      <h6
-        id={headingId(children)}
-        className={`scroll-mt-20 text-sm font-semibold uppercase tracking-wide text-[var(--muted-foreground)] ${
-          variant === "compact" ? "mt-3 mb-1.5" : "mt-4 mb-2"
-        } ${headingClassName || ""}`}
-        {...props}
-      >
-        {children}
-      </h6>
-    ),
+    h1: ({ node, children, className: headingClassName, ...props }: any) => {
+      const clean = stripLeadingHashes(children);
+      return (
+        <h1
+          id={headingId(clean)}
+          className={`scroll-mt-20 font-sans text-2xl font-bold tracking-tight ${textColor} ${
+            variant === "compact" ? "mt-5 mb-2" : "mt-8 mb-4"
+          } ${headingClassName || ""}`}
+          {...props}
+        >
+          {clean}
+        </h1>
+      );
+    },
+    h2: ({ node, children, className: headingClassName, ...props }: any) => {
+      const clean = stripLeadingHashes(children);
+      return (
+        <h2
+          id={headingId(clean)}
+          className={`scroll-mt-20 font-sans text-xl font-semibold tracking-tight ${textColor} ${
+            variant === "compact" ? "mt-4 mb-2" : "mt-7 mb-3"
+          } ${headingClassName || ""}`}
+          {...props}
+        >
+          {clean}
+        </h2>
+      );
+    },
+    h3: ({ node, children, className: headingClassName, ...props }: any) => {
+      const clean = stripLeadingHashes(children);
+      return (
+        <h3
+          id={headingId(clean)}
+          className={`scroll-mt-20 font-sans text-lg font-semibold tracking-tight ${textColor} ${
+            variant === "compact" ? "mt-4 mb-1.5" : "mt-6 mb-2.5"
+          } ${headingClassName || ""}`}
+          {...props}
+        >
+          {clean}
+        </h3>
+      );
+    },
+    h4: ({ node, children, className: headingClassName, ...props }: any) => {
+      const clean = stripLeadingHashes(children);
+      return (
+        <h4
+          id={headingId(clean)}
+          className={`scroll-mt-20 font-sans text-base font-semibold ${textColor} ${
+            variant === "compact" ? "mt-3 mb-1.5" : "mt-5 mb-2"
+          } ${headingClassName || ""}`}
+          {...props}
+        >
+          {clean}
+        </h4>
+      );
+    },
+    h5: ({ node, children, className: headingClassName, ...props }: any) => {
+      const clean = stripLeadingHashes(children);
+      return (
+        <h5
+          id={headingId(clean)}
+          className={`scroll-mt-20 font-sans text-sm font-semibold ${textColor} ${
+            variant === "compact" ? "mt-3 mb-1.5" : "mt-4 mb-2"
+          } ${headingClassName || ""}`}
+          {...props}
+        >
+          {clean}
+        </h5>
+      );
+    },
+    h6: ({ node, children, className: headingClassName, ...props }: any) => {
+      const clean = stripLeadingHashes(children);
+      return (
+        <h6
+          id={headingId(clean)}
+          className={`scroll-mt-20 font-sans text-sm font-semibold uppercase tracking-wide text-[var(--muted-foreground)] ${
+            variant === "compact" ? "mt-3 mb-1.5" : "mt-4 mb-2"
+          } ${headingClassName || ""}`}
+          {...props}
+        >
+          {clean}
+        </h6>
+      );
+    },
   };
 
   const normalComponents: Record<string, React.ComponentType<any>> = {
@@ -178,13 +228,15 @@ export default function SimpleMarkdownRenderer({
     table: ({ node, children, ...props }: any) =>
       hasRenderableChildren(children) ? (
         <div className={`overflow-x-auto rounded-lg border border-[var(--border)] shadow-sm ${gap}`}>
-          <table className="min-w-full divide-y divide-[var(--border)] text-sm" {...props} />
+          <table className="min-w-full divide-y divide-[var(--border)] text-sm" {...props}>
+            {children}
+          </table>
         </div>
       ) : null,
     thead: ({ node, ...props }: any) => <thead className="bg-[var(--muted)]" {...props} />,
     th: ({ node, ...props }: any) => (
       <th
-        className={`whitespace-nowrap border-b border-[var(--border)] text-left font-semibold text-[var(--foreground)] ${cellPad}`}
+        className={`border-b border-[var(--border)] text-left font-semibold text-[var(--foreground)] ${cellPad}`}
         {...props}
       />
     ),
@@ -202,9 +254,9 @@ export default function SimpleMarkdownRenderer({
     ),
     pre: ({ children }: any) => (
       <div
-        className={`md-code-block ${gap} overflow-hidden rounded-xl border border-[var(--border)] bg-[#1f2937]`}
+        className={`md-code-block ${gap} overflow-hidden rounded-xl border border-[var(--border)] bg-[#292524]`}
       >
-        <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-[#d1d5db]">
+        <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-[#D6D3D1]">
           {children}
         </pre>
       </div>
@@ -217,9 +269,44 @@ export default function SimpleMarkdownRenderer({
         {children}
       </code>
     ),
-    a: ({ node, href, children, ...props }: any) => {
+    a: ({ node, href, children, title, ...props }: any) => {
+      const isCitation = title === "citation";
       const isHashLink = href?.startsWith("#");
       const external = href?.startsWith("http://") || href?.startsWith("https://");
+
+      if (isCitation) {
+        const label = extractText(children);
+        const ids = label.split(/\s*,\s*/);
+        const scrollToRef = (event: React.MouseEvent) => {
+          event.preventDefault();
+          const target = document.getElementById("references");
+          target?.scrollIntoView({ block: "start", behavior: "smooth" });
+        };
+        return (
+          <span className="citation-group mx-0.5 text-[0.78em] leading-snug text-[var(--muted-foreground)]" {...props}>
+            [
+            {ids.map((id, idx) => {
+              const prefixMatch = id.match(/^(web|rag|code|src)-/);
+              const prefix = prefixMatch?.[1] ?? "";
+              const num = prefix ? id.slice(prefixMatch[0].length) : id;
+              return (
+                <React.Fragment key={id}>
+                  {idx > 0 && ", "}
+                  <a
+                    href={href}
+                    onClick={scrollToRef}
+                    className="cursor-pointer text-[var(--primary)] no-underline transition-colors hover:text-[var(--primary)]/70 hover:underline"
+                  >
+                    {prefix ? <><span className="text-[0.85em] font-semibold uppercase tracking-wide">{prefix}</span>{num}</> : num}
+                  </a>
+                </React.Fragment>
+              );
+            })}
+            ]
+          </span>
+        );
+      }
+
       return (
         <a
           href={href}
@@ -250,7 +337,7 @@ export default function SimpleMarkdownRenderer({
     ),
     blockquote: ({ node, ...props }: any) => (
       <blockquote
-        className={`${gap} border-l-[3px] border-[var(--primary)] pl-4 italic text-[var(--muted-foreground)] [&>p]:mb-1`}
+        className={`${gap} border-l-[3px] border-[var(--muted-foreground)] pl-4 italic text-[var(--muted-foreground)] [&>p]:mb-1`}
         {...props}
       />
     ),
@@ -267,8 +354,14 @@ export default function SimpleMarkdownRenderer({
           {...props}
         />
       ) : null,
+    progress: () => null,
+    meter: () => null,
+    button: () => null,
+    select: () => null,
+    option: () => null,
+    textarea: () => null,
     details: ({ node, children, ...props }: any) =>
-      hasRenderableChildren(children) ? (
+      hasRenderableDetailsBody(children) ? (
         <details
           className={`${gap} rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-2`}
           {...props}
@@ -287,16 +380,23 @@ export default function SimpleMarkdownRenderer({
       ) : null,
   };
 
-  const components = isTrace ? traceComponents : normalComponents;
+  const components = useMemo(
+    () => (isTrace ? traceComponents : normalComponents),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- components only change with variant
+    [isTrace, variant],
+  );
+
+  const remarkPlugins = useMemo(() => [remarkGfm], []);
+
   const rootClasses = isTrace
-    ? "md-renderer max-w-none text-[12px] leading-[1.7] text-[var(--muted-foreground)]/82"
+    ? "md-renderer max-w-none font-sans text-[11px] leading-[1.55] text-[var(--muted-foreground)]"
     : variant === "prose"
-      ? "md-renderer prose max-w-none"
-      : "md-renderer prose prose-sm max-w-none";
+      ? "md-renderer prose max-w-none font-serif"
+      : "md-renderer prose prose-sm max-w-none font-serif";
 
   return (
     <div className={`${rootClasses} ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
         {normalizedContent}
       </ReactMarkdown>
     </div>

@@ -2,11 +2,9 @@
 # DeepTutor Development Dependencies
 # ============================================
 # Install: pip install -r requirements/dev.txt
-# Includes runtime bundle layers + development tooling.
+# Includes full runtime + development tooling.
 
 -r server.txt
--r rag-lite.txt
--r providers.txt
 
 pytest>=7.0.0
 pre-commit>=3.0.0

@@ -124,7 +124,7 @@ class EditAgent(BaseAgent):
                 self.logger.info(f"Searching RAG in KB: {kb_name} for: {instruction}")
                 try:
                     search_result = await rag_search(
-                        query=instruction, kb_name=kb_name, mode="naive", only_need_context=True
+                        query=instruction, kb_name=kb_name, only_need_context=True
                     )
                     context = search_result.get("answer", "")
                     self.logger.info(f"RAG context found: {len(context)} chars")
@@ -201,11 +201,14 @@ class EditAgent(BaseAgent):
 
         # Call LLM using inherited method
         self.logger.info(f"Calling LLM for {action}...")
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage=f"edit_{action}",
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         # Record operation history
         history = load_history()
@@ -245,11 +248,14 @@ class EditAgent(BaseAgent):
         user_prompt = user_template.format(text=text)
 
         self.logger.info("Calling LLM for auto-mark...")
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="auto_mark",
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
 
         # Record operation history
         history = load_history()

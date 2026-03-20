@@ -143,6 +143,7 @@ COPY requirements.txt ./
 # Create necessary directories (these will be overwritten by volume mounts)
 RUN mkdir -p \
     data/user/settings \
+    data/memory \
     data/user/workspace/memory \
     data/user/workspace/notebook \
     data/user/workspace/co-writer/audio \

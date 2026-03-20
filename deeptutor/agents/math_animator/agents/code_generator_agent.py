@@ -63,7 +63,8 @@ class CodeGeneratorAgent(BaseAgent):
             analysis_json=json.dumps(analysis.model_dump(), ensure_ascii=False, indent=2),
             design_json=json.dumps(design.model_dump(), ensure_ascii=False, indent=2),
         )
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             response_format={"type": "json_object"},
@@ -76,7 +77,9 @@ class CodeGeneratorAgent(BaseAgent):
                 trace_role="generate",
                 trace_kind="llm_output",
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
         return GeneratedCode.model_validate(extract_json_object(response))
 
     async def repair(
@@ -100,7 +103,8 @@ class CodeGeneratorAgent(BaseAgent):
             error_message=build_repair_error_message(error_message),
             current_code=current_code,
         )
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             response_format={"type": "json_object"},
@@ -114,5 +118,7 @@ class CodeGeneratorAgent(BaseAgent):
                 trace_kind="llm_output",
                 attempt=attempt,
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
         return GeneratedCode.model_validate(extract_json_object(response))

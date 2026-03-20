@@ -47,7 +47,8 @@ class ConceptDesignAgent(BaseAgent):
             style_hint=style_hint.strip() or "(none)",
             analysis_json=json.dumps(analysis.model_dump(), ensure_ascii=False, indent=2),
         )
-        response = await self.call_llm(
+        _chunks: list[str] = []
+        async for _c in self.stream_llm(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             response_format={"type": "json_object"},
@@ -60,5 +61,7 @@ class ConceptDesignAgent(BaseAgent):
                 trace_role="design",
                 trace_kind="llm_output",
             ),
-        )
+        ):
+            _chunks.append(_c)
+        response = "".join(_chunks)
         return SceneDesign.model_validate(extract_json_object(response))

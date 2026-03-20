@@ -235,6 +235,21 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
                 ProgressStage.COMPLETED, "Knowledge base initialization complete!", current=1, total=1
             )
 
+            manager = get_kb_manager()
+            manager.update_kb_status(
+                name=initializer.kb_name,
+                status="ready",
+                progress={
+                    "stage": "completed",
+                    "message": "Knowledge base initialization complete!",
+                    "percent": 100,
+                    "current": 1,
+                    "total": 1,
+                    "task_id": task_id,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+
             _task_log(task_id, f"Knowledge base '{initializer.kb_name}' initialized", level="success")
             task_manager.update_task_status(task_id, "completed")
             task_stream_manager.emit_complete(
@@ -246,6 +261,20 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
             _task_log(task_id, f"Initialization failed: {error_msg}", level="error")
 
             task_manager.update_task_status(task_id, "error", error=error_msg)
+
+            manager = get_kb_manager()
+            manager.update_kb_status(
+                name=initializer.kb_name,
+                status="error",
+                progress={
+                    "stage": "error",
+                    "message": f"Initialization failed: {error_msg}",
+                    "percent": 0,
+                    "error": error_msg,
+                    "task_id": task_id,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
 
             if initializer.progress_tracker:
                 initializer.progress_tracker.update(
@@ -788,10 +817,45 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
         initial_progress = progress_tracker.get_progress()
         expected_task_id = websocket.query_params.get("task_id")
 
-        # Check if KB is already ready (has llamaindex storage)
         kb_dir = _kb_base_dir / kb_name
         llamaindex_storage_dir = kb_dir / "llamaindex_storage"
         kb_is_ready = llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir()
+
+        # Fast path: no active task — send current state and close immediately
+        # This prevents infinite polling loops for ready or legacy KBs.
+        has_active_task = False
+        if initial_progress:
+            stage = initial_progress.get("stage")
+            if stage not in ("completed", "error", None):
+                ts = initial_progress.get("timestamp")
+                if ts:
+                    try:
+                        age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+                        has_active_task = age < 120
+                    except Exception:
+                        pass
+
+        if not has_active_task and not expected_task_id:
+            if kb_is_ready:
+                await websocket.send_json({
+                    "type": "progress",
+                    "data": {
+                        "stage": "completed",
+                        "message": "Knowledge base is ready.",
+                        "percent": 100,
+                        "current": 1,
+                        "total": 1,
+                    },
+                })
+            else:
+                await websocket.send_json({
+                    "type": "progress",
+                    "data": initial_progress or {
+                        "stage": "error",
+                        "message": "Knowledge base needs reindex or initialization.",
+                    },
+                })
+            return
 
         if initial_progress:
             stage = initial_progress.get("stage")
@@ -810,7 +874,7 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
                     age_seconds = (now - progress_time).total_seconds()
                     if age_seconds < 300:
                         should_send = True
-                except:
+                except Exception:
                     pass
 
             if should_send:
@@ -851,13 +915,13 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
         logger.debug(f"Progress WS error: {e}")
         try:
             await websocket.send_json({"type": "error", "message": str(e)})
-        except:
+        except Exception:
             pass
     finally:
         await broadcaster.disconnect(kb_name, websocket)
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass
 
 

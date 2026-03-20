@@ -98,10 +98,13 @@ class ChatAgent(BaseAgent):
         )
 
         try:
-            response = await self.call_llm(
+            _chunks: list[str] = []
+            async for _c in self.stream_llm(
                 user_prompt=user_prompt,
                 system_prompt=system_prompt,
-            )
+            ):
+                _chunks.append(_c)
+            response = "".join(_chunks)
 
             return {"success": True, "answer": response.strip()}
 

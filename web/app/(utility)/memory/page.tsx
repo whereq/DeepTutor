@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brain, Eraser, Loader2, RefreshCw, Save } from "lucide-react";
+import { Brain, Eraser, Loader2, RefreshCw, Save, BookOpen, User } from "lucide-react";
 import { useAppShell } from "@/context/AppShellContext";
 import { apiUrl } from "@/lib/api";
 
@@ -10,11 +10,38 @@ const MarkdownRenderer = dynamic(() => import("@/components/common/MarkdownRende
   ssr: false,
 });
 
-interface MemoryPayload {
-  content: string;
-  exists: boolean;
-  updated_at: string | null;
+type MemoryFile = "summary" | "profile";
+
+interface MemoryData {
+  summary: string;
+  profile: string;
+  summary_updated_at: string | null;
+  profile_updated_at: string | null;
 }
+
+const TABS: { key: MemoryFile; label: string; icon: typeof Brain; hint: string; placeholder: string }[] = [
+  {
+    key: "summary",
+    label: "Summary",
+    icon: BookOpen,
+    hint: "Running summary of the learning journey. Auto-updated after conversations.",
+    placeholder: "## Current Focus\n- ...\n\n## Accomplishments\n- ...\n\n## Open Questions\n- ...",
+  },
+  {
+    key: "profile",
+    label: "Profile",
+    icon: User,
+    hint: "User identity, preferences, and knowledge levels. Auto-updated after conversations.",
+    placeholder: "## Identity\n- ...\n\n## Learning Style\n- ...\n\n## Knowledge Level\n- ...\n\n## Preferences\n- ...",
+  },
+];
+
+const EMPTY: MemoryData = {
+  summary: "",
+  profile: "",
+  summary_updated_at: null,
+  profile_updated_at: null,
+};
 
 function formatUpdatedAt(value: string | null): string {
   if (!value) return "Not updated yet";
@@ -25,21 +52,21 @@ function formatUpdatedAt(value: string | null): string {
 
 export default function MemoryPage() {
   const { activeSessionId, language } = useAppShell();
-  const [memory, setMemory] = useState<MemoryPayload>({
-    content: "",
-    exists: false,
-    updated_at: null,
-  });
+  const [data, setData] = useState<MemoryData>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [editorValue, setEditorValue] = useState("");
+  const [activeTab, setActiveTab] = useState<MemoryFile>("summary");
   const [activeView, setActiveView] = useState<"edit" | "preview">("edit");
+  const [editors, setEditors] = useState<Record<MemoryFile, string>>({ summary: "", profile: "" });
   const [toast, setToast] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const hasChanges = editorValue !== memory.content;
+  const tab = TABS.find((t) => t.key === activeTab)!;
+  const editorValue = editors[activeTab];
+  const hasChanges = editorValue !== data[activeTab];
+  const updatedAt = data[`${activeTab}_updated_at` as keyof MemoryData] as string | null;
 
   useEffect(() => {
     if (!toast) return;
@@ -51,63 +78,15 @@ export default function MemoryPage() {
     setLoading(true);
     try {
       const res = await fetch(apiUrl("/api/v1/memory"));
-      const data = await res.json();
-      setMemory({
-        content: data.content || "",
-        exists: Boolean(data.exists),
-        updated_at: data.updated_at || null,
-      });
-      setEditorValue(data.content || "");
+      const d: MemoryData = await res.json();
+      setData(d);
+      setEditors({ summary: d.summary || "", profile: d.profile || "" });
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void loadMemory();
-  }, [loadMemory]);
-
-  const refreshMemory = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const res = await fetch(apiUrl("/api/v1/memory/refresh"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: activeSessionId || undefined,
-          language,
-        }),
-      });
-      const data = await res.json();
-      setMemory({
-        content: data.content || "",
-        exists: Boolean(data.exists),
-        updated_at: data.updated_at || null,
-      });
-      setEditorValue(data.content || "");
-      setToast("Memory refreshed");
-    } finally {
-      setRefreshing(false);
-    }
-  }, [activeSessionId, language]);
-
-  const clearMemory = useCallback(async () => {
-    if (!window.confirm("Clear memory.md?")) return;
-    setClearing(true);
-    try {
-      const res = await fetch(apiUrl("/api/v1/memory/clear"), { method: "POST" });
-      const data = await res.json();
-      setMemory({
-        content: data.content || "",
-        exists: Boolean(data.exists),
-        updated_at: data.updated_at || null,
-      });
-      setEditorValue(data.content || "");
-      setToast("Memory cleared");
-    } finally {
-      setClearing(false);
-    }
-  }, []);
+  useEffect(() => { void loadMemory(); }, [loadMemory]);
 
   const saveMemory = useCallback(async () => {
     setSaving(true);
@@ -115,20 +94,51 @@ export default function MemoryPage() {
       const res = await fetch(apiUrl("/api/v1/memory"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: editorValue }),
+        body: JSON.stringify({ file: activeTab, content: editorValue }),
       });
-      const data = await res.json();
-      setMemory({
-        content: data.content || "",
-        exists: Boolean(data.exists),
-        updated_at: data.updated_at || null,
-      });
-      setEditorValue(data.content || "");
-      setToast("Memory saved");
+      const d: MemoryData = await res.json();
+      setData(d);
+      setEditors((prev) => ({ ...prev, [activeTab]: d[activeTab] || "" }));
+      setToast(`${tab.label} saved`);
     } finally {
       setSaving(false);
     }
-  }, [editorValue]);
+  }, [activeTab, editorValue, tab.label]);
+
+  const refreshMemory = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch(apiUrl("/api/v1/memory/refresh"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: activeSessionId || undefined, language }),
+      });
+      const d: MemoryData = await res.json();
+      setData(d);
+      setEditors({ summary: d.summary || "", profile: d.profile || "" });
+      setToast("Memory refreshed from session");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [activeSessionId, language]);
+
+  const clearMemory = useCallback(async () => {
+    if (!window.confirm(`Clear ${tab.label}?`)) return;
+    setClearing(true);
+    try {
+      const res = await fetch(apiUrl("/api/v1/memory/clear"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: activeTab }),
+      });
+      const d: MemoryData = await res.json();
+      setData(d);
+      setEditors((prev) => ({ ...prev, [activeTab]: d[activeTab] || "" }));
+      setToast(`${tab.label} cleared`);
+    } finally {
+      setClearing(false);
+    }
+  }, [activeTab, tab.label]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -144,16 +154,14 @@ export default function MemoryPage() {
     <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto max-w-[960px] px-6 py-8">
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-[24px] font-semibold tracking-tight text-[var(--foreground)]">
               Memory
             </h1>
             {toast ? (
-              <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">
-                {toast}
-              </p>
+              <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">{toast}</p>
             ) : (
               <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
                 {hasChanges ? "Unsaved changes" : "All changes saved"}
@@ -188,35 +196,54 @@ export default function MemoryPage() {
           </div>
         </div>
 
-        {/* ── Meta & View toggle ── */}
-        <div className="mb-8 flex items-center justify-between border-b border-[var(--border)]/50 pb-6">
-          <div className="flex items-center gap-1">
-            {(["edit", "preview"] as const).map((v) => (
+        {/* Tab selector */}
+        <div className="mb-4 flex items-center gap-1 border-b border-[var(--border)]/50 pb-3">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            const active = activeTab === t.key;
+            return (
               <button
-                key={v}
-                onClick={() => setActiveView(v)}
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
-                  activeView === v
+                  active
                     ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
                     : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                 }`}
               >
-                {v === "edit" ? "Edit" : "Preview"}
+                <Icon className="h-3.5 w-3.5" />
+                {t.label}
               </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-4 text-[12px] text-[var(--muted-foreground)]">
-            <span>
-              Updated: {formatUpdatedAt(memory.updated_at)}
-            </span>
-            <span className="text-[var(--border)]">·</span>
-            <span>
-              Source: {activeSessionId ? "current session" : "latest session"}
+            );
+          })}
+        </div>
+
+        {/* Meta & View toggle */}
+        <div className="mb-6 flex items-center justify-between">
+          <p className="max-w-lg text-[12px] text-[var(--muted-foreground)]">{tab.hint}</p>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              {(["edit", "preview"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setActiveView(v)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
+                    activeView === v
+                      ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
+                      : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {v === "edit" ? "Edit" : "Preview"}
+                </button>
+              ))}
+            </div>
+            <span className="text-[12px] text-[var(--muted-foreground)]">
+              Updated: {formatUpdatedAt(updatedAt)}
             </span>
           </div>
         </div>
 
-        {/* ── Content ── */}
+        {/* Content */}
         {loading ? (
           <div className="flex min-h-[420px] items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-[var(--muted-foreground)]" />
@@ -226,11 +253,11 @@ export default function MemoryPage() {
             <textarea
               ref={textareaRef}
               value={editorValue}
-              onChange={(e) => setEditorValue(e.target.value)}
+              onChange={(e) => setEditors((prev) => ({ ...prev, [activeTab]: e.target.value }))}
               onKeyDown={handleKeyDown}
               spellCheck={false}
               className="min-h-[480px] w-full resize-none rounded-xl border border-[var(--border)] bg-transparent px-5 py-4 font-mono text-[13px] leading-7 text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
-              placeholder={"## Preferences\n- ...\n\n## Context\n- ..."}
+              placeholder={tab.placeholder}
             />
             <p className="mt-2 text-[11px] text-[var(--muted-foreground)]/40">
               Cmd+S to save · Markdown supported
@@ -238,18 +265,14 @@ export default function MemoryPage() {
           </div>
         ) : editorValue.trim() ? (
           <div className="rounded-xl border border-[var(--border)] px-6 py-5">
-            <MarkdownRenderer
-              content={editorValue}
-              variant="prose"
-              className="text-[14px] leading-relaxed"
-            />
+            <MarkdownRenderer content={editorValue} variant="prose" className="text-[14px] leading-relaxed" />
           </div>
         ) : (
           <div className="flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-center">
             <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
               <Brain size={18} />
             </div>
-            <p className="text-[14px] font-medium text-[var(--foreground)]">No memory yet</p>
+            <p className="text-[14px] font-medium text-[var(--foreground)]">No {tab.label.toLowerCase()} yet</p>
             <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
               Refresh from a session or write directly in the editor.
             </p>

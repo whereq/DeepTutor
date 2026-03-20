@@ -135,7 +135,10 @@ class PlannerAgent(BaseAgent):
                 system_prompt, user_prompt, image_url,
             )
 
-        response = await self.call_llm(**llm_kwargs)
+        chunks: list[str] = []
+        async for chunk in self.stream_llm(**llm_kwargs):
+            chunks.append(chunk)
+        response = "".join(chunks)
 
         return self._parse_plan(response, scratchpad if replan else None)
 
@@ -193,7 +196,8 @@ class PlannerAgent(BaseAgent):
             question=question, num_queries=num_queries,
         )
         try:
-            response = await self.call_llm(
+            parts: list[str] = []
+            async for chunk in self.stream_llm(
                 user_prompt=user_prompt,
                 system_prompt="",
                 response_format={"type": "json_object"},
@@ -207,7 +211,9 @@ class PlannerAgent(BaseAgent):
                     trace_role="plan",
                     trace_group="plan",
                 ),
-            )
+            ):
+                parts.append(chunk)
+            response = "".join(parts)
             payload = json.loads(response)
             queries = payload.get("queries", [])
             if not isinstance(queries, list):
@@ -358,7 +364,8 @@ class PlannerAgent(BaseAgent):
 
         user_prompt = prompt_template.format(raw_retrieval_text=raw_text)
         try:
-            result = await self.call_llm(
+            parts: list[str] = []
+            async for chunk in self.stream_llm(
                 user_prompt=user_prompt,
                 system_prompt="You are a knowledge organizer. Consolidate the provided passages into a clean, structured summary.",
                 stage="plan_aggregate_context",
@@ -371,7 +378,9 @@ class PlannerAgent(BaseAgent):
                     trace_role="plan",
                     trace_group="plan",
                 ),
-            )
+            ):
+                parts.append(chunk)
+            result = "".join(parts)
             logger.info("Aggregated retrieved context: %d chars", len(result))
             return result.strip() or raw_text
         except Exception as exc:

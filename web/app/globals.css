@@ -4,51 +4,59 @@
 
 @layer base {
   :root {
-    --background: #f9fafb;
-    --foreground: #111827;
-    --card: #ffffff;
-    --card-foreground: #111827;
-    --popover: #ffffff;
-    --popover-foreground: #111827;
-    --primary: #6366f1;
-    --primary-foreground: #ffffff;
-    --secondary: #f1f5f9;
-    --secondary-foreground: #111827;
-    --muted: #f1f5f9;
-    --muted-foreground: #64748b;
-    --accent: #f1f5f9;
-    --accent-foreground: #111827;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --border: #e5e7eb;
-    --input: #e5e7eb;
-    --ring: #6366f1;
+    --background: #FAF9F6;
+    --foreground: #2D2B28;
+    --card: #FFFFFF;
+    --card-foreground: #2D2B28;
+    --popover: #FFFFFF;
+    --popover-foreground: #2D2B28;
+    --primary: #C35A2C;
+    --primary-foreground: #FFFFFF;
+    --secondary: #F0EDE7;
+    --secondary-foreground: #2D2B28;
+    --muted: #F0EDE7;
+    --muted-foreground: #8B8580;
+    --accent: #F0EDE7;
+    --accent-foreground: #2D2B28;
+    --destructive: #D44A3C;
+    --destructive-foreground: #FFFFFF;
+    --border: #E8E4DE;
+    --input: #E8E4DE;
+    --ring: #C35A2C;
   }
 
   .dark {
-    --background: #10121a;
-    --foreground: #e8ecf4;
-    --card: #1a1e2a;
-    --card-foreground: #e8ecf4;
-    --popover: #1a1e2a;
-    --popover-foreground: #e8ecf4;
-    --primary: #818cf8;
-    --primary-foreground: #10121a;
-    --secondary: #1f2435;
-    --secondary-foreground: #e8ecf4;
-    --muted: #1f2435;
-    --muted-foreground: #8b95a9;
-    --accent: #252a3c;
-    --accent-foreground: #e8ecf4;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --border: #2a3044;
-    --input: #2a3044;
-    --ring: #818cf8;
+    --background: #1A1918;
+    --foreground: #E8E4DE;
+    --card: #242220;
+    --card-foreground: #E8E4DE;
+    --popover: #242220;
+    --popover-foreground: #E8E4DE;
+    --primary: #D4734B;
+    --primary-foreground: #1A1918;
+    --secondary: #2A2725;
+    --secondary-foreground: #E8E4DE;
+    --muted: #2A2725;
+    --muted-foreground: #9B9590;
+    --accent: #302D2A;
+    --accent-foreground: #E8E4DE;
+    --destructive: #D44A3C;
+    --destructive-foreground: #FFFFFF;
+    --border: #3A3634;
+    --input: #3A3634;
+    --ring: #D4734B;
   }
 
   * {
     @apply border-[color:var(--border)];
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
   }
 
   html {
@@ -95,11 +103,34 @@
   }
 }
 
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
 /* ─── Prose: base ─── */
+.prose {
+  @apply font-serif text-[15px];
+}
+
 .prose pre {
   @apply rounded-lg p-4 overflow-x-auto my-4;
-  background: #1e293b;
-  color: #cbd5e1;
+  background: #292524;
+  color: #D6D3D1;
 }
 
 .prose code:not(.md-code-block__code):not(.md-inline-code) {
@@ -151,29 +182,47 @@
 /* ─── Headings ─── */
 .prose h1,
 .prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  @apply font-sans;
+}
+
+.prose h1 {
+  @apply text-2xl font-bold tracking-tight mt-8 mb-4;
+  color: var(--foreground);
+}
+
+.prose h2 {
+  @apply text-xl font-semibold tracking-tight mt-7 mb-3;
+  color: var(--foreground);
+}
+
 .prose h3 {
-  @apply font-semibold tracking-tight mt-6 mb-3;
+  @apply text-lg font-semibold tracking-tight mt-6 mb-2.5;
   color: var(--foreground);
 }
 
 .prose h4 {
-  @apply font-semibold tracking-tight mt-5 mb-2 text-base;
+  @apply text-base font-semibold tracking-tight mt-5 mb-2;
   color: var(--foreground);
 }
 
 .prose h5 {
-  @apply font-semibold tracking-tight mt-4 mb-2 text-sm;
+  @apply text-sm font-semibold tracking-tight mt-4 mb-2;
   color: var(--foreground);
 }
 
 .prose h6 {
-  @apply font-semibold tracking-tight mt-4 mb-2 text-sm;
+  @apply text-sm font-semibold tracking-tight mt-4 mb-2;
   color: var(--muted-foreground);
 }
 
 /* ─── Body text ─── */
 .prose p {
-  @apply leading-7 mb-4;
+  @apply mb-4;
+  line-height: 1.75;
   color: var(--foreground);
 }
 
@@ -274,7 +323,7 @@
 /* ─── Blockquote ─── */
 .prose blockquote {
   @apply border-l-[3px] pl-4 italic my-4;
-  border-color: var(--primary);
+  border-color: var(--muted-foreground);
   color: var(--muted-foreground);
 }
 
@@ -327,6 +376,17 @@
   @apply my-4 rounded-lg border px-4 py-2;
   background: var(--card);
   border-color: var(--border);
+}
+
+.prose details:empty,
+.prose details:not(:has(> :not(summary))),
+.md-renderer details:empty,
+.md-renderer details:not(:has(> :not(summary))) {
+  display: none;
+}
+
+.prose > :empty:not(hr):not(br):not(img) {
+  display: none;
 }
 
 .prose summary {

@@ -39,8 +39,6 @@ class KnowledgeBaseInitializer:
         self.kb_dir = self.base_dir / kb_name
 
         self.raw_dir = self.kb_dir / "raw"
-        self.images_dir = self.kb_dir / "images"
-        self.content_list_dir = self.kb_dir / "content_list"
         self.llamaindex_storage_dir = self.kb_dir / "llamaindex_storage"
 
         self.api_key = api_key
@@ -108,8 +106,6 @@ class KnowledgeBaseInitializer:
 
         for dir_path in [
             self.raw_dir,
-            self.images_dir,
-            self.content_list_dir,
             self.llamaindex_storage_dir,
         ]:
             dir_path.mkdir(parents=True, exist_ok=True)
@@ -223,15 +219,11 @@ class KnowledgeBaseInitializer:
     async def display_statistics_generic(self) -> None:
         """Display basic statistics."""
         raw_files = list(self.raw_dir.glob("*")) if self.raw_dir.exists() else []
-        image_files = list(self.images_dir.glob("*")) if self.images_dir.exists() else []
-        content_files = list(self.content_list_dir.glob("*.json")) if self.content_list_dir.exists() else []
 
         logger.info("=" * 50)
         logger.info("Knowledge Base Statistics")
         logger.info("=" * 50)
         logger.info(f"Raw documents: {len(raw_files)}")
-        logger.info(f"Extracted images: {len(image_files)}")
-        logger.info(f"Content lists: {len(content_files)}")
         logger.info(f"LlamaIndex storage exists: {self.llamaindex_storage_dir.exists()}")
         logger.info(f"Provider used: {DEFAULT_PROVIDER}")
         logger.info("=" * 50)
