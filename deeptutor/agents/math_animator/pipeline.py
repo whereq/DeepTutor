@@ -14,6 +14,7 @@ from .agents import (
     SummaryAgent,
     VisualReviewAgent,
 )
+from .duration_utils import parse_target_duration_seconds
 from .models import RenderResult, VisualReviewResult
 from .renderer import ManimRenderService
 from .request_config import MathAnimatorRequestConfig
@@ -118,11 +119,19 @@ class MathAnimatorPipeline:
         analysis,
         design,
     ):
+        duration_target_seconds = parse_target_duration_seconds(
+            " ".join(
+                part.strip()
+                for part in (user_input, request_config.style_hint)
+                if isinstance(part, str) and part.strip()
+            )
+        )
         return await self.code_agent.generate(
             user_input=user_input,
             output_mode=request_config.output_mode,
             analysis=analysis,
             design=design,
+            duration_target_seconds=duration_target_seconds,
         )
 
     async def run_render(
@@ -137,6 +146,13 @@ class MathAnimatorPipeline:
         on_retry_status: Callable[[str], Any] | None = None,
     ) -> tuple[str, RenderResult]:
         renderer = ManimRenderService(turn_id, progress_callback=on_render_progress)
+        duration_target_seconds = parse_target_duration_seconds(
+            " ".join(
+                part.strip()
+                for part in (user_input, request_config.style_hint)
+                if isinstance(part, str) and part.strip()
+            )
+        )
         review_callback: Callable[[str, RenderResult], Any] | None = None
         if self.enable_visual_review and self.visual_review_agent is not None:
             review_service = VisualReviewService(turn_id, progress_callback=on_render_progress)
@@ -165,6 +181,7 @@ class MathAnimatorPipeline:
                 current_code=current_code,
                 error_message=error_message,
                 attempt=attempt,
+                duration_target_seconds=duration_target_seconds,
             ),
         )
         final_code, render_result = await retry_manager.render_with_retries(

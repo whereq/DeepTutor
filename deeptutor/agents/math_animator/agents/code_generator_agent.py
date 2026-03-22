@@ -35,6 +35,7 @@ class CodeGeneratorAgent(BaseAgent):
         output_mode: str,
         analysis: ConceptAnalysis,
         design: SceneDesign,
+        duration_target_seconds: float | None = None,
     ) -> GeneratedCode:
         """BaseAgent-compatible entrypoint for the default generation path."""
         return await self.generate(
@@ -42,6 +43,7 @@ class CodeGeneratorAgent(BaseAgent):
             output_mode=output_mode,
             analysis=analysis,
             design=design,
+            duration_target_seconds=duration_target_seconds,
         )
 
     async def generate(
@@ -51,6 +53,7 @@ class CodeGeneratorAgent(BaseAgent):
         output_mode: str,
         analysis: ConceptAnalysis,
         design: SceneDesign,
+        duration_target_seconds: float | None = None,
     ) -> GeneratedCode:
         system_prompt = self.get_prompt("generate_system")
         user_template = self.get_prompt("generate_user_template")
@@ -60,6 +63,11 @@ class CodeGeneratorAgent(BaseAgent):
         user_prompt = user_template.format(
             user_input=user_input.strip(),
             output_mode=output_mode,
+            duration_requirement=(
+                f"用户明确目标时长约 {duration_target_seconds:.1f} 秒，生成代码必须围绕该时长做节奏预算。"
+                if duration_target_seconds is not None
+                else "用户未给出明确秒数时长，可按标准教学节奏生成。"
+            ),
             analysis_json=json.dumps(analysis.model_dump(), ensure_ascii=False, indent=2),
             design_json=json.dumps(design.model_dump(), ensure_ascii=False, indent=2),
         )
@@ -90,6 +98,7 @@ class CodeGeneratorAgent(BaseAgent):
         current_code: str,
         error_message: str,
         attempt: int,
+        duration_target_seconds: float | None = None,
     ) -> GeneratedCode:
         system_prompt = self.get_prompt("retry_system")
         user_template = self.get_prompt("retry_user_template")
@@ -100,6 +109,11 @@ class CodeGeneratorAgent(BaseAgent):
             user_input=user_input.strip(),
             output_mode=output_mode,
             attempt=attempt,
+            duration_requirement=(
+                f"目标时长约 {duration_target_seconds:.1f} 秒，修复后仍需保持接近该时长。"
+                if duration_target_seconds is not None
+                else "无明确目标时长。"
+            ),
             error_message=build_repair_error_message(error_message),
             current_code=current_code,
         )

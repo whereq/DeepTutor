@@ -59,8 +59,9 @@ class ModelCatalogService:
             catalog.update({k: v for k, v in loaded.items() if k != "services"})
             catalog["services"].update(loaded.get("services", {}))
             hydrated = self._hydrate_missing_services_from_env(catalog)
+            synced = self._sync_active_services_from_env(catalog)
             self._normalize(catalog)
-            if hydrated:
+            if hydrated or synced:
                 self.save(catalog)
             return catalog
 
@@ -171,6 +172,202 @@ class ModelCatalogService:
                 ],
             }
             changed = True
+
+        return changed
+
+    def _sync_active_services_from_env(self, catalog: dict[str, Any]) -> bool:
+        """
+        Sync active profile/model from `.env` when keys are present.
+
+        This makes `.env` the default source of truth so users do not need to
+        manually edit or delete `model_catalog.json` after changing env values.
+        """
+        env_values = get_env_store().load()
+        if not env_values:
+            return False
+
+        summary = get_env_store().as_summary()
+        services = catalog.setdefault("services", {})
+        changed = False
+
+        def ensure_llm_profile() -> tuple[dict[str, Any], dict[str, Any]]:
+            service = services.setdefault("llm", _service_shell())
+            profiles = service.setdefault("profiles", [])
+            if not profiles:
+                profile_id = "llm-profile-default"
+                model_id = "llm-model-default"
+                profile = {
+                    "id": profile_id,
+                    "name": "Default LLM Endpoint",
+                    "binding": "openai",
+                    "base_url": "",
+                    "api_key": "",
+                    "api_version": "",
+                    "extra_headers": {},
+                    "models": [{"id": model_id, "name": "Default Model", "model": ""}],
+                }
+                service["profiles"] = [profile]
+                service["active_profile_id"] = profile_id
+                service["active_model_id"] = model_id
+            profile = self.get_active_profile(catalog, "llm") or service["profiles"][0]
+            model = self.get_active_model(catalog, "llm") or (profile.setdefault("models", [{}])[0])
+            return profile, model
+
+        def ensure_embedding_profile() -> tuple[dict[str, Any], dict[str, Any]]:
+            service = services.setdefault("embedding", _service_shell())
+            profiles = service.setdefault("profiles", [])
+            if not profiles:
+                profile_id = "embedding-profile-default"
+                model_id = "embedding-model-default"
+                profile = {
+                    "id": profile_id,
+                    "name": "Default Embedding Endpoint",
+                    "binding": "openai",
+                    "base_url": "",
+                    "api_key": "",
+                    "api_version": "",
+                    "extra_headers": {},
+                    "models": [
+                        {
+                            "id": model_id,
+                            "name": "Default Embedding Model",
+                            "model": "",
+                            "dimension": "3072",
+                        }
+                    ],
+                }
+                service["profiles"] = [profile]
+                service["active_profile_id"] = profile_id
+                service["active_model_id"] = model_id
+            profile = self.get_active_profile(catalog, "embedding") or service["profiles"][0]
+            model = self.get_active_model(catalog, "embedding") or (profile.setdefault("models", [{}])[0])
+            return profile, model
+
+        def ensure_search_profile() -> dict[str, Any]:
+            service = services.setdefault("search", _search_shell())
+            profiles = service.setdefault("profiles", [])
+            if not profiles:
+                profile_id = "search-profile-default"
+                profile = {
+                    "id": profile_id,
+                    "name": "Default Search Provider",
+                    "provider": "brave",
+                    "base_url": "",
+                    "api_key": "",
+                    "api_version": "",
+                    "proxy": "",
+                    "models": [],
+                }
+                service["profiles"] = [profile]
+                service["active_profile_id"] = profile_id
+            return self.get_active_profile(catalog, "search") or service["profiles"][0]
+
+        llm_keys = {
+            "LLM_BINDING",
+            "LLM_MODEL",
+            "LLM_API_KEY",
+            "LLM_HOST",
+            "LLM_API_VERSION",
+        }
+        if llm_keys.intersection(env_values.keys()):
+            profile, model = ensure_llm_profile()
+            if "LLM_BINDING" in env_values and profile.get("binding") != summary.llm["binding"]:
+                profile["binding"] = summary.llm["binding"]
+                changed = True
+            if "LLM_API_KEY" in env_values and profile.get("api_key") != summary.llm["api_key"]:
+                profile["api_key"] = summary.llm["api_key"]
+                changed = True
+            if "LLM_HOST" in env_values and profile.get("base_url") != summary.llm["host"]:
+                profile["base_url"] = summary.llm["host"]
+                changed = True
+            if "LLM_API_VERSION" in env_values and profile.get("api_version") != summary.llm["api_version"]:
+                profile["api_version"] = summary.llm["api_version"]
+                changed = True
+            if "LLM_MODEL" in env_values:
+                if model.get("model") != summary.llm["model"]:
+                    model["model"] = summary.llm["model"]
+                    changed = True
+                if summary.llm["model"] and model.get("name") != summary.llm["model"]:
+                    model["name"] = summary.llm["model"]
+                    changed = True
+
+        embedding_keys = {
+            "EMBEDDING_BINDING",
+            "EMBEDDING_MODEL",
+            "EMBEDDING_API_KEY",
+            "EMBEDDING_HOST",
+            "EMBEDDING_DIMENSION",
+            "EMBEDDING_API_VERSION",
+        }
+        if embedding_keys.intersection(env_values.keys()):
+            profile, model = ensure_embedding_profile()
+            if (
+                "EMBEDDING_BINDING" in env_values
+                and profile.get("binding") != summary.embedding["binding"]
+            ):
+                profile["binding"] = summary.embedding["binding"]
+                changed = True
+            if (
+                "EMBEDDING_API_KEY" in env_values
+                and profile.get("api_key") != summary.embedding["api_key"]
+            ):
+                profile["api_key"] = summary.embedding["api_key"]
+                changed = True
+            if (
+                "EMBEDDING_HOST" in env_values
+                and profile.get("base_url") != summary.embedding["host"]
+            ):
+                profile["base_url"] = summary.embedding["host"]
+                changed = True
+            if (
+                "EMBEDDING_API_VERSION" in env_values
+                and profile.get("api_version") != summary.embedding["api_version"]
+            ):
+                profile["api_version"] = summary.embedding["api_version"]
+                changed = True
+            if "EMBEDDING_MODEL" in env_values:
+                if model.get("model") != summary.embedding["model"]:
+                    model["model"] = summary.embedding["model"]
+                    changed = True
+                if summary.embedding["model"] and model.get("name") != summary.embedding["model"]:
+                    model["name"] = summary.embedding["model"]
+                    changed = True
+            if (
+                "EMBEDDING_DIMENSION" in env_values
+                and model.get("dimension") != summary.embedding["dimension"]
+            ):
+                model["dimension"] = summary.embedding["dimension"]
+                changed = True
+
+        search_keys = {
+            "SEARCH_PROVIDER",
+            "SEARCH_API_KEY",
+            "SEARCH_BASE_URL",
+            "SEARCH_PROXY",
+        }
+        if search_keys.intersection(env_values.keys()):
+            profile = ensure_search_profile()
+            if (
+                "SEARCH_PROVIDER" in env_values
+                and profile.get("provider") != summary.search["provider"]
+            ):
+                profile["provider"] = summary.search["provider"]
+                changed = True
+            if (
+                "SEARCH_API_KEY" in env_values
+                and profile.get("api_key") != summary.search["api_key"]
+            ):
+                profile["api_key"] = summary.search["api_key"]
+                changed = True
+            if (
+                "SEARCH_BASE_URL" in env_values
+                and profile.get("base_url") != summary.search["base_url"]
+            ):
+                profile["base_url"] = summary.search["base_url"]
+                changed = True
+            if "SEARCH_PROXY" in env_values and profile.get("proxy") != summary.search["proxy"]:
+                profile["proxy"] = summary.search["proxy"]
+                changed = True
 
         return changed
 

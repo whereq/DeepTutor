@@ -220,6 +220,10 @@ max-complexity = 10
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "asyncio: mark async tests that require pytest-asyncio",
+]
+asyncio_default_fixture_loop_scope = "function"
 addopts = [
     "--strict-markers",
     "--strict-config",

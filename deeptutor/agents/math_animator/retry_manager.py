@@ -9,6 +9,15 @@ from .models import GeneratedCode, RetryAttempt, VisualReviewResult
 from .renderer import ManimRenderError, ManimRenderService
 
 
+def _is_non_retriable_environment_error(message: str) -> bool:
+    lowered = (message or "").lower()
+    return (
+        "no such file or directory: 'latex'" in lowered
+        or "no such file or directory: \"latex\"" in lowered
+        or "latex could not be found" in lowered
+    )
+
+
 class CodeRetryManager:
     def __init__(
         self,
@@ -113,6 +122,11 @@ class CodeRetryManager:
                 render_result.retry_history = retry_history
                 return code, render_result
             except ManimRenderError as exc:
+                if _is_non_retriable_environment_error(str(exc)):
+                    raise ManimRenderError(
+                        "Render failed because local LaTeX is missing. "
+                        "Please avoid Tex/MathTex in generated code or install a LaTeX distribution."
+                    ) from exc
                 if attempt >= self.max_retries:
                     raise
                 retry_attempt = RetryAttempt(attempt=attempt + 1, error=str(exc))

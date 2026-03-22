@@ -32,6 +32,12 @@ async def _collect_events(run_coro) -> list[StreamEvent]:
 async def test_math_animator_capability_emits_summary_and_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Unit test should not require real optional dependency installation.
+    monkeypatch.setattr(
+        "deeptutor.capabilities.math_animator.importlib.util.find_spec",
+        lambda name: object() if name == "manim" else None,
+    )
+
     class FakePipeline:
         def __init__(self, **_kwargs) -> None:
             pass

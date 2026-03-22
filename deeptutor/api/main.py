@@ -7,25 +7,6 @@ from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from deeptutor.api.routers import (
-    agent_config,
-    chat,
-    co_writer,
-    dashboard,
-    guide,
-    knowledge,
-    memory,
-    notebook,
-    plugins_api,
-    question,
-    sessions,
-    settings,
-    solve,
-    system,
-    tutorbot,
-    unified_ws,
-    vision_solver,
-)
 from deeptutor.logging import get_logger
 from deeptutor.services.path_service import get_path_service
 
@@ -199,6 +180,28 @@ app.mount(
     "/api/outputs",
     SafeOutputStaticFiles(directory=str(user_dir), path_service=path_service),
     name="outputs",
+)
+
+# Import routers only after runtime settings are initialized.
+# Some router modules load YAML settings at import time.
+from deeptutor.api.routers import (
+    agent_config,
+    chat,
+    co_writer,
+    dashboard,
+    guide,
+    knowledge,
+    memory,
+    notebook,
+    plugins_api,
+    question,
+    sessions,
+    settings,
+    solve,
+    system,
+    tutorbot,
+    unified_ws,
+    vision_solver,
 )
 
 # Include routers

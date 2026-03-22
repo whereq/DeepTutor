@@ -593,7 +593,20 @@ class TurnRuntimeManager:
             event.metadata = {**event.metadata, "status": "completed"}
         event.session_id = execution.session_id
         event.turn_id = execution.turn_id
-        persisted = await self.store.append_turn_event(execution.turn_id, event.to_dict())
+        payload = event.to_dict()
+        try:
+            persisted = await self.store.append_turn_event(execution.turn_id, payload)
+        except ValueError as exc:
+            # A turn can disappear when the session is deleted while the turn task
+            # is still draining events. Avoid cascading failures in the error path.
+            if "Turn not found:" not in str(exc):
+                raise
+            logger.warning(
+                "Skip persisting event for missing turn %s (%s)",
+                execution.turn_id,
+                event.type.value,
+            )
+            persisted = payload
         self._mirror_event_to_workspace(execution, persisted)
         async with self._lock:
             subscribers = list(self._executions.get(execution.turn_id, execution).subscribers)

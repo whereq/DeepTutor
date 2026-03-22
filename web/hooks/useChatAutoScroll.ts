@@ -76,6 +76,39 @@ export function useChatAutoScroll({
     return () => window.cancelAnimationFrame(raf);
   }, [composerHeight, hasMessages, scrollToBottom]);
 
+  // After streaming ends, dynamically-loaded components (e.g. MathAnimatorViewer
+  // via next/dynamic) may render and grow the content height. Detect that and
+  // scroll to bottom so the user can see the full result.
+  useEffect(() => {
+    if (isStreaming) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    let prevHeight = container.scrollHeight;
+    let rafId = 0;
+
+    const check = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        const curHeight = container.scrollHeight;
+        if (curHeight > prevHeight && shouldAutoScrollRef.current) {
+          scrollToBottom("instant");
+        }
+        prevHeight = curHeight;
+      });
+    };
+
+    const mo = new MutationObserver(check);
+    mo.observe(container, { childList: true, subtree: true });
+
+    return () => {
+      mo.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [isStreaming, scrollToBottom]);
+
   const handleScroll = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;

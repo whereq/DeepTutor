@@ -194,10 +194,18 @@ class ManimRenderService:
         await self.progress_callback(message, raw)
 
     def _find_rendered_file(self, suffix: str) -> Path:
-        matches = sorted(self.media_dir.rglob(f"*{suffix}"))
+        # Manim stores many transient chunks under ``partial_movie_files``.
+        # We only want the final exported artifact for the scene.
+        matches = [
+            path
+            for path in self.media_dir.rglob(f"*{suffix}")
+            if "partial_movie_files" not in path.parts
+        ]
+        if not matches:
+            matches = list(self.media_dir.rglob(f"*{suffix}"))
         if not matches:
             raise ManimRenderError(f"Rendered {suffix} artifact not found.")
-        return matches[-1]
+        return max(matches, key=lambda path: path.stat().st_mtime)
 
     @staticmethod
     def _extract_scene_name(code: str) -> str:

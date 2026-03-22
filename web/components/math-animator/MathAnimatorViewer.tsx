@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Code2, Expand, Image as ImageIcon, Timer, Video } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 import type { MathAnimatorResult } from "@/lib/math-animator-types";
@@ -11,6 +11,7 @@ export default function MathAnimatorViewer({
   result: MathAnimatorResult;
 }) {
   const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const images = useMemo(
     () => result.artifacts.filter((item) => item.type === "image"),
     [result.artifacts],
@@ -20,20 +21,65 @@ export default function MathAnimatorViewer({
     [result.artifacts],
   );
   const resolveAssetUrl = (url: string) => (url.startsWith("http://") || url.startsWith("https://") ? url : apiUrl(url));
-  const forwardWheelToChatScroll = useCallback((event: React.WheelEvent<HTMLElement>) => {
-    const scrollRoot = event.currentTarget.closest("[data-chat-scroll-root='true']") as HTMLElement | null;
-    if (!scrollRoot || Math.abs(event.deltaY) < 1) return;
-    event.preventDefault();
-    scrollRoot.scrollBy({ top: event.deltaY, behavior: "auto" });
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+
+    const handler = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 1) return;
+
+      // Don't intercept if the event target is inside a scrollable child
+      // (e.g. the code <pre> block) that can still scroll in this direction.
+      let node = e.target as HTMLElement | null;
+      while (node && node !== el) {
+        if (node.scrollHeight > node.clientHeight + 2) {
+          const style = window.getComputedStyle(node);
+          if (style.overflowY === "auto" || style.overflowY === "scroll") {
+            const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
+            const atTop = node.scrollTop <= 2;
+            if ((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) {
+              return;
+            }
+          }
+        }
+        node = node.parentElement;
+      }
+
+      let scrollRoot: HTMLElement | null =
+        el.closest("[data-chat-scroll-root='true']") as HTMLElement | null;
+      if (!scrollRoot) {
+        let parent: HTMLElement | null = el.parentElement;
+        while (parent) {
+          const style = window.getComputedStyle(parent);
+          if (
+            (style.overflowY === "auto" || style.overflowY === "scroll") &&
+            parent.scrollHeight > parent.clientHeight + 2
+          ) {
+            scrollRoot = parent;
+            break;
+          }
+          parent = parent.parentElement;
+        }
+      }
+
+      if (scrollRoot) {
+        e.preventDefault();
+        scrollRoot.scrollBy({ top: e.deltaY, behavior: "auto" });
+      }
+    };
+
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
   }, []);
 
   return (
-    <div className="mb-3 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--card)]/70 p-3">
+    <div ref={rootRef} className="mb-3 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--card)]/70 p-3">
       {videos.length > 0 ? (
         <section className="space-y-2">
           <Header icon={Video} title="Video Output" />
           {videos.map((item) => (
-            <div key={item.url} onWheelCapture={forwardWheelToChatScroll}>
+            <div key={item.url}>
               <video
                 controls
                 playsInline

@@ -99,6 +99,7 @@ PROFILE_ALIASES: dict[str, str] = {
 }
 
 CACHE_PATH = PROJECT_ROOT / "data" / "user" / "settings" / ".tour_cache.json"
+MATH_ANIMATOR_REQUIREMENTS = "requirements/math-animator.txt"
 
 # ---------------------------------------------------------------------------
 # Cache helpers
@@ -163,6 +164,78 @@ def _node_install_cmd() -> list[str] | None:
     return mapping.get(_node_strategy())
 
 
+def _has_cairo_pkgconfig() -> bool:
+    pkg_config = shutil.which("pkg-config")
+    if not pkg_config:
+        return False
+    check = subprocess.run(
+        [pkg_config, "--exists", "cairo"],
+        cwd=str(PROJECT_ROOT),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return check.returncode == 0
+
+
+def _missing_math_animator_system_deps() -> list[str]:
+    missing: list[str] = []
+    for tool in ("latex", "pkg-config", "cmake", "ffmpeg"):
+        if not shutil.which(tool):
+            missing.append(tool)
+    if not _has_cairo_pkgconfig():
+        missing.append("cairo")
+    return missing
+
+
+def _math_animator_install_cmd(dep: str) -> list[str] | None:
+    system = platform.system().lower()
+    if system == "darwin" and shutil.which("brew"):
+        mapping = {
+            "latex": ["brew", "install", "--cask", "basictex"],
+            "pkg-config": ["brew", "install", "pkgconf"],
+            "cmake": ["brew", "install", "cmake"],
+            "ffmpeg": ["brew", "install", "ffmpeg"],
+            "cairo": ["brew", "install", "cairo"],
+        }
+        return mapping.get(dep)
+    return None
+
+
+def _ensure_math_animator_system_deps() -> None:
+    missing = _missing_math_animator_system_deps()
+    if not missing:
+        return
+
+    pretty_names = {
+        "latex": "LaTeX executable",
+        "pkg-config": "pkg-config",
+        "cmake": "CMake",
+        "ffmpeg": "FFmpeg",
+        "cairo": "Cairo development library",
+    }
+    details = ", ".join(pretty_names.get(item, item) for item in missing)
+    log_warn(f"Math animator system dependencies missing: {details}")
+
+    installable = [dep for dep in missing if _math_animator_install_cmd(dep) is not None]
+    if installable and confirm("Install missing system dependencies automatically?", default=True):
+        for dep in installable:
+            cmd = _math_animator_install_cmd(dep)
+            if cmd:
+                _run_cmd(cmd, PROJECT_ROOT)
+
+    still_missing = _missing_math_animator_system_deps()
+    if still_missing:
+        commands = []
+        for dep in still_missing:
+            cmd = _math_animator_install_cmd(dep)
+            commands.append(" ".join(cmd) if cmd else f"install {dep} manually")
+        log_warn(
+            "Math animator may fail until these are installed: "
+            + " | ".join(commands)
+        )
+
+
 # ---------------------------------------------------------------------------
 # Provider detection (providers are now bundled in cli.txt)
 # ---------------------------------------------------------------------------
@@ -188,7 +261,12 @@ def _needs_providers(catalog: dict[str, Any]) -> bool:
 # Dependency installation
 # ---------------------------------------------------------------------------
 
-def _install_commands(profile: str, catalog: dict[str, Any]) -> list[tuple[list[str], Path]]:
+def _install_commands(
+    profile: str,
+    catalog: dict[str, Any],
+    *,
+    include_math_animator: bool = False,
+) -> list[tuple[list[str], Path]]:
     profile = PROFILE_ALIASES.get(profile, profile)
     if profile not in PROFILE_COMMANDS:
         raise ValueError(f"Unknown install profile: {profile}")
@@ -196,6 +274,8 @@ def _install_commands(profile: str, catalog: dict[str, Any]) -> list[tuple[list[
     cmds: list[tuple[list[str], Path]] = []
     for req in PROFILE_COMMANDS[profile]:
         cmds.append(([sys.executable, "-m", "pip", "install", "-r", req], PROJECT_ROOT))
+    if include_math_animator:
+        cmds.append(([sys.executable, "-m", "pip", "install", "-r", MATH_ANIMATOR_REQUIREMENTS], PROJECT_ROOT))
     cmds.append(([sys.executable, "-m", "pip", "install", "-e", ".", "--no-deps"], PROJECT_ROOT))
     if profile.startswith("web"):
         cmds.append((["npm", "install"], PROJECT_ROOT / "web"))
@@ -435,6 +515,7 @@ def _run_web_tour() -> None:
 
     step(3, total, "Install dependencies")
     if confirm("Install dependencies now?", default=True):
+        install_math_animator = confirm("Install Math Animator addon (Manim) now?", default=True)
         if not (shutil.which("node") and shutil.which("npm")):
             cmd = _node_install_cmd()
             if cmd:
@@ -442,8 +523,14 @@ def _run_web_tour() -> None:
                     _run_cmd(cmd, PROJECT_ROOT)
             else:
                 log_warn("No automatic Node.js installer found for this platform.")
+        if install_math_animator:
+            _ensure_math_animator_system_deps()
 
-        for cmd, cwd in _install_commands(profile, catalog):
+        for cmd, cwd in _install_commands(
+            profile,
+            catalog,
+            include_math_animator=install_math_animator,
+        ):
             _run_cmd(cmd, cwd)
         log_success("Dependencies installed.")
     else:
