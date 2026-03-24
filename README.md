@@ -247,7 +247,7 @@ Tools are **decoupled from workflows** — in every mode, you decide which tools
 
 > Start with a quick chat question, escalate to Deep Solve when it gets hard, generate quiz questions to test yourself, then launch a Deep Research to go deeper — all in one continuous thread.
 
-### 🤖 TutorBot — Your Personal AI Tutor
+### 🦞 TutorBot — Your Personal AI Tutor
 
 TutorBot is not a chatbot. It is a persistent, autonomous tutor built on [nanobot](https://github.com/HKUDS/nanobot) — a lightweight agent engine that gives each instance its own independent agent loop.
 
@@ -276,7 +276,7 @@ Guided Learning turns your personal materials into structured, multi-step learni
 
 Sessions are persistent — pause, resume, or revisit any step at any time.
 
-### 📚 Knowledge — Your Learning Infrastructure
+### 📚 Knowledge Management — Your Learning Infrastructure
 
 Knowledge is where you build and manage the document collections that power everything else in DeepTutor.
 
@@ -285,7 +285,7 @@ Knowledge is where you build and manage the document collections that power ever
 
 Your knowledge base is not passive storage — it actively participates in every conversation, every research session, and every learning path you create.
 
-### 🧠 Memory — It Learns As You Learn
+### 🧠 Memory — DeepTutor Learns As You Learn
 
 DeepTutor maintains a persistent, evolving understanding of you through two complementary dimensions:
 
@@ -293,34 +293,6 @@ DeepTutor maintains a persistent, evolving understanding of you through two comp
 - **Profile** — Your learner identity: preferences, knowledge level, goals, and communication style — automatically refined through every interaction.
 
 Memory is shared across all features and all your TutorBots. The more you use DeepTutor, the more personalized and effective it becomes.
-
-## ⭐ Star History
-
-<div align="center">
-
-<a href="https://www.star-history.com/#HKUDS/DeepTutor&type=timeline&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&theme=dark&legend=top-left" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&legend=top-left" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&legend=top-left" />
-  </picture>
-</a>
-
-</div>
-
-## 🤝 Contributing
-
-<div align="center">
-
-We hope DeepTutor becomes a gift for the community. 🎁
-
-<a href="https://github.com/HKUDS/DeepTutor/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=HKUDS/DeepTutor&max=999" alt="Contributors" />
-</a>
-
-</div>
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on setting up your development environment, code standards, and pull request workflow.
 
 ## 🌐 Community & Ecosystem
 
@@ -337,6 +309,35 @@ DeepTutor stands on the shoulders of outstanding open-source projects:
 | [⚡ LightRAG](https://github.com/HKUDS/LightRAG) | [🤖 AutoAgent](https://github.com/HKUDS/AutoAgent) | [🔬 AI-Researcher](https://github.com/HKUDS/AI-Researcher) | [🧬 nanobot](https://github.com/HKUDS/nanobot) |
 |:---:|:---:|:---:|:---:|
 | Simple & Fast RAG | Zero-Code Agent Framework | Automated Research | Ultra-Lightweight AI Agent |
+
+
+## 🤝 Contributing
+
+<div align="center">
+
+We hope DeepTutor becomes a gift for the community. 🎁
+
+<a href="https://github.com/HKUDS/DeepTutor/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=HKUDS/DeepTutor&max=999" alt="Contributors" />
+</a>
+
+</div>
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on setting up your development environment, code standards, and pull request workflow.
+
+## ⭐ Star History
+
+<div align="center">
+
+<a href="https://www.star-history.com/#HKUDS/DeepTutor&type=timeline&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&theme=dark&legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=HKUDS/DeepTutor&type=timeline&legend=top-left" />
+  </picture>
+</a>
+
+</div>
 
 <div align="center">
 
