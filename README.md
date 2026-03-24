@@ -2,11 +2,9 @@
 
 <img src="assets/logo-ver2.png" alt="DeepTutor" width="140" style="border-radius: 15px;">
 
-# DeepTutor
+# DeepTutor: Towards Agentic Personalized Tutoring
 
-**Your AI-Powered Learning Companion**
-
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![Python 3.11](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 
@@ -24,15 +22,41 @@
 
 </div>
 
-DeepTutor is an open-source intelligent learning platform that goes far beyond simple Q&A. It brings together conversational AI, personal tutoring agents, knowledge management, and adaptive learning into a unified experience — designed for learners who want depth, not just answers.
+---
+### 📰 News
 
-<div align="center">
-  <img src="assets/screenshots/home.png" alt="DeepTutor Interface" width="90%" style="border-radius: 10px;">
-</div>
+> **[2026.3.24]** Long time no see! ✨ DeepTutor v1.0.0 is finally here — an agent-native evolution featuring a lightweight refactor, TutorBot, and flexible mode switching under the Apache-2.0 license. A new chapter begins, and our story continues! 
+
+> **[2026.2.6]** 🚀 We've reached 10k stars in just 39 days! A huge thank you to our incredible community for the support! 
+
+> **[2026.1.1]** Happy New Year! Join our [Discord](https://discord.gg/eRsjPgMU4t), [WeChat](https://github.com/HKUDS/DeepTutor/issues/78), or [Discussions](https://github.com/HKUDS/DeepTutor/discussions) — let's shape the future of DeepTutor together!
+
+> **[2025.12.29]** DeepTutor is officially released!
+
+### 📦 Releases
+
+> **[2026.3.24]** [v1.0.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0) — Agent-native refactor with flexible tool integration, CLI & SDK entry points, TutorBot powered by the nanobot engine, Co-Writer, Guided Learning, and persistent memory. DeepTutor is now lighter, faster, and better than ever!
+
+<details>
+<summary><b>Past releases</b></summary>
+
+> **[2026.1.23]** [v0.6.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.6.0) — Session persistence, incremental document upload, flexible RAG pipeline import, and full Chinese localization.
+
+> **[2026.1.18]** [v0.5.2](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.2) — Docling support for RAG-Anything, logging system optimization, and bug fixes.
+
+> **[2026.1.15]** [v0.5.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.0) — Unified service configuration, RAG pipeline selection per knowledge base, question generation overhaul, and sidebar customization.
+
+> **[2026.1.9]** [v0.4.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.4.0) — Multi-provider LLM & embedding support, new home page, RAG module decoupling, and environment variable refactor.
+
+> **[2026.1.5]** [v0.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.3.0) — Unified PromptManager architecture, GitHub Actions CI/CD, and pre-built Docker images on GHCR.
+
+> **[2026.1.2]** [v0.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.2.0) — Docker deployment, Next.js 16 & React 19 upgrade, WebSocket security hardening, and critical vulnerability fixes.
+
+</details>
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
 - **Unified Chat Workspace** — Five powerful modes (Chat, Deep Solve, Quiz Generation, Deep Research, Math Animator) sharing the same context. Switch freely, as you wish.
 - **Personal TutorBots** — Autonomous AI tutors with their own workspace, memory, and personality. They set reminders, learn new skills, and grow alongside you.
@@ -52,7 +76,7 @@ git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 
 # Create environment
-conda create -n deeptutor python=3.10 && conda activate deeptutor
+conda create -n deeptutor python=3.11 && conda activate deeptutor
 # Or: python -m venv venv && source venv/bin/activate
 
 # Install core + web
@@ -215,15 +239,13 @@ Five distinct modes coexist in a single workspace, bound by a **unified context 
 |:---|:---|
 | **Chat** | Fluid, tool-augmented conversation. Choose from RAG retrieval, web search, code execution, deep reasoning, brainstorming, and paper search — mix and match as needed. |
 | **Deep Solve** | Multi-agent problem solving: plan, investigate, solve, and verify — with precise source citations at every step. |
-| **Quiz Generation** | Generate assessments grounded in your knowledge base (Custom mode) or replicate the style of uploaded reference exams (Mimic mode), with built-in validation. |
+| **Quiz Generation** | Generate assessments grounded in your knowledge base, with built-in validation. |
 | **Deep Research** | Decompose a topic into subtopics, dispatch parallel research agents across RAG, web, and academic papers, and produce a fully cited report. |
 | **Math Animator** | Turn mathematical concepts into visual animations and storyboards powered by Manim. |
 
 Tools are **decoupled from workflows** — in every mode, you decide which tools to enable, how many to use, or whether to use any at all. The workflow orchestrates the reasoning; the tools are yours to compose.
 
 > Start with a quick chat question, escalate to Deep Solve when it gets hard, generate quiz questions to test yourself, then launch a Deep Research to go deeper — all in one continuous thread.
-
----
 
 ### 🤖 TutorBot — Your Personal AI Tutor
 
@@ -237,15 +259,11 @@ Every TutorBot lives in its own **workspace** with its own **memory** and **skil
 - **DeepTutor Integration** — Bots can call into DeepTutor's full capabilities: search your knowledge bases, execute code, browse the web, and more.
 - **Skill Learning** — Teach your bot new abilities by adding skill files to its workspace. It learns as you expand its reach.
 
----
-
 ### ✍️ Co-Writer — AI Inside Your Editor
 
 Co-Writer brings the intelligence of Chat directly into a writing surface. It is a full-featured Markdown editor where AI is a first-class collaborator — not a sidebar, not an afterthought.
 
 Select any text and choose **Rewrite**, **Expand**, or **Shorten** — optionally drawing context from your knowledge base or the web. The editing flow is non-destructive with full undo/redo, and every piece you write can be saved straight to your notebooks, feeding back into your learning ecosystem.
-
----
 
 ### 🎓 Guided Learning — Visual, Step-by-Step Mastery
 
@@ -258,8 +276,6 @@ Guided Learning turns your personal materials into structured, multi-step learni
 
 Sessions are persistent — pause, resume, or revisit any step at any time.
 
----
-
 ### 📚 Knowledge — Your Learning Infrastructure
 
 Knowledge is where you build and manage the document collections that power everything else in DeepTutor.
@@ -268,8 +284,6 @@ Knowledge is where you build and manage the document collections that power ever
 - **Notebooks** — Organize learning records across sessions. Save insights from Chat, Guided Learning, Co-Writer, or Deep Research into categorized, color-coded notebooks.
 
 Your knowledge base is not passive storage — it actively participates in every conversation, every research session, and every learning path you create.
-
----
 
 ### 🧠 Memory — It Learns As You Learn
 
@@ -280,17 +294,9 @@ DeepTutor maintains a persistent, evolving understanding of you through two comp
 
 Memory is shared across all features and all your TutorBots. The more you use DeepTutor, the more personalized and effective it becomes.
 
----
-
 ## ⭐ Star History
 
 <div align="center">
-
-<p>
-  <a href="https://github.com/HKUDS/DeepTutor/stargazers"><img src="assets/roster/stargazers.svg" alt="Stargazers"/></a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/HKUDS/DeepTutor/network/members"><img src="assets/roster/forkers.svg" alt="Forkers"/></a>
-</p>
 
 <a href="https://www.star-history.com/#HKUDS/DeepTutor&type=timeline&legend=top-left">
   <picture>

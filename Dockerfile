@@ -87,7 +87,7 @@ FROM python:3.11-slim AS production
 # Labels
 LABEL maintainer="DeepTutor Team" \
       description="DeepTutor: AI-Powered Personalized Learning Assistant" \
-      version="0.1.0"
+      version="1.0.0"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
