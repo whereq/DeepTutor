@@ -18,7 +18,7 @@
   <a href="https://github.com/HKUDS/DeepTutor/issues/78"><img src="https://img.shields.io/badge/WeChat-Group-07C160?style=for-the-badge&logo=wechat&logoColor=white" alt="WeChat"></a>
 </p>
 
-[Features](#-features) · [Get Started](#-get-started) · [Explore](#-explore-deeptutor) · [Community](#-contributing)
+[Features](#-features) · [Get Started](#-get-started) · [Explore](#-explore-deeptutor) · [Community](#-community--ecosystem)
 
 [🇨🇳 中文](assets/README/README_CN.md) · [🇯🇵 日本語](assets/README/README_JA.md) · [🇪🇸 Español](assets/README/README_ES.md) · [🇫🇷 Français](assets/README/README_FR.md) · [🇸🇦 العربية](assets/README/README_AR.md) · [🇷🇺 Русский](assets/README/README_RU.md) · [🇮🇳 हिन्दी](assets/README/README_HI.md) · [🇵🇹 Português](assets/README/README_PT.md)
 
@@ -59,29 +59,20 @@ conda create -n deeptutor python=3.10 && conda activate deeptutor
 pip install -e ".[server]"
 ```
 
-### Configure
+### Configure & Launch
 
-DeepTutor offers two ways to get configured:
-
-**Terminal — Interactive Setup**
+Run the Setup Tour — a single command that handles everything from configuration to launch:
 
 ```bash
 python scripts/start_tour.py
 ```
 
-A guided installer that walks you through port selection, LLM/embedding provider setup, and `.env` generation — all from your terminal.
+The tour begins by asking how you'd like to use DeepTutor:
 
-**Web — Guided Tour**
+- **Web mode** (recommended) — Configures ports and dependencies, then spins up a temporary server and opens the **Settings** page in your browser. A four-step guided tour walks you through LLM, Embedding, and Search provider setup with live connection testing. Once complete, DeepTutor restarts automatically with your configuration.
+- **CLI mode** — A fully interactive terminal flow: choose a dependency profile, configure ports, set up providers, verify connections, and apply — all without leaving the shell.
 
-Launch the app and head to **Settings**. A four-step onboarding tour will spotlight each configuration section — LLM, Embedding, Search, and system verification — so you can get everything running without leaving the browser.
-
-### Launch
-
-```bash
-python scripts/start_web.py
-```
-
-Open [http://localhost:3782](http://localhost:3782) and start learning.
+Either way, you end up with a running DeepTutor at [http://localhost:3782](http://localhost:3782).
 
 <details>
 <summary><b>Start services separately</b></summary>
@@ -122,75 +113,150 @@ cd web && npm install && npm run dev -- -p 3782
 
 </details>
 
-### CLI
+### CLI — Agent-Native Interface
 
-DeepTutor ships as a lightweight CLI package — an agent-native interface to every capability:
+DeepTutor exposes a lightweight CLI that doubles as an **agent-native skill interface**. Every capability, knowledge base, memory, and session is accessible through structured commands — which means your AI agents can use DeepTutor too.
+
+Hand the [`SKILL.md`](SKILL.md) at the project root to your agent ([nanobot](https://github.com/HKUDS/nanobot), Openclaw, Zeroclaw, or any tool-using LLM), and it will know how to configure and operate DeepTutor on your behalf.
 
 ```bash
 deeptutor chat                                   # Interactive REPL
-deeptutor run chat "Explain Fourier transform"   # One-shot query
-deeptutor run deep_solve "Solve x^2 = 4"         # Deep problem solving
-deeptutor kb list                                # List knowledge bases
-deeptutor kb create my-kb --doc textbook.pdf     # Create from documents
-deeptutor bot list                               # Manage TutorBots
-deeptutor memory show                            # View learning memory
+deeptutor run chat "Explain Fourier transform"   # One-shot capability
+deeptutor run deep_solve "Solve x^2 = 4"         # Multi-agent problem solving
+deeptutor kb create my-kb --doc textbook.pdf     # Build a knowledge base
 deeptutor serve --port 8001                      # Start API server
 ```
+
+<details>
+<summary><b>Full CLI command reference</b></summary>
+
+**Top-level**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor run <capability> <message>` | Run any capability in a single turn (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`) |
+| `deeptutor serve` | Start the DeepTutor API server |
+
+**`deeptutor chat`**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor chat` | Interactive REPL with optional `--capability`, `--tool`, `--kb`, `--language` |
+
+**`deeptutor bot`**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor bot list` | List all TutorBot instances |
+| `deeptutor bot create <id>` | Create and start a new bot (`--name`, `--persona`, `--model`) |
+| `deeptutor bot start <id>` | Start a bot |
+| `deeptutor bot stop <id>` | Stop a bot |
+
+**`deeptutor kb`**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor kb list` | List all knowledge bases |
+| `deeptutor kb info <name>` | Show knowledge base details |
+| `deeptutor kb create <name>` | Create from documents (`--doc`, `--docs-dir`) |
+| `deeptutor kb add <name>` | Add documents incrementally |
+| `deeptutor kb search <name> <query>` | Search a knowledge base |
+| `deeptutor kb set-default <name>` | Set as default KB |
+| `deeptutor kb delete <name>` | Delete a knowledge base (`--force`) |
+
+**`deeptutor memory`**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor memory show [file]` | View memory (`summary`, `profile`, or `all`) |
+| `deeptutor memory clear [file]` | Clear memory (`--force`) |
+
+**`deeptutor session`**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor session list` | List sessions (`--limit`) |
+| `deeptutor session show <id>` | View session messages |
+| `deeptutor session open <id>` | Resume session in REPL |
+| `deeptutor session rename <id>` | Rename a session (`--title`) |
+| `deeptutor session delete <id>` | Delete a session |
+
+**`deeptutor notebook`**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor notebook list` | List notebooks |
+| `deeptutor notebook create <name>` | Create a notebook (`--description`) |
+| `deeptutor notebook show <id>` | View notebook records |
+| `deeptutor notebook add-md <id> <path>` | Import markdown as record |
+| `deeptutor notebook replace-md <id> <rec> <path>` | Replace a markdown record |
+| `deeptutor notebook remove-record <id> <rec>` | Remove a record |
+
+**`deeptutor config` / `plugin` / `provider`**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor config show` | Print current configuration summary |
+| `deeptutor plugin list` | List registered tools and capabilities |
+| `deeptutor plugin info <name>` | Show tool or capability details |
+| `deeptutor provider login <provider>` | OAuth login (`openai-codex`, `github-copilot`) |
+
+</details>
 
 ---
 
 ## 📖 Explore DeepTutor
 
-### 💬 Chat — Your Unified Intelligent Workspace
+### 💬 Chat — Unified Intelligent Workspace
 
-The Chat workspace is where everything converges. Five distinct modes live under one roof, sharing a unified context management system — your conversation history, knowledge bases, and tool selections carry seamlessly across modes. Switch between them at will within the same topic.
+Five distinct modes coexist in a single workspace, bound by a **unified context management system**. Conversation history, knowledge bases, and references persist across modes — switch between them freely within the same topic, whenever the moment calls for it.
 
 | Mode | What It Does |
 |:---|:---|
-| **Chat** | Fluid conversation with optional tools — RAG retrieval, web search, code execution, deep reasoning, brainstorming, and paper search. Compose the exact toolkit you need. |
-| **Deep Solve** | A multi-agent solver that plans, investigates, solves, and verifies — with precise source citations at every step. |
-| **Quiz Generation** | Auto-generates assessments grounded in your knowledge base (Custom mode) or clones the style of uploaded reference exams (Mimic mode), with built-in validation. |
-| **Deep Research** | Decomposes your topic into subtopics, dispatches parallel research agents with RAG + web + paper search, and synthesizes a fully cited academic-style report. |
-| **Math Animator** | Transforms mathematical concepts into visual animations and storyboards. |
+| **Chat** | Fluid, tool-augmented conversation. Choose from RAG retrieval, web search, code execution, deep reasoning, brainstorming, and paper search — mix and match as needed. |
+| **Deep Solve** | Multi-agent problem solving: plan, investigate, solve, and verify — with precise source citations at every step. |
+| **Quiz Generation** | Generate assessments grounded in your knowledge base (Custom mode) or replicate the style of uploaded reference exams (Mimic mode), with built-in validation. |
+| **Deep Research** | Decompose a topic into subtopics, dispatch parallel research agents across RAG, web, and academic papers, and produce a fully cited report. |
+| **Math Animator** | Turn mathematical concepts into visual animations and storyboards powered by Manim. |
 
-> **Unified Context**: Every mode reads from and writes to the same conversation thread. Start with a chat question, escalate to Deep Solve, generate quiz questions to test your understanding, then launch a Deep Research — all without losing context.
+Tools are **decoupled from workflows** — in every mode, you decide which tools to enable, how many to use, or whether to use any at all. The workflow orchestrates the reasoning; the tools are yours to compose.
+
+> Start with a quick chat question, escalate to Deep Solve when it gets hard, generate quiz questions to test yourself, then launch a Deep Research to go deeper — all in one continuous thread.
 
 ---
 
 ### 🤖 TutorBot — Your Personal AI Tutor
 
-TutorBot is more than a chatbot — it's a persistent, autonomous tutor that lives in your workspace.
+TutorBot is not a chatbot. It is a persistent, autonomous tutor built on [nanobot](https://github.com/HKUDS/nanobot) — a lightweight agent engine that gives each instance its own independent agent loop.
 
-Each TutorBot instance is powered by an independent agent loop, equipped with its own **workspace**, **memory**, and **skill set**, while sharing a common memory layer with DeepTutor itself. Think of it as a real tutor who actually knows you.
+Every TutorBot lives in its own **workspace** with its own **memory** and **skill set**, while staying connected to DeepTutor's shared memory layer. Think of it as a real tutor who remembers everything and keeps getting better.
 
-- **Custom Soul** — Define your tutor's personality, communication style, and values through editable Soul templates. Make it encouraging, Socratic, rigorous, or anything in between.
-- **Independent Memory** — Each bot maintains its own workspace files and conversation history, separate from other bots yet connected to DeepTutor's global memory.
-- **Reminders & Scheduling** — Set up recurring check-ins, study reminders, and periodic tasks through the built-in heartbeat system.
-- **DeepTutor Integration** — Bots can invoke DeepTutor's full capabilities: search your knowledge bases, run code, browse the web, and more.
-- **Skill Learning** — Extensible through skill files — teach your bot new abilities by adding skill definitions to its workspace.
+- **Custom Soul** — Shape your tutor's personality, tone, and values through editable Soul templates. Socratic, encouraging, rigorous — you decide.
+- **Independent Memory** — Each bot maintains its own workspace and conversation history, separate from other bots, yet connected to DeepTutor's global memory.
+- **Reminders & Scheduling** — Set up recurring study check-ins, review reminders, and periodic tasks through the built-in heartbeat system.
+- **DeepTutor Integration** — Bots can call into DeepTutor's full capabilities: search your knowledge bases, execute code, browse the web, and more.
+- **Skill Learning** — Teach your bot new abilities by adding skill files to its workspace. It learns as you expand its reach.
 
 ---
 
-### ✍️ Co-Writer — AI Meets Your Markdown Editor
+### ✍️ Co-Writer — AI Inside Your Editor
 
-Co-Writer takes the intelligence of Chat and embeds it directly into a writing environment. It's a full-featured Markdown editor where AI is a first-class collaborator, not an afterthought.
+Co-Writer brings the intelligence of Chat directly into a writing surface. It is a full-featured Markdown editor where AI is a first-class collaborator — not a sidebar, not an afterthought.
 
-Select any text and choose **Rewrite**, **Expand**, or **Shorten** — optionally pulling context from your knowledge base or the web to enrich the output. The entire editing flow is non-destructive, with full undo/redo support.
-
-Write drafts, annotate key concepts, and save finished pieces directly to your notebooks. Everything you create feeds back into your learning ecosystem.
+Select any text and choose **Rewrite**, **Expand**, or **Shorten** — optionally drawing context from your knowledge base or the web. The editing flow is non-destructive with full undo/redo, and every piece you write can be saved straight to your notebooks, feeding back into your learning ecosystem.
 
 ---
 
 ### 🎓 Guided Learning — Visual, Step-by-Step Mastery
 
-Guided Learning transforms your personal materials into structured, multi-step learning paths. Provide a topic and optionally link notebook records, and DeepTutor will:
+Guided Learning turns your personal materials into structured, multi-step learning journeys. Provide a topic, optionally link notebook records, and DeepTutor will:
 
 1. **Design a learning plan** — Identify 3–5 progressive knowledge points from your materials.
-2. **Generate interactive pages** — Each knowledge point becomes a rich, visual HTML page with explanations, diagrams, and examples.
-3. **Enable contextual Q&A** — Chat alongside each learning step for deeper exploration.
-4. **Summarize your progress** — Upon completion, receive a learning summary capturing what you've covered.
+2. **Generate interactive pages** — Each point becomes a rich visual HTML page with explanations, diagrams, and examples.
+3. **Enable contextual Q&A** — Chat alongside each step for deeper exploration.
+4. **Summarize your progress** — Upon completion, receive a learning summary of everything you've covered.
 
-Each session is persistent — pause, resume, or revisit any step at any time.
+Sessions are persistent — pause, resume, or revisit any step at any time.
 
 ---
 
@@ -198,21 +264,21 @@ Each session is persistent — pause, resume, or revisit any step at any time.
 
 Knowledge is where you build and manage the document collections that power everything else in DeepTutor.
 
-- **Knowledge Bases** — Upload PDF, TXT, or Markdown files to create searchable, RAG-ready knowledge bases. Add documents incrementally as your library grows.
+- **Knowledge Bases** — Upload PDF, TXT, or Markdown files to create searchable, RAG-ready collections. Add documents incrementally as your library grows.
 - **Notebooks** — Organize learning records across sessions. Save insights from Chat, Guided Learning, Co-Writer, or Deep Research into categorized, color-coded notebooks.
 
-Your knowledge base doesn't just store information — it actively participates in every conversation, every research session, and every learning path you create.
+Your knowledge base is not passive storage — it actively participates in every conversation, every research session, and every learning path you create.
 
 ---
 
 ### 🧠 Memory — It Learns As You Learn
 
-DeepTutor maintains a persistent, evolving memory of your learning journey through two complementary dimensions:
+DeepTutor maintains a persistent, evolving understanding of you through two complementary dimensions:
 
-- **Summary** — A running digest of your learning progress: what you've studied, which topics you've explored, and how your understanding has developed over time.
+- **Summary** — A running digest of your learning progress: what you've studied, which topics you've explored, and how your understanding has developed.
 - **Profile** — Your learner identity: preferences, knowledge level, goals, and communication style — automatically refined through every interaction.
 
-Memory is shared across all of DeepTutor's features and your TutorBots. The more you learn with DeepTutor, the more personalized and effective it becomes.
+Memory is shared across all features and all your TutorBots. The more you use DeepTutor, the more personalized and effective it becomes.
 
 ---
 
@@ -250,13 +316,23 @@ We hope DeepTutor becomes a gift for the community. 🎁
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on setting up your development environment, code standards, and pull request workflow.
 
-## 🔗 Related Projects
+## 🌐 Community & Ecosystem
+
+DeepTutor stands on the shoulders of outstanding open-source projects:
+
+| Project | Role in DeepTutor |
+|:---|:---|
+| [**nanobot**](https://github.com/HKUDS/nanobot) | Ultra-lightweight agent engine powering TutorBot |
+| [**LlamaIndex**](https://github.com/run-llama/llama_index) | RAG pipeline and document indexing backbone |
+| [**ManimCat**](https://github.com/Wing900/ManimCat) | AI-driven math animation generation for Math Animator |
+
+**From the HKUDS ecosystem:**
+
+| [⚡ LightRAG](https://github.com/HKUDS/LightRAG) | [🤖 AutoAgent](https://github.com/HKUDS/AutoAgent) | [🔬 AI-Researcher](https://github.com/HKUDS/AI-Researcher) | [🧬 nanobot](https://github.com/HKUDS/nanobot) |
+|:---:|:---:|:---:|:---:|
+| Simple & Fast RAG | Zero-Code Agent Framework | Automated Research | Ultra-Lightweight AI Agent |
 
 <div align="center">
-
-| [⚡ LightRAG](https://github.com/HKUDS/LightRAG) | [🎨 RAG-Anything](https://github.com/HKUDS/RAG-Anything) | [💻 DeepCode](https://github.com/HKUDS/DeepCode) | [🔬 AI-Researcher](https://github.com/HKUDS/AI-Researcher) |
-|:---:|:---:|:---:|:---:|
-| Simple and Fast RAG | Multimodal RAG | AI Code Assistant | Research Automation |
 
 **[Data Intelligence Lab @ HKU](https://github.com/HKUDS)**
 
