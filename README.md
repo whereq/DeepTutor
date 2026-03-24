@@ -2,7 +2,7 @@
 
 <img src="assets/logo-ver2.png" alt="DeepTutor Logo" width="150" style="border-radius: 15px;">
 
-# DeepTutor: AI-Powered Personalized Learning Assistant
+# DeepTutor: Towards Agentic Personalized Tutoring
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -19,20 +19,13 @@
   <a href="https://github.com/HKUDS/DeepTutor/issues/78"><img src="https://img.shields.io/badge/WeChat-Join_Group-07C160?style=for-the-badge&logo=wechat&logoColor=white" alt="WeChat"></a>
 </p>
 
-
-
-[**Quick Start**](#quick-start) · [**Core Modules**](#core-modules) · [**FAQ**](#faq)
+[**Quick Start**](#-quick-start) · [**Architecture**](#-agent-native-architecture) · [**Capabilities**](#-capabilities) · [**Develop**](#-extending-deeptutor) · [**FAQ**](#-faq)
 
 [🇨🇳 中文](assets/README/README_CN.md) · [🇯🇵 日本語](assets/README/README_JA.md) · [🇪🇸 Español](assets/README/README_ES.md) · [🇫🇷 Français](assets/README/README_FR.md) · [🇸🇦 العربية](assets/README/README_AR.md) · [🇷🇺 Русский](assets/README/README_RU.md) · [🇮🇳 हिन्दी](assets/README/README_HI.md) · [🇵🇹 Português](assets/README/README_PT.md)
 
 </div>
 
-<div align="center">
-
-📚 **Massive Document Knowledge Q&A** &nbsp;•&nbsp; 🎨 **Interactive Learning Visualization**<br>
-🎯 **Knowledge Reinforcement** &nbsp;•&nbsp; 🔍 **Deep Research & Co-Writer**
-
-</div>
+> **DeepTutor** is an open-source, **agent-native** intelligent tutoring system that treats every learning interaction as an agentic workflow. Instead of wrapping a single LLM behind a chat interface, DeepTutor orchestrates **specialized agents** — each with its own tools, memory, and reasoning loop — to deliver personalized, multi-step tutoring across problem solving, assessment generation, deep research, and interactive learning.
 
 ---
 ### 📰 News
@@ -67,200 +60,212 @@
 
 ---
 
-## Key Features of DeepTutor
+## Why Agentic Tutoring?
 
-### 📚 Massive Document Knowledge Q&A
-• **Smart Knowledge Base**: Upload textbooks, research papers, technical manuals, and domain-specific documents. Build a comprehensive AI-powered knowledge repository for instant access.<br>
-• **Multi-Agent Problem Solving**: Dual-loop reasoning architecture with RAG, web search, and code execution -- delivering step-by-step solutions with precise citations.
+Traditional AI tutoring is **single-turn Q&A** — you ask, the model answers, context is lost. DeepTutor takes a fundamentally different approach: every interaction is an **agentic workflow** where specialized agents plan, reason, act, and verify.
 
-### 🎨 Interactive Learning Visualization
-• **Knowledge Simplification & Explanations**: Transform complex concepts, knowledge, and algorithms into easy-to-understand visual aids, detailed step-by-step breakdowns, and engaging interactive demonstrations.<br>
-• **Personalized Q&A**: Context-aware conversations that adapt to your learning progress, with interactive pages and session-based knowledge tracking.
-
-### 🎯 Knowledge Reinforcement with Practice Exercise Generator
-• **Intelligent Exercise Creation**: Generate targeted quizzes, practice problems, and customized assessments tailored to your current knowledge level and specific learning objectives.<br>
-• **Authentic Exam Simulation**: Upload reference exams to generate practice questions that perfectly match the original style, format, and difficulty—giving you realistic preparation for the actual test.
-
-### 🔍 Deep Research & Co-Writer
-• **Comprehensive Research & Literature Review**: Conduct in-depth topic exploration with systematic analysis. Identify patterns, connect related concepts across disciplines, and synthesize existing research findings.<br>
-• **Structured Research Output**: Review stepwise research traces, generate cited reports, and continue into Co-Writer workflows for drafting and refinement.
+| Dimension | Traditional AI Tutor | DeepTutor |
+|:---|:---|:---|
+| **Reasoning** | Single LLM call | Multi-agent pipelines with planning, execution, and verification stages |
+| **Memory** | Stateless or shallow context | Persistent memory with knowledge graphs, vector stores, and session tracking |
+| **Output** | Plain text | Rich artifacts: interactive visualizations, code execution, citations, audio |
+| **Adaptation** | One-size-fits-all | Grounded in your documents, learning history, and goals |
+| **Extensibility** | Monolithic | Two-layer plugin architecture — add tools or capabilities without touching the core |
 
 ---
 
+## 🏗 Agent-Native Architecture
+
+DeepTutor is built on a **two-layer plugin model** with a unified orchestrator that routes every request — whether from CLI, WebSocket, or Python SDK — to the right agents and tools.
+
+```
+Entry Points:    CLI (Typer)  ·  WebSocket API  ·  Python SDK
+                         ↓              ↓             ↓
+              ┌──────────────────────────────────────────────┐
+              │             ChatOrchestrator                  │
+              │   routes to default ChatCapability            │
+              │   or a selected deep Capability               │
+              └──────────┬─────────────────┬─────────────────┘
+                         │                 │
+              ┌──────────▼──────┐  ┌───────▼────────────┐
+              │  Tool Registry  │  │ Capability Registry │
+              │   (Level 1)     │  │    (Level 2)        │
+              └─────────────────┘  └────────────────────┘
+```
+
+### Level 1 — Tools
+
+Lightweight, single-function utilities the LLM calls on demand:
+
+| Tool | Description |
+|:---|:---|
+| `rag` | Hybrid knowledge-base retrieval (naive + graph-enhanced) |
+| `web_search` | Real-time web search with structured citations |
+| `code_execution` | Sandboxed Python execution with artifact capture |
+| `reason` | Dedicated deep-reasoning LLM call |
+| `brainstorm` | Breadth-first idea exploration with rationale |
+| `paper_search` | arXiv academic paper search |
+| `geogebra_analysis` | Image → GeoGebra commands (4-stage vision pipeline) |
+
+### Level 2 — Capabilities
+
+Multi-step agent pipelines that take full control of the conversation:
+
+| Capability | Stages | Description |
+|:---|:---|:---|
+| `chat` | responding | Default tool-augmented conversational tutoring |
+| `deep_solve` | planning → reasoning → writing | Dual-loop multi-agent problem solving |
+| `deep_question` | ideation → evaluation → generation → validation | Assessment generation with auto-validation |
+
+### Plugins
+
+Community-extensible capabilities loaded from `deeptutor/plugins/`:
+
+| Plugin | Type | Description |
+|:---|:---|:---|
+| `deep_research` | playground | Multi-agent research with dynamic topic queues and cited reports |
+
 <div align="center">
-  <img src="assets/figs/title_gradient.svg" alt="All-in-One Tutoring System" width="70%">
+<img src="assets/figs/full-pipe.png" alt="DeepTutor Full-Stack Architecture" width="100%">
 </div>
 
-<!-- ━━━━━━━━━━━━━━━━ Core Learning Experience ━━━━━━━━━━━━━━━━ -->
+---
+
+## ✨ Capabilities
+
+<div align="center">
+  <img src="assets/figs/title_gradient.svg" alt="All-in-One Agentic Tutoring" width="70%">
+</div>
+
+### 📚 Agentic Problem Solving
+
+Upload textbooks, papers, or technical documents to build your knowledge base. When you ask a question, DeepTutor doesn't just retrieve — it **plans, investigates, solves, and verifies** through a dual-loop multi-agent pipeline with precise source citations.
 
 <table>
 <tr>
 <td width="50%" align="center" valign="top">
 
-<h3>📚 Massive Document Knowledge Q&A</h3>
-<a href="#problem-solving-agent">
+<h4>Multi-Agent Solver</h4>
+<a href="#-smart-solver">
 <img src="assets/gifs/solve.gif" width="100%">
 </a>
 <br>
-<sub>Multi-agent Problem Solving with Exact Citations</sub>
+<sub>Analysis Loop → Solve Loop with RAG, web search, and code execution</sub>
 
 </td>
 <td width="50%" align="center" valign="top">
 
-<h3>🎨 Interactive Learning Visualization</h3>
-<a href="#guided-learning">
+<h4>Interactive Guided Learning</h4>
+<a href="#-guided-learning">
 <img src="assets/gifs/guided-learning.gif" width="100%">
 </a>
 <br>
-<sub>Step-by-step Visual Explanations with Personal QAs.</sub>
+<sub>Personalized visual explanations with progressive knowledge paths</sub>
 
 </td>
 </tr>
 </table>
 
-<!-- ━━━━━━━━━━━━━━━━ Practice & Reinforcement ━━━━━━━━━━━━━━━━ -->
+### 🎯 Adaptive Knowledge Reinforcement
 
-<h3 align="center">🎯 Knowledge Reinforcement</h3>
+The question generation agent autonomously designs assessments tailored to your knowledge level. **Custom mode** generates questions grounded in your knowledge base; **Mimic mode** clones the style and difficulty of uploaded reference exams.
 
 <table>
 <tr>
 <td width="50%" valign="top" align="center">
 
-<a href="#question-generator">
+<a href="#-question-generator">
 <img src="assets/gifs/question-1.gif" width="100%">
 </a>
 
-**Custom Questions**  
-<sub>Auto-Validated Practice Questions Generation</sub>
+**Custom Questions**
+<sub>Auto-validated practice from your knowledge base</sub>
 
 </td>
 <td width="50%" valign="top" align="center">
 
-<a href="#question-generator">
+<a href="#-question-generator">
 <img src="assets/gifs/question-2.gif" width="100%">
 </a>
 
-**Mimic Questions**  
-<sub>Clone Exam Style for Authentic Practice</sub>
+**Mimic Questions**
+<sub>Clone exam style for authentic practice</sub>
 
 </td>
 </tr>
 </table>
 
-<!-- ━━━━━━━━━━━━━━━━ Research & Creation ━━━━━━━━━━━━━━━━ -->
+### 🔍 Deep Research & Co-Writer
 
-<h3 align="center">🔍 Deep Research & Co-Writer</h3>
+The deep research plugin decomposes topics into a dynamic queue of subtopics, dispatches parallel research agents equipped with RAG, web search, and paper search, then synthesizes a fully cited academic-style report.
 
 <table>
 <tr>
 <td width="50%" align="center">
 
-<a href="#deep-research">
+<a href="#-deep-research">
 <img src="assets/gifs/deepresearch.gif" width="100%">
 </a>
 
-**Deep Research**  
-<sub>Knowledge Extension from Textbook with RAG, Web and Paper-search</sub>
+**Deep Research**
+<sub>Planning → Parallel Research → Cited Report Generation</sub>
 
 </td>
 <td width="50%" align="center">
 
-<a href="#co-writer">
+<a href="#-interactive-ideagen-co-writer">
 <img src="assets/gifs/co-writer.gif" width="100%">
 </a>
 
-**Interactive IdeaGen**  
-<sub>RAG and Web-search Powered Co-writer with Podcast Generation</sub>
+**Co-Writer**
+<sub>AI-assisted writing with RAG context, annotation, and TTS narration</sub>
 
 </td>
 </tr>
 </table>
 
-<!-- ━━━━━━━━━━━━━━━━ Knowledge Infrastructure ━━━━━━━━━━━━━━━━ -->
-
-<h3 align="center">🏗️ All-in-One Knowledge System</h3>
+### 🏗️ Personal Knowledge Infrastructure
 
 <table>
 <tr>
 <td width="50%" align="center">
 
-<a href="#dashboard--knowledge-base-management">
+<a href="#-dashboard--knowledge-base-management">
 <img src="assets/gifs/knowledge_bases.png" width="100%">
 </a>
 
-**Personal Knowledge Base**  
-<sub>Build and Organize Your Own Knowledge Repository</sub>
+**Knowledge Base**
+<sub>Upload, organize, and incrementally update your document collections</sub>
 
 </td>
 <td width="50%" align="center">
 
-<a href="#notebook">
+<a href="#-notebook">
 <img src="assets/gifs/notebooks.png" width="100%">
 </a>
 
-**Personal Notebook**  
-<sub>Your Contextual Memory for Learning Sessions</sub>
+**Notebook**
+<sub>Persistent learning memory across all sessions and modules</sub>
 
 </td>
 </tr>
 </table>
 
 <p align="center">
-  <sub>🌙 Use DeepTutor in <b>Dark Mode</b>!</sub>
+  <sub>🌙 Dark mode supported</sub>
 </p>
 
 ---
 
-## 🏛️ DeepTutor's Framework
+## 🚀 Quick Start
 
-<div align="center">
-<img src="assets/figs/full-pipe.png" alt="DeepTutor Full-Stack Workflow" width="100%">
-</div>
-
-### 💬 User Interface Layer
-• **Intuitive Interaction**: Simple bidirectional query-response flow for intuitive interaction.<br>
-• **Structured Output**: Structured response generation that organizes complex information into actionable outputs.
-
-### 🤖 Intelligent Agent Modules
-• **Problem Solving & Assessment**: Step-by-step problem solving and custom assessment generation.<br>
-• **Research & Learning**: Deep Research for topic exploration, Co-Writer drafting, and Guided Learning with visualization.
-
-### 🔧 Tool Integration Layer
-• **Information Retrieval**: RAG hybrid retrieval, real-time web search, and academic paper databases.<br>
-• **Processing & Analysis**: Python code execution and PDF parsing for document analysis.
-
-### 🧠 Knowledge & Memory Foundation
-• **Knowledge Graph**: Entity-relation mapping for semantic connections and knowledge discovery.<br>
-• **Vector Store**: Embedding-based semantic search for intelligent content retrieval.<br>
-• **Memory System**: Session state management and citation tracking for contextual continuity.
-
-## 📋 Todo
-> 🌟 Star to follow our future updates!
-- [ x ] Multi-linguistic support
-- [ x ] DeepTutor Community
-- [ x ] Video & Audio file support
-- [ x ] Atomic RAG pipeline customize
-- [ - ] Incremental Knowledge-base Edit
-- [ - ] Personalized Workspace
-- [ - ] DataBase Visualization
-- [ - ] Online Demo
-
-## 🚀 Getting Started
-
-### Step 1: Pre-Configuration
-
-**① Clone Repository**
+### Step 1: Clone & Configure
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
-```
-
-**② Set Up Environment Variables**
-
-```bash
 cp .env.example .env
-# Edit .env file with your API keys
+# Edit .env with your API keys
 ```
 
 <details>
@@ -290,138 +295,68 @@ cp .env.example .env
 
 </details>
 
-**③ Configure Ports & LLM** *(Optional)*
+### Step 2: Launch
 
-- **Ports**: Set in `.env` file → `BACKEND_PORT` / `FRONTEND_PORT`
-- **Behavior config**: Runtime YAML lives under `data/user/settings/`
-- **Model catalog**: Tour and Settings now manage provider/model options for you
+#### 🐳 Option A: Docker (Recommended)
 
-**④ Try Demo Knowledge Bases** *(Optional)*
-
-<details>
-<summary>📚 <b>Available Demos</b></summary>
-
-- **Research Papers** — 5 papers from our lab ([AI-Researcher](https://github.com/HKUDS/AI-Researcher), [LightRAG](https://github.com/HKUDS/LightRAG), etc.)
-- **Data Science Textbook** — 8 chapters, 296 pages ([Book Link](https://ma-lab-berkeley.github.io/deep-representation-learning-book/))
-
-</details>
-
-1. Download from [Google Drive](https://drive.google.com/drive/folders/1iWwfZXiTuQKQqUYb5fGDZjLCeTUP6DA6?usp=sharing)
-2. Extract into `data/` directory
-
-> Demo KBs use `text-embedding-3-large` with `dimensions = 3072`
-
-**⑤ Create Your Own Knowledge Base** *(After Launch)*
-
-1. Go to http://localhost:3782/knowledge
-2. Click "New Knowledge Base" → Enter name → Upload PDF/TXT/MD files
-3. Monitor progress in terminal
-
----
-
-### Step 2: Choose Your Installation Method
-
-#### 🐳 Option A: Docker Deployment
-
-> No Python/Node.js setup required
-
-**Prerequisites**: [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
-
-**Quick Start** — Build from source:
+> No Python/Node.js setup required — just Docker.
 
 ```bash
-docker compose up                  # Build and start (~11 min first run on mac mini M4)
-docker compose build --no-cache    # Clear cache and rebuild after pull the newest repo
-```
+# Build from source
+docker compose up                  # ~11 min first run on Mac Mini M4
 
-**Or use pre-built image** (faster):
-
-```bash
-# Works on all platforms - Docker auto-detects your architecture
+# Or use pre-built image (faster, auto-detects architecture)
 docker run -d --name deeptutor \
   -p 8001:8001 -p 3782:3782 \
   --env-file .env \
   -v $(pwd)/data/user:/app/data/user \
   -v $(pwd)/data/knowledge_bases:/app/data/knowledge_bases \
   ghcr.io/hkuds/deeptutor:latest
-
 # Windows PowerShell: use ${PWD} instead of $(pwd)
 ```
 
-**Common Commands**:
+<details>
+<summary>📋 <b>Docker Commands & Image Tags</b></summary>
 
 ```bash
-docker compose up -d      # Start
-docker compose down       # Stop
-docker compose logs -f    # View logs
-docker compose up --build # Rebuild after changes
+docker compose up -d              # Start in background
+docker compose down               # Stop
+docker compose logs -f            # View logs
+docker compose up --build         # Rebuild after changes
+docker compose build --no-cache   # Full rebuild
 ```
-
-<details>
-<summary>📋 <b>More Docker Options</b> (Pre-built images and architecture notes)</summary>
-
-**Pre-built Image Tags:**
 
 | Tag | Architectures | Description |
 |:----|:--------------|:------------|
-| `:latest` | AMD64 + ARM64 | Latest stable release (auto-detects your architecture) |
-| `:X.Y.Z` | AMD64 + ARM64 | Specific version (for example `:0.6.0`) |
-| `:X.Y.Z-amd64` | AMD64 only | Explicit AMD64 image |
-| `:X.Y.Z-arm64` | ARM64 only | Explicit ARM64 image |
-| `:latest-arm64` | ARM64 only | Latest ARM64 compatibility tag |
+| `:latest` | AMD64 + ARM64 | Latest stable (auto-detects) |
+| `:X.Y.Z` | AMD64 + ARM64 | Specific version |
+| `:X.Y.Z-amd64` | AMD64 only | Explicit AMD64 |
+| `:X.Y.Z-arm64` | ARM64 only | Explicit ARM64 |
 
-> 💡 The `:latest` tag is a **multi-architecture image** — Docker automatically pulls the correct version for your system (Intel/AMD or Apple Silicon/ARM)
-
-For cloud deployment and custom port mapping details, use the dedicated docs under `docs/guide/docker-start.md`.
+For cloud deployment, see `docs/guide/docker-start.md`.
 
 </details>
 
----
-
 #### 💻 Option B: Manual Installation
 
-> For development or non-Docker environments
-
-**Prerequisites**: Python 3.10+, Node.js 18+
-
-**1. Set Up Environment**:
+> For development or non-Docker environments. Requires Python 3.10+, Node.js 18+.
 
 ```bash
-# Using conda (Recommended)
+# Create environment
 conda create -n deeptutor python=3.10 && conda activate deeptutor
+# Or: python -m venv venv && source venv/bin/activate
 
-# Or using venv
-python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activate
-```
-
-**2. Install from source (nanobot-style)**:
-
-```bash
+# Install
 pip install -e .
-pip install ".[server]"          # backend API support
-pip install ".[math-animator]"   # optional math animator
-```
+pip install ".[server]"            # Web/API support
+pip install ".[math-animator]"     # Optional math animator
 
-**3. Start the official local onboarding flow**:
-
-```bash
+# Interactive setup (ports, providers, .env)
 python scripts/start_tour.py
-```
 
-The terminal tour now handles:
-
-- choosing `Web` or `CLI` guidance
-- choosing ports
-- installing the selected dependency profile
-- collecting provider/model configuration
-- writing the active `.env`
-
-**4. Launch**:
-
-```bash
-python scripts/start_web.py    # Start frontend + backend
-# Or: python -m deeptutor_cli.main chat  # CLI chat
-# Stop: Ctrl+C
+# Launch
+python scripts/start_web.py        # Web UI + Backend
+# Or: deeptutor chat               # CLI-only mode
 ```
 
 <details>
@@ -438,8 +373,6 @@ python -m deeptutor.api.run_server
 cd web && npm install && npm run dev -- -p 3782
 ```
 
-`start_web.py` injects the frontend API base automatically. `web/.env.local` is no longer part of the supported local flow.
-
 | Service | Default Port |
 |:---:|:---:|
 | Backend | `8001` |
@@ -447,65 +380,152 @@ cd web && npm install && npm run dev -- -p 3782
 
 </details>
 
-### Access URLs
+### Access
 
 | Service | URL | Description |
 |:---:|:---|:---|
-| **Frontend** | http://localhost:3782 | Main web interface |
+| **Web UI** | http://localhost:3782 | Main web interface |
 | **API Docs** | http://localhost:8001/docs | Interactive API documentation |
+
+### Demo Knowledge Bases (Optional)
+
+1. Download from [Google Drive](https://drive.google.com/drive/folders/1iWwfZXiTuQKQqUYb5fGDZjLCeTUP6DA6?usp=sharing)
+2. Extract into `data/` directory
+
+> Demo KBs use `text-embedding-3-large` with `dimensions = 3072`
+
+Available demos: **Research Papers** (5 papers from [AI-Researcher](https://github.com/HKUDS/AI-Researcher), [LightRAG](https://github.com/HKUDS/LightRAG), etc.) and **Data Science Textbook** (8 chapters, 296 pages from [this book](https://ma-lab-berkeley.github.io/deep-representation-learning-book/)).
 
 ---
 
-## 📂 Data Storage
+## 🧩 Extending DeepTutor
 
-All user content and system data are stored in the `data/` directory:
+DeepTutor's two-layer architecture is designed for extensibility. Add new tools or capabilities without modifying the core.
+
+### Plugin Development
+
+Create a directory under `deeptutor/plugins/<name>/`:
+
+```
+manifest.yaml     # Plugin metadata and stage definitions
+capability.py     # Class extending BaseCapability
+```
+
+**manifest.yaml**:
+```yaml
+name: my_plugin
+version: 0.1.0
+type: playground
+description: "My custom plugin"
+stages: [step1, step2]
+```
+
+**capability.py**:
+```python
+from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
+from deeptutor.core.context import UnifiedContext
+from deeptutor.core.stream_bus import StreamBus
+
+class MyPlugin(BaseCapability):
+    manifest = CapabilityManifest(
+        name="my_plugin",
+        description="My custom plugin",
+        stages=["step1", "step2"],
+    )
+
+    async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
+        async with stream.stage("step1", source=self.name):
+            await stream.content("Working on step 1...", source=self.name)
+        await stream.result({"response": "Done!"}, source=self.name)
+```
+
+### CLI
+
+```bash
+deeptutor run chat "Explain Fourier transform"
+deeptutor run deep_solve "Solve x^2=4" -t rag --kb my-kb
+deeptutor run deep_question "Linear algebra" --config num_questions=5
+deeptutor chat                        # Interactive REPL
+deeptutor kb list | create | add      # Knowledge base management
+deeptutor plugin list                 # Available plugins
+deeptutor serve --port 8001           # Start API server
+```
+
+### Key Source Files
+
+| Path | Purpose |
+|:---|:---|
+| `deeptutor/runtime/orchestrator.py` | ChatOrchestrator — unified entry point |
+| `deeptutor/core/tool_protocol.py` | `BaseTool` abstract class |
+| `deeptutor/core/capability_protocol.py` | `BaseCapability` abstract class |
+| `deeptutor/core/context.py` | `UnifiedContext` dataclass |
+| `deeptutor/core/stream.py` / `stream_bus.py` | StreamEvent protocol & async fan-out |
+| `deeptutor/runtime/registry/` | Tool & Capability discovery and registration |
+| `deeptutor/capabilities/` | Built-in capability implementations |
+| `deeptutor/tools/builtin/` | Built-in tool implementations |
+| `deeptutor/plugins/` | Community plugins |
+| `deeptutor_cli/main.py` | Typer CLI entry point |
+| `deeptutor/api/routers/unified_ws.py` | Unified WebSocket endpoint |
+
+### Dependency Layers
+
+```
+requirements/cli.txt            — CLI (LLM + RAG + providers + tools)
+requirements/server.txt         — CLI + FastAPI/uvicorn (Web/API)
+requirements/math-animator.txt  — Manim addon (deeptutor animate)
+requirements/dev.txt            — Server + test/lint tools
+```
+
+---
+
+## 📂 Data Layout
+
+All user content lives under `data/`:
 
 ```
 data/
-├── knowledge_bases/                          # Knowledge base storage
+├── knowledge_bases/                    # Document collections with vector indices
 └── user/
-    ├── chat_history.db                       # Unified chat history database
-    ├── logs/                                 # Runtime logs
-    ├── settings/                             # Runtime settings (auto-bootstrapped)
+    ├── chat_history.db                 # Unified conversation database
+    ├── logs/                           # Runtime logs
+    ├── settings/                       # Runtime config (auto-bootstrapped)
     │   ├── interface.json
     │   ├── main.yaml
     │   └── agents.yaml
     └── workspace/
-        ├── memory/
-        ├── notebook/
-        ├── co-writer/
-        │   ├── audio/
-        │   └── tool_calls/
-        ├── guide/
+        ├── memory/                     # Agent memory persistence
+        ├── notebook/                   # Learning record notebooks
+        ├── co-writer/                  # Co-writer drafts, audio, tool calls
+        ├── guide/                      # Guided learning sessions
         └── chat/
-            ├── chat/
-            ├── deep_solve/
-            ├── deep_question/
-            ├── deep_research/
-            │   └── reports/
-            ├── math_animator/
+            ├── chat/                   # Standard chat logs
+            ├── deep_solve/             # Problem solving artifacts
+            ├── deep_question/          # Generated assessments
+            ├── deep_research/          # Research reports & caches
             └── _detached_code_execution/
 ```
 
-Results are automatically saved during all activities. Missing runtime settings files are created at startup.
+---
 
-## 🧪 CI Workflows
+## 📋 Roadmap
 
-- Branch strategy: workflows run on `main` and `dev`.
-- [`tests.yml`](.github/workflows/tests.yml): import checks (Python 3.10/3.11/3.12) + smoke test subset (Python 3.11) using `--import-mode=importlib`.
-- [`linting.yaml`](.github/workflows/linting.yaml): Python pre-commit checks + frontend lint/type-check.
-- [`docker-publish.yml`](.github/workflows/docker-publish.yml): manual multi-arch image publish with semantic version input.
+> 🌟 Star to follow our progress!
 
-Local smoke command aligned with CI:
+- [x] Multi-language support
+- [x] Community channels (Discord, WeChat, Feishu)
+- [x] Video & audio file support
+- [x] Atomic RAG pipeline customization
+- [ ] Incremental knowledge-base editing
+- [ ] Personalized learner workspace
+- [ ] Knowledge graph visualization
+- [ ] Online demo
 
-```bash
-pytest -q --import-mode=importlib tests/api tests/cli tests/services/test_app_facade.py tests/services/test_model_catalog.py tests/services/test_path_service.py tests/services/memory tests/services/session tests/tools
-```
+---
 
-## 📦 Core Modules
+## 📦 Module Deep Dives
 
 <details>
-<summary><b>🧠 Smart Solver</b></summary>
+<summary><b>🧠 Smart Solver</b> — Dual-loop multi-agent problem solving</summary>
 
 <details>
 <summary><b>Architecture Diagram</b></summary>
@@ -514,25 +534,15 @@ pytest -q --import-mode=importlib tests/api tests/cli tests/services/test_app_fa
 
 </details>
 
-> **Intelligent problem-solving system** based on **Analysis Loop + Solve Loop** dual-loop architecture, supporting multi-mode reasoning and dynamic knowledge retrieval.
-
-**Core Features**
+**Analysis Loop + Solve Loop** dual-loop architecture with multi-mode reasoning and dynamic knowledge retrieval.
 
 | Feature | Description |
-|:---:|:---|
-| Dual-Loop Architecture | **Analysis Loop**: InvestigateAgent → NoteAgent<br>**Solve Loop**: PlanAgent → ManagerAgent → SolveAgent → CheckAgent → Format |
-| Multi-Agent Collaboration | Specialized agents: InvestigateAgent, NoteAgent, PlanAgent, ManagerAgent, SolveAgent, CheckAgent |
-| Real-time Streaming | WebSocket transmission with live reasoning process display |
+|:---|:---|
+| Dual-Loop Architecture | **Analysis Loop**: InvestigateAgent → NoteAgent &nbsp;&nbsp; **Solve Loop**: PlanAgent → ManagerAgent → SolveAgent → CheckAgent → Format |
+| Multi-Agent Collaboration | Specialized agents for investigation, note-taking, planning, management, solving, and checking |
 | Tool Integration | RAG (naive/hybrid), Web Search, Query Item, Code Execution |
-| Persistent Memory | JSON-based memory files for context preservation |
+| Real-time Streaming | WebSocket transmission with live reasoning process display |
 | Citation Management | Structured citations with reference tracking |
-
-**Usage**
-
-1. Visit http://localhost:{frontend_port}/solver
-2. Select a knowledge base
-3. Enter your question, click "Solve"
-4. Watch the real-time reasoning process and final answer
 
 <details>
 <summary><b>Python API</b></summary>
@@ -555,7 +565,7 @@ asyncio.run(main())
 </details>
 
 <details>
-<summary><b>Output Location</b></summary>
+<summary><b>Output Structure</b></summary>
 
 ```
 data/user/workspace/chat/deep_solve/solve_YYYYMMDD_HHMMSS/
@@ -574,7 +584,7 @@ data/user/workspace/chat/deep_solve/solve_YYYYMMDD_HHMMSS/
 ---
 
 <details>
-<summary><b>📝 Question Generator</b></summary>
+<summary><b>📝 Question Generator</b> — Dual-mode assessment creation with auto-validation</summary>
 
 <details>
 <summary><b>Architecture Diagram</b></summary>
@@ -583,40 +593,20 @@ data/user/workspace/chat/deep_solve/solve_YYYYMMDD_HHMMSS/
 
 </details>
 
-> **Dual-mode question generation system** supporting **custom knowledge-based generation** and **reference exam paper mimicking** with automatic validation.
-
-**Core Features**
+Two generation modes: **Custom** (knowledge-base-grounded questions) and **Mimic** (clone reference exam style).
 
 | Feature | Description |
-|:---:|:---|
-| Custom Mode | **Background Knowledge** → **Question Planning** → **Generation** → **Single-Pass Validation**<br>Analyzes question relevance without rejection logic |
-| Mimic Mode | **PDF Upload** → **MinerU Parsing** → **Question Extraction** → **Style Mimicking**<br>Generates questions based on reference exam structure |
-| ReAct Engine | QuestionGenerationAgent with autonomous decision-making (think → act → observe) |
-| Validation Analysis | Single-pass relevance analysis with `kb_coverage` and `extension_points` |
+|:---|:---|
+| Custom Mode | Background Knowledge → Question Planning → Generation → Single-Pass Validation |
+| Mimic Mode | PDF Upload → MinerU Parsing → Question Extraction → Style Mimicking |
+| ReAct Engine | QuestionGenerationAgent with autonomous think → act → observe loop |
 | Question Types | Multiple choice, fill-in-the-blank, calculation, written response, etc. |
-| Batch Generation | Parallel processing with progress tracking |
-| Complete Persistence | All intermediate files saved (background knowledge, plan, individual results) |
-| Timestamped Output | Mimic mode creates batch folders: `mimic_YYYYMMDD_HHMMSS_{pdf_name}/` |
-
-**Usage**
-
-**Custom Mode:**
-1. Visit http://localhost:{frontend_port}/question
-2. Fill in requirements (topic, difficulty, question type, count)
-3. Click "Generate Questions"
-4. View generated questions with validation reports
-
-**Mimic Mode:**
-1. Visit http://localhost:{frontend_port}/question
-2. Switch to "Mimic Exam" tab
-3. Upload PDF or provide parsed exam directory
-4. Wait for parsing → extraction → generation
-5. View generated questions alongside original references
+| Batch Processing | Parallel generation with progress tracking |
 
 <details>
 <summary><b>Python API</b></summary>
 
-**Custom Mode - Full Pipeline:**
+**Custom Mode:**
 ```python
 import asyncio
 from deeptutor.agents.question import AgentCoordinator
@@ -626,23 +616,18 @@ async def main():
         kb_name="ai_textbook",
         output_dir="data/user/workspace/chat/deep_question"
     )
-
-    # Generate multiple questions from text requirement
     result = await coordinator.generate_questions_custom(
         requirement_text="Generate 3 medium-difficulty questions about deep learning basics",
         difficulty="medium",
         question_type="choice",
         count=3
     )
-
-    print(f"✅ Generated {result['completed']}/{result['requested']} questions")
-    for q in result['results']:
-        print(f"- Relevance: {q['validation']['relevance']}")
+    print(f"Generated {result['completed']}/{result['requested']} questions")
 
 asyncio.run(main())
 ```
 
-**Mimic Mode - PDF Upload:**
+**Mimic Mode:**
 ```python
 from deeptutor.agents.question.tools.exam_mimic import mimic_exam_questions
 
@@ -652,23 +637,20 @@ result = await mimic_exam_questions(
     output_dir="data/user/workspace/chat/deep_question/mimic_papers",
     max_questions=5
 )
-
-print(f"✅ Generated {result['successful_generations']} questions")
-print(f"Output: {result['output_file']}")
+print(f"Generated {result['successful_generations']} questions")
 ```
 
 </details>
 
 <details>
-<summary><b>Output Location</b></summary>
+<summary><b>Output Structure</b></summary>
 
 **Custom Mode:**
 ```
 data/user/workspace/chat/deep_question/custom_YYYYMMDD_HHMMSS/
-├── background_knowledge.json      # RAG retrieval results
-├── question_plan.json              # Question planning
-├── question_1_result.json          # Individual question results
-├── question_2_result.json
+├── background_knowledge.json
+├── question_plan.json
+├── question_1_result.json
 └── ...
 ```
 
@@ -676,10 +658,10 @@ data/user/workspace/chat/deep_question/custom_YYYYMMDD_HHMMSS/
 ```
 data/user/workspace/chat/deep_question/mimic_papers/
 └── mimic_YYYYMMDD_HHMMSS_{pdf_name}/
-    ├── {pdf_name}.pdf                              # Original PDF
-    ├── auto/{pdf_name}.md                          # MinerU parsed markdown
-    ├── {pdf_name}_YYYYMMDD_HHMMSS_questions.json  # Extracted questions
-    └── {pdf_name}_YYYYMMDD_HHMMSS_generated_questions.json  # Generated questions
+    ├── {pdf_name}.pdf
+    ├── auto/{pdf_name}.md
+    ├── {pdf_name}_YYYYMMDD_HHMMSS_questions.json
+    └── {pdf_name}_YYYYMMDD_HHMMSS_generated_questions.json
 ```
 
 </details>
@@ -689,7 +671,7 @@ data/user/workspace/chat/deep_question/mimic_papers/
 ---
 
 <details>
-<summary><b>🎓 Guided Learning</b></summary>
+<summary><b>🎓 Guided Learning</b> — Progressive learning paths with interactive visualization</summary>
 
 <details>
 <summary><b>Architecture Diagram</b></summary>
@@ -698,91 +680,46 @@ data/user/workspace/chat/deep_question/mimic_papers/
 
 </details>
 
-> **Personalized learning system** based on notebook content, automatically generating progressive learning paths through interactive pages and smart Q&A.
+Multi-agent pipeline that converts notebook content into progressive, interactive learning experiences.
 
-**Core Features**
+| Agent | Responsibility |
+|:---|:---|
+| **LocateAgent** | Identifies 3–5 progressive knowledge points from notebook content |
+| **InteractiveAgent** | Converts knowledge points into visual HTML pages |
+| **ChatAgent** | Provides context-aware Q&A during learning |
+| **SummaryAgent** | Generates learning summaries on completion |
 
-| Feature | Description |
-|:---:|:---|
-| Multi-Agent Architecture | **LocateAgent**: Identifies 3-5 progressive knowledge points<br>**InteractiveAgent**: Converts to visual HTML pages<br>**ChatAgent**: Provides contextual Q&A<br>**SummaryAgent**: Generates learning summaries |
-| Smart Knowledge Location | Automatic analysis of notebook content |
-| Interactive Pages | HTML page generation with bug fixing |
-| Smart Q&A | Context-aware answers with explanations |
-| Progress Tracking | Real-time status with session persistence |
-| Cross-Notebook Support | Select records from multiple notebooks |
-
-**Usage Flow**
-
-1. **Select Notebook(s)** — Choose one or multiple notebooks (cross-notebook selection supported)
-2. **Generate Learning Plan** — LocateAgent identifies 3-5 core knowledge points
-3. **Start Learning** — InteractiveAgent generates HTML visualization
-4. **Learning Interaction** — Ask questions, click "Next" to proceed
-5. **Complete Learning** — SummaryAgent generates learning summary
-
-<details>
-<summary><b>Output Location</b></summary>
-
-```
-data/user/workspace/guide/
-└── session_{session_id}.json    # Complete session state, knowledge points, chat history
-```
-
-</details>
+**Flow**: Select Notebooks → Generate Plan → Interactive Visual Learning → Q&A → Summary
 
 </details>
 
 ---
 
 <details>
-<summary><b>✏️ Interactive IdeaGen (Co-Writer)</b></summary>
+<summary><b>✏️ Co-Writer</b> — AI-assisted writing with context and narration</summary>
 
 <details>
 <summary><b>Architecture Diagram</b></summary>
 
-![Interactive IdeaGen Architecture](assets/figs/co-writer.png)
+![Co-Writer Architecture](assets/figs/co-writer.png)
 
 </details>
 
-> **Intelligent Markdown editor** supporting AI-assisted writing, auto-annotation, and TTS narration.
-
-**Core Features**
+Intelligent Markdown editor supporting AI rewriting, auto-annotation, and TTS narration.
 
 | Feature | Description |
-|:---:|:---|
-| Rich Text Editing | Full Markdown syntax support with live preview |
-| EditAgent | **Rewrite**: Custom instructions with optional RAG/web context<br>**Shorten**: Compress while preserving key information<br>**Expand**: Add details and context |
-| Auto-Annotation | Automatic key content identification and marking |
-| NarratorAgent | Script generation, TTS audio, multiple voices (Cherry, Stella, Annie, Cally, Eva, Bella) |
-| Context Enhancement | Optional RAG or web search for additional context |
-| Multi-Format Export | Markdown, PDF, etc. |
-
-**Usage**
-
-1. Visit http://localhost:{frontend_port}/co_writer
-2. Enter or paste text in the editor
-3. Use AI features: Rewrite, Shorten, Expand, Auto Mark, Narrate
-4. Export to Markdown or PDF
-
-<details>
-<summary><b>Output Location</b></summary>
-
-```
-data/user/workspace/co-writer/
-├── audio/                    # TTS audio files
-│   └── {operation_id}.mp3
-├── tool_calls/               # Tool call history
-│   └── {operation_id}_{tool_type}.json
-└── history.json              # Edit history
-```
-
-</details>
+|:---|:---|
+| EditAgent | Rewrite (custom instructions + optional RAG/web), Shorten, Expand |
+| Auto-Annotation | Key content identification and marking |
+| NarratorAgent | Script generation + TTS with multiple voice options |
+| Context Enhancement | Optional RAG or web search for richer content |
 
 </details>
 
 ---
 
 <details>
-<summary><b>🔬 Deep Research</b></summary>
+<summary><b>🔬 Deep Research</b> — Multi-agent research with dynamic topic queues</summary>
 
 <details>
 <summary><b>Architecture Diagram</b></summary>
@@ -791,121 +728,40 @@ data/user/workspace/co-writer/
 
 </details>
 
-> **DR-in-KG** (Deep Research in Knowledge Graph) — A systematic deep research system based on **Dynamic Topic Queue** architecture, enabling multi-agent collaboration across three phases: **Planning → Researching → Reporting**.
+**DR-in-KG** (Deep Research in Knowledge Graph) — three-phase research pipeline: **Planning → Researching → Reporting** with dynamic topic discovery and centralized citation management.
 
-**Core Features**
+| Phase | Agents | Description |
+|:---|:---|:---|
+| **Planning** | RephraseAgent, DecomposeAgent | Topic optimization and subtopic decomposition |
+| **Researching** | ManagerAgent, ResearchAgent, NoteAgent | Queue-based research with RAG, web, paper search, code execution |
+| **Reporting** | ReportingAgent | Outline generation, section writing with citation tables, post-processing |
 
-| Feature | Description |
-|:---:|:---|
-| Three-Phase Architecture | **Phase 1 (Planning)**: RephraseAgent (topic optimization) + DecomposeAgent (subtopic decomposition)<br>**Phase 2 (Researching)**: ManagerAgent (queue scheduling) + ResearchAgent (research decisions) + NoteAgent (info compression)<br>**Phase 3 (Reporting)**: Deduplication → Three-level outline generation → Report writing with citations |
-| Dynamic Topic Queue | Core scheduling system with TopicBlock state management: `PENDING → RESEARCHING → COMPLETED/FAILED`. Supports dynamic topic discovery during research |
-| Execution Modes | **Series Mode**: Sequential topic processing<br>**Parallel Mode**: Concurrent multi-topic processing with `AsyncCitationManagerWrapper` for thread-safe operations |
-| Multi-Tool Integration | **RAG** (hybrid/naive), **Query Item** (entity lookup), **Paper Search**, **Web Search**, **Code Execution** — dynamically selected by ResearchAgent |
-| Unified Citation System | Centralized CitationManager as single source of truth for citation ID generation, ref_number mapping, and deduplication |
-| Preset Configurations | **quick**: Fast research (1-2 subtopics, 1-2 iterations)<br>**medium/standard**: Balanced depth (5 subtopics, 4 iterations)<br>**deep**: Thorough research (8 subtopics, 7 iterations)<br>**auto**: Agent autonomously decides depth |
+**Execution Modes**: Series (sequential) or Parallel (concurrent with `AsyncCitationManagerWrapper`).
 
-**Citation System Architecture**
+**Presets**: `quick` (1–2 subtopics) · `medium` (5 subtopics) · `deep` (8 subtopics) · `auto` (agent decides).
 
-The citation system follows a centralized design with CitationManager as the single source of truth:
+<details>
+<summary><b>Citation System</b></summary>
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      CitationManager                            │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
-│  │  ID Generation  │  │  ref_number Map │  │   Deduplication │  │
-│  │  PLAN-XX        │  │  citation_id →  │  │   (papers only) │  │
-│  │  CIT-X-XX       │  │  ref_number     │  │                 │  │
-│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘  │
-└───────────┼────────────────────┼────────────────────┼───────────┘
-            │                    │                    │
-     ┌──────┴──────┐      ┌──────┴──────┐      ┌──────┴──────┐
-     │DecomposeAgent│      │ReportingAgent│      │ References │
-     │ ResearchAgent│      │ (inline [N]) │      │  Section   │
-     │  NoteAgent   │      └─────────────┘      └────────────┘
-     └─────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    CitationManager                       │
+│  ┌───────────────┐  ┌───────────────┐  ┌─────────────┐  │
+│  │ ID Generation │  │ ref_number    │  │Deduplication│  │
+│  │ PLAN-XX       │  │ Mapping       │  │(papers)     │  │
+│  │ CIT-X-XX      │  │               │  │             │  │
+│  └───────┬───────┘  └───────┬───────┘  └──────┬──────┘  │
+└──────────┼──────────────────┼─────────────────┼─────────┘
+           │                  │                 │
+    ┌──────▼──────┐    ┌──────▼──────┐   ┌──────▼──────┐
+    │Research     │    │Reporting    │   │ References  │
+    │Agents       │    │Agent [N]    │   │  Section    │
+    └─────────────┘    └─────────────┘   └─────────────┘
 ```
 
-| Component | Description |
-|:---:|:---|
-| ID Format | **PLAN-XX** (planning stage RAG queries) + **CIT-X-XX** (research stage, X=block number) |
-| ref_number Mapping | Sequential 1-based numbers built from sorted citation IDs, with paper deduplication |
-| Inline Citations | Simple `[N]` format in LLM output, post-processed to clickable `[[N]](#ref-N)` links |
-| Citation Table | Clear reference table provided to LLM: `Cite as [1] → (RAG) query preview...` |
-| Post-processing | Automatic format conversion + validation to remove invalid citation references |
-| Parallel Safety | Thread-safe async methods (`get_next_citation_id_async`, `add_citation_async`) for concurrent execution |
+Centralized citation management with thread-safe async operations, sequential ref_number mapping, and automatic `[N]` → `[[N]](#ref-N)` post-processing.
 
-**Parallel Execution Architecture**
-
-When `execution_mode: "parallel"` is enabled, multiple topic blocks are researched concurrently:
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Parallel Research Execution                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   DynamicTopicQueue                    AsyncCitationManagerWrapper      │
-│   ┌─────────────────┐                  ┌─────────────────────────┐      │
-│   │ Topic 1 (PENDING)│ ──┐             │  Thread-safe wrapper    │      │
-│   │ Topic 2 (PENDING)│ ──┼──→ asyncio  │  for CitationManager    │      │
-│   │ Topic 3 (PENDING)│ ──┤   Semaphore │                         │      │
-│   │ Topic 4 (PENDING)│ ──┤   (max=5)   │  • get_next_citation_   │      │
-│   │ Topic 5 (PENDING)│ ──┘             │    id_async()           │      │
-│   └─────────────────┘                  │  • add_citation_async() │      │
-│            │                           └───────────┬─────────────┘      │
-│            ▼                                       │                    │
-│   ┌─────────────────────────────────────────────────────────────┐      │
-│   │              Concurrent ResearchAgent Tasks                  │      │
-│   │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐        │      │
-│   │  │ Task 1  │  │ Task 2  │  │ Task 3  │  │ Task 4  │  ...   │      │
-│   │  │(Topic 1)│  │(Topic 2)│  │(Topic 3)│  │(Topic 4)│        │      │
-│   │  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘        │      │
-│   │       │            │            │            │              │      │
-│   │       └────────────┴────────────┴────────────┘              │      │
-│   │                         │                                    │      │
-│   │                         ▼                                    │      │
-│   │              AsyncManagerAgentWrapper                        │      │
-│   │              (Thread-safe queue updates)                     │      │
-│   └─────────────────────────────────────────────────────────────┘      │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-| Component | Description |
-|:---:|:---|
-| `asyncio.Semaphore` | Limits concurrent tasks to `max_parallel_topics` (default: 5) |
-| `AsyncCitationManagerWrapper` | Wraps CitationManager with `asyncio.Lock()` for thread-safe ID generation |
-| `AsyncManagerAgentWrapper` | Ensures queue state updates are atomic across parallel tasks |
-| Real-time Progress | Live display of all active research tasks with status indicators |
-
-**Agent Responsibilities**
-
-| Agent | Phase | Responsibility |
-|:---:|:---:|:---|
-| RephraseAgent | Planning | Optimizes user input topic, supports multi-turn user interaction for refinement |
-| DecomposeAgent | Planning | Decomposes topic into subtopics with RAG context, obtains citation IDs from CitationManager |
-| ManagerAgent | Researching | Queue state management, task scheduling, dynamic topic addition |
-| ResearchAgent | Researching | Knowledge sufficiency check, query planning, tool selection, requests citation IDs before each tool call |
-| NoteAgent | Researching | Compresses raw tool outputs into summaries, creates ToolTraces with pre-assigned citation IDs |
-| ReportingAgent | Reporting | Builds citation map, generates three-level outline, writes report sections with citation tables, post-processes citations |
-
-**Report Generation Pipeline**
-
-```
-1. Build Citation Map     →  CitationManager.build_ref_number_map()
-2. Generate Outline       →  Three-level headings (H1 → H2 → H3)
-3. Write Sections         →  LLM uses [N] citations with provided citation table
-4. Post-process           →  Convert [N] → [[N]](#ref-N), validate references
-5. Generate References    →  Academic-style entries with collapsible source details
-```
-
-**Usage**
-
-1. Visit the main chat page at http://localhost:{frontend_port}
-2. Enter research topic
-3. Switch capability to `deep_research`
-4. Fill the explicit research config panel before sending
-5. Watch stepwise progress cards for each LLM/tool stage
-6. View structured report with citations and exported artifacts
+</details>
 
 <details>
 <summary><b>Python API</b></summary>
@@ -917,20 +773,14 @@ from deeptutor.services.config import load_config_with_main
 from deeptutor.services.llm import get_llm_config
 
 async def main():
-    # Shared runtime settings come from main.yaml.
-    # Interactive deep_research requests should pass explicit config from the frontend.
     config = load_config_with_main("main.yaml")
     llm_config = get_llm_config()
-
-    # Create pipeline (agent parameters loaded from agents.yaml automatically)
     pipeline = ResearchPipeline(
         config=config,
         api_key=llm_config["api_key"],
         base_url=llm_config["base_url"],
-        kb_name="ai_textbook"  # Optional: override knowledge base
+        kb_name="ai_textbook"
     )
-
-    # Run research
     result = await pipeline.run(topic="Attention Mechanisms in Deep Learning")
     print(f"Report saved to: {result['final_report_path']}")
 
@@ -940,67 +790,43 @@ asyncio.run(main())
 </details>
 
 <details>
-<summary><b>Output Location</b></summary>
+<summary><b>Output Structure</b></summary>
 
 ```
 data/user/workspace/chat/deep_research/
-├── reports/                          # Final research reports
-│   ├── research_YYYYMMDD_HHMMSS.md   # Markdown report with clickable citations [[N]](#ref-N)
-│   └── research_*_metadata.json      # Research metadata and statistics
-└── cache/                            # Research process cache
+├── reports/
+│   ├── research_YYYYMMDD_HHMMSS.md        # Report with [[N]](#ref-N) citations
+│   └── research_*_metadata.json            # Research metadata
+└── cache/
     └── research_YYYYMMDD_HHMMSS/
-        ├── queue.json                # DynamicTopicQueue state (TopicBlocks + ToolTraces)
-        ├── citations.json            # Citation registry with ID counters and ref_number mapping
-        │                             #   - citations: {citation_id: citation_info}
-        │                             #   - counters: {plan_counter, block_counters}
-        ├── step1_planning.json       # Planning phase results (subtopics + PLAN-XX citations)
-        ├── planning_progress.json    # Planning progress events
-        ├── researching_progress.json # Researching progress events
-        ├── reporting_progress.json   # Reporting progress events
-        ├── outline.json              # Three-level report outline structure
-        └── token_cost_summary.json   # Token usage statistics
-```
-
-**Citation File Structure** (`citations.json`):
-```json
-{
-  "research_id": "research_20241209_120000",
-  "citations": {
-    "PLAN-01": {"citation_id": "PLAN-01", "tool_type": "rag_hybrid", "query": "...", "summary": "..."},
-    "CIT-1-01": {"citation_id": "CIT-1-01", "tool_type": "paper_search", "papers": [...], ...}
-  },
-  "counters": {
-    "plan_counter": 2,
-    "block_counters": {"1": 3, "2": 2}
-  }
-}
+        ├── queue.json                       # Topic queue state
+        ├── citations.json                   # Citation registry
+        ├── step1_planning.json              # Planning results
+        ├── outline.json                     # Report outline
+        └── token_cost_summary.json          # Usage statistics
 ```
 
 </details>
 
 <details>
-<summary><b>Configuration Options</b></summary>
-
-Key runtime configuration in `data/user/settings/main.yaml` (research section) and `data/user/settings/agents.yaml`:
+<summary><b>Configuration</b></summary>
 
 ```yaml
-# data/user/settings/agents.yaml - Agent LLM parameters
+# data/user/settings/agents.yaml
 research:
   temperature: 0.5
   max_tokens: 12000
 
-# data/user/settings/main.yaml - Research settings
+# data/user/settings/main.yaml
 research:
   researching:
-    note_agent_mode: auto         # Summary strategy for tool outputs
-    tool_timeout: 60              # Tool timeout ceiling
-    tool_max_retries: 2           # Retry ceiling
-    paper_search_years_limit: 3   # Optional narrowing for paper search
-
-# Global tool switches in tools section
+    note_agent_mode: auto
+    tool_timeout: 60
+    tool_max_retries: 2
+    paper_search_years_limit: 3
 tools:
   web_search:
-    enabled: true                 # Global web search switch (higher priority)
+    enabled: true
 ```
 
 </details>
@@ -1010,24 +836,20 @@ tools:
 ---
 
 <details>
-<summary><b>📊 Dashboard + Knowledge Base Management</b></summary>
+<summary><b>📊 Dashboard & Knowledge Base</b></summary>
 
-> **Unified system entry** providing activity tracking, knowledge base management, and system status monitoring.
-
-**Key Features**
+Unified system entry with activity tracking, knowledge base management, and system status monitoring.
 
 | Feature | Description |
-|:---:|:---|
-| Activity Statistics | Recent solving/generation/research records |
-| Knowledge Base Overview | KB list, statistics, incremental updates |
-| Notebook Statistics | Notebook counts, record distribution |
+|:---|:---|
+| Activity Statistics | Recent solving, generation, and research records |
+| Knowledge Base Management | Create, upload, update, delete knowledge bases |
+| Notebook Statistics | Record counts and distribution |
 | Quick Actions | One-click access to all modules |
 
-**Usage**
+**Create a Knowledge Base**: Web UI at `/knowledge` → "New Knowledge Base" → Upload PDF/TXT/MD files.
 
-- **Web Interface**: Visit http://localhost:{frontend_port} to view system overview
-- **Create KB**: Click "New Knowledge Base", upload PDF/Markdown documents
-- **View Activity**: Check recent learning activities on Dashboard
+**CLI**: `deeptutor kb create <name> --doc <path>` / `deeptutor kb add <name> --doc <path>` (incremental).
 
 </details>
 
@@ -1036,315 +858,133 @@ tools:
 <details>
 <summary><b>📓 Notebook</b></summary>
 
-> **Unified learning record management**, connecting outputs from all modules to create a personalized learning knowledge base.
+Unified learning record management connecting outputs from all modules.
 
-**Core Features**
-
-| Feature | Description |
-|:---:|:---|
-| Multi-Notebook Management | Create, edit, delete notebooks |
-| Unified Record Storage | Integrate solving/generation/research/Interactive IdeaGen records |
-| Categorization Tags | Auto-categorize by type, knowledge base |
-| Custom Appearance | Color, icon personalization |
-
-**Usage**
-
-1. Visit http://localhost:{frontend_port}/notebook
-2. Create new notebook (set name, description, color, icon)
-3. After completing tasks in other modules, click "Add to Notebook"
-4. View and manage all records on the notebook page
+- Create, edit, and organize multiple notebooks
+- Auto-categorized records from solving, generation, research, and co-writing
+- Custom colors and icons
+- Cross-module integration via "Add to Notebook" action
 
 </details>
 
 ---
 
-### 📖 Module Documentation
+## 🧪 CI
 
-<table>
-<tr>
-<td align="center"><a href="docs/guide/local-start.md">Local Setup</a></td>
-<td align="center"><a href="data/">Data Directory</a></td>
-<td align="center"><a href="deeptutor/api/">API Backend</a></td>
-<td align="center"><a href="deeptutor/core/">Core Utilities</a></td>
-</tr>
-<tr>
-<td align="center"><a href="deeptutor/knowledge/">Knowledge Base</a></td>
-<td align="center"><a href="deeptutor/tools/">Tools</a></td>
-<td align="center"><a href="web/">Web Frontend</a></td>
-<td align="center"><a href="deeptutor/agents/solve/">Solve Module</a></td>
-</tr>
-<tr>
-<td align="center"><a href="deeptutor/agents/question/">Question Module</a></td>
-<td align="center"><a href="deeptutor/agents/research/">Research Module</a></td>
-<td align="center"><a href="deeptutor/agents/co_writer/">Co-Writer Module</a></td>
-<td align="center"><a href="deeptutor/agents/guide/">Guide Module</a></td>
-</tr>
-<tr>
-</tr>
-</table>
+| Workflow | Description |
+|:---|:---|
+| [`tests.yml`](.github/workflows/tests.yml) | Import checks (Python 3.10/3.11/3.12) + smoke tests (3.11) |
+| [`linting.yaml`](.github/workflows/linting.yaml) | Python pre-commit + frontend lint/type-check |
+| [`docker-publish.yml`](.github/workflows/docker-publish.yml) | Manual multi-arch image publish |
+
+```bash
+# Local smoke test (aligned with CI)
+pytest -q --import-mode=importlib tests/api tests/cli tests/services/test_app_facade.py tests/services/test_model_catalog.py tests/services/test_path_service.py tests/services/memory tests/services/session tests/tools
+```
+
+---
 
 ## ❓ FAQ
 
 <details>
 <summary><b>Backend fails to start?</b></summary>
 
-**Checklist**
-- Confirm Python version >= 3.10
-- Confirm dependencies installed for your mode:
-  - CLI only: `pip install -r requirements/cli.txt && pip install -e .`
-  - Web/API: `pip install -r requirements/server.txt && pip install -e .`
-- Check if port 8001 is in use
-- Check `.env` file configuration
-
-**Solutions**
-- **Change port**: Set `BACKEND_PORT=9001` in `.env` file
-- **Check logs**: Review terminal error messages
+- Confirm Python >= 3.10 and dependencies installed (`pip install -e ".[server]"`)
+- Check if port 8001 is in use — change with `BACKEND_PORT=9001` in `.env`
+- Review terminal error messages
 
 </details>
 
 <details>
 <summary><b>Port occupied after Ctrl+C?</b></summary>
 
-**Problem**
-
-After pressing Ctrl+C during a running task (e.g., deep research), restarting shows "port already in use" error.
-
-**Cause**
-
-Ctrl+C sometimes only terminates the frontend process while the backend continues running in the background.
-
-**Solution**
+Ctrl+C sometimes only terminates the frontend. Kill the backend manually:
 
 ```bash
-# macOS/Linux: Find and kill the process
-lsof -i :8001
-kill -9 <PID>
+# macOS/Linux
+lsof -i :8001 && kill -9 <PID>
 
-# Windows: Find and kill the process
+# Windows
 netstat -ano | findstr :8001
 taskkill /PID <PID> /F
 ```
 
-Then restart the service with `python scripts/start_web.py`.
-
 </details>
 
 <details>
-<summary><b>npm: command not found error?</b></summary>
+<summary><b>npm: command not found?</b></summary>
 
-**Problem**
-
-Running `scripts/start_web.py` shows `npm: command not found` or exit status 127.
-
-**Checklist**
-- Check if npm is installed: `npm --version`
-- Check if Node.js is installed: `node --version`
-- Confirm conda environment is activated (if using conda)
-
-**Solutions**
 ```bash
-# Option A: Using Conda (Recommended)
+# Option A: Conda (recommended)
 conda install -c conda-forge nodejs
 
-# Option B: Using Official Installer
-# Download from https://nodejs.org/
+# Option B: nvm
+nvm install 18 && nvm use 18
 
-# Option C: Using nvm
-nvm install 18
-nvm use 18
+# Option C: Official installer from https://nodejs.org/
 ```
 
-**Verify Installation**
-```bash
-node --version  # Should show v18.x.x or higher
-npm --version   # Should show version number
-```
+Verify: `node --version` (should be v18+), `npm --version`.
 
 </details>
 
 <details>
-<summary><b>Long path names on Windows installation?</b></summary>
+<summary><b>Long path names on Windows?</b></summary>
 
-**Problem**
-
-On Windows, you may encounter errors related to long file paths during installation, such as "The filename or extension is too long" or similar path length issues.
-
-**Cause**
-
-Windows has a default limitation on path lengths (260 characters), which can be exceeded by DeepTutor's nested directory structures and dependencies.
-
-**Solution**
-
-Enable long path support system-wide by running the following command in an Administrator Command Prompt:
+Enable long path support:
 
 ```cmd
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
 ```
 
-After running this command, restart your terminal for the changes to take effect.
+Restart your terminal after running this command.
 
 </details>
 
 <details>
 <summary><b>Frontend cannot connect to backend?</b></summary>
 
-**Checklist**
-- Confirm backend is running (visit http://localhost:8001/docs)
-- Check browser console for error messages
-
-**Solution**
-
-Re-run the guided flow with `python scripts/start_tour.py`, then start the app again with `python scripts/start_web.py`.
+- Confirm backend is running: visit http://localhost:8001/docs
+- Re-run `python scripts/start_tour.py` then `python scripts/start_web.py`
 
 </details>
 
 <details>
-<summary><b>Docker and cloud deployment details</b></summary>
+<summary><b>HTTPS reverse proxy issues (Settings page error)?</b></summary>
 
-Use `docs/guide/docker-start.md` for remote deployment, reverse proxy, and custom port mapping guidance.
+Fixed in v0.5.0+. For older versions, the issue was FastAPI generating HTTP redirects behind HTTPS proxy.
+
+**Solution**: Update to latest version. Set `NEXT_PUBLIC_API_BASE=https://your-domain.com:port` in `.env`.
+
+See [nginx configuration example](https://github.com/HKUDS/DeepTutor/issues/112) and `docs/guide/docker-start.md`.
 
 </details>
 
 <details>
 <summary><b>WebSocket connection fails?</b></summary>
 
-**Checklist**
-- Confirm backend is running
-- Check firewall settings
-- Confirm WebSocket URL is correct
-
-**Solution**
-- **Check backend logs**
-- **Confirm URL format**: `ws://localhost:8001/api/v1/...`
-
-</details>
-
-<details>
-<summary><b>Settings page shows "Error loading data" with HTTPS reverse proxy?</b></summary>
-
-**Problem**
-
-When deploying behind an HTTPS reverse proxy (e.g., nginx), the Settings page shows "Error loading data" and browser DevTools reveals that HTTPS requests are being redirected to HTTP (307 redirect).
-
-**Cause**
-
-This issue has been fixed in v0.5.0+. If you're using an older version, the problem was caused by FastAPI's automatic trailing slash redirects generating HTTP URLs instead of preserving the original HTTPS protocol.
-
-**Solution (for v0.5.0+)**
-
-Update to the latest version. The fix disables automatic slash redirects to prevent protocol downgrade.
-
-**Recommended nginx Configuration**
-
-When using nginx as an HTTPS reverse proxy, use the following configuration:
-
-```nginx
-# Frontend
-location / {
-    proxy_pass http://localhost:3782;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-
-# Backend API
-location /api/ {
-    proxy_pass http://localhost:8001;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;  # Important: preserves original protocol
-}
-
-# WebSocket support
-location /api/v1/ {
-    proxy_pass http://localhost:8001;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-```
-
-**Environment Variable**
-
-Set in `.env`:
-```bash
-NEXT_PUBLIC_API_BASE=https://your-domain.com:port
-```
-
-See: [GitHub Issue #112](https://github.com/HKUDS/DeepTutor/issues/112)
+- Confirm backend is running and firewall allows the port
+- Verify URL format: `ws://localhost:8001/api/v1/...`
+- Check backend logs for errors
 
 </details>
 
 <details>
 <summary><b>Where are module outputs stored?</b></summary>
 
-| Module | Output Path |
-|:---:|:---|
+| Module | Path |
+|:---|:---|
 | Solve | `data/user/workspace/chat/deep_solve/solve_YYYYMMDD_HHMMSS/` |
-| Question | `data/user/workspace/chat/deep_question/{custom|mimic}_YYYYMMDD_HHMMSS/` |
+| Question | `data/user/workspace/chat/deep_question/{custom\|mimic}_YYYYMMDD_HHMMSS/` |
 | Research | `data/user/workspace/chat/deep_research/reports/` |
-| Interactive IdeaGen | `data/user/workspace/co-writer/` |
+| Co-Writer | `data/user/workspace/co-writer/` |
 | Notebook | `data/user/workspace/notebook/` |
 | Guide | `data/user/workspace/guide/session_{session_id}.json` |
 | Logs | `data/user/logs/` |
 
 </details>
 
-<details>
-<summary><b>How to add a new knowledge base?</b></summary>
-
-**Web Interface**
-1. Visit http://localhost:{frontend_port}/knowledge
-2. Click "New Knowledge Base"
-3. Enter knowledge base name
-4. Upload PDF/TXT/MD documents
-5. System will process documents in background
-
-**CLI**
-```bash
-deeptutor kb create <kb_name> --doc <pdf_path>
-```
-
-</details>
-
-<details>
-<summary><b>How to incrementally add documents to existing KB?</b></summary>
-
-**CLI (Recommended)**
-```bash
-deeptutor kb add <kb_name> --doc <new_document.pdf>
-```
-
-**Benefits**
-- Only processes new documents, saves time and API costs
-- Automatically merges with existing vector index
-- Preserves all existing data
-
-</details>
-
-<details>
-<summary><b>Numbered items extraction / uvloop.Loop issue?</b></summary>
-
-**Problem**
-
-Earlier versions had a numbered-items extraction step that could raise:
-```
-ValueError: Can't patch loop of type <class 'uvloop.Loop'>
-```
-
-**Solution**
-
-The numbered-items extraction module has been removed in llamaindex-only mode.
-No extra extraction command is required.
-
-</details>
-
-
-</div>
+---
 
 ## ⭐ Star History
 
