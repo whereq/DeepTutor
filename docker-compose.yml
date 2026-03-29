@@ -62,11 +62,19 @@ services:
       # Frontend web port (default: 3782)
       - FRONTEND_PORT=${FRONTEND_PORT:-3782}
       # ============================================
-      # API URL Configuration (Important for Cloud Deployment)
+      # API URL Configuration (Important for Remote Deployment)
       # ============================================
-      # For CLOUD/REMOTE deployment: Set this to your server's public URL
-      # Example: https://your-server.com:8001 or https://api.yourdomain.com
-      # If not set, defaults to http://localhost:${BACKEND_PORT} (only works locally)
+      # The frontend runs in the USER'S BROWSER — "localhost" means the user's machine,
+      # not the Docker host. This matters when Docker runs on a remote server.
+      #
+      # LOCAL (browsing from the same machine running Docker):
+      #   Leave blank — defaults to http://localhost:8001, which works via port mapping.
+      #
+      # REMOTE SERVER (Docker on a server, accessed from another machine):
+      #   Set to the server's public IP or hostname, e.g.:
+      #     NEXT_PUBLIC_API_BASE_EXTERNAL=http://203.0.113.10:8001
+      #   Without this the browser tries localhost:8001 on the user's laptop and all
+      #   API calls (including WebSocket) will fail.
       - NEXT_PUBLIC_API_BASE_EXTERNAL=${NEXT_PUBLIC_API_BASE_EXTERNAL:-}
       # Alternative: Direct API base URL (same priority as NEXT_PUBLIC_API_BASE_EXTERNAL)
       - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-}

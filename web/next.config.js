@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
+  // Standalone output: self-contained server.js + minimal node_modules
+  // This eliminates the need to copy the full node_modules into Docker production images
+  output: "standalone",
+
   // Move dev indicator to bottom-right corner
   devIndicators: {
     position: "bottom-right",
