@@ -370,7 +370,7 @@ export default function RichMarkdownRenderer({
             {ids.map((id, idx) => {
               const prefixMatch = id.match(/^(web|rag|code|src)-/);
               const prefix = prefixMatch?.[1] ?? "";
-              const num = prefix ? id.slice(prefixMatch[0].length) : id;
+              const num = prefix && prefixMatch ? id.slice(prefixMatch[0].length) : id;
               return (
                 <React.Fragment key={id}>
                   {idx > 0 && ", "}
