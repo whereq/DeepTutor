@@ -9,6 +9,6 @@
 #   pip install -r requirements/math-animator.txt  # + Manim animation engine
 #   pip install -r requirements/dev.txt            # + dev/test tools
 #
-# This file installs the server runtime (CLI + API).
+# This file installs the server runtime (CLI + API + TutorBot).
 
--r requirements/server.txt
+-r requirements/tutorbot.txt

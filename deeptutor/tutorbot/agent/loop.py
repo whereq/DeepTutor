@@ -66,6 +66,7 @@ class AgentLoop:
         mcp_servers: dict | None = None,
         channels_config: ChannelsConfig | None = None,
         shared_memory_dir: Path | None = None,
+        default_session_key: str | None = None,
     ):
         from deeptutor.tutorbot.config.schema import ExecToolConfig, WebSearchConfig
 
@@ -82,6 +83,7 @@ class AgentLoop:
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
         self._shared_memory_dir = shared_memory_dir
+        self._default_session_key = default_session_key
 
         self.context = ContextBuilder(workspace, shared_memory_dir=shared_memory_dir)
         self.sessions = session_manager or SessionManager(workspace)
@@ -403,7 +405,7 @@ class AgentLoop:
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
         logger.info("Processing message from {}:{}: {}", msg.channel, msg.sender_id, preview)
 
-        key = session_key or msg.session_key
+        key = session_key or self._default_session_key or msg.session_key
         session = self.sessions.get_or_create(key)
 
         # Slash commands

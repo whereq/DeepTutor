@@ -55,6 +55,7 @@ class TutorBotInstance:
     channel_manager: Any = None
     heartbeat: Any = None
     notify_queue: asyncio.Queue = field(default_factory=asyncio.Queue)
+    channel_bindings: dict[str, str] = field(default_factory=dict)
 
     @property
     def running(self) -> bool:
@@ -250,6 +251,8 @@ class TutorBotManager:
         venv_bin = str(Path(sys.executable).parent)
         exec_config = ExecToolConfig(timeout=300, path_append=venv_bin)
 
+        canonical_key = f"bot:{bot_id}"
+
         agent_loop = AgentLoop(
             bus=bus,
             provider=provider,
@@ -259,30 +262,61 @@ class TutorBotManager:
             session_manager=session_adapter,
             shared_memory_dir=None,
             restrict_to_workspace=False,
+            default_session_key=canonical_key,
         )
+
+        # -- Channel setup ---------------------------------------------------
+        channel_manager = None
+        if config.channels:
+            try:
+                from deeptutor.tutorbot.channels.manager import ChannelManager
+                from deeptutor.tutorbot.config.schema import ChannelsConfig
+
+                channels_config = ChannelsConfig(**config.channels)
+                channel_manager = ChannelManager(channels_config, bus)
+                if channel_manager.channels:
+                    logger.info(
+                        "Channels enabled for bot '%s': %s",
+                        bot_id, list(channel_manager.channels.keys()),
+                    )
+                else:
+                    logger.info("No channels matched config for bot '%s'", bot_id)
+                    channel_manager = None
+            except Exception:
+                logger.exception("Failed to initialise channels for bot '%s'", bot_id)
+                channel_manager = None
 
         instance = TutorBotInstance(
             bot_id=bot_id,
             config=config,
             agent_loop=agent_loop,
-            channel_manager=None,
+            channel_manager=channel_manager,
         )
 
+        # -- Core tasks -------------------------------------------------------
         loop_task = asyncio.create_task(
             agent_loop.run(), name=f"tutorbot:{bot_id}:loop",
         )
-        bridge_task = asyncio.create_task(
-            self._bridge_events(bot_id, bus), name=f"tutorbot:{bot_id}:events",
+        router_task = asyncio.create_task(
+            self._outbound_router(bot_id, bus, instance),
+            name=f"tutorbot:{bot_id}:router",
         )
-        instance.tasks.extend([loop_task, bridge_task])
+        instance.tasks.extend([loop_task, router_task])
 
+        # -- Start channel listeners (without ChannelManager's own dispatcher)
+        if channel_manager:
+            for ch_name, ch in channel_manager.channels.items():
+                ch_task = asyncio.create_task(
+                    ch.start(), name=f"tutorbot:{bot_id}:ch:{ch_name}",
+                )
+                instance.tasks.append(ch_task)
+
+        # -- Heartbeat --------------------------------------------------------
         from deeptutor.tutorbot.heartbeat import HeartbeatService
-
-        session_key = f"web:{bot_id}:web"
 
         async def _hb_execute(tasks_summary: str) -> str:
             return await agent_loop.process_direct(
-                tasks_summary, session_key=session_key,
+                tasks_summary, session_key=canonical_key,
                 channel="web", chat_id="web",
             )
 
@@ -301,35 +335,59 @@ class TutorBotManager:
         await heartbeat.start()
 
         self._bots[bot_id] = instance
+        self._save_bot_config(bot_id, config)
         logger.info("TutorBot '%s' started (workspace=%s)", bot_id, workspace)
         return instance
 
-    async def _bridge_events(self, bot_id: str, bus: Any) -> None:
-        """Forward outbound messages from TutorBot's MessageBus to DeepTutor's EventBus."""
+    async def _outbound_router(self, bot_id: str, bus: Any, instance: TutorBotInstance) -> None:
+        """Route outbound messages to channels, web notify_queue, and EventBus.
+
+        This is the sole consumer of the outbound queue, replacing both the
+        old ``_bridge_events`` and ``ChannelManager._dispatch_outbound`` to
+        avoid queue contention.
+        """
         try:
             from deeptutor.events.event_bus import Event, EventType, get_event_bus
+            from deeptutor.tutorbot.bus.events import OutboundMessage as _OMsg
 
             event_bus = get_event_bus()
             while True:
-                msg = await bus.consume_outbound()
-                if msg.metadata and msg.metadata.get("_progress"):
-                    continue
-                await event_bus.publish(Event(
-                    type=EventType.CAPABILITY_COMPLETE,
-                    task_id=f"tutorbot:{bot_id}:{msg.channel}:{msg.chat_id}",
-                    user_input="",
-                    agent_output=msg.content or "",
-                    metadata={
-                        "source": "tutorbot",
-                        "bot_id": bot_id,
-                        "channel": msg.channel,
-                        "chat_id": msg.chat_id,
-                    },
-                ))
+                msg: _OMsg = await bus.consume_outbound()
+                is_progress = bool(msg.metadata and msg.metadata.get("_progress"))
+
+                # 1. Route to originating channel (if it exists)
+                if instance.channel_manager:
+                    channel = instance.channel_manager.get_channel(msg.channel)
+                    if channel:
+                        try:
+                            await channel.send(msg)
+                        except Exception:
+                            logger.exception("Failed to send to channel %s for bot %s", msg.channel, bot_id)
+                        if not is_progress and msg.chat_id:
+                            instance.channel_bindings[msg.channel] = msg.chat_id
+
+                # 2. Notify web clients (non-progress only)
+                if not is_progress:
+                    await instance.notify_queue.put(msg.content or "")
+
+                # 3. Publish to EventBus
+                if not is_progress:
+                    await event_bus.publish(Event(
+                        type=EventType.CAPABILITY_COMPLETE,
+                        task_id=f"tutorbot:{bot_id}:{msg.channel}:{msg.chat_id}",
+                        user_input="",
+                        agent_output=msg.content or "",
+                        metadata={
+                            "source": "tutorbot",
+                            "bot_id": bot_id,
+                            "channel": msg.channel,
+                            "chat_id": msg.chat_id,
+                        },
+                    ))
         except asyncio.CancelledError:
             return
         except Exception:
-            logger.exception("Event bridge failed for bot %s", bot_id)
+            logger.exception("Outbound router failed for bot %s", bot_id)
 
     async def stop_bot(self, bot_id: str) -> bool:
         """Stop a running TutorBot instance."""
@@ -345,6 +403,12 @@ class TutorBotManager:
                 await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
+
+        if instance.channel_manager:
+            try:
+                await instance.channel_manager.stop_all()
+            except Exception:
+                logger.exception("Error stopping channels for bot '%s'", bot_id)
 
         if instance.heartbeat:
             instance.heartbeat.stop()
@@ -489,17 +553,39 @@ class TutorBotManager:
         if not instance or not instance.running:
             raise RuntimeError(f"Bot '{bot_id}' is not running")
 
+        canonical_key = f"bot:{bot_id}"
+
         async def _progress(text: str, *, tool_hint: bool = False) -> None:
             if on_progress:
                 await on_progress(text)
 
-        return await instance.agent_loop.process_direct(
+        response = await instance.agent_loop.process_direct(
             content,
-            session_key=f"web:{bot_id}:{chat_id}",
+            session_key=canonical_key,
             channel="web",
             chat_id=chat_id,
             on_progress=_progress,
         )
+
+        # Forward the reply to any bound external channels so mobile users
+        # see the web-originated conversation in their chat app.
+        if instance.channel_manager and response:
+            from deeptutor.tutorbot.bus.events import OutboundMessage
+
+            for ch_name, ch_chat_id in instance.channel_bindings.items():
+                ch = instance.channel_manager.get_channel(ch_name)
+                if ch:
+                    try:
+                        await ch.send(OutboundMessage(
+                            channel=ch_name, chat_id=ch_chat_id, content=response,
+                        ))
+                    except Exception:
+                        logger.exception(
+                            "Failed to forward web reply to channel %s for bot %s",
+                            ch_name, bot_id,
+                        )
+
+        return response
 
     async def auto_start_bots(self) -> None:
         """Scan persisted configs and start bots marked with auto_start: true."""
