@@ -54,8 +54,6 @@
 
 </details>
 
----
-
 ## ✨ Key Features
 
 - **Unified Chat Workspace** — Five powerful modes (Chat, Deep Solve, Quiz Generation, Deep Research, Math Animator) sharing the same context. Switch freely, as you wish.
@@ -69,7 +67,7 @@
 
 ## 🚀 Get Started
 
-### Install
+### Option A — Local Install
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
@@ -83,9 +81,7 @@ conda create -n deeptutor python=3.11 && conda activate deeptutor
 pip install -e ".[server]"
 ```
 
-### Configure & Launch
-
-Run the Setup Tour — a single command that handles everything from configuration to launch:
+Run the **Setup Tour** — a single command that handles everything from configuration to launch:
 
 ```bash
 python scripts/start_tour.py
@@ -116,6 +112,109 @@ cd web && npm install && npm run dev -- -p 3782
 
 </details>
 
+### Option B — Docker Deployment
+
+Docker wraps the backend and frontend into a single container via supervisord — no local Python or Node.js required.
+
+**1. Configure environment variables**
+
+```bash
+git clone https://github.com/HKUDS/DeepTutor.git
+cd DeepTutor
+cp .env.example .env
+```
+
+Edit `.env` and fill in at least the required fields:
+
+```dotenv
+# LLM (Required)
+LLM_BINDING=openai
+LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=sk-xxx
+LLM_HOST=https://api.openai.com/v1
+
+# Embedding (Required for Knowledge Base)
+EMBEDDING_BINDING=openai
+EMBEDDING_MODEL=text-embedding-3-large
+EMBEDDING_API_KEY=sk-xxx
+EMBEDDING_HOST=https://api.openai.com/v1
+EMBEDDING_DIMENSION=3072
+```
+
+**2. Build & start**
+
+```bash
+docker compose up -d
+```
+
+That's it. Open [http://localhost:3782](http://localhost:3782) once the container is healthy.
+
+**3. View logs & stop**
+
+```bash
+docker compose logs -f   # tail logs
+docker compose down       # stop and remove container
+```
+
+<details>
+<summary><b>Cloud / remote server deployment</b></summary>
+
+When deploying to a remote server, the browser needs to know the public URL of the backend API. Add one more variable to your `.env`:
+
+```dotenv
+# Set to the public URL where the backend is reachable
+NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
+```
+
+The frontend startup script applies this value at runtime — no rebuild needed.
+
+</details>
+
+<details>
+<summary><b>Development mode (hot-reload)</b></summary>
+
+Layer the dev override to mount source code and enable hot-reload for both services:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+Changes to `deeptutor/`, `deeptutor_cli/`, `scripts/`, and `web/` are reflected immediately.
+
+</details>
+
+<details>
+<summary><b>Custom ports</b></summary>
+
+Override the default ports in `.env`:
+
+```dotenv
+BACKEND_PORT=9001
+FRONTEND_PORT=4000
+```
+
+Then restart:
+
+```bash
+docker compose up -d
+```
+
+</details>
+
+<details>
+<summary><b>Data persistence</b></summary>
+
+User data and knowledge bases are persisted via Docker volumes mapped to local directories:
+
+| Container path | Host path | Content |
+|:---|:---|:---|
+| `/app/data/user` | `./data/user` | Settings, memory, workspace, sessions, logs |
+| `/app/data/knowledge_bases` | `./data/knowledge_bases` | Uploaded documents & vector indices |
+
+These directories survive `docker compose down` and are reused on the next `docker compose up`.
+
+</details>
+
 <details>
 <summary><b>Environment variables reference</b></summary>
 
@@ -134,6 +233,8 @@ cd web && npm install && npm run dev -- -p 3782
 | `SEARCH_API_KEY` | No | Search API key |
 | `BACKEND_PORT` | No | Backend port (default `8001`) |
 | `FRONTEND_PORT` | No | Frontend port (default `3782`) |
+| `NEXT_PUBLIC_API_BASE_EXTERNAL` | No | Public backend URL for cloud deployment |
+| `DISABLE_SSL_VERIFY` | No | Disable SSL verification (default `false`) |
 
 </details>
 

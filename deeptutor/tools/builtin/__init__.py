@@ -341,12 +341,19 @@ class PaperSearchToolWrapper(_PromptHintsMixin, BaseTool):
     async def execute(self, **kwargs: Any) -> ToolResult:
         from deeptutor.tools.paper_search_tool import ArxivSearchTool
 
-        papers = await ArxivSearchTool().search_papers(
-            query=kwargs.get("query", ""),
-            max_results=kwargs.get("max_results", 3),
-            years_limit=kwargs.get("years_limit", 3),
-            sort_by=kwargs.get("sort_by", "relevance"),
-        )
+        try:
+            papers = await ArxivSearchTool().search_papers(
+                query=kwargs.get("query", ""),
+                max_results=kwargs.get("max_results", 3),
+                years_limit=kwargs.get("years_limit", 3),
+                sort_by=kwargs.get("sort_by", "relevance"),
+            )
+        except Exception:
+            return ToolResult(
+                content="arXiv search is temporarily unavailable (rate-limited or network error). Please try again later.",
+                sources=[],
+                metadata={"provider": "arxiv", "papers": [], "error": True},
+            )
         if not papers:
             return ToolResult(
                 content="No arXiv preprints found for this query.",

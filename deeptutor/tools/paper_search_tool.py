@@ -6,10 +6,19 @@ tool usage in chat / playground flows.
 """
 
 import asyncio
+import logging
 from datetime import datetime
 import re
 
 import arxiv
+
+logger = logging.getLogger(__name__)
+
+_FETCH_MULTIPLIER = 2
+_MAX_FETCH_CAP = 30
+_REQUEST_TIMEOUT_S = 30
+_MAX_RETRIES = 2
+_RETRY_DELAY_S = 3.0
 
 
 class ArxivSearchTool:
@@ -17,7 +26,11 @@ class ArxivSearchTool:
 
     def __init__(self):
         """Initialize search tool"""
-        self.client = arxiv.Client()
+        self.client = arxiv.Client(
+            page_size=20,
+            delay_seconds=3.0,
+            num_retries=_MAX_RETRIES,
+        )
 
     async def search_papers(
         self,
@@ -49,46 +62,64 @@ class ArxivSearchTool:
         if not query:
             return []
 
-        max_results = max(1, int(max_results))
+        max_results = max(1, min(int(max_results), 20))
 
-        # Determine sort method
         if sort_by == "date":
             sort_criterion = arxiv.SortCriterion.SubmittedDate
         else:
             sort_criterion = arxiv.SortCriterion.Relevance
 
-        # Build search object
+        fetch_count = min(max_results * _FETCH_MULTIPLIER, _MAX_FETCH_CAP)
+
         search = arxiv.Search(
             query=query,
-            max_results=max_results * 3,  # Search more for filtering
+            max_results=fetch_count,
             sort_by=sort_criterion,
             sort_order=arxiv.SortOrder.Descending,
         )
 
-        papers = []
+        papers: list[dict] = []
         current_year = datetime.now().year
 
-        # The arxiv client is synchronous, so run it off the event loop.
-        results = await asyncio.to_thread(lambda: list(self.client.results(search)))
+        try:
+            results = await asyncio.wait_for(
+                asyncio.to_thread(lambda: list(self.client.results(search))),
+                timeout=_REQUEST_TIMEOUT_S,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("arXiv search timed out after %ss for query: %s", _REQUEST_TIMEOUT_S, query)
+            return []
+        except arxiv.HTTPError as exc:
+            logger.warning("arXiv HTTP error (status %s) for query: %s", exc.status, query)
+            if exc.status == 429:
+                await asyncio.sleep(_RETRY_DELAY_S)
+                try:
+                    results = await asyncio.wait_for(
+                        asyncio.to_thread(lambda: list(self.client.results(search))),
+                        timeout=_REQUEST_TIMEOUT_S,
+                    )
+                except Exception:
+                    logger.warning("arXiv retry also failed for query: %s", query)
+                    return []
+            else:
+                return []
+        except Exception:
+            logger.exception("Unexpected error during arXiv search for query: %s", query)
+            return []
 
         for result in results:
-            # Extract year
             published_date = result.published
             paper_year = published_date.year
 
-            # Year filtering
             if years_limit and (current_year - paper_year) > years_limit:
                 continue
 
-            # Extract ArXiv ID
             arxiv_id = result.entry_id.split("/")[-1]
             if "v" in arxiv_id:
-                arxiv_id = arxiv_id.split("v")[0]  # Remove version number
+                arxiv_id = arxiv_id.split("v")[0]
 
-            # Extract authors
             authors = [author.name for author in result.authors]
 
-            # Build paper information
             paper_info = {
                 "title": result.title,
                 "authors": authors,
@@ -101,7 +132,6 @@ class ArxivSearchTool:
 
             papers.append(paper_info)
 
-            # If enough collected, stop
             if len(papers) >= max_results:
                 break
 
