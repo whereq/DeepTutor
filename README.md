@@ -8,12 +8,6 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/HKUDS/DeepTutor?style=flat-square&color=brightgreen)](https://github.com/HKUDS/DeepTutor/releases)
-[![Tests](https://img.shields.io/github/actions/workflow/status/HKUDS/DeepTutor/tests.yml?branch=main&style=flat-square&label=tests)](https://github.com/HKUDS/DeepTutor/actions/workflows/tests.yml)
-[![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/HKUDS/DeepTutor/pkgs/container/deeptutor)
-
-[![GitHub stars](https://img.shields.io/github/stars/HKUDS/DeepTutor?style=flat-square&color=FFD700)](https://github.com/HKUDS/DeepTutor/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/HKUDS/DeepTutor?style=flat-square&color=blue)](https://github.com/HKUDS/DeepTutor/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/HKUDS/DeepTutor?style=flat-square&color=orange)](https://github.com/HKUDS/DeepTutor/issues)
 [![GitHub last commit](https://img.shields.io/github/last-commit/HKUDS/DeepTutor?style=flat-square)](https://github.com/HKUDS/DeepTutor/commits)
 
 <p>
@@ -301,6 +295,10 @@ deeptutor kb create my-kb --doc textbook.pdf     # Build a knowledge base
 
 ## 📖 Explore DeepTutor
 
+<div align="center">
+<img src="assets/figs/deeptutor-architecture.png" alt="DeepTutor Architecture" width="800">
+</div>
+
 ### 💬 Chat — Unified Intelligent Workspace
 
 Five distinct modes coexist in a single workspace, bound by a **unified context management system**. Conversation history, knowledge bases, and references persist across modes — switch between them freely within the same topic, whenever the moment calls for it.
@@ -356,6 +354,10 @@ Memory is shared across all features and all your TutorBots. The more you use De
 
 ### 🦞 TutorBot — Persistent, Autonomous AI Tutors
 
+<div align="center">
+<img src="assets/figs/tutorbot-architecture.png" alt="TutorBot Architecture" width="800">
+</div>
+
 TutorBot is not a chatbot — it is a **persistent, multi-instance agent** built on [nanobot](https://github.com/HKUDS/nanobot). Each TutorBot runs its own agent loop with independent workspace, memory, and personality. Create a Socratic math tutor, a patient writing coach, and a rigorous research advisor — all running simultaneously, each evolving with you.
 
 - **Soul Templates** — Define your tutor's personality, tone, and teaching philosophy through editable Soul files. Choose from built-in archetypes (Socratic, encouraging, rigorous) or craft your own — the soul shapes every response.
@@ -375,6 +377,10 @@ deeptutor bot list                  # See all your active tutors
 ---
 
 ### ⌨️ DeepTutor CLI — Agent-Native Interface
+
+<div align="center">
+<img src="assets/figs/cli-architecture.png" alt="DeepTutor CLI Architecture" width="800">
+</div>
 
 DeepTutor is fully CLI-native. Every capability, knowledge base, session, memory, and TutorBot is one command away — no browser required. The CLI serves both humans (with rich terminal rendering) and AI agents (with structured JSON output).
 
