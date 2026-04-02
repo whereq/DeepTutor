@@ -301,6 +301,10 @@ deeptutor kb create my-kb --doc textbook.pdf     # Build a knowledge base
 
 ### 💬 Chat — Unified Intelligent Workspace
 
+<div align="center">
+<img src="assets/figs/dt-chat.png" alt="Chat Workspace" width="800">
+</div>
+
 Five distinct modes coexist in a single workspace, bound by a **unified context management system**. Conversation history, knowledge bases, and references persist across modes — switch between them freely within the same topic, whenever the moment calls for it.
 
 | Mode | What It Does |
@@ -317,11 +321,19 @@ Tools are **decoupled from workflows** — in every mode, you decide which tools
 
 ### ✍️ Co-Writer — AI Inside Your Editor
 
+<div align="center">
+<img src="assets/figs/dt-cowriter.png" alt="Co-Writer" width="800">
+</div>
+
 Co-Writer brings the intelligence of Chat directly into a writing surface. It is a full-featured Markdown editor where AI is a first-class collaborator — not a sidebar, not an afterthought.
 
 Select any text and choose **Rewrite**, **Expand**, or **Shorten** — optionally drawing context from your knowledge base or the web. The editing flow is non-destructive with full undo/redo, and every piece you write can be saved straight to your notebooks, feeding back into your learning ecosystem.
 
 ### 🎓 Guided Learning — Visual, Step-by-Step Mastery
+
+<div align="center">
+<img src="assets/figs/dt-guide.png" alt="Guided Learning" width="800">
+</div>
 
 Guided Learning turns your personal materials into structured, multi-step learning journeys. Provide a topic, optionally link notebook records, and DeepTutor will:
 
@@ -334,6 +346,10 @@ Sessions are persistent — pause, resume, or revisit any step at any time.
 
 ### 📚 Knowledge Management — Your Learning Infrastructure
 
+<div align="center">
+<img src="assets/figs/dt-knowledge.png" alt="Knowledge Management" width="800">
+</div>
+
 Knowledge is where you build and manage the document collections that power everything else in DeepTutor.
 
 - **Knowledge Bases** — Upload PDF, TXT, or Markdown files to create searchable, RAG-ready collections. Add documents incrementally as your library grows.
@@ -342,6 +358,10 @@ Knowledge is where you build and manage the document collections that power ever
 Your knowledge base is not passive storage — it actively participates in every conversation, every research session, and every learning path you create.
 
 ### 🧠 Memory — DeepTutor Learns As You Learn
+
+<div align="center">
+<img src="assets/figs/dt-memory.png" alt="Memory" width="800">
+</div>
 
 DeepTutor maintains a persistent, evolving understanding of you through two complementary dimensions:
 
@@ -353,6 +373,10 @@ Memory is shared across all features and all your TutorBots. The more you use De
 ---
 
 ### 🦞 TutorBot — Persistent, Autonomous AI Tutors
+
+<div align="center">
+<img src="assets/figs/tb.png" alt="TutorBot" width="800">
+</div>
 
 <div align="center">
 <img src="assets/figs/tutorbot-architecture.png" alt="TutorBot Architecture" width="800">
