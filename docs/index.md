@@ -32,17 +32,14 @@ features:
   - icon: 🔬
     title: Deep Research
     details: Systematic topic exploration with web search, paper retrieval, and literature synthesis.
-  - icon: 💡
-    title: Idea Generation
-    details: AI-assisted brainstorming with knowledge extraction and multi-stage filtering.
 ---
 
 ## Why DeepTutor?
 
 - **Deep Understanding** — Not just answers, but guided learning journeys with visual explanations
 - **Multi-Modal Support** — PDF, LaTeX, images, code execution, and more
-- **Knowledge Graph** — Semantic connections powered by LightRAG for better comprehension
-- **All-in-One Platform** — Problem solving, question generation, research, and idea generation in one place
+- **Knowledge Retrieval** — Unified llamaindex-based retrieval for better comprehension
+- **All-in-One Platform** — Problem solving, question generation, research, and guided learning in one place
 
 <style>
 :root {

@@ -19,8 +19,8 @@ DeepTutor 提供示例知识库和样例问题，帮助您快速上手。
     <ul>
       <li><a href="https://github.com/HKUDS/AI-Researcher">AI-Researcher</a> - 自动化研究论文生成</li>
       <li><a href="https://github.com/HKUDS/AutoAgent">AutoAgent</a> - 自主智能体框架</li>
-      <li><a href="https://github.com/HKUDS/RAG-Anything">RAG-Anything</a> - 多模态 RAG 系统</li>
-      <li><a href="https://github.com/HKUDS/LightRAG">LightRAG</a> - 简洁快速的 RAG</li>
+      <li><a href="https://github.com/HKUDS/AutoAgent">AutoAgent</a> - 自主智能体框架</li>
+      <li><a href="https://github.com/HKUDS/DeepCode">DeepCode</a> - AI 编码助手</li>
       <li><a href="https://github.com/HKUDS/VideoRAG">VideoRAG</a> - 基于 RAG 的视频理解</li>
     </ul>
     <p><strong>适用场景：</strong> 研究场景，广泛知识覆盖</p>
@@ -109,10 +109,10 @@ DeepTutor/
 
 ```bash
 # 使用文档初始化新知识库
-python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+deeptutor kb create <kb_name> --doc <pdf_path>
 
 # 向现有知识库添加文档
-python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+deeptutor kb add <kb_name> --doc <new_document.pdf>
 ```
 
 ## 数据存储结构

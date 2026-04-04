@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
+  // Standalone output: self-contained server.js + minimal node_modules
+  // This eliminates the need to copy the full node_modules into Docker production images
+  output: "standalone",
+
   // Move dev indicator to bottom-right corner
   devIndicators: {
     position: "bottom-right",
@@ -9,7 +13,7 @@ const nextConfig = {
   // Transpile mermaid and related packages for proper ESM handling
   transpilePackages: ["mermaid"],
 
-  // Turbopack configuration (Next.js 16+ uses Turbopack by default for dev)
+  // Turbopack configuration (used when running `npm run dev:turbo`)
   turbopack: {
     resolveAlias: {
       // Fix for mermaid's cytoscape dependency - use CJS version

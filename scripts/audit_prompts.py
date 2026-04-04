@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
 Audit prompt parity between prompts/en and prompts/zh|prompts/cn.
@@ -25,7 +24,7 @@ from typing import Any, Iterable
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-AGENTS_DIR = PROJECT_ROOT / "src" / "agents"
+AGENTS_DIR = PROJECT_ROOT / "deeptutor" / "agents"
 
 # Template placeholders are expected to be like {topic}, {knowledge_title}, etc.
 # Avoid false positives from LaTeX (\frac{1}{3}) and Mermaid (B{{Processing}}).

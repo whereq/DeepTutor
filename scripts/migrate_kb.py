@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Knowledge Base Migration Script
 ===============================
@@ -7,7 +6,7 @@ Knowledge Base Migration Script
 Migrate existing knowledge bases into DeepTutor's knowledge base system.
 
 Features:
-- Auto-detect RAG provider type (LlamaIndex or LightRAG/RAGAnything)
+- Auto-detect index format (llamaindex or legacy rag_storage)
 - Validate required index files
 - Copy/migrate KB to target directory
 - Register in kb_config.json
@@ -33,7 +32,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # =============================================================================
-# Constants: Required files for each RAG provider
+# Constants: Required files for index formats
 # =============================================================================
 
 LLAMAINDEX_REQUIRED_FILES = [
@@ -42,14 +41,14 @@ LLAMAINDEX_REQUIRED_FILES = [
     "default__vector_store.json",
 ]
 
-LIGHTRAG_REQUIRED_FILES = [
+LEGACY_RAG_REQUIRED_FILES = [
     "kv_store_text_chunks.json",
     "kv_store_full_entities.json",
     "kv_store_full_relations.json",
 ]
 
 # Optional but recommended for better performance
-LIGHTRAG_OPTIONAL_FILES = [
+LEGACY_RAG_OPTIONAL_FILES = [
     "vdb_chunks.json",
     "vdb_entities.json",
     "vdb_relationships.json",
@@ -73,40 +72,36 @@ def detect_provider(kb_path: Path) -> str | None:
         kb_path: Path to the knowledge base directory
 
     Returns:
-        Provider name: "llamaindex", "lightrag", or None if not detected
+        Provider marker: "llamaindex", "legacy_rag", or None if not detected
     """
     llamaindex_dir = kb_path / "llamaindex_storage"
-    lightrag_dir = kb_path / "rag_storage"
+    legacy_rag_dir = kb_path / "rag_storage"
 
     has_llamaindex = llamaindex_dir.exists() and llamaindex_dir.is_dir()
-    has_lightrag = lightrag_dir.exists() and lightrag_dir.is_dir()
+    has_legacy_rag = legacy_rag_dir.exists() and legacy_rag_dir.is_dir()
 
     # Check which one has valid index files
     llamaindex_valid = False
-    lightrag_valid = False
+    legacy_rag_valid = False
 
     if has_llamaindex:
         # Check if LlamaIndex has required files
         llamaindex_valid = all((llamaindex_dir / f).exists() for f in LLAMAINDEX_REQUIRED_FILES)
 
-    if has_lightrag:
-        # Check if LightRAG has required files
-        lightrag_valid = all((lightrag_dir / f).exists() for f in LIGHTRAG_REQUIRED_FILES)
+    if has_legacy_rag:
+        # Check if legacy rag_storage has expected files
+        legacy_rag_valid = all((legacy_rag_dir / f).exists() for f in LEGACY_RAG_REQUIRED_FILES)
 
-    # Return based on which has valid files
-    if llamaindex_valid and lightrag_valid:
-        # Both valid, prefer LightRAG (more feature-rich)
-        return "lightrag"
-    elif lightrag_valid:
-        return "lightrag"
-    elif llamaindex_valid:
+    if llamaindex_valid:
         return "llamaindex"
     elif has_llamaindex:
         # Directory exists but incomplete
         return "llamaindex"
-    elif has_lightrag:
+    elif legacy_rag_valid:
+        return "legacy_rag"
+    elif has_legacy_rag:
         # Directory exists but incomplete
-        return "lightrag"
+        return "legacy_rag"
     else:
         return None
 
@@ -134,9 +129,9 @@ def validate_llamaindex_files(storage_dir: Path) -> tuple[bool, list[str], list[
     return len(missing) == 0, missing, found
 
 
-def validate_lightrag_files(storage_dir: Path) -> tuple[bool, list[str], list[str]]:
+def validate_legacy_rag_files(storage_dir: Path) -> tuple[bool, list[str], list[str]]:
     """
-    Validate LightRAG storage has required files.
+    Validate legacy rag_storage has expected files.
 
     Args:
         storage_dir: Path to rag_storage directory
@@ -147,7 +142,7 @@ def validate_lightrag_files(storage_dir: Path) -> tuple[bool, list[str], list[st
     missing = []
     found = []
 
-    for filename in LIGHTRAG_REQUIRED_FILES:
+    for filename in LEGACY_RAG_REQUIRED_FILES:
         filepath = storage_dir / filename
         if filepath.exists():
             found.append(filename)
@@ -156,7 +151,7 @@ def validate_lightrag_files(storage_dir: Path) -> tuple[bool, list[str], list[st
 
     # Also check optional files
     optional_found = []
-    for filename in LIGHTRAG_OPTIONAL_FILES:
+    for filename in LEGACY_RAG_OPTIONAL_FILES:
         if (storage_dir / filename).exists():
             optional_found.append(filename)
 
@@ -178,6 +173,7 @@ def validate_kb(kb_path: Path) -> dict:
         "exists": kb_path.exists(),
         "is_valid": False,
         "provider": None,
+        "needs_reindex": False,
         "missing_files": [],
         "found_files": [],
         "has_content_list": False,
@@ -204,9 +200,16 @@ def validate_kb(kb_path: Path) -> dict:
     if provider == "llamaindex":
         storage_dir = kb_path / "llamaindex_storage"
         is_valid, missing, found = validate_llamaindex_files(storage_dir)
-    else:  # lightrag
+        result["provider"] = "llamaindex"
+        result["needs_reindex"] = False
+    else:  # legacy_rag
         storage_dir = kb_path / "rag_storage"
-        is_valid, missing, found = validate_lightrag_files(storage_dir)
+        is_valid, missing, found = validate_legacy_rag_files(storage_dir)
+        # Legacy index is still migratable, but must be reindexed in llamaindex.
+        result["provider"] = "llamaindex"
+        result["needs_reindex"] = True
+        if storage_dir.exists():
+            is_valid = True
 
     result["is_valid"] = is_valid
     result["missing_files"] = missing
@@ -262,7 +265,11 @@ def copy_kb_directory(source_path: Path, target_path: Path, verbose: bool = True
 
 
 def register_kb(
-    kb_name: str, kb_base_dir: Path, description: str = "", provider: str | None = None
+    kb_name: str,
+    kb_base_dir: Path,
+    description: str = "",
+    provider: str | None = None,
+    needs_reindex: bool = False,
 ) -> bool:
     """
     Register knowledge base in kb_config.json.
@@ -297,6 +304,9 @@ def register_kb(
     config["knowledge_bases"][kb_name] = {
         "path": kb_name,
         "description": description or f"Knowledge base: {kb_name}",
+        "rag_provider": provider or "llamaindex",
+        "needs_reindex": bool(needs_reindex),
+        "status": "needs_reindex" if needs_reindex else "ready",
     }
 
     # Save config
@@ -315,7 +325,8 @@ def register_kb(
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "description": description or f"Knowledge base: {kb_name}",
             "version": "1.0",
-            "rag_provider": provider,
+            "rag_provider": provider or "llamaindex",
+            "needs_reindex": bool(needs_reindex),
             "migrated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
         with open(metadata_file, "w", encoding="utf-8") as f:
@@ -326,8 +337,9 @@ def register_kb(
         with open(metadata_file, encoding="utf-8") as f:
             metadata = json.load(f)
 
-        if provider and not metadata.get("rag_provider"):
+        if provider:
             metadata["rag_provider"] = provider
+        metadata["needs_reindex"] = bool(needs_reindex)
         metadata["migrated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         with open(metadata_file, "w", encoding="utf-8") as f:
@@ -348,68 +360,9 @@ async def extract_numbered_items(kb_name: str, kb_base_dir: Path) -> bool:
     Returns:
         True if successful
     """
-    try:
-        from src.knowledge.extract_numbered_items import (
-            extract_numbered_items_with_llm_async,
-        )
-        from src.services.llm import get_llm_client
-    except ImportError as e:
-        print(f"  ⚠️  Could not import extraction module: {e}")
-        return False
-
-    kb_dir = kb_base_dir / kb_name
-    content_list_dir = kb_dir / "content_list"
-
-    if not content_list_dir.exists():
-        print("  ⚠️  No content_list directory found")
-        return False
-
-    # Load all content list files
-    all_content_items = []
-    json_files = list(content_list_dir.glob("*.json"))
-
-    if not json_files:
-        print("  ⚠️  No JSON files found in content_list/")
-        return False
-
-    print(f"  Loading {len(json_files)} content list files...")
-
-    for json_file in json_files:
-        try:
-            with open(json_file, encoding="utf-8") as f:
-                content_items = json.load(f)
-                if isinstance(content_items, list):
-                    all_content_items.extend(content_items)
-        except Exception as e:
-            print(f"  ⚠️  Error loading {json_file.name}: {e}")
-
-    if not all_content_items:
-        print("  ⚠️  No content items found")
-        return False
-
-    print(f"  Extracting numbered items from {len(all_content_items)} content items...")
-
-    try:
-        llm_client = get_llm_client()
-        items = await extract_numbered_items_with_llm_async(
-            all_content_items,
-            api_key=llm_client.config.api_key,
-            base_url=llm_client.config.base_url,
-        )
-
-        if items:
-            output_file = kb_dir / "numbered_items.json"
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(items, f, ensure_ascii=False, indent=2)
-            print(f"  ✓ Extracted {len(items)} numbered items")
-            return True
-        else:
-            print("  ⚠️  No numbered items extracted")
-            return False
-
-    except Exception as e:
-        print(f"  ✗ Extraction failed: {e}")
-        return False
+    _ = (kb_name, kb_base_dir)
+    print("  ⚠️  Numbered item extraction is deprecated and has been removed. Skipping.")
+    return False
 
 
 async def test_kb_search(kb_name: str, query: str = "What is this knowledge base about?") -> bool:
@@ -424,7 +377,7 @@ async def test_kb_search(kb_name: str, query: str = "What is this knowledge base
         True if search succeeded
     """
     try:
-        from src.tools.rag_tool import rag_search
+        from deeptutor.tools.rag_tool import rag_search
     except ImportError as e:
         print(f"  ⚠️  Could not import rag_tool: {e}")
         return False
@@ -510,6 +463,7 @@ async def migrate_kb(
 
     print("  ✓ Validation passed")
     print(f"    Provider: {validation['provider']}")
+    print(f"    Needs reindex: {'Yes' if validation['needs_reindex'] else 'No'}")
     print(f"    Found files: {', '.join(validation['found_files'][:5])}...")
     print(f"    Has content_list: {'Yes' if validation['has_content_list'] else 'No'}")
     print(f"    Has raw docs: {'Yes' if validation['has_raw_docs'] else 'No'}")
@@ -548,6 +502,7 @@ async def migrate_kb(
         kb_base_dir=target_base,
         description=f"Migrated from: {source}",
         provider=validation["provider"],
+        needs_reindex=bool(validation.get("needs_reindex")),
     )
     print()
 

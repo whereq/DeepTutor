@@ -124,18 +124,13 @@ guide:
   temperature: 0.5
   max_tokens: 16192
 
-# 灵感生成模块 - 想法生成 agents
-ideagen:
-  temperature: 0.7
-  max_tokens: 4096
-
 # 协作写作模块 - 协作写作 agents
 co_writer:
   temperature: 0.7
   max_tokens: 4096
 ```
 
-### `config/main.yaml` - 系统设置
+### `data/user/settings/main.yaml` - 系统设置
 
 此文件控制路径、工具和模块特定设置：
 
@@ -155,12 +150,9 @@ tools:
     kb_base_dir: ./data/knowledge_bases
     default_kb: ai_textbook
   run_code:
-    workspace: ./data/user/run_code_workspace
+    workspace: ./data/user/workspace/chat/_detached_code_execution
   web_search:
     enabled: true
-  query_item:
-    enabled: true
-    max_results: 5
 
 # 模块特定设置
 research:

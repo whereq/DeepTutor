@@ -30,7 +30,7 @@
 | 问题 | 解决方案 |
 |:--------|:---------|
 | 处理卡住 | 检查终端日志，验证 API 密钥 |
-| `uvloop.Loop` 错误 | 运行：`./scripts/extract_numbered_items.sh <kb_name>` |
+| `uvloop.Loop` 错误 | 该编号条目提取流程已移除（llamaindex-only），无需额外处理 |
 
 ## 终止后台进程
 

@@ -1,1 +1,1 @@
-# Tests for src/services module
+# Tests for deeptutor/services module

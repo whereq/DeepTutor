@@ -5,12 +5,23 @@
 # ============================================
 # User Generated Data and Outputs
 # ============================================
-# User data directory (migrated to data/user/)
-data/user/
-data/knowledge_bases/
+# Runtime data (knowledge bases, tutorbot workspaces, memory, etc.)
+data/
 run_code_workspace/
-src/agents/question/reference_papers/
-src/services/rag/eg_only_for_analysis/
+deeptutor/agents/question/reference_papers/
+deeptutor/services/rag/eg_only_for_analysis/
+DeepTutor_arxiv-3/
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.pdf
+!demo/*.pdf
 
 # ============================================
 # Python Related

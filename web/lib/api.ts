@@ -1,30 +1,26 @@
 // API configuration and utility functions
 
-// Get API base URL from environment variable
-// This is automatically set by start_web.py based on config/main.yaml
-// The .env.local file is auto-generated on startup with the correct backend port
+// Get API base URL from environment variable.
+// The launcher injects NEXT_PUBLIC_API_BASE from the canonical project-root `.env`.
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE ||
   (() => {
     if (typeof window !== "undefined") {
       console.error("NEXT_PUBLIC_API_BASE is not set.");
       console.error(
-        "Please configure server ports in config/main.yaml and restart the application using: python scripts/start_web.py",
+        "Please configure NEXT_PUBLIC_API_BASE in your environment and restart the application.",
       );
-      console.error(
-        "The .env.local file will be automatically generated with the correct backend port.",
-      );
+      console.error("Run python scripts/start_tour.py to rebuild your local setup if needed.");
     }
-    // No fallback - port must be configured in config/main.yaml
     throw new Error(
-      "NEXT_PUBLIC_API_BASE is not configured. Please set server ports in config/main.yaml and restart.",
+      "NEXT_PUBLIC_API_BASE is not configured. Please set it in your environment and restart.",
     );
   })();
 
 /**
  * Construct a full API URL from a path
  * @param path - API path (e.g., '/api/v1/knowledge/list')
- * @returns Full URL (e.g., 'http://localhost:8000/api/v1/knowledge/list')
+ * @returns Full URL (e.g., 'http://localhost:8001/api/v1/knowledge/list')
  */
 export function apiUrl(path: string): string {
   // Remove leading slash if present to avoid double slashes
@@ -41,8 +37,7 @@ export function apiUrl(path: string): string {
 /**
  * Construct a WebSocket URL from a path
  * @param path - WebSocket path (e.g., '/api/v1/solve')
- * @returns WebSocket URL (e.g., 'ws://localhost:{backend_port}/api/v1/solve')
- * Note: backend_port is configured in config/main.yaml
+ * @returns WebSocket URL (e.g., 'ws://localhost:8001/api/v1/ws')
  */
 export function wsUrl(path: string): string {
   // Security Hardening: Convert http to ws and https to wss.

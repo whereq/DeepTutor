@@ -5,7 +5,7 @@ Our vision for DeepTutor's future development.
 ## ✅ Recently Completed (v0.4.0)
 
 - [x] **RAG Module Decoupling** — Modular RAG architecture with provider-agnostic interface
-  - Currently supports RAG-Anything (MinerU + LightRAG)
+  - Currently standardized on llamaindex
   - More backends coming soon
 - [x] **Multi-Provider Support** — Expanded LLM and Embedding provider options
   - LLM: OpenAI, Anthropic, Azure, Ollama, Groq, OpenRouter, DeepSeek, Gemini
@@ -15,9 +15,9 @@ Our vision for DeepTutor's future development.
 
 ## 🚀 Planned Features
 
-- [ ] **Deepcoding from Idea Generation** — Transform research ideas into working prototypes
+- [ ] **Deepcoding from Research Drafts** — Transform research and Co-Writer outputs into working prototypes
 - [ ] **Personalized Memory** — Adapt tutoring style based on user learning history
-- [ ] **Additional RAG Backends** — LlamaIndex, ChromaDB, Pinecone integration
+- [ ] **Additional RAG Backends** — ChromaDB, Pinecone integration
 - [ ] **More Embedding Adapters** — Voyage AI, Mixedbread, local transformers
 
 ## 💭 Under Consideration

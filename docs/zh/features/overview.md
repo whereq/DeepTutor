@@ -1,6 +1,6 @@
 # 功能介绍
 
-DeepTutor 提供六个专业模块，助力 AI 驱动的学习体验。
+DeepTutor 提供五个专业模块，助力 AI 驱动的学习体验。
 
 <div class="feature-nav">
 
@@ -12,8 +12,7 @@ DeepTutor 提供六个专业模块，助力 AI 驱动的学习体验。
 | 🎯 **题目生成** | 自定义测验生成，模拟真实考试风格 | [详情 →](https://github.com/HKUDS/DeepTutor#-question-generator) |
 | 🎓 **引导学习** | 个性化学习路径，交互式可视化 | [详情 →](https://github.com/HKUDS/DeepTutor#-guided-learning) |
 | 🔬 **深度研究** | 系统化主题探索，动态主题队列 | [详情 →](https://github.com/HKUDS/DeepTutor#-deep-research) |
-| 💡 **想法生成** | 自动化研究想法生成，多阶段过滤 | [详情 →](https://github.com/HKUDS/DeepTutor#-automated-ideagen) |
-| ✏️ **协作写作** | AI 辅助写作，TTS 语音朗读 | [详情 →](https://github.com/HKUDS/DeepTutor#-interactive-ideagen-co-writer) |
+| ✏️ **协作写作** | AI 辅助写作，TTS 语音朗读 | [详情 →](https://github.com/HKUDS/DeepTutor#-co-writer) |
 
 ## 系统架构
 

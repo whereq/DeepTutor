@@ -9,7 +9,7 @@
 #
 # Prerequisites:
 #   1. Copy .env.example to .env and configure your API keys
-#   2. Optionally customize config/main.yaml
+#   2. Runtime settings are created under data/user/settings on first start
 # ============================================
 
 # ============================================
@@ -74,6 +74,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Copy requirements and install Python dependencies
+COPY requirements/ ./requirements/
 COPY requirements.txt ./
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
@@ -86,7 +87,7 @@ FROM python:3.11-slim AS production
 # Labels
 LABEL maintainer="DeepTutor Team" \
       description="DeepTutor: AI-Powered Personalized Learning Assistant" \
-      version="0.1.0"
+      version="1.0.0"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -124,33 +125,37 @@ RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
 
-# Copy built frontend from frontend-builder stage
-COPY --from=frontend-builder /app/web/.next ./web/.next
-COPY --from=frontend-builder /app/web/public ./web/public
-COPY --from=frontend-builder /app/web/package.json ./web/package.json
-COPY --from=frontend-builder /app/web/next.config.js ./web/next.config.js
-COPY --from=frontend-builder /app/web/node_modules ./web/node_modules
+# Copy built frontend from frontend-builder stage (standalone mode)
+# The standalone output contains a self-contained server.js + minimal node_modules
+# Static assets and public/ must be copied alongside standalone manually
+COPY --from=frontend-builder /app/web/.next/standalone/ ./web/
+COPY --from=frontend-builder /app/web/.next/static/ ./web/.next/static/
+COPY --from=frontend-builder /app/web/public/ ./web/public/
 
 # Copy application source code
-COPY src/ ./src/
-COPY config/ ./config/
+COPY deeptutor/ ./deeptutor/
+COPY deeptutor_cli/ ./deeptutor_cli/
 COPY scripts/ ./scripts/
 COPY pyproject.toml ./
+COPY requirements/ ./requirements/
 COPY requirements.txt ./
 
 # Create necessary directories (these will be overwritten by volume mounts)
 RUN mkdir -p \
-    data/user/solve \
-    data/user/question \
-    data/user/research/cache \
-    data/user/research/reports \
-    data/user/guide \
-    data/user/notebook \
-    data/user/co-writer/audio \
-    data/user/co-writer/tool_calls \
+    data/user/settings \
+    data/memory \
+    data/user/workspace/memory \
+    data/user/workspace/notebook \
+    data/user/workspace/co-writer/audio \
+    data/user/workspace/co-writer/tool_calls \
+    data/user/workspace/guide \
+    data/user/workspace/chat/chat \
+    data/user/workspace/chat/deep_solve \
+    data/user/workspace/chat/deep_question \
+    data/user/workspace/chat/deep_research/reports \
+    data/user/workspace/chat/math_animator \
+    data/user/workspace/chat/_detached_code_execution \
     data/user/logs \
-    data/user/run_code_workspace \
-    data/user/performance \
     data/knowledge_bases
 
 # Create supervisord configuration for running both services
@@ -202,7 +207,7 @@ echo "[Backend]  🚀 Starting FastAPI backend on port ${BACKEND_PORT}..."
 # Run uvicorn directly - the application's logging system already handles:
 # 1. Console output (visible in docker logs)
 # 2. File logging to data/user/logs/ai_tutor_*.log
-exec python -m uvicorn src.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT}
+exec python -m uvicorn deeptutor.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT}
 EOF
 
 RUN sed -i 's/\r$//' /app/start-backend.sh && chmod +x /app/start-backend.sh
@@ -243,11 +248,11 @@ echo "[Frontend] 🚀 Starting Next.js frontend on port ${FRONTEND_PORT}..."
 find /app/web/.next -type f \( -name "*.js" -o -name "*.json" \) -exec \
     sed -i "s|__NEXT_PUBLIC_API_BASE_PLACEHOLDER__|${API_BASE}|g" {} \; 2>/dev/null || true
 
-# Also update .env.local for any runtime reads
-echo "NEXT_PUBLIC_API_BASE=${API_BASE}" > /app/web/.env.local
-
-# Start Next.js
-cd /app/web && exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${FRONTEND_PORT}
+# Start Next.js standalone server
+# The standalone server reads PORT and HOSTNAME from environment variables
+export PORT=${FRONTEND_PORT}
+export HOSTNAME=0.0.0.0
+exec node /app/web/server.js
 EOF
 
 RUN sed -i 's/\r$//' /app/start-frontend.sh && chmod +x /app/start-frontend.sh
@@ -281,20 +286,18 @@ fi
 
 # Initialize user data directories if empty
 echo "📁 Checking data directories..."
-if [ ! -f "/app/data/user/user_history.json" ]; then
-    echo "   Initializing user data directories..."
-    python -c "
+echo "   Ensuring runtime settings and workspace layout..."
+python -c "
 from pathlib import Path
-from src.services.setup import init_user_directories
+from deeptutor.services.setup import init_user_directories
 init_user_directories(Path('/app'))
 " 2>/dev/null || echo "   ⚠️ Directory initialization skipped (will be created on first use)"
-fi
 
 echo "============================================"
 echo "📦 Configuration loaded from:"
 echo "   - Environment variables (.env file)"
-echo "   - config/main.yaml"
-echo "   - config/agents.yaml"
+echo "   - data/user/settings/main.yaml"
+echo "   - data/user/settings/agents.yaml"
 echo "============================================"
 
 # Start supervisord
@@ -318,6 +321,12 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 # ============================================
 FROM production AS development
 
+# Re-add full node_modules for development hot-reload
+# (Production uses standalone output which doesn't include full node_modules)
+COPY --from=frontend-builder /app/web/node_modules ./web/node_modules
+COPY --from=frontend-builder /app/web/package.json ./web/package.json
+COPY --from=frontend-builder /app/web/next.config.js ./web/next.config.js
+
 # Install development tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
@@ -340,7 +349,7 @@ logfile_maxbytes=0
 pidfile=/var/run/supervisord.pid
 
 [program:backend]
-command=python -m uvicorn src.api.main:app --host 0.0.0.0 --port %(ENV_BACKEND_PORT)s --reload
+command=python -m uvicorn deeptutor.api.main:app --host 0.0.0.0 --port %(ENV_BACKEND_PORT)s --reload
 directory=/app
 autostart=true
 autorestart=true
