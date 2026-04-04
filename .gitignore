@@ -10,7 +10,7 @@ data/
 run_code_workspace/
 deeptutor/agents/question/reference_papers/
 deeptutor/services/rag/eg_only_for_analysis/
-DeepTutor_arxiv-3/
+DeepTutor_arxiv-4/
 
 # LaTeX build artifacts
 *.aux
