@@ -9,6 +9,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/HKUDS/DeepTutor?style=flat-square&color=brightgreen)](https://github.com/HKUDS/DeepTutor/releases)
 [![GitHub last commit](https://img.shields.io/github/last-commit/HKUDS/DeepTutor?style=flat-square)](https://github.com/HKUDS/DeepTutor/commits)
+[![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](#)
 
 [![Discord](https://img.shields.io/badge/Discord-Community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
 [![Feishu](https://img.shields.io/badge/Feishu-Group-00D4AA?style=flat-square&logo=feishu&logoColor=white)](./Communication.md)
@@ -23,7 +24,7 @@
 ---
 ### 📰 News
 
-> **[2026.3.24]** Long time no see! ✨ DeepTutor v1.0.0 is finally here — an agent-native evolution featuring a lightweight refactor, TutorBot, and flexible mode switching under the Apache-2.0 license. A new chapter begins, and our story continues! 
+> **[2026.4.4]** Long time no see! ✨ DeepTutor v1.0.0-beta.1 is finally here — an agent-native evolution featuring a ground-up architecture rewrite, TutorBot, and flexible mode switching under the Apache-2.0 license. A new chapter begins, and our story continues! 
 
 > **[2026.2.6]** 🚀 We've reached 10k stars in just 39 days! A huge thank you to our incredible community for the support! 
 
@@ -33,7 +34,7 @@
 
 ### 📦 Releases
 
-> **[2026.3.24]** [v1.0.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0) — Agent-native refactor with flexible tool integration, CLI & SDK entry points, TutorBot powered by the nanobot engine, Co-Writer, Guided Learning, and persistent memory. DeepTutor is now lighter, faster, and better than ever!
+> **[2026.4.4]** [v1.0.0-beta.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.1) — Agent-native architecture rewrite (DeepTutor 2.0) with two-layer plugin model (Tools + Capabilities), CLI & SDK entry points, TutorBot multi-channel bot agent, Co-Writer, Guided Learning, and persistent memory.
 
 <details>
 <summary><b>Past releases</b></summary>
