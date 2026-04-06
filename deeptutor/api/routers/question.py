@@ -1,7 +1,9 @@
 import asyncio
 import base64
 from datetime import datetime
+from pathlib import Path
 import re
+import sys
 import traceback
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -9,15 +11,14 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from deeptutor.agents.question import AgentCoordinator
 from deeptutor.api.utils.log_interceptor import LogInterceptor
 from deeptutor.api.utils.task_id_manager import TaskIDManager
-from deeptutor.services.path_service import get_path_service
-from deeptutor.tools.question import mimic_exam_questions
-from deeptutor.utils.document_validator import DocumentValidator
-from deeptutor.utils.error_utils import format_exception_message
-
 from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm.config import get_llm_config
+from deeptutor.services.path_service import get_path_service
 from deeptutor.services.settings.interface_settings import get_ui_language
+from deeptutor.tools.question import mimic_exam_questions
+from deeptutor.utils.document_validator import DocumentValidator
+from deeptutor.utils.error_utils import format_exception_message
 
 # Setup module logger with unified logging system (from config)
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
@@ -418,12 +419,24 @@ async def websocket_question_generate(websocket: WebSocket):
                     return
 
                 # Extract fields from requirement dict
-                user_topic = requirement.get("knowledge_point", "") if isinstance(requirement, dict) else str(requirement)
-                preference = requirement.get("preference", "") if isinstance(requirement, dict) else ""
-                difficulty = requirement.get("difficulty", "") if isinstance(requirement, dict) else ""
-                question_type = requirement.get("question_type", "") if isinstance(requirement, dict) else ""
+                user_topic = (
+                    requirement.get("knowledge_point", "")
+                    if isinstance(requirement, dict)
+                    else str(requirement)
+                )
+                preference = (
+                    requirement.get("preference", "") if isinstance(requirement, dict) else ""
+                )
+                difficulty = (
+                    requirement.get("difficulty", "") if isinstance(requirement, dict) else ""
+                )
+                question_type = (
+                    requirement.get("question_type", "") if isinstance(requirement, dict) else ""
+                )
 
-                logger.info(f"Starting question generation for {count} question(s), topic: {user_topic}")
+                logger.info(
+                    f"Starting question generation for {count} question(s), topic: {user_topic}"
+                )
 
                 batch_result = await coordinator.generate_from_topic(
                     user_topic=user_topic,
