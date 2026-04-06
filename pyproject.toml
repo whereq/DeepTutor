@@ -45,13 +45,17 @@ server = [
     "uvicorn[standard]>=0.24.0",
     "websockets>=12.0",
     "python-multipart>=0.0.6",
+    "python-jose[cryptography]>=3.3.0",
+    "bcrypt>=4.0.0",
 ]
 math-animator = ["manim>=0.19.0"]
 all = [
     "anthropic>=0.30.0",
     "dashscope>=1.14.0",
     "perplexityai>=0.1.0",
-    "oauth-cli-kit>=0.1.1; python_version >= '3.11'",
+    "oauth-cli-kit>=0.2.0; python_version >= '3.11'",
+    "python-jose[cryptography]>=3.3.0",
+    "bcrypt>=4.0.0",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.24.0",
     "websockets>=12.0",

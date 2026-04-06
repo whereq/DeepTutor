@@ -27,7 +27,13 @@ export interface SessionSummary {
   updated_at: number;
   message_count: number;
   last_message: string;
-  status?: "idle" | "running" | "completed" | "failed" | "cancelled" | "rejected";
+  status?:
+    | "idle"
+    | "running"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "rejected";
   active_turn_id?: string;
   preferences?: {
     capability?: string;
@@ -56,7 +62,13 @@ export interface SessionDetail {
   title: string;
   created_at: number;
   updated_at: number;
-  status?: "idle" | "running" | "completed" | "failed" | "cancelled" | "rejected";
+  status?:
+    | "idle"
+    | "running"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "rejected";
   active_turn_id?: string;
   compressed_summary?: string;
   summary_up_to_msg_id?: number;
@@ -83,6 +95,11 @@ export interface QuizResultItem {
 }
 
 async function expectJson<T>(response: Response): Promise<T> {
+  if (response.status === 401 && typeof window !== "undefined") {
+    const next = encodeURIComponent(window.location.pathname);
+    window.location.href = `/login?next=${next}`;
+    return new Promise(() => {});
+  }
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }
@@ -97,9 +114,13 @@ export async function listSessions(
   return withClientCache<SessionSummary[]>(
     `sessions:${limit}:${offset}`,
     async () => {
-      const response = await fetch(apiUrl(`/api/v1/sessions?limit=${limit}&offset=${offset}`), {
-        cache: "no-store",
-      });
+      const response = await fetch(
+        apiUrl(`/api/v1/sessions?limit=${limit}&offset=${offset}`),
+        {
+          cache: "no-store",
+          credentials: "include",
+        },
+      );
       const data = await expectJson<{ sessions: SessionSummary[] }>(response);
       return data.sessions ?? [];
     },
@@ -113,14 +134,19 @@ export async function listSessions(
 export async function getSession(sessionId: string): Promise<SessionDetail> {
   const response = await fetch(apiUrl(`/api/v1/sessions/${sessionId}`), {
     cache: "no-store",
+    credentials: "include",
   });
   return expectJson<SessionDetail>(response);
 }
 
-export async function updateSessionTitle(sessionId: string, title: string): Promise<SessionDetail> {
+export async function updateSessionTitle(
+  sessionId: string,
+  title: string,
+): Promise<SessionDetail> {
   const response = await fetch(apiUrl(`/api/v1/sessions/${sessionId}`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ title }),
   });
   const data = await expectJson<{ session: SessionDetail }>(response);
@@ -131,6 +157,7 @@ export async function updateSessionTitle(sessionId: string, title: string): Prom
 export async function deleteSession(sessionId: string): Promise<void> {
   const response = await fetch(apiUrl(`/api/v1/sessions/${sessionId}`), {
     method: "DELETE",
+    credentials: "include",
   });
   await expectJson<{ deleted: boolean }>(response);
   invalidateClientCache("sessions:");
@@ -140,10 +167,14 @@ export async function recordQuizResults(
   sessionId: string,
   answers: QuizResultItem[],
 ): Promise<void> {
-  const response = await fetch(apiUrl(`/api/v1/sessions/${sessionId}/quiz-results`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ answers }),
-  });
+  const response = await fetch(
+    apiUrl(`/api/v1/sessions/${sessionId}/quiz-results`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ answers }),
+    },
+  );
   await expectJson<{ recorded: boolean }>(response);
 }

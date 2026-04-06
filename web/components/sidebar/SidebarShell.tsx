@@ -37,7 +37,9 @@ const PRIMARY_NAV: NavEntry[] = [
   { href: "/memory", label: "Memory", icon: Brain },
 ];
 
-const SECONDARY_NAV: NavEntry[] = [{ href: "/settings", label: "Settings", icon: Settings }];
+const SECONDARY_NAV: NavEntry[] = [
+  { href: "/settings", label: "Settings", icon: Settings },
+];
 const DEFAULT_SESSION_VIEWPORT_CLASS_NAME = "max-h-[112px]";
 
 interface SidebarShellProps {
@@ -100,7 +102,10 @@ export function SidebarShell({
 
         <nav className="flex flex-col items-center gap-px pt-1">
           {PRIMARY_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
             return (
               <div key={item.href} className="flex flex-col items-center">
                 <Link
@@ -114,7 +119,6 @@ export function SidebarShell({
                   <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
                 </Link>
                 {item.href === "/agents" && <TutorBotRecent collapsed />}
-
               </div>
             );
           })}
@@ -139,7 +143,7 @@ export function SidebarShell({
               </Link>
             );
           })}
-          {footerSlot}
+          {footerSlot && <div className="mt-1">{footerSlot}</div>}
         </div>
       </aside>
     );
@@ -178,8 +182,16 @@ export function SidebarShell({
           </button>
 
           {PRIMARY_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
-            const hasSessionsBelow = item.href === "/chat" && showSessions && onSelectSession && onRenameSession && onDeleteSession;
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+            const hasSessionsBelow =
+              item.href === "/" &&
+              showSessions &&
+              onSelectSession &&
+              onRenameSession &&
+              onDeleteSession;
             const hasBots = item.href === "/agents";
             return (
               <div key={item.href}>
@@ -195,7 +207,9 @@ export function SidebarShell({
                   <span>{t(item.label)}</span>
                 </Link>
                 {hasSessionsBelow && (
-                  <div className={`${sessionViewportClassName} overflow-y-auto`}>
+                  <div
+                    className={`${sessionViewportClassName} overflow-y-auto`}
+                  >
                     <SessionList
                       sessions={sessions}
                       activeSessionId={activeSessionId}

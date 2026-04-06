@@ -63,9 +63,9 @@
 
 ### 📰 News
 
-> **[2026.4.4]** Long time no see! ✨ DeepTutor v1.0.0 is finally here — an agent-native evolution featuring a ground-up architecture rewrite, TutorBot, and flexible mode switching under the Apache-2.0 license. A new chapter begins, and our story continues! 
+> **[2026.4.4]** Long time no see! ✨ DeepTutor v1.0.0 is finally here — an agent-native evolution featuring a ground-up architecture rewrite, TutorBot, and flexible mode switching under the Apache-2.0 license. A new chapter begins, and our story continues!
 
-> **[2026.2.6]** 🚀 We've reached 10k stars in just 39 days! A huge thank you to our incredible community for the support! 
+> **[2026.2.6]** 🚀 We've reached 10k stars in just 39 days! A huge thank you to our incredible community for the support!
 
 > **[2026.1.1]** Happy New Year! Join our [Discord](https://discord.gg/eRsjPgMU4t), [WeChat](https://github.com/HKUDS/DeepTutor/issues/78), or [Discussions](https://github.com/HKUDS/DeepTutor/discussions) — let's shape the future of DeepTutor together!
 
@@ -81,6 +81,7 @@
 - **Knowledge Hub** — Upload PDFs, Markdown, and text files to build RAG-ready knowledge bases. Organize insights across sessions in color-coded notebooks. Your documents don't just sit there — they actively power every conversation.
 - **Persistent Memory** — DeepTutor builds a living profile of you: what you've studied, how you learn, and where you're heading. Shared across all features and TutorBots, it gets sharper with every interaction.
 - **Agent-Native CLI** — Every capability, knowledge base, session, and TutorBot is one command away. Rich terminal output for humans, structured JSON for AI agents and pipelines. Hand DeepTutor a [`SKILL.md`](SKILL.md) and your agents can operate it autonomously.
+- **Optional Authentication** — Disabled by default for local use. Flip two env vars to require login when hosting publicly. Multi-user support with bcrypt-hashed passwords, JWT sessions, a self-service registration page, and a built-in admin dashboard for managing accounts and roles.
 
 ---
 
@@ -294,6 +295,48 @@ The frontend startup script applies this value at runtime — no rebuild needed.
 </details>
 
 <details>
+<summary><b>Authentication (public deployments)</b></summary>
+
+Authentication is **disabled by default** — no login is required on localhost. To protect a publicly accessible instance, add these variables to your `.env`:
+
+```dotenv
+# Enable login (set both to the same value)
+AUTH_ENABLED=true
+NEXT_PUBLIC_AUTH_ENABLED=true
+
+# Long random secret for signing JWT tokens
+# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+AUTH_SECRET=your-secret-here
+
+# How long sessions last in hours (default: 24)
+AUTH_TOKEN_EXPIRE_HOURS=24
+```
+
+**First-time setup (multi-user):**
+
+1. Leave `AUTH_USERNAME` and `AUTH_PASSWORD_HASH` unset.
+2. Open your DeepTutor URL — you will be redirected to `/register`.
+3. The first user to register is automatically granted **admin** privileges.
+4. Admins can manage all accounts at `/admin/users` (promote, demote, delete).
+
+**Single-user setup (env-var):**
+
+```bash
+# Generate a password hash
+python -c "from deeptutor.services.auth import hash_password; print(hash_password('yourpassword'))"
+```
+
+```dotenv
+AUTH_USERNAME=admin
+AUTH_PASSWORD_HASH=<paste hash here>
+```
+
+Users are stored in `data/user/auth_users.json`. Once that file exists it takes
+priority over `AUTH_USERNAME` / `AUTH_PASSWORD_HASH`.
+
+</details>
+
+<details>
 <summary><b>Development mode (hot-reload)</b></summary>
 
 Layer the dev override to mount source code and enable hot-reload for both services:
@@ -358,6 +401,12 @@ These directories survive `docker compose down` and are reused on the next `dock
 | `FRONTEND_PORT` | No | Frontend port (default `3782`) |
 | `NEXT_PUBLIC_API_BASE_EXTERNAL` | No | Public backend URL for cloud deployment |
 | `DISABLE_SSL_VERIFY` | No | Disable SSL verification (default `false`) |
+| `AUTH_ENABLED` | No | Require login when `true` (default `false`) |
+| `NEXT_PUBLIC_AUTH_ENABLED` | No | Must match `AUTH_ENABLED` — controls frontend auth UI |
+| `AUTH_SECRET` | No* | JWT signing secret — required when `AUTH_ENABLED=true` |
+| `AUTH_TOKEN_EXPIRE_HOURS` | No | Session duration in hours (default `24`) |
+| `AUTH_USERNAME` | No | Single-user mode: admin username |
+| `AUTH_PASSWORD_HASH` | No | Single-user mode: bcrypt hash of admin password |
 
 </details>
 
