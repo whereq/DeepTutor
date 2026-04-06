@@ -17,6 +17,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from deeptutor.services.config import get_config_test_runner, get_model_catalog_service
+from deeptutor.services.embedding.client import reset_embedding_client
+from deeptutor.services.llm.client import reset_llm_client
+from deeptutor.services.llm.config import clear_llm_config_cache
 from deeptutor.services.path_service import get_path_service
 
 router = APIRouter()
@@ -69,6 +72,13 @@ class CatalogPayload(BaseModel):
     catalog: dict[str, Any]
 
 
+def _invalidate_runtime_caches() -> None:
+    """Force runtime clients/config to pick up the latest saved catalog."""
+    clear_llm_config_cache()
+    reset_llm_client()
+    reset_embedding_client()
+
+
 def load_ui_settings() -> dict[str, Any]:
     if SETTINGS_FILE.exists():
         try:
@@ -99,6 +109,7 @@ async def get_catalog():
 @router.put("/catalog")
 async def update_catalog(payload: CatalogPayload):
     catalog = get_model_catalog_service().save(payload.catalog)
+    _invalidate_runtime_caches()
     return {"catalog": catalog}
 
 
@@ -106,6 +117,7 @@ async def update_catalog(payload: CatalogPayload):
 async def apply_catalog(payload: CatalogPayload | None = None):
     catalog = payload.catalog if payload is not None else get_model_catalog_service().load()
     rendered = get_model_catalog_service().apply(catalog)
+    _invalidate_runtime_caches()
     return {
         "message": "Catalog applied to the active .env configuration.",
         "catalog": get_model_catalog_service().load(),
@@ -244,6 +256,7 @@ class TourCompletePayload(BaseModel):
 async def complete_tour(payload: TourCompletePayload | None = None):
     catalog = payload.catalog if payload and payload.catalog else get_model_catalog_service().load()
     rendered = get_model_catalog_service().apply(catalog)
+    _invalidate_runtime_caches()
     now = int(time.time())
     launch_at = now + 3
     redirect_at = now + 5
