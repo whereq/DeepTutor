@@ -4,9 +4,9 @@ from deeptutor.services.memory.service import MemoryService
 from deeptutor.services.session.sqlite_store import SQLiteSessionStore
 
 
-def test_memory_service_snapshot_is_empty_without_file(tmp_path) -> None:
+def _make_service(tmp_path):
     store = SQLiteSessionStore(tmp_path / "chat_history.db")
-    service = MemoryService(
+    return MemoryService(
         path_service=type(
             "PathServiceStub",
             (),
@@ -15,32 +15,28 @@ def test_memory_service_snapshot_is_empty_without_file(tmp_path) -> None:
         store=store,
     )
 
+
+def test_memory_service_snapshot_is_empty_without_file(tmp_path) -> None:
+    service = _make_service(tmp_path)
     snapshot = service.read_snapshot()
 
-    assert snapshot.content == ""
-    assert snapshot.exists is False
-    assert snapshot.updated_at is None
+    assert snapshot.summary == ""
+    assert snapshot.profile == ""
+    assert snapshot.summary_updated_at is None
+    assert snapshot.profile_updated_at is None
 
 
-async def _no_change_llm(**_kwargs) -> str:
-    return "NO_CHANGE"
+async def _no_change_stream(**_kwargs):
+    yield "NO_CHANGE"
 
 
-async def _rewrite_llm(**_kwargs) -> str:
-    return "## Preferences\n- Prefer concise answers.\n\n## Context\n- Working on DeepTutor memory."
+async def _rewrite_stream(**_kwargs):
+    yield "## Preferences\n- Prefer concise answers.\n\n## Context\n- Working on DeepTutor memory."
 
 
 def test_memory_service_refresh_turn_writes_rewritten_document(monkeypatch, tmp_path) -> None:
-    store = SQLiteSessionStore(tmp_path / "chat_history.db")
-    service = MemoryService(
-        path_service=type(
-            "PathServiceStub",
-            (),
-            {"get_memory_dir": lambda self: tmp_path / "memory"},
-        )(),
-        store=store,
-    )
-    monkeypatch.setattr("deeptutor.services.memory.service.llm_complete", _rewrite_llm)
+    service = _make_service(tmp_path)
+    monkeypatch.setattr("deeptutor.services.memory.service.llm_stream", _rewrite_stream)
 
     import asyncio
 
@@ -55,25 +51,16 @@ def test_memory_service_refresh_turn_writes_rewritten_document(monkeypatch, tmp_
     )
 
     assert result.changed is True
-    assert "## Preferences" in result.content
     assert "concise answers" in result.content
-    assert service.memory_path.exists()
+    assert service._path("profile").exists() or service._path("summary").exists()
 
 
 def test_memory_service_refresh_turn_skips_when_model_returns_no_change(
     monkeypatch,
     tmp_path,
 ) -> None:
-    store = SQLiteSessionStore(tmp_path / "chat_history.db")
-    service = MemoryService(
-        path_service=type(
-            "PathServiceStub",
-            (),
-            {"get_memory_dir": lambda self: tmp_path / "memory"},
-        )(),
-        store=store,
-    )
-    monkeypatch.setattr("deeptutor.services.memory.service.llm_complete", _no_change_llm)
+    service = _make_service(tmp_path)
+    monkeypatch.setattr("deeptutor.services.memory.service.llm_stream", _no_change_stream)
 
     import asyncio
 
@@ -89,4 +76,5 @@ def test_memory_service_refresh_turn_skips_when_model_returns_no_change(
 
     assert result.changed is False
     assert result.content == ""
-    assert service.memory_path.exists() is False
+    assert not service._path("profile").exists()
+    assert not service._path("summary").exists()
