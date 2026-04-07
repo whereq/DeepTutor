@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import locale
 import os
 from pathlib import Path
 import platform
@@ -443,15 +444,31 @@ def _tour_banner() -> None:
 # Web path — install deps, start temp server, wait for browser config
 # ===================================================================
 
+def _stream_text_kwargs() -> dict[str, object]:
+    """Best-effort text decoding for background process output."""
+    # Some Windows child processes emit locale-specific bytes even when Python
+    # runs in UTF-8 mode. Replace undecodable bytes so the background drain
+    # thread keeps consuming output instead of crashing.
+    encoding = locale.getpreferredencoding(False) or "utf-8"
+    return {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "text": True,
+        "encoding": encoding,
+        "errors": "replace",
+        "bufsize": 1,
+    }
+
+
 def _spawn_process(
     cmd: list[str], *, cwd: Path, env: dict[str, str], name: str,
 ) -> subprocess.Popen[str]:
     import threading
 
     kwargs: dict[str, object] = {
-        "cwd": str(cwd), "env": env,
-        "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT,
-        "text": True, "bufsize": 1,
+        "cwd": str(cwd),
+        "env": env,
+        **_stream_text_kwargs(),
     }
     if os.name == "nt":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
