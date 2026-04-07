@@ -4,11 +4,10 @@
 
 # DeepTutor: Agent-Native Personalized Tutoring
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/HKUDS/DeepTutor?style=flat-square&color=brightgreen)](https://github.com/HKUDS/DeepTutor/releases)
-[![GitHub last commit](https://img.shields.io/github/last-commit/HKUDS/DeepTutor?style=flat-square)](https://github.com/HKUDS/DeepTutor/commits)
 [![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](#)
 
 [![Discord](https://img.shields.io/badge/Discord-Community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
@@ -516,6 +515,19 @@ deeptutor session open <id>                         # Resume in REPL
 | `deeptutor provider login <provider>` | OAuth login (`openai-codex`, `github-copilot`) |
 
 </details>
+
+## 🗺️ Roadmap
+
+| Status | Milestone |
+|:---:|:---|
+| 🔜 | **Authentication & Login** — Optional login page for public deployments with multi-user support |
+| 🔜 | **Themes & Appearance** — Diverse theme options and customizable UI appearance |
+| 🔜 | **LightRAG Integration** — Integrate [LightRAG](https://github.com/HKUDS/LightRAG) as an advanced knowledge base engine |
+| 🔜 | **Documentation Site** — Comprehensive docs page with guides, API reference, and tutorials |
+
+> If you find DeepTutor useful, [give us a star](https://github.com/HKUDS/DeepTutor/stargazers) — it helps us keep going!
+
+---
 
 ## 🌐 Community & Ecosystem
 

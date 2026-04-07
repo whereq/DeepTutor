@@ -1,7 +1,7 @@
 # ============================================
 # DeepTutor Python Dependencies (Runtime Bundle)
 # ============================================
-# Python >= 3.10 required
+# Python >= 3.11 required
 #
 # For targeted installs:
 #   pip install -r requirements/cli.txt            # CLI (full, with RAG + tools)

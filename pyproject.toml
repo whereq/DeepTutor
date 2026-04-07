@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 name = "deeptutor"
 version = "1.0.0"
 description = "An agent-native intelligent learning companion with multi-agent collaboration and RAG"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 dependencies = [
@@ -40,7 +40,7 @@ deeptutor = "deeptutor_cli.main:main"
 anthropic = ["anthropic>=0.30.0"]
 dashscope = ["dashscope>=1.14.0"]
 search = ["perplexityai>=0.1.0"]
-oauth = ["oauth-cli-kit>=0.2.0"]
+oauth = ["oauth-cli-kit>=0.2.0; python_version >= '3.11'"]
 server = [
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.24.0",
@@ -52,7 +52,7 @@ all = [
     "anthropic>=0.30.0",
     "dashscope>=1.14.0",
     "perplexityai>=0.1.0",
-    "oauth-cli-kit>=0.2.0",
+    "oauth-cli-kit>=0.2.0; python_version >= '3.11'",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.24.0",
     "websockets>=12.0",
@@ -72,7 +72,7 @@ include = ["deeptutor*", "deeptutor_cli*"]
 # ============================================
 [tool.black]
 line-length = 100
-target-version = ['py310', 'py311', 'py312']
+target-version = ['py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -99,7 +99,7 @@ extend-exclude = '''
 # ============================================
 [tool.ruff]
 # Target Python version
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
@@ -235,7 +235,7 @@ addopts = [
 # MyPy type checking configuration
 # ============================================
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 # Relaxed type checking for gradual adoption
 pretty = false
 show_error_context = false
