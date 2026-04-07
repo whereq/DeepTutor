@@ -25,6 +25,35 @@ from deeptutor.services.llm.config import get_llm_config
 from deeptutor.utils.json_parser import parse_json_response
 
 
+def _find_parsed_content_dir(paper_dir: Path) -> Path:
+    """Locate the MinerU output directory that contains parsed markdown artifacts."""
+    candidate_dirs: list[Path] = []
+
+    for preferred_name in ("auto", "hybrid_auto"):
+        preferred_dir = paper_dir / preferred_name
+        if preferred_dir.is_dir():
+            candidate_dirs.append(preferred_dir)
+
+    for child in sorted(paper_dir.iterdir()):
+        if child.is_dir() and child not in candidate_dirs:
+            candidate_dirs.append(child)
+
+    nested_artifact_dirs = {
+        artifact.parent
+        for pattern in ("*.md", "*_content_list.json")
+        for artifact in paper_dir.rglob(pattern)
+    }
+    for artifact_dir in sorted(nested_artifact_dirs):
+        if artifact_dir not in candidate_dirs:
+            candidate_dirs.append(artifact_dir)
+
+    for candidate_dir in candidate_dirs:
+        if list(candidate_dir.glob("*.md")):
+            return candidate_dir
+
+    return candidate_dirs[0] if candidate_dirs else paper_dir
+
+
 def load_parsed_paper(paper_dir: Path) -> tuple[str | None, list[dict] | None, Path]:
     """
     Load MinerU-parsed exam paper files
@@ -35,9 +64,9 @@ def load_parsed_paper(paper_dir: Path) -> tuple[str | None, list[dict] | None, P
     Returns:
         (markdown_content, content_list, images_dir)
     """
-    auto_dir = paper_dir / "auto"
-    if not auto_dir.exists():
-        auto_dir = paper_dir
+    auto_dir = _find_parsed_content_dir(paper_dir)
+    if auto_dir != paper_dir:
+        print(f"📂 Using parsed content directory: {auto_dir.relative_to(paper_dir)}")
 
     md_files = list(auto_dir.glob("*.md"))
     if not md_files:
