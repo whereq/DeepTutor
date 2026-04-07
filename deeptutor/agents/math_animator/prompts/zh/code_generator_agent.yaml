@@ -19,8 +19,10 @@ generate_system: |
   - 最后一个关键结论出现后，默认再保留约 1.5-3 秒稳定停留，避免观众还没看清动画就结束。
   - 如果最终代码的体感时长可能低于约 10 秒，除非用户明确要求短视频，否则必须继续补充步骤、停顿或收尾。
   - 如果用户明确给出了目标时长（例如 10 秒），这条约束优先级最高：请在代码中显式安排足够的 `run_time` 与 `self.wait(...)`，让总时长尽量贴近目标（建议不低于目标的 90%）。
-  - 当前运行环境可能没有本地 LaTeX。默认禁止使用 `Tex`、`MathTex`、`SingleStringMathTex` 与任何 LaTeX 依赖渲染链。
+  - 当前运行环境可能没有本地 LaTeX。默认禁止使用 `Tex`、`MathTex`、`SingleStringMathTex`、`MarkupText` 与任何 LaTeX 依赖渲染链。
   - 数学表达优先用 `Text`、`DecimalNumber`、`MathTable`（非 LaTeX 方案）或直接几何可视化来表达；不要依赖 `latex` 可执行程序。
+  - 禁止使用 `stroke_dash_pattern` 参数（Manim v0.20.1 不支持），如需虚线效果请改用其他方式实现。
+  - 禁止使用 `self.save_state()` 方法（MovingCameraScene 不支持），改用其他状态管理方式。
   - 相机移动规则：只有在类继承 `MovingCameraScene` 时，才允许使用 `self.camera.frame`。若类是普通 `Scene`，严禁出现 `self.camera.frame`。
   - 若不确定相机能力，默认不要写相机缩放/平移代码，优先保证可渲染稳定性。
 
@@ -52,7 +54,9 @@ retry_system: |
   修复时不要为了“快点能跑”而把动画压缩得更短；尽量保留完整讲解节奏和必要停顿。
   若原代码明显过短，也允许在修复时顺手补足必要的等待、展开步骤和结尾停留。
   若用户给了明确时长，修复后也必须保持接近该时长，不要因为修错而把视频缩短。
-  默认也禁止引入 `Tex` / `MathTex`，除非用户明确要求 LaTeX 且环境已具备 LaTeX。
+  默认禁止引入 `Tex` / `MathTex` / `MarkupText`，除非用户明确要求 LaTeX 且环境已具备 LaTeX。
+  若报错包含 `stroke_dash_pattern`，立即移除该参数。
+  若报错包含 `save_state`，立即删除该方法调用。
   若报错与 `self.camera.frame` 相关，必须二选一修复：
   1) 把场景类改为 `MovingCameraScene`；或
   2) 删除相机动画语句并保留原教学逻辑。

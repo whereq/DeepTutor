@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Awaitable, Callable
@@ -145,43 +146,32 @@ class ManimRenderService:
         else:
             command.extend(["--format", "mp4"])
 
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
         await self._emit_progress(
             f"Started Manim process for `{scene_name}` with command: {' '.join(command)}",
             raw=True,
         )
-        stdout_lines: list[str] = []
-        stderr_lines: list[str] = []
 
-        async def _drain_stream(
-            stream: asyncio.StreamReader | None,
-            sink: list[str],
-            *,
-            prefix: str,
-        ) -> None:
-            if stream is None:
-                return
-            while True:
-                raw_line = await stream.readline()
-                if not raw_line:
-                    break
-                line = raw_line.decode(errors="ignore").strip()
-                if not line:
-                    continue
-                sink.append(line)
-                await self._emit_progress(f"[{prefix}] {line}", raw=True)
+        # Use subprocess.run in a thread to avoid asyncio event loop
+        # compatibility issues on Windows (SelectorEventLoop does not
+        # support create_subprocess_exec).
+        def _run_sync() -> subprocess.CompletedProcess:
+            return subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+            )
 
-        await asyncio.gather(
-            _drain_stream(process.stdout, stdout_lines, prefix="stdout"),
-            _drain_stream(process.stderr, stderr_lines, prefix="stderr"),
-        )
-        await process.wait()
-        await self._emit_progress(f"Manim process finished with exit code {process.returncode}.", raw=True)
-        if process.returncode != 0:
+        result = await asyncio.to_thread(_run_sync)
+
+        stdout_lines = [l for l in (result.stdout or "").splitlines() if l.strip()]
+        stderr_lines = [l for l in (result.stderr or "").splitlines() if l.strip()]
+        for line in stdout_lines:
+            await self._emit_progress(f"[stdout] {line}", raw=True)
+        for line in stderr_lines:
+            await self._emit_progress(f"[stderr] {line}", raw=True)
+
+        await self._emit_progress(f"Manim process finished with exit code {result.returncode}.", raw=True)
+        if result.returncode != 0:
             raise ManimRenderError(
                 trim_error_message(
                     "\n".join(part for part in ["\n".join(stdout_lines), "\n".join(stderr_lines)] if part)
