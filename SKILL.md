@@ -14,7 +14,7 @@ Use this skill when the user wants to:
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - DeepTutor installed: `pip install -e .` (core) or `pip install -e ".[server]"` (with web)
 - Run `python scripts/start_tour.py` for first-time interactive setup (configures LLM, embedding, search providers and writes `.env`)
 

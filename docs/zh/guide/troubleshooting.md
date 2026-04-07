@@ -6,7 +6,7 @@
 
 | 问题 | 解决方案 |
 |:--------|:---------|
-| 后端启动失败 | 检查 Python ≥ 3.10，验证 `.env` 配置 |
+| 后端启动失败 | 检查 Python ≥ 3.11，验证 `.env` 配置 |
 | `npm: command not found` | 安装 Node.js: `conda install -c conda-forge nodejs` |
 | 端口已被占用 | 终止进程：`lsof -i :8001` → `kill -9 <PID>` |
 

@@ -74,7 +74,7 @@ body:
       description: |
         - DeepTutor Version: e.g., v0.5.0
         - Operating System: e.g., macOS 14.0, Windows 11, Ubuntu 22.04
-        - Python Version: e.g., 3.10.0
+        - Python Version: e.g., 3.11.0
         - Node.js Version: e.g., 18.17.0
         - Browser (if applicable): e.g., Chrome 120, Firefox 121
         - Related Issues: e.g., #1

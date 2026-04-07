@@ -3,7 +3,7 @@
 ## Backend fails to start?
 
 **Checklist**
-- Confirm Python version >= 3.10
+- Confirm Python version >= 3.11
 - Confirm all dependencies installed: `pip install -r requirements.txt`
 - Check if port 8001 is in use (configurable in `config/main.yaml`)
 - Check `.env` file configuration

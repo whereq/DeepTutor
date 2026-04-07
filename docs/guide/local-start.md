@@ -5,7 +5,7 @@ DeepTutor now has a single local onboarding flow.
 ## Recommended flow
 
 1. Clone the repository.
-2. Activate a Python 3.10+ environment.
+2. Activate a Python 3.11+ environment.
 3. Install from source:
 
 ```bash
