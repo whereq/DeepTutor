@@ -516,6 +516,19 @@ deeptutor session open <id>                         # Resume in REPL
 
 </details>
 
+## 🗺️ Roadmap
+
+| Status | Milestone |
+|:---:|:---|
+| 🔜 | **Authentication & Login** — Optional login page for public deployments with multi-user support |
+| 🔜 | **Themes & Appearance** — Diverse theme options and customizable UI appearance |
+| 🔜 | **LightRAG Integration** — Integrate [LightRAG](https://github.com/HKUDS/LightRAG) as an advanced knowledge base engine |
+| 🔜 | **Documentation Site** — Comprehensive docs page with guides, API reference, and tutorials |
+
+> If you find DeepTutor useful, [give us a star](https://github.com/HKUDS/DeepTutor/stargazers) — it helps us keep going!
+
+---
+
 ## 🌐 Community & Ecosystem
 
 DeepTutor stands on the shoulders of outstanding open-source projects:
