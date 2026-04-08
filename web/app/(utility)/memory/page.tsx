@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Brain, Eraser, Loader2, RefreshCw, Save, BookOpen, User } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAppShell } from "@/context/AppShellContext";
 import { apiUrl } from "@/lib/api";
 
@@ -51,6 +52,7 @@ function formatUpdatedAt(value: string | null): string {
 }
 
 export default function MemoryPage() {
+  const { t } = useTranslation();
   const { activeSessionId, language } = useAppShell();
   const [data, setData] = useState<MemoryData>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -158,7 +160,7 @@ export default function MemoryPage() {
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-[24px] font-semibold tracking-tight text-[var(--foreground)]">
-              Memory
+              {t("Memory")}
             </h1>
             {toast ? (
               <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">{toast}</p>
@@ -260,7 +262,7 @@ export default function MemoryPage() {
               placeholder={tab.placeholder}
             />
             <p className="mt-2 text-[11px] text-[var(--muted-foreground)]/40">
-              Cmd+S to save · Markdown supported
+              {t("Cmd+S to save · Markdown supported")}
             </p>
           </div>
         ) : editorValue.trim() ? (
@@ -274,7 +276,7 @@ export default function MemoryPage() {
             </div>
             <p className="text-[14px] font-medium text-[var(--foreground)]">No {tab.label.toLowerCase()} yet</p>
             <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
-              Refresh from a session or write directly in the editor.
+              {t("Refresh from a session or write directly in the editor.")}
             </p>
           </div>
         )}

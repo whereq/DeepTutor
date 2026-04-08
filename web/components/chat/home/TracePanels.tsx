@@ -141,7 +141,7 @@ function isTracePending(events: StreamEvent[]) {
   return hasRunning && !hasTerminal;
 }
 
-function getTraceHeader(events: StreamEvent[], nowSeconds?: number, nested?: boolean) {
+function getTraceHeader(events: StreamEvent[], nowSeconds?: number, nested?: boolean, t: (key: string) => string = (k) => k) {
   const label = getTraceLabel(events);
   const role = getTraceRole(events);
   const group = getTraceGroup(events);
@@ -165,9 +165,9 @@ function getTraceHeader(events: StreamEvent[], nowSeconds?: number, nested?: boo
   ) {
     title = label;
   } else if (role === "retrieve") {
-    title = "Retrieve";
+    title = t("Retrieve");
   } else if (kind === "tool_planning") {
-    title = "Tool call";
+    title = t("Tool call");
   } else if (group === "react_round") {
     if (nested) {
       title = meta.round ? `Round ${meta.round}` : label;
@@ -177,13 +177,13 @@ function getTraceHeader(events: StreamEvent[], nowSeconds?: number, nested?: boo
       title = [step, round].filter(Boolean).join(" · ");
     }
   } else if (role === "plan" && kind === "llm_planning") {
-    title = "Plan";
+    title = t("Plan");
   } else if (role === "observe" || kind === "llm_observation") {
-    title = "Observe";
+    title = t("Observe");
   } else if (role === "response" || kind === "llm_final_response") {
-    title = "Response";
+    title = t("Response");
   } else if (role === "thought" || kind === "llm_reasoning") {
-    title = "Thought";
+    title = t("Thought");
   } else if (kind === "llm_generation") {
     if (/^generate\s+/i.test(label)) title = label.replace(/^generate\s+/i, "Generating ");
     else if (/^write\s+/i.test(label)) title = label.replace(/^write\s+/i, "Writing ");
@@ -634,7 +634,7 @@ export function CallTracePanel({
     const role = getTraceRole(callEvents);
     const group = getTraceGroup(callEvents);
     const kind = getTraceCallKind(callEvents);
-    const header = getTraceHeader(callEvents, nowSeconds, nested);
+    const header = getTraceHeader(callEvents, nowSeconds, nested, t);
     const active = Boolean(isStreaming) && isGloballyLast && isTracePending(callEvents);
     const isFinalResponse = kind === "llm_final_response";
 
@@ -797,7 +797,7 @@ export function CallTracePanel({
                     }
 
                     /* Non-round trace (retrieve, tool, etc.) — inline within the step */
-                    const inlineHeader = getTraceHeader(trace.events, nowSeconds, true);
+                    const inlineHeader = getTraceHeader(trace.events, nowSeconds, true, t);
                     const progressEvts = trace.events.filter(
                       (e) =>
                         e.type === "progress" &&

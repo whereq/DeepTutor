@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "react-i18next";
 import type { MathAnimatorFormConfig } from "@/lib/math-animator-types";
 import { Field, INPUT_CLS } from "@/components/chat/home/composer-field";
 
@@ -12,6 +13,7 @@ export default function MathAnimatorConfigPanel({
   value,
   onChange,
 }: MathAnimatorConfigPanelProps) {
+  const { t } = useTranslation();
   const update = <K extends keyof MathAnimatorFormConfig>(
     key: K,
     val: MathAnimatorFormConfig[K],
@@ -25,8 +27,8 @@ export default function MathAnimatorConfigPanel({
           onChange={(e) => update("output_mode", e.target.value as MathAnimatorFormConfig["output_mode"])}
           className={`${INPUT_CLS} w-full`}
         >
-          <option value="video">Video</option>
-          <option value="image">Image</option>
+          <option value="video">{t("Video")}</option>
+          <option value="image">{t("Image")}</option>
         </select>
       </Field>
 
@@ -36,9 +38,9 @@ export default function MathAnimatorConfigPanel({
           onChange={(e) => update("quality", e.target.value as MathAnimatorFormConfig["quality"])}
           className={`${INPUT_CLS} w-full`}
         >
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
+          <option value="low">{t("Low")}</option>
+          <option value="medium">{t("Medium")}</option>
+          <option value="high">{t("High")}</option>
         </select>
       </Field>
 
@@ -47,7 +49,7 @@ export default function MathAnimatorConfigPanel({
           type="text"
           value={value.style_hint}
           onChange={(e) => update("style_hint", e.target.value)}
-          placeholder="Style, pacing, color..."
+          placeholder={t("Style, pacing, color...")}
           className={`${INPUT_CLS} w-full`}
         />
       </Field>

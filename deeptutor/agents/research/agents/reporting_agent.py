@@ -1507,15 +1507,13 @@ class ReportingAgent(BaseAgent):
     @staticmethod
     def _strip_json_wrapper(resp: str) -> str:
         """Best-effort extraction of readable text from a JSON response."""
-        import json as _json
-        try:
-            obj = _json.loads(resp.strip())
-            if isinstance(obj, dict):
-                for key in ("report", "content", "text", "markdown", "output"):
-                    if key in obj and isinstance(obj[key], str):
-                        return obj[key]
-        except (ValueError, TypeError):
-            pass
+        from deeptutor.utils.json_parser import parse_json_response
+
+        obj = parse_json_response(resp.strip(), fallback=None)
+        if isinstance(obj, dict):
+            for key in ("report", "content", "text", "markdown", "output"):
+                if key in obj and isinstance(obj[key], str):
+                    return obj[key]
         stripped = resp.strip()
         if stripped.startswith("{") or stripped.startswith("["):
             for line in stripped.split("\\n"):

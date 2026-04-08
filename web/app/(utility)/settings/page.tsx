@@ -21,6 +21,8 @@ import {
   X,
 } from "lucide-react";
 
+import { useTranslation } from "react-i18next";
+
 import { writeStoredLanguage } from "@/context/AppShellContext";
 import { apiUrl } from "@/lib/api";
 import { setTheme as applyThemePreference } from "@/lib/theme";
@@ -68,9 +70,12 @@ type UiSettings = {
   language: "en" | "zh";
 };
 
+type ProviderOption = { value: string; label: string; base_url?: string };
+
 type SettingsPayload = {
   ui: UiSettings;
   catalog: Catalog;
+  providers?: Record<ServiceName, ProviderOption[]>;
 };
 
 type SystemStatus = {
@@ -142,6 +147,9 @@ function defaultCatalog(): Catalog {
 const inputClass =
   "w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40";
 
+const selectClass =
+  "w-full appearance-none rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] cursor-pointer";
+
 function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
   if (!value) return "";
   if (typeof value === "string") return value;
@@ -186,6 +194,7 @@ function SpotlightOverlay({
   onNext: () => void;
   onSkip: () => void;
 }) {
+  const { t } = useTranslation();
   const [rect, setRect] = useState<DOMRect | null>(null);
   const guideStep = TOUR_GUIDE_STEPS[stepIndex];
 
@@ -229,23 +238,23 @@ function SpotlightOverlay({
         style={{ top: tooltipTop, left: tooltipLeft }}
       >
         <div className="mb-1 text-[13px] font-semibold text-[var(--foreground)]">
-          {guideStep.title}
+          {t(guideStep.title)}
         </div>
         <p className="mb-4 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
-          {guideStep.desc}
+          {t(guideStep.desc)}
         </p>
         <div className="flex items-center justify-between">
           <button
             onClick={onSkip}
             className="text-[12px] text-[var(--muted-foreground)]/60 transition-colors hover:text-[var(--muted-foreground)]"
           >
-            Skip tour
+            {t("Skip tour")}
           </button>
           <button
             onClick={onNext}
             className="inline-flex items-center gap-1 rounded-lg bg-[var(--foreground)] px-3 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-80"
           >
-            {stepIndex < TOUR_GUIDE_STEPS.length - 1 ? "Next" : "Got it"}
+            {stepIndex < TOUR_GUIDE_STEPS.length - 1 ? t("Next") : t("Got it")}
             <ChevronRight className="h-3 w-3" />
           </button>
         </div>
@@ -269,6 +278,7 @@ function TestResultsModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const hasCriticalFailure = results.llm === "fail" || results.embedding === "fail";
   const allDone = !testing && results.llm !== "pending" && results.embedding !== "pending";
 
@@ -280,10 +290,10 @@ function TestResultsModal({
   };
 
   const label = (r: TourTestResult) => {
-    if (r === "pass") return "Passed";
-    if (r === "fail") return "Failed";
-    if (r === "skip") return "Skipped";
-    return "Testing...";
+    if (r === "pass") return t("Passed");
+    if (r === "fail") return t("Failed");
+    if (r === "skip") return t("Skipped");
+    return t("Testing...");
   };
 
   return (
@@ -291,7 +301,7 @@ function TestResultsModal({
       <div className="w-[400px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-[16px] font-semibold text-[var(--foreground)]">
-            {testing ? "Running tests..." : "Test Results"}
+            {testing ? t("Running tests...") : t("Test Results")}
           </h2>
           {!testing && (
             <button onClick={onCancel} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
@@ -321,7 +331,7 @@ function TestResultsModal({
               onClick={onCancel}
               className="flex-1 rounded-lg border border-[var(--border)] px-4 py-2 text-[13px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--foreground)]/20 hover:text-[var(--foreground)]"
             >
-              Back to editing
+              {t("Back to editing")}
             </button>
             <button
               onClick={onConfirm}
@@ -331,7 +341,7 @@ function TestResultsModal({
                   : "bg-[var(--foreground)] text-[var(--background)]"
               }`}
             >
-              {hasCriticalFailure ? "Launch anyway" : "Confirm & Launch"}
+              {hasCriticalFailure ? t("Launch anyway") : t("Confirm & Launch")}
             </button>
           </div>
         )}
@@ -339,7 +349,7 @@ function TestResultsModal({
         {testing && (
           <div className="flex items-center justify-center gap-2 py-2 text-[13px] text-[var(--muted-foreground)]">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Please wait...
+            {t("Please wait...")}
           </div>
         )}
       </div>
@@ -352,6 +362,7 @@ function TestResultsModal({
 // ═══════════════════════════════════════════════════════════════════════════
 
 function SettingsPageContent() {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const isTourMode = searchParams.get("tour") === "true";
 
@@ -367,6 +378,7 @@ function SettingsPageContent() {
   const [applying, setApplying] = useState(false);
   const [toast, setToast] = useState<string>("");
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [providers, setProviders] = useState<Record<ServiceName, ProviderOption[]>>({ llm: [], embedding: [], search: [] });
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Tour-specific state
@@ -387,6 +399,7 @@ function SettingsPageContent() {
       setDraft(cloneCatalog(settingsPayload.catalog));
       setTheme(settingsPayload.ui.theme);
       setLanguage(settingsPayload.ui.language);
+      if (settingsPayload.providers) setProviders(settingsPayload.providers);
 
       const statusResponse = await fetch(apiUrl("/api/v1/system/status"));
       const statusPayload = (await statusResponse.json()) as SystemStatus;
@@ -577,7 +590,7 @@ function SettingsPageContent() {
       const payload = await response.json();
       setCatalog(payload.catalog);
       setDraft(cloneCatalog(payload.catalog));
-      setToast("Draft saved");
+      setToast(t("Draft saved"));
     } finally {
       setSaving(false);
     }
@@ -594,7 +607,7 @@ function SettingsPageContent() {
       const payload = await response.json();
       setCatalog(payload.catalog);
       setDraft(cloneCatalog(payload.catalog));
-      setToast("Applied to .env");
+      setToast(t("Applied to .env"));
       const statusResponse = await fetch(apiUrl("/api/v1/system/status"));
       setStatus((await statusResponse.json()) as SystemStatus);
     } finally {
@@ -640,7 +653,7 @@ function SettingsPageContent() {
         eventSourceRef.current = null;
         setTestRunning(null);
         setLogs((current) => `${current}[failed] Diagnostics stream disconnected.\n`);
-        setToast("Diagnostics stream disconnected");
+        setToast(t("Diagnostics stream disconnected"));
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not start diagnostics.";
@@ -736,10 +749,10 @@ function SettingsPageContent() {
         setTourCompleted(true);
         setTourRedirectAt(payload.redirect_at ?? Math.floor(Date.now() / 1000) + 5);
       } else {
-        setToast("Failed to complete tour");
+        setToast(t("Failed to complete tour"));
       }
     } catch {
-      setToast("Failed to complete tour");
+      setToast(t("Failed to complete tour"));
     }
   };
 
@@ -752,7 +765,7 @@ function SettingsPageContent() {
   const reopenTour = async () => {
     const response = await fetch(apiUrl("/api/v1/settings/tour/reopen"), { method: "POST" });
     const payload = (await response.json()) as { command?: string; message?: string };
-    setToast(payload.command ? `Run ${payload.command} in your terminal.` : payload.message || "Run python scripts/start_tour.py in your terminal.");
+    setToast(payload.command ? t("Run {{command}} in your terminal.", { command: payload.command }) : payload.message || t("Run python scripts/start_tour.py in your terminal."));
   };
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -769,10 +782,10 @@ function SettingsPageContent() {
             <div>
               <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--foreground)]">
                 <Rocket className="h-4 w-4 text-[var(--primary)]" />
-                Setup Tour
+                {t("Setup Tour")}
               </div>
               <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-                Configure your endpoints below, run tests, then launch DeepTutor.
+                {t("Configure your endpoints below, run tests, then launch DeepTutor.")}
               </p>
             </div>
             <button
@@ -782,7 +795,7 @@ function SettingsPageContent() {
               className="ml-4 inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--foreground)] px-4 py-2 text-[13px] font-medium text-[var(--background)] transition-opacity hover:opacity-80 disabled:opacity-40"
             >
               {tourTestPhase === "testing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-              Complete & Launch
+              {t("Complete & Launch")}
             </button>
           </div>
         )}
@@ -792,12 +805,12 @@ function SettingsPageContent() {
           <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-center">
             <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="h-4 w-4" />
-              Configuration saved
+              {t("Configuration saved")}
             </div>
             <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
               {redirectCountdown > 0
-                ? `Redirecting to DeepTutor in ${redirectCountdown}s...`
-                : "Redirecting..."}
+                ? t("Redirecting to DeepTutor in {{count}}s...", { count: redirectCountdown })
+                : t("Redirecting...")}
             </p>
           </div>
         )}
@@ -806,7 +819,7 @@ function SettingsPageContent() {
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-[24px] font-semibold tracking-tight text-[var(--foreground)]">
-              Settings
+              {t("Settings")}
             </h1>
             {toast ? (
               <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">
@@ -814,7 +827,7 @@ function SettingsPageContent() {
               </p>
             ) : (
               <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-                {hasUnsavedChanges ? "Draft has unsaved changes" : "All changes saved"}
+                {hasUnsavedChanges ? t("Draft has unsaved changes") : t("All changes saved")}
               </p>
             )}
           </div>
@@ -825,12 +838,12 @@ function SettingsPageContent() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
             >
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-              Save Draft
+              {t("Save Draft")}
             </button>
             <button
               onClick={applyCatalog}
               disabled={applying || isTourMode}
-              title={isTourMode ? "Complete the tour first" : undefined}
+              title={isTourMode ? t("Complete the tour first") : undefined}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-opacity disabled:opacity-40 ${
                 isTourMode
                   ? "cursor-not-allowed border border-[var(--border)]/30 bg-[var(--muted)] text-[var(--muted-foreground)]"
@@ -838,7 +851,7 @@ function SettingsPageContent() {
               }`}
             >
               {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-              Apply
+              {t("Apply")}
             </button>
           </div>
         </div>
@@ -846,7 +859,7 @@ function SettingsPageContent() {
         {/* ── Preferences & Runtime ── */}
         <div className="mb-8 flex flex-wrap items-center gap-x-8 gap-y-3 border-b border-[var(--border)]/50 pb-6">
           <div className="flex items-center gap-2">
-            <span className="text-[12px] text-[var(--muted-foreground)]">Theme</span>
+            <span className="text-[12px] text-[var(--muted-foreground)]">{t("Theme")}</span>
             <div className="flex gap-0.5 rounded-lg bg-[var(--muted)] p-0.5">
               {(["light", "dark"] as const).map((v) => (
                 <button
@@ -858,14 +871,14 @@ function SettingsPageContent() {
                       : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   }`}
                 >
-                  {v === "light" ? "Light" : "Dark"}
+                  {v === "light" ? t("Light") : t("Dark")}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[12px] text-[var(--muted-foreground)]">Language</span>
+            <span className="text-[12px] text-[var(--muted-foreground)]">{t("Language")}</span>
             <div className="flex gap-0.5 rounded-lg bg-[var(--muted)] p-0.5">
               {(["en", "zh"] as const).map((v) => (
                 <button
@@ -886,20 +899,20 @@ function SettingsPageContent() {
           <div className="ml-auto flex items-center gap-4 text-[12px] text-[var(--muted-foreground)]">
             <span className="flex items-center gap-1.5">
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(status?.backend.status === "online", false)}`} />
-              Backend
+              {t("Backend")}
             </span>
             <span className="flex items-center gap-1.5">
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.llm.model), Boolean(status?.llm.error))}`} />
-              LLM
+              {t("LLM")}
               {status?.llm.model && <span className="text-[var(--muted-foreground)]/50">· {status.llm.model}</span>}
             </span>
             <span className="flex items-center gap-1.5">
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.embeddings.model), Boolean(status?.embeddings.error))}`} />
-              Emb
+              {t("Emb")}
             </span>
             <span className="flex items-center gap-1.5">
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.search.provider), false)}`} />
-              Search
+              {t("Search")}
             </span>
           </div>
         </div>
@@ -933,7 +946,7 @@ function SettingsPageContent() {
                 className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
               >
                 <Plus className="h-3 w-3" />
-                Profile
+                {t("Profile")}
               </button>
               {activeService !== "search" && (
                 <button
@@ -941,7 +954,7 @@ function SettingsPageContent() {
                   className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
                 >
                   <Plus className="h-3 w-3" />
-                  Model
+                  {t("Model")}
                 </button>
               )}
             </div>
@@ -971,7 +984,7 @@ function SettingsPageContent() {
                   >
                     <div className="text-[13px] font-medium">{profile.name}</div>
                     <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
-                      {profile.base_url || "No endpoint"}
+                      {profile.base_url || t("No endpoint")}
                     </div>
                   </button>
                 ))}
@@ -981,7 +994,7 @@ function SettingsPageContent() {
                   className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] text-[var(--muted-foreground)]/40 transition-colors hover:text-red-500 disabled:opacity-30"
                 >
                   <Trash2 className="h-3 w-3" />
-                  Delete profile
+                  {t("Delete profile")}
                 </button>
               </div>
 
@@ -989,11 +1002,11 @@ function SettingsPageContent() {
               <div className="space-y-5">
                 <div className="rounded-xl border border-[var(--border)] p-5">
                   <div className="mb-4 text-[13px] font-medium text-[var(--foreground)]">
-                    Profile
+                    {t("Profile")}
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">Name</div>
+                      <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">{t("Name")}</div>
                       <input
                         className={inputClass}
                         value={activeProfile.name}
@@ -1002,23 +1015,33 @@ function SettingsPageContent() {
                     </div>
                     <div>
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        {activeService === "search" ? "Provider" : "Provider Hint / Binding"}
+                        {t("Provider")}
                       </div>
-                      <input
-                        className={inputClass}
-                        value={
-                          activeService === "search"
-                            ? activeProfile.provider || ""
-                            : activeProfile.binding || ""
-                        }
-                        onChange={(e) =>
-                          updateProfileField(
-                            activeService === "search" ? "provider" : "binding",
-                            e.target.value,
-                          )
-                        }
-                        placeholder={activeService === "search" ? "brave" : "openai"}
-                      />
+                      <div className="relative">
+                        <select
+                          className={selectClass}
+                          value={
+                            activeService === "search"
+                              ? activeProfile.provider || ""
+                              : activeProfile.binding || ""
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const field = activeService === "search" ? "provider" : "binding";
+                            updateProfileField(field, val);
+                            const match = (providers[activeService] || []).find((p) => p.value === val);
+                            if (match?.base_url && !activeProfile.base_url) {
+                              updateProfileField("base_url", match.base_url);
+                            }
+                          }}
+                        >
+                          <option value="">{t("Select provider...")}</option>
+                          {(providers[activeService] || []).map((p) => (
+                            <option key={p.value} value={p.value}>{p.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                      </div>
                       {showSearchProviderWarning && (
                         <p
                           className={`mt-1.5 text-[11px] ${
@@ -1031,16 +1054,16 @@ function SettingsPageContent() {
                         >
                           {isSupportedSearchProvider
                             ? isPerplexityMissingKey
-                              ? "Perplexity requires API key. It will fail hard without credentials."
-                              : "Supported provider."
+                              ? t("Perplexity requires API key. It will fail hard without credentials.")
+                              : t("Supported provider.")
                             : isDeprecatedSearchProvider
-                              ? "Deprecated provider. Switch to brave/tavily/jina/searxng/duckduckgo/perplexity."
-                              : "Unsupported provider. Use brave/tavily/jina/searxng/duckduckgo/perplexity."}
+                              ? t("Deprecated provider. Switch to brave/tavily/jina/searxng/duckduckgo/perplexity.")
+                              : t("Unsupported provider. Use brave/tavily/jina/searxng/duckduckgo/perplexity.")}
                         </p>
                       )}
                     </div>
                     <div className="sm:col-span-2">
-                      <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">Base URL</div>
+                      <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">{t("Base URL")}</div>
                       <input
                         className={inputClass}
                         value={activeProfile.base_url}
@@ -1049,7 +1072,7 @@ function SettingsPageContent() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">API Key</div>
+                      <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">{t("API Key")}</div>
                       <input
                         className={inputClass}
                         value={activeProfile.api_key}
@@ -1058,17 +1081,17 @@ function SettingsPageContent() {
                       />
                     </div>
                     <div>
-                      <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">API Version</div>
+                      <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">{t("API Version")}</div>
                       <input
                         className={inputClass}
                         value={activeProfile.api_version}
                         onChange={(e) => updateProfileField("api_version", e.target.value)}
-                        placeholder="Optional"
+                        placeholder={t("Optional")}
                       />
                     </div>
                     {activeService === "search" ? (
                       <div>
-                        <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">Proxy</div>
+                        <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">{t("Proxy")}</div>
                         <input
                           className={inputClass}
                           value={activeProfile.proxy || ""}
@@ -1079,7 +1102,7 @@ function SettingsPageContent() {
                     ) : (
                       <div className="sm:col-span-2">
                         <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                          Extra Headers (JSON)
+                          {t("Extra Headers (JSON)")}
                         </div>
                         <textarea
                           className={`${inputClass} min-h-[84px] resize-y`}
@@ -1095,14 +1118,14 @@ function SettingsPageContent() {
                 {activeService !== "search" && (
                   <div className="rounded-xl border border-[var(--border)] p-5">
                     <div className="mb-4 flex items-center justify-between">
-                      <div className="text-[13px] font-medium text-[var(--foreground)]">Models</div>
+                      <div className="text-[13px] font-medium text-[var(--foreground)]">{t("Models")}</div>
                       <button
                         onClick={removeActiveModel}
                         disabled={!activeModel}
                         className="inline-flex items-center gap-1 text-[11px] text-[var(--muted-foreground)]/40 transition-colors hover:text-red-500 disabled:opacity-30"
                       >
                         <Trash2 className="h-3 w-3" />
-                        Delete
+                        {t("Delete")}
                       </button>
                     </div>
                     {activeProfile.models.length > 0 && (
@@ -1129,16 +1152,16 @@ function SettingsPageContent() {
                     {activeModel && (
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">Label</div>
+                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">{t("Label")}</div>
                           <input className={inputClass} value={activeModel.name} onChange={(e) => updateModelField("name", e.target.value)} />
                         </div>
                         <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">Model ID</div>
+                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">{t("Model ID")}</div>
                           <input className={inputClass} value={activeModel.model} onChange={(e) => updateModelField("model", e.target.value)} placeholder="gpt-4o" />
                         </div>
                         {activeService === "embedding" && (
                           <div>
-                            <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">Dimension</div>
+                            <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">{t("Dimension")}</div>
                             <input className={inputClass} value={activeModel.dimension || "3072"} onChange={(e) => updateModelField("dimension", e.target.value)} />
                           </div>
                         )}
@@ -1150,7 +1173,7 @@ function SettingsPageContent() {
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-[var(--border)] py-12 text-center text-[13px] text-[var(--muted-foreground)]">
-              No profiles configured. Add a profile to start.
+              {t("No profiles configured. Add a profile to start.")}
             </div>
           )}
         </div>
@@ -1165,7 +1188,7 @@ function SettingsPageContent() {
               aria-expanded={diagnosticsOpen}
             >
               <Terminal className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-              <span className="text-[13px] font-medium text-[var(--foreground)]">Diagnostics</span>
+              <span className="text-[13px] font-medium text-[var(--foreground)]">{t("Diagnostics")}</span>
               {testRunning && <Loader2 className="h-3 w-3 animate-spin text-[var(--primary)]" />}
             </button>
             <div className="ml-3 flex items-center gap-3">
@@ -1176,13 +1199,13 @@ function SettingsPageContent() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
               >
                 {serviceIcon(activeService)}
-                Run test
+                {t("Run test")}
               </button>
               <button
                 type="button"
                 onClick={() => setDiagnosticsOpen((v) => !v)}
                 className="text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                aria-label={diagnosticsOpen ? "Collapse diagnostics" : "Expand diagnostics"}
+                aria-label={diagnosticsOpen ? t("Collapse diagnostics") : t("Expand diagnostics")}
                 aria-expanded={diagnosticsOpen}
               >
                 <ChevronDown className={`h-4 w-4 transition-transform ${diagnosticsOpen ? "rotate-180" : ""}`} />
@@ -1192,10 +1215,7 @@ function SettingsPageContent() {
           {diagnosticsOpen && (
             <div className="border-t border-[var(--border)] px-5 py-4">
               <p className="mb-3 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
-                Streams config snapshot, request target, response summary, and service-specific
-                validation for the active{" "}
-                <span className="font-medium text-[var(--foreground)]">{activeService}</span>{" "}
-                profile.
+                {t("Streams config snapshot, request target, response summary, and service-specific validation for the active {{service}} profile.", { service: activeService })}
               </p>
               <pre className="max-h-[360px] overflow-y-auto rounded-lg bg-[#0f0f0f] p-4 font-mono text-[12px] leading-6 text-[#777] dark:bg-[#0a0a0a]">
                 {logs}
@@ -1212,7 +1232,7 @@ function SettingsPageContent() {
               className="inline-flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]/40 transition-colors hover:text-[var(--muted-foreground)]"
             >
               <RotateCcw className="h-3 w-3" />
-              Run Terminal Tour
+              {t("Run Terminal Tour")}
             </button>
           )}
           <span className="text-[11px] text-[var(--muted-foreground)]/30 ml-auto">
@@ -1250,11 +1270,12 @@ function SettingsPageContent() {
 }
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   return (
     <Suspense
       fallback={
         <div className="min-h-[50vh] flex items-center justify-center text-[13px] text-[var(--muted-foreground)]">
-          Loading settings...
+          {t("Loading settings...")}
         </div>
       }
     >

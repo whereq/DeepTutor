@@ -18,15 +18,7 @@ except ImportError:
     TIKTOKEN_AVAILABLE = False
     tiktoken = None  # type: ignore
 
-# Try importing litellm (optional)
-try:
-    import litellm  # type: ignore
-    from litellm import token_counter  # type: ignore
-
-    LITELLM_AVAILABLE = True
-except ImportError:
-    LITELLM_AVAILABLE = False
-    litellm = None  # type: ignore
+LITELLM_AVAILABLE = False
 
 # Model pricing table (USD per 1K tokens)
 MODEL_PRICING = {
@@ -63,11 +55,13 @@ def count_tokens_with_tiktoken(text: str, model_name: str) -> int:
 
 
 def count_tokens_with_litellm(messages: list[dict], model_name: str) -> dict[str, int]:
-    if not LITELLM_AVAILABLE:
+    """Count tokens from messages using tiktoken (litellm removed)."""
+    if not TIKTOKEN_AVAILABLE:
         return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     try:
-        token_count = token_counter(model=model_name, messages=messages)  # type: ignore
-        return {"prompt_tokens": token_count, "completion_tokens": 0, "total_tokens": token_count}
+        text = "\n".join(str(m.get("content", "")) for m in messages)
+        count = count_tokens_with_tiktoken(text, model_name)
+        return {"prompt_tokens": count, "completion_tokens": 0, "total_tokens": count}
     except Exception:
         return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
@@ -80,17 +74,6 @@ def get_model_pricing(model_name: str) -> dict[str, float]:
     for key, val in MODEL_PRICING.items():
         if key in lower or lower in key:
             return val
-    # litellm query
-    if LITELLM_AVAILABLE:
-        try:
-            info = litellm.get_model_info(model=model_name)  # type: ignore
-            if info and "input_cost_per_token" in info:
-                return {
-                    "input": info.get("input_cost_per_token", 0) * 1000,
-                    "output": info.get("output_cost_per_token", 0) * 1000,
-                }
-        except Exception:
-            pass
     return MODEL_PRICING["gpt-4o-mini"]
 
 

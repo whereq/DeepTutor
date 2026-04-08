@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
   BookOpen,
@@ -128,6 +129,7 @@ const kbIsUploadable = (kb: KnowledgeBase): boolean =>
 
 export default function KnowledgePage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<"knowledge" | "notebooks">("knowledge");
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [notebooks, setNotebooks] = useState<NotebookInfo[]>([]);
@@ -474,7 +476,7 @@ export default function KnowledgePage() {
   };
 
   const deleteKnowledgeBase = async (kbName: string) => {
-    if (!window.confirm(`Delete knowledge base "${kbName}"?`)) return;
+    if (!window.confirm(t('Delete knowledge base "{{name}}"?', { name: kbName }))) return;
     await fetch(apiUrl(`/api/v1/knowledge/${kbName}`), { method: "DELETE" });
     invalidateKnowledgeCaches();
     await loadAll();
@@ -523,20 +525,20 @@ export default function KnowledgePage() {
   };
 
   const formatTimestamp = (value?: number) => {
-    if (!value) return "Unknown time";
+    if (!value) return t("Unknown time");
     return new Date(value * 1000).toLocaleString();
   };
 
   const getRecordBadge = (type: string) => {
     switch (type) {
       case "chat":
-        return { label: "Chat", color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300", icon: MessageSquare };
+        return { label: t("Chat"), color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300", icon: MessageSquare };
       case "guided_learning":
-        return { label: "Guided Learning", color: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", icon: GraduationCap };
+        return { label: t("Guided Learning"), color: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", icon: GraduationCap };
       case "co_writer":
-        return { label: "Co-Writer", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", icon: PenLine };
+        return { label: t("Co-Writer"), color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", icon: PenLine };
       case "research":
-        return { label: "Research", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", icon: Search };
+        return { label: t("Research"), color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", icon: Search };
       default:
         return { label: type, color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400", icon: NotebookPen };
     }
@@ -565,11 +567,11 @@ export default function KnowledgePage() {
   const uploadBlockedReason = useMemo(() => {
     if (!uploadTargetKb) return null;
     if (kbNeedsReindex(uploadTargetKb)) {
-      return "This knowledge base is in legacy index format and needs reindex before upload.";
+      return t("This knowledge base is in legacy index format and needs reindex before upload.");
     }
     const status = resolveKbStatus(uploadTargetKb);
     if (status !== "ready") {
-      return `This knowledge base is currently ${status.replaceAll("_", " ")} and cannot accept uploads yet.`;
+      return t("This knowledge base is currently {{status}} and cannot accept uploads yet.", { status: status.replaceAll("_", " ") });
     }
     return null;
   }, [uploadTargetKb]);
@@ -584,17 +586,17 @@ export default function KnowledgePage() {
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
-              Knowledge
+              {t("Knowledge")}
             </h1>
             <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-              Manage your knowledge bases and notebooks in one place.
+              {t("Manage your knowledge bases and notebooks in one place.")}
             </p>
           </div>
 
           <div className="inline-flex shrink-0 rounded-lg border border-[var(--border)] bg-[var(--muted)] p-0.5">
             {[
-              { key: "knowledge", label: "Knowledge Bases", icon: Database },
-              { key: "notebooks", label: "Notebooks", icon: NotebookPen },
+              { key: "knowledge", label: t("Knowledge Bases"), icon: Database },
+              { key: "notebooks", label: t("Notebooks"), icon: NotebookPen },
             ].map((item) => (
               <button
                 key={item.key}
@@ -630,7 +632,7 @@ export default function KnowledgePage() {
                 <div className="mb-4 flex items-center gap-2">
                   <Plus size={15} className="text-[var(--muted-foreground)]" />
                   <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
-                    Create knowledge base
+                    {t("Create knowledge base")}
                   </h2>
                 </div>
 
@@ -638,7 +640,7 @@ export default function KnowledgePage() {
                   <input
                     value={newKbName}
                     onChange={(event) => setNewKbName(event.target.value)}
-                    placeholder="Knowledge base name"
+                    placeholder={t("Knowledge base name")}
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25"
                   />
 
@@ -662,8 +664,10 @@ export default function KnowledgePage() {
                   >
                     <FileUp size={15} />
                     {newKbFiles.length
-                      ? `${newKbFiles.length} file${newKbFiles.length > 1 ? "s" : ""} selected`
-                      : "Choose files..."}
+                      ? newKbFiles.length > 1
+                        ? t("{n} files selected", { n: newKbFiles.length })
+                        : t("{n} file selected", { n: newKbFiles.length })
+                      : t("Choose files...")}
                   </button>
                   <input
                     ref={createFileRef}
@@ -694,7 +698,7 @@ export default function KnowledgePage() {
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus size={14} />}
-                    Create
+                    {t("Create")}
                   </button>
 
                   {(createProcess.taskId || createProcess.logs.length > 0 || createProcess.executing) && (
@@ -708,7 +712,7 @@ export default function KnowledgePage() {
                       <ProcessLogs
                         logs={createProcess.logs}
                         executing={createProcess.executing}
-                        title="Create Process"
+                        title={t("Create Process")}
                       />
                     </div>
                   )}
@@ -726,7 +730,7 @@ export default function KnowledgePage() {
                 <div className="mb-4 flex items-center gap-2">
                   <Upload size={15} className="text-[var(--muted-foreground)]" />
                   <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
-                    Upload documents
+                    {t("Upload documents")}
                   </h2>
                 </div>
 
@@ -736,14 +740,14 @@ export default function KnowledgePage() {
                     onChange={(event) => setUploadTarget(event.target.value)}
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none"
                   >
-                    <option value="">Select a knowledge base</option>
+                    <option value="">{t("Select a knowledge base")}</option>
                     {combinedKbs.map((kb) => {
                       const status = resolveKbStatus(kb);
                       const needsReindex = kbNeedsReindex(kb);
                       const uploadable = kbIsUploadable(kb);
                       let suffix = "";
                       if (needsReindex) {
-                        suffix = " (needs reindex)";
+                        suffix = ` (${t("needs reindex")})`;
                       } else if (status !== "ready") {
                         suffix = ` (${status.replaceAll("_", " ")})`;
                       }
@@ -758,7 +762,7 @@ export default function KnowledgePage() {
 
                   {!hasUploadableKb && (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-                      No ready knowledge base is available for upload. Create a new KB or reindex legacy KBs first.
+                      {t("No ready knowledge base is available for upload. Create a new KB or reindex legacy KBs first.")}
                     </div>
                   )}
 
@@ -775,8 +779,10 @@ export default function KnowledgePage() {
                   >
                     <FileUp size={15} />
                     {uploadFiles.length
-                      ? `${uploadFiles.length} file${uploadFiles.length > 1 ? "s" : ""} selected`
-                      : "Choose files..."}
+                      ? uploadFiles.length > 1
+                        ? t("{n} files selected", { n: uploadFiles.length })
+                        : t("{n} file selected", { n: uploadFiles.length })
+                      : t("Choose files...")}
                   </button>
                   <input
                     ref={uploadFileRef}
@@ -811,7 +817,7 @@ export default function KnowledgePage() {
                     ) : (
                       <Upload size={14} />
                     )}
-                    Upload
+                    {t("Upload")}
                   </button>
 
                   {(uploadProcess.taskId || uploadProcess.logs.length > 0 || uploadProcess.executing) && (
@@ -825,7 +831,7 @@ export default function KnowledgePage() {
                       <ProcessLogs
                         logs={uploadProcess.logs}
                         executing={uploadProcess.executing}
-                        title="Upload Process"
+                        title={t("Upload Process")}
                       />
                     </div>
                   )}
@@ -844,7 +850,7 @@ export default function KnowledgePage() {
               <div className="mb-4 flex items-center gap-2">
                 <BookOpen size={15} className="text-[var(--muted-foreground)]" />
                 <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
-                  Knowledge bases
+                  {t("Knowledge bases")}
                 </h2>
               </div>
 
@@ -855,7 +861,7 @@ export default function KnowledgePage() {
                   const needsReindex = kbNeedsReindex(kb);
                   const displayStatus =
                     needsReindex
-                      ? "needs reindex"
+                      ? t("needs reindex")
                       : status !== "ready"
                         ? status.replaceAll("_", " ")
                         : null;
@@ -879,13 +885,13 @@ export default function KnowledgePage() {
                             </h3>
                             {kb.is_default && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
-                                <Star size={10} /> Default
+                                <Star size={10} /> {t("Default")}
                               </span>
                             )}
                           </div>
                           <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--muted-foreground)]">
-                            <span>Provider: {kb.statistics?.rag_provider || "llamaindex"}</span>
-                            <span>Documents: {kb.statistics?.raw_documents ?? 0}</span>
+                            <span>{t("Provider")}: {kb.statistics?.rag_provider || "llamaindex"}</span>
+                            <span>{t("Documents")}: {kb.statistics?.raw_documents ?? 0}</span>
                             {displayStatus && (
                               <span
                                 className={
@@ -894,7 +900,7 @@ export default function KnowledgePage() {
                                     : "capitalize"
                                 }
                               >
-                                Status: {displayStatus}
+                                {t("Status")}: {displayStatus}
                               </span>
                             )}
                           </div>
@@ -906,7 +912,7 @@ export default function KnowledgePage() {
                               onClick={() => setDefaultKnowledgeBase(kb.name)}
                               className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
                             >
-                              Set default
+                              {t("Set default")}
                             </button>
                           )}
                           <button
@@ -939,7 +945,7 @@ export default function KnowledgePage() {
 
                 {!combinedKbs.length && (
                   <div className="rounded-lg border border-dashed border-[var(--border)] px-6 py-10 text-center text-[13px] text-[var(--muted-foreground)]">
-                    No knowledge bases yet. Create one to get started.
+                    {t("No knowledge bases yet. Create one to get started.")}
                   </div>
                 )}
               </div>
@@ -952,7 +958,7 @@ export default function KnowledgePage() {
               <div className="mb-4 flex items-center gap-2">
                 <Plus size={15} className="text-[var(--muted-foreground)]" />
                 <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
-                  Create notebook
+                  {t("Create notebook")}
                 </h2>
               </div>
 
@@ -960,13 +966,13 @@ export default function KnowledgePage() {
                 <input
                   value={newNotebookName}
                   onChange={(event) => setNewNotebookName(event.target.value)}
-                  placeholder="Notebook name"
+                  placeholder={t("Notebook name")}
                   className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25"
                 />
                 <input
                   value={newNotebookDescription}
                   onChange={(event) => setNewNotebookDescription(event.target.value)}
-                  placeholder="Description"
+                  placeholder={t("Description")}
                   className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25"
                 />
                 <button
@@ -974,7 +980,7 @@ export default function KnowledgePage() {
                   disabled={!newNotebookName.trim()}
                   className="rounded-lg bg-[var(--primary)] px-3.5 py-2 text-[13px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Create
+                  {t("Create")}
                 </button>
               </div>
             </section>
@@ -984,7 +990,7 @@ export default function KnowledgePage() {
               <div className="mb-4 flex items-center gap-2">
                 <NotebookPen size={15} className="text-[var(--muted-foreground)]" />
                 <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
-                  Notebooks
+                  {t("Notebooks")}
                 </h2>
               </div>
 
@@ -1017,7 +1023,7 @@ export default function KnowledgePage() {
                               </p>
                             )}
                             <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
-                              <span>{notebook.record_count ?? 0} records</span>
+                              <span>{notebook.record_count ?? 0} {t("records")}</span>
                               <span>{notebook.updated_at ? formatTimestamp(notebook.updated_at) : ""}</span>
                             </div>
                           </div>
@@ -1028,7 +1034,7 @@ export default function KnowledgePage() {
 
                   {!notebooks.length && (
                     <div className="rounded-xl border border-dashed border-[var(--border)] px-6 py-10 text-center text-[13px] text-[var(--muted-foreground)]">
-                      No notebooks yet. Create one to organize outputs.
+                      {t("No notebooks yet. Create one to organize outputs.")}
                     </div>
                   )}
                 </div>
@@ -1056,7 +1062,7 @@ export default function KnowledgePage() {
                           )}
                         </div>
                         <span className="text-[11px] tabular-nums text-[var(--muted-foreground)]">
-                          {selectedNotebook.records?.length || 0} records
+                          {selectedNotebook.records?.length || 0} {t("records")}
                         </span>
                       </div>
 
@@ -1070,7 +1076,7 @@ export default function KnowledgePage() {
                             (record.type === "chat" || record.type === "guided_learning") &&
                             Boolean(record.metadata?.session_id);
                           const sessionLabel =
-                            record.type === "chat" ? "Open chat session" : "Open guided learning session";
+                            record.type === "chat" ? t("Open chat session") : t("Open guided learning session");
 
                           return (
                             <div key={record.id} className="group">
@@ -1104,7 +1110,7 @@ export default function KnowledgePage() {
                                   )}
                                   {record.type !== "chat" && record.user_query && (
                                     <div className="mb-3 flex items-baseline gap-2 text-[12px]">
-                                      <span className="shrink-0 font-medium text-[var(--muted-foreground)]">Query:</span>
+                                      <span className="shrink-0 font-medium text-[var(--muted-foreground)]">{t("Query:")}</span>
                                       <span className="text-[var(--foreground)]/70">{record.user_query}</span>
                                     </div>
                                   )}
@@ -1135,7 +1141,7 @@ export default function KnowledgePage() {
 
                         {!selectedNotebook.records?.length && (
                           <div className="px-6 py-12 text-center text-[13px] text-[var(--muted-foreground)]">
-                            This notebook is empty for now.
+                            {t("This notebook is empty for now.")}
                           </div>
                         )}
                         </div>
@@ -1143,7 +1149,7 @@ export default function KnowledgePage() {
                     </div>
                   ) : (
                     <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-dashed border-[var(--border)] text-[13px] text-[var(--muted-foreground)]">
-                      Select a notebook to inspect its saved records.
+                      {t("Select a notebook to inspect its saved records.")}
                     </div>
                   )}
                 </div>
