@@ -4,9 +4,16 @@ Uvicorn Server Startup Script
 Uses Python API instead of command line to avoid Windows path parsing issues.
 """
 
+import asyncio
 import os
 from pathlib import Path
 import sys
+
+# Windows: uvicorn defaults to SelectorEventLoop which does not support
+# asyncio.create_subprocess_exec.  Switch to ProactorEventLoop so that
+# child-process APIs (used by Math Animator renderer, etc.) work correctly.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 import uvicorn
 
