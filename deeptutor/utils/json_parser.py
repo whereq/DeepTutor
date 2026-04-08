@@ -21,11 +21,13 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+_UNSET = object()
+
 
 def parse_json_response(
     response: str,
     logger_instance: logging.Logger | None = None,
-    fallback: Any = None,
+    fallback: Any = _UNSET,
 ) -> Any:
     """
     Safely parse JSON from LLM responses with automatic repair.
@@ -38,7 +40,9 @@ def parse_json_response(
     Args:
         response: Raw string response from LLM
         logger_instance: Logger instance for debugging (optional)
-        fallback: Value to return if all parsing fails (default: {})
+        fallback: Value to return if all parsing fails.
+                  Pass ``None`` explicitly to get ``None`` on failure;
+                  omit the argument (or leave default) to get ``{}``.
 
     Returns:
         Parsed JSON object, or fallback value if parsing fails
@@ -51,7 +55,7 @@ def parse_json_response(
     """
     log = logger_instance or logger
 
-    if fallback is None:
+    if fallback is _UNSET:
         fallback = {}
 
     # Handle empty response
@@ -91,7 +95,7 @@ def parse_json_response(
         return fallback
 
 
-def safe_json_loads(data: str, fallback: Any = None) -> Any:
+def safe_json_loads(data: str, fallback: Any = _UNSET) -> Any:
     """
     Simple wrapper for safe JSON loading.
 
@@ -102,8 +106,10 @@ def safe_json_loads(data: str, fallback: Any = None) -> Any:
     Returns:
         Parsed JSON or fallback value
     """
+    if fallback is _UNSET:
+        fallback = {}
     try:
         return json.loads(data)
     except json.JSONDecodeError as e:
         logger.warning(f"JSON parse error: {e}")
-        return fallback if fallback is not None else {}
+        return fallback

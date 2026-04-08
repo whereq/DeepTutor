@@ -80,33 +80,27 @@ class ToolTrace:
             return raw_answer
 
         # Try to parse as JSON and truncate intelligently
-        try:
-            data = parse_json_response(raw_answer, fallback=None)
-            if data is None:
-                raise ValueError("not JSON")
+        data = parse_json_response(raw_answer, fallback=None)
+        if isinstance(data, dict):
+            content_fields = ["answer", "content", "text", "chunks", "documents"]
+            for field_name in content_fields:
+                if field_name in data:
+                    if (
+                        isinstance(data[field_name], str)
+                        and len(data[field_name]) > max_size // 2
+                    ):
+                        data[field_name] = data[field_name][: max_size // 2] + "... [truncated]"
+                    elif isinstance(data[field_name], list):
+                        data[field_name] = data[field_name][:3]
+                        if data[field_name]:
+                            data[field_name].append({"note": "... additional items truncated"})
 
-            # If it's a dict with common RAG response fields, truncate content fields
-            if isinstance(data, dict):
-                # Truncate long content fields
-                content_fields = ["answer", "content", "text", "chunks", "documents"]
-                for field_name in content_fields:
-                    if field_name in data:
-                        if (
-                            isinstance(data[field_name], str)
-                            and len(data[field_name]) > max_size // 2
-                        ):
-                            data[field_name] = data[field_name][: max_size // 2] + "... [truncated]"
-                        elif isinstance(data[field_name], list):
-                            # Keep only first few items
-                            data[field_name] = data[field_name][:3]
-                            if data[field_name]:
-                                data[field_name].append({"note": "... additional items truncated"})
-
+            try:
                 truncated = json.dumps(data, ensure_ascii=False)
                 if len(truncated) <= max_size:
                     return truncated
-        except (json.JSONDecodeError, TypeError):
-            pass
+            except (TypeError, ValueError):
+                pass
 
         # Fallback: simple truncation with marker
         truncation_marker = "\n... [content truncated, original size: {} bytes]".format(
