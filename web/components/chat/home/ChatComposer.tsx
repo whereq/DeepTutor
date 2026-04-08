@@ -289,6 +289,7 @@ export default function ChatComposer({
               onClick={onTextareaClick}
               onPaste={onPaste}
               rows={1}
+              suppressHydrationWarning
               placeholder={
                 isMathAnimatorMode
                   ? t("Describe the math animation or storyboard you want...")

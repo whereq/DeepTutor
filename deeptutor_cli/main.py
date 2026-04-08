@@ -97,7 +97,17 @@ def serve(
     reload: bool = typer.Option(False, help="Enable auto-reload for development."),
 ) -> None:
     """Start the DeepTutor API server."""
+    import asyncio
+    import sys
+
     set_mode(RunMode.SERVER)
+
+    # Windows: uvicorn defaults to SelectorEventLoop which does not support
+    # asyncio.create_subprocess_exec.  Switch to ProactorEventLoop so that
+    # child-process APIs (used by Math Animator renderer, etc.) work correctly.
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
     try:
         import uvicorn
     except ImportError:
