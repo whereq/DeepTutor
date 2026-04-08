@@ -11,8 +11,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from deeptutor.utils.json_parser import parse_json_response
-
 
 class TopicStatus(Enum):
     """Topic block status enumeration"""
@@ -81,9 +79,7 @@ class ToolTrace:
 
         # Try to parse as JSON and truncate intelligently
         try:
-            data = parse_json_response(raw_answer, fallback=None)
-            if data is None:
-                raise ValueError("not JSON")
+            data = json.loads(raw_answer)
 
             # If it's a dict with common RAG response fields, truncate content fields
             if isinstance(data, dict):

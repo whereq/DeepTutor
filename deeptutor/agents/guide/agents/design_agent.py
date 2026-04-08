@@ -8,7 +8,6 @@ import json
 from typing import Optional
 
 from deeptutor.agents.base_agent import BaseAgent
-from deeptutor.utils.json_parser import parse_json_response
 
 
 class DesignAgent(BaseAgent):
@@ -74,7 +73,7 @@ class DesignAgent(BaseAgent):
             response = "".join(_chunks)
 
             try:
-                result = parse_json_response(response, logger_instance=self.logger)
+                result = json.loads(response)
 
                 if isinstance(result, list):
                     knowledge_points = result
