@@ -228,8 +228,8 @@ export default function ChatComposer({
                       className={`shrink-0 ${selected ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium text-[var(--foreground)]">{cap.label}</div>
-                      <div className="truncate text-[11px] text-[var(--muted-foreground)]">{cap.description}</div>
+                      <div className="text-[13px] font-medium text-[var(--foreground)]">{t(cap.label)}</div>
+                      <div className="truncate text-[11px] text-[var(--muted-foreground)]">{t(cap.description)}</div>
                     </div>
                     {selected && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--primary)]" />}
                   </button>
@@ -345,7 +345,7 @@ export default function ChatComposer({
                 }`}
               >
                 <CapIcon size={14} strokeWidth={1.6} />
-                <span className="font-medium">{activeCap.label}</span>
+                <span className="font-medium">{t(activeCap.label)}</span>
                 <ChevronDown size={11} className={`transition-transform ${capMenuOpen ? "rotate-180" : ""}`} />
               </button>
 
@@ -367,7 +367,7 @@ export default function ChatComposer({
                         }`}
                       >
                         <Icon size={11} strokeWidth={1.7} />
-                        {source.label}
+                        {t(source.label)}
                       </button>
                     );
                   })
@@ -387,7 +387,7 @@ export default function ChatComposer({
                         {visibleTools.filter((vt) => selectedTools.has(vt.name)).map((vt, i) => (
                           <span key={vt.name} className="shrink-0 text-[10px] text-[var(--muted-foreground)]/35">
                             {i > 0 && <span className="text-[12px] leading-none">·</span>}
-                            {vt.label}
+                            {t(vt.label)}
                           </span>
                         ))}
                       </div>
@@ -411,7 +411,7 @@ export default function ChatComposer({
                               } hover:bg-[var(--muted)]/40`}
                             >
                               <Icon size={13} strokeWidth={1.7} />
-                              <span className="flex-1 font-medium">{tool.label}</span>
+                              <span className="flex-1 font-medium">{t(tool.label)}</span>
                               {active && <div className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />}
                             </button>
                           );
@@ -427,7 +427,7 @@ export default function ChatComposer({
                   value={stateKnowledgeBase}
                   onChange={(e) => onSetKB(e.target.value)}
                   disabled={!ragActive}
-                  title={ragActive ? "Select knowledge base" : "Enable Knowledge Base source first"}
+                  title={ragActive ? t("Select Knowledge Base") : t("Enable Knowledge Base source first")}
                   className={`h-[28px] appearance-none rounded-full border bg-transparent py-0 pl-2.5 pr-5 text-[11px] outline-none transition-colors ${
                     ragActive
                       ? "cursor-pointer border-[var(--border)]/40 text-[var(--muted-foreground)] hover:border-[var(--border)] hover:text-[var(--foreground)]"
@@ -435,7 +435,7 @@ export default function ChatComposer({
                   }`}
                   style={{ backgroundImage: ragActive ? "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" : "none", backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center" }}
                 >
-                  <option value="">{ragActive ? "No KB" : "—"}</option>
+                  <option value="">{ragActive ? t("No KB") : "—"}</option>
                   {knowledgeBases.map((kb) => (
                     <option key={kb.name} value={kb.name}>{kb.name}</option>
                   ))}

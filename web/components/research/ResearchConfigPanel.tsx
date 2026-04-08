@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type {
   DeepResearchFormConfig,
   ResearchDepth,
@@ -70,6 +71,7 @@ export default function ResearchConfigPanel({
   onChange,
   onToggleCollapsed,
 }: ResearchConfigPanelProps) {
+  const { t } = useTranslation();
   const update = <K extends keyof DeepResearchFormConfig>(
     key: K,
     next: DeepResearchFormConfig[K],
@@ -88,7 +90,7 @@ export default function ResearchConfigPanel({
           size={10}
           className={`shrink-0 text-[var(--muted-foreground)]/40 transition-transform ${collapsed ? "-rotate-90" : ""}`}
         />
-        <span className="text-[10px] font-medium text-[var(--muted-foreground)]/55">Settings</span>
+        <span className="text-[10px] font-medium text-[var(--muted-foreground)]/55">{t("Settings")}</span>
         {collapsed && summary !== "Incomplete settings" && (
           <span className="min-w-0 truncate text-[10px] text-[var(--muted-foreground)]/30">— {summary}</span>
         )}
@@ -103,7 +105,7 @@ export default function ResearchConfigPanel({
                 onChange={(e) => update("mode", e.target.value as ResearchMode)}
                 className={`${INPUT_CLS} w-full`}
               >
-                <option value="">Select...</option>
+                <option value="">{t("Select...")}</option>
                 {MODE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -117,7 +119,7 @@ export default function ResearchConfigPanel({
                 onChange={(e) => update("depth", e.target.value as ResearchDepth)}
                 className={`${INPUT_CLS} w-full`}
               >
-                <option value="">Select...</option>
+                <option value="">{t("Select...")}</option>
                 {DEPTH_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}

@@ -709,7 +709,7 @@ export default function HomePage() {
             style={hasMessages ? { paddingBottom: `${Math.max(composerHeight + 24, 120)}px` } : undefined}
           >
             <div className="flex items-center justify-between pb-2">
-              <span className="text-[13px] font-medium text-[var(--muted-foreground)]">{activeCap.label}</span>
+              <span className="text-[13px] font-medium text-[var(--muted-foreground)]">{t(activeCap.label)}</span>
               <div className="flex items-center gap-2">
                 {chatSavePayload && (
                   <button

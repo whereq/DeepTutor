@@ -17,6 +17,7 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import SessionList from "@/components/SessionList";
 import { TutorBotRecent } from "@/components/sidebar/TutorBotRecent";
 import type { SessionSummary } from "@/lib/session-api";
@@ -66,6 +67,7 @@ export function SidebarShell({
 }: SidebarShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
 
   const handleNewChat = () => {
@@ -83,7 +85,7 @@ export function SidebarShell({
         <button
           onClick={() => setCollapsed(false)}
           className="mb-4 rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-          aria-label="Expand sidebar"
+          aria-label={t("Expand sidebar")}
         >
           <PanelLeftOpen size={15} />
         </button>
@@ -91,7 +93,7 @@ export function SidebarShell({
         <button
           onClick={handleNewChat}
           className="mb-3 rounded-lg p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--background)]/60 hover:text-[var(--foreground)]"
-          aria-label="New chat"
+          aria-label={t("New Chat")}
         >
           <Plus size={16} strokeWidth={2} />
         </button>
@@ -156,7 +158,7 @@ export function SidebarShell({
         <button
           onClick={() => setCollapsed(true)}
           className="rounded-md p-1 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-          aria-label="Collapse sidebar"
+          aria-label={t("Collapse sidebar")}
         >
           <PanelLeftClose size={15} />
         </button>
@@ -171,7 +173,7 @@ export function SidebarShell({
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--background)]/60 hover:text-[var(--foreground)]"
           >
             <Plus size={16} strokeWidth={2} />
-            <span>New chat</span>
+            <span>{t("New Chat")}</span>
           </button>
 
           {PRIMARY_NAV.map((item) => {
@@ -189,7 +191,7 @@ export function SidebarShell({
                   }`}
                 >
                   <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
-                  <span>{item.label}</span>
+                  <span>{t(item.label)}</span>
                 </Link>
                 {hasSessionsBelow && (
                   <div className={`${sessionViewportClassName} overflow-y-auto`}>
@@ -229,7 +231,7 @@ export function SidebarShell({
               }`}
             >
               <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
-              <span>{item.label}</span>
+              <span>{t(item.label)}</span>
             </Link>
           );
         })}

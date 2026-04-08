@@ -22,6 +22,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { apiUrl } from "@/lib/api";
 import AssistantResponse from "@/components/common/AssistantResponse";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
@@ -226,6 +227,7 @@ function normalizeDeepQuestionConfig(
 /* ------------------------------------------------------------------ */
 
 function TracePanel({ events }: { events: StreamEvent[] }) {
+  const { t } = useTranslation();
   if (!events.length) return null;
 
   const grouped = new Map<string, StreamEvent[]>();
@@ -246,7 +248,7 @@ function TracePanel({ events }: { events: StreamEvent[] }) {
         return (
           <details key={stage} className="group overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/50">
-              <span>{stage === "session" ? "Details" : titleCase(stage)}</span>
+              <span>{stage === "session" ? t("Details") : titleCase(stage)}</span>
               <ChevronDown size={13} className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180" />
             </summary>
             <div className="border-t border-[var(--border)] px-3 py-2.5 space-y-1.5">
@@ -263,7 +265,7 @@ function TracePanel({ events }: { events: StreamEvent[] }) {
                 }
                 if (ev.type === "tool_call" || ev.type === "tool_result") return (
                   <div key={`${stage}-tc-${i}`} className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5">
-                    <div className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">{ev.type === "tool_call" ? "Tool call" : "Tool result"}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">{ev.type === "tool_call" ? t("Tool call") : t("Tool result")}</div>
                     <div className="mt-0.5 text-[12px] text-[var(--foreground)]">{ev.content || String(ev.metadata?.tool ?? "")}</div>
                   </div>
                 );
@@ -283,6 +285,7 @@ function TracePanel({ events }: { events: StreamEvent[] }) {
 /* ------------------------------------------------------------------ */
 
 function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases: KnowledgeBase[] }) {
+  const { t } = useTranslation();
   const params = tool.parameters ?? [];
   const [values, setValues] = useState<Record<string, string>>({});
   const [executing, setExecuting] = useState(false);
@@ -385,8 +388,8 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
           onChange={(e) => setParam(p.name, e.target.value)}
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
         >
-          <option value="">Select knowledge base...</option>
-          {knowledgeBases.map((kb) => <option key={kb.name} value={kb.name}>{kb.name}{kb.is_default ? " (default)" : ""}</option>)}
+          <option value="">{t("Select knowledge base...")}</option>
+          {knowledgeBases.map((kb) => <option key={kb.name} value={kb.name}>{kb.name}{kb.is_default ? ` (${t("default")})` : ""}</option>)}
         </select>
       );
     }
@@ -398,7 +401,7 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
           onChange={(e) => setParam(p.name, e.target.value)}
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
         >
-          <option value="">Select...</option>
+          <option value="">{t("Select...")}</option>
           {p.enum.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
       );
@@ -420,7 +423,7 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
       {/* Config params (non-query) */}
       {otherParams.length > 0 && (
         <div>
-          <h4 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Parameters</h4>
+          <h4 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{t("Parameters")}</h4>
           <div className="grid gap-3 md:grid-cols-2">
             {otherParams.map((p) => (
               <div key={`${tool.name}-${p.name}`}>
@@ -441,13 +444,13 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
         <div className="rounded-xl border-2 border-dashed border-[var(--primary)]/30 bg-[var(--primary)]/[0.03] p-4">
           <label className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-[var(--primary)]">
             <Terminal size={13} />
-            {queryParam.name === "code" ? "Code input" : "Query input"}
+            {queryParam.name === "code" ? t("Code input") : t("Query input")}
           </label>
           {queryParam.name === "code" || queryParam.name === "topic" ? (
             <textarea
               value={values[queryParam.name] ?? ""}
               onChange={(e) => setParam(queryParam.name, e.target.value)}
-              placeholder={queryParam.description || "Enter your input..."}
+              placeholder={queryParam.description || t("Enter your input...")}
               rows={queryParam.name === "topic" ? 5 : 4}
               className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 font-mono text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/40 placeholder:text-[var(--muted-foreground)]"
             />
@@ -457,7 +460,7 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
               value={values[queryParam.name] ?? ""}
               onChange={(e) => setParam(queryParam.name, e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !executing) execute(); }}
-              placeholder={queryParam.description || "Enter your query..."}
+              placeholder={queryParam.description || t("Enter your query...")}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/40 placeholder:text-[var(--muted-foreground)]"
             />
           )}
@@ -471,7 +474,7 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
         className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity disabled:opacity-50"
       >
         {executing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-        {executing ? "Running..." : "Execute"}
+        {executing ? t("Running...") : t("Execute")}
       </button>
 
       {/* Process Logs */}
@@ -490,11 +493,11 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
           <div className="flex items-center gap-2">
             {result.success ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:bg-green-950/30 dark:text-green-400">
-                <Check size={10} /> Success
+                <Check size={10} /> {t("Success")}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950/30 dark:text-red-400">
-                <X size={10} /> Failed
+                <X size={10} /> {t("Failed")}
               </span>
             )}
           </div>
@@ -508,13 +511,13 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
           {result.sources.length > 0 && (
             <details className="group rounded-lg border border-[var(--border)] bg-[var(--card)]">
               <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[13px] font-medium text-[var(--foreground)]">
-                Sources ({result.sources.length})
+                {t("Sources")} ({result.sources.length})
                 <ChevronDown size={13} className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180" />
               </summary>
               <div className="border-t border-[var(--border)] px-3 py-2.5 space-y-1.5">
                 {result.sources.map((s, i) => (
                   <div key={`src-${i}`} className="rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-[12px]">
-                    <div className="font-medium text-[var(--foreground)]">{s.title || s.query || s.type || "Source"}</div>
+                    <div className="font-medium text-[var(--foreground)]">{s.title || s.query || s.type || t("Source")}</div>
                     {s.url && <div className="mt-0.5 break-all text-[11px] text-[var(--muted-foreground)]">{s.url}</div>}
                   </div>
                 ))}
@@ -532,6 +535,7 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
 /* ------------------------------------------------------------------ */
 
 function CapabilityResultPanel({ result }: { result: CapabilityExecResult | null | undefined }) {
+  const { t } = useTranslation();
   if (!result) return null;
 
   const response = typeof result.data.response === "string" ? result.data.response : "";
@@ -545,11 +549,11 @@ function CapabilityResultPanel({ result }: { result: CapabilityExecResult | null
       <div className="flex items-center gap-2">
         {result.success ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:bg-green-950/30 dark:text-green-400">
-            <Check size={10} /> Success
+            <Check size={10} /> {t("Success")}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950/30 dark:text-red-400">
-            <X size={10} /> Failed
+            <X size={10} /> {t("Failed")}
           </span>
         )}
         {typeof result.elapsedMs === "number" && (
@@ -576,7 +580,7 @@ function CapabilityResultPanel({ result }: { result: CapabilityExecResult | null
       {extraKeys.length > 0 && response && (
         <details className="group rounded-lg border border-[var(--border)] bg-[var(--card)]">
           <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[13px] font-medium text-[var(--foreground)]">
-            Metadata
+            {t("Metadata")}
             <ChevronDown size={13} className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180" />
           </summary>
           <div className="border-t border-[var(--border)] px-3 py-2.5">
@@ -607,6 +611,7 @@ function DeepQuestionTester({
   config: DeepQuestionFormConfig;
   onConfigChange: (next: DeepQuestionFormConfig) => void;
 }) {
+  const { t, i18n } = useTranslation();
   const [messages, setMessages] = useState<TesterMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [uploadedPdf, setUploadedPdf] = useState<File | null>(null);
@@ -689,7 +694,7 @@ function DeepQuestionTester({
             content: userContent,
             tools: enabledTools,
             knowledge_bases: enabledTools.includes("rag") && knowledgeBase ? [knowledgeBase] : [],
-            language: "en",
+            language: i18n.language,
             config: requestConfig,
             attachments,
           }),
@@ -791,7 +796,7 @@ function DeepQuestionTester({
                 : "bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             }`}
           >
-            Custom
+            {t("Custom")}
           </button>
           <button
             onClick={() => updateConfig("mode", "mimic")}
@@ -801,7 +806,7 @@ function DeepQuestionTester({
                 : "bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             }`}
           >
-            Mimic Exam
+            {t("Mimic Exam")}
           </button>
         </div>
 
@@ -809,20 +814,20 @@ function DeepQuestionTester({
           <div className="space-y-3">
             <div>
               <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
-                Topic
+                {t("Topic")}
               </label>
               <textarea
                 value={config.topic}
                 onChange={(e) => updateConfig("topic", e.target.value)}
                 rows={3}
-                placeholder="e.g. Gradient Descent Optimization"
+                placeholder={t("e.g. Gradient Descent Optimization")}
                 className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/40 placeholder:text-[var(--muted-foreground)]"
               />
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
-                  Count
+                  {t("Count")}
                 </label>
                 <input
                   type="number"
@@ -835,44 +840,44 @@ function DeepQuestionTester({
               </div>
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
-                  Difficulty
+                  {t("Difficulty")}
                 </label>
                 <select
                   value={config.difficulty}
                   onChange={(e) => updateConfig("difficulty", e.target.value)}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
                 >
-                  <option value="auto">Auto</option>
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
+                  <option value="auto">{t("Auto")}</option>
+                  <option value="easy">{t("Easy")}</option>
+                  <option value="medium">{t("Medium")}</option>
+                  <option value="hard">{t("Hard")}</option>
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
-                  Type
+                  {t("Type")}
                 </label>
                 <select
                   value={config.question_type}
                   onChange={(e) => updateConfig("question_type", e.target.value)}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
                 >
-                  <option value="auto">Auto</option>
-                  <option value="choice">Multiple Choice</option>
-                  <option value="written">Written</option>
-                  <option value="coding">Coding</option>
+                  <option value="auto">{t("Auto")}</option>
+                  <option value="choice">{t("Multiple Choice")}</option>
+                  <option value="written">{t("Written")}</option>
+                  <option value="coding">{t("Coding")}</option>
                 </select>
               </div>
             </div>
             <div>
               <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
-                Preference
+                {t("Preference")}
               </label>
               <textarea
                 value={config.preference}
                 onChange={(e) => updateConfig("preference", e.target.value)}
                 rows={3}
-                placeholder="Extra constraints, style, focus areas..."
+                placeholder={t("Extra constraints, style, focus areas...")}
                 className="w-full resize-none rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/40 placeholder:text-[var(--muted-foreground)]"
               />
             </div>
@@ -881,11 +886,11 @@ function DeepQuestionTester({
           <div className="space-y-3">
             <div>
               <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
-                Upload Exam Paper (PDF)
+                {t("Upload Exam Paper (PDF)")}
               </label>
               <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--border)] bg-[var(--card)] px-4 py-6 text-[13px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]">
                 <Upload size={16} />
-                <span>{uploadedPdf ? uploadedPdf.name : "Click to upload PDF"}</span>
+                <span>{uploadedPdf ? uploadedPdf.name : t("Click to upload PDF")}</span>
                 <input
                   type="file"
                   accept=".pdf,application/pdf"
@@ -899,11 +904,11 @@ function DeepQuestionTester({
               </label>
             </div>
             <div className="text-center text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-              Or
+              {t("Or")}
             </div>
             <div>
               <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
-                Pre-parsed Directory
+                {t("Pre-parsed Directory")}
               </label>
               <div className="relative">
                 <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
@@ -914,14 +919,14 @@ function DeepQuestionTester({
                     setUploadedPdf(null);
                     updateConfig("paper_path", e.target.value);
                   }}
-                  placeholder="e.g. 2211asm1"
+                  placeholder={t("e.g. 2211asm1")}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] py-2 pl-9 pr-3 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/40 placeholder:text-[var(--muted-foreground)]"
                 />
               </div>
             </div>
             <div className="max-w-xs">
               <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
-                Max Questions
+                {t("Max Questions")}
               </label>
               <input
                 type="number"
@@ -939,7 +944,7 @@ function DeepQuestionTester({
       {messages.map((msg, i) => (
         <div key={`${msg.role}-${i}`}>
           <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-            {msg.role === "user" ? "You" : "Assistant"}
+            {msg.role === "user" ? t("You") : t("Assistant")}
           </div>
           {msg.role === "user" ? (
             <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">{msg.content}</div>
@@ -949,7 +954,7 @@ function DeepQuestionTester({
               <ProcessLogs
                 logs={msg.processLogs || []}
                 executing={streaming && i === messages.length - 1}
-                title="Process"
+                title={t("Process")}
               />
               {msg.error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
@@ -973,7 +978,7 @@ function DeepQuestionTester({
           className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {streaming ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-          {streaming ? "Running..." : "Generate"}
+          {streaming ? t("Running...") : t("Generate")}
         </button>
       </div>
     </div>
@@ -993,6 +998,7 @@ function DeepResearchTester({
   config: DeepResearchFormConfig;
   onConfigChange: (next: DeepResearchFormConfig) => void;
 }) {
+  const { t, i18n } = useTranslation();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<TesterMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -1028,7 +1034,7 @@ function DeepResearchTester({
             content,
             tools: enabledTools,
             knowledge_bases: config.sources.includes("kb") && knowledgeBase ? [knowledgeBase] : [],
-            language: "en",
+            language: i18n.language,
             config: buildResearchWSConfig(config),
           }),
         },
@@ -1136,7 +1142,7 @@ function DeepResearchTester({
         onToggleCollapsed={() => {}}
       />
       <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-3">
-        <div className="mb-2 text-[12px] font-medium text-[var(--foreground)]">Sources</div>
+        <div className="mb-2 text-[12px] font-medium text-[var(--foreground)]">{t("Sources")}</div>
         <div className="flex flex-wrap gap-2">
           {RESEARCH_SOURCE_OPTIONS.map((source) => {
             const active = config.sources.includes(source.name);
@@ -1153,15 +1159,15 @@ function DeepResearchTester({
                 }`}
               >
                 <Icon size={13} strokeWidth={1.7} />
-                {source.label}
+                {t(source.label)}
               </button>
             );
           })}
         </div>
         <div className="mt-2 text-[11px] text-[var(--muted-foreground)]">
           {config.sources.length
-            ? "Selected sources will be queried during research."
-            : "No source selected: the run will use llm-only research."}
+            ? t("Selected sources will be queried during research.")
+            : t("No source selected: the run will use llm-only research.")}
         </div>
       </div>
       <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-3">
@@ -1170,7 +1176,7 @@ function DeepResearchTester({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); } }}
           rows={3}
-          placeholder="Describe the research topic..."
+          placeholder={t("Describe the research topic...")}
           className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
         />
         <div className="mt-2 flex justify-end">
@@ -1180,7 +1186,7 @@ function DeepResearchTester({
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {streaming ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-            {streaming ? "Running..." : "Run Research"}
+            {streaming ? t("Running...") : t("Run Research")}
           </button>
         </div>
       </div>
@@ -1188,7 +1194,7 @@ function DeepResearchTester({
       {messages.map((msg, i) => (
         <div key={`${msg.role}-${i}`}>
           <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-            {msg.role === "user" ? "You" : "Assistant"}
+            {msg.role === "user" ? t("You") : t("Assistant")}
           </div>
           {msg.role === "user" ? (
             <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">{msg.content}</div>
@@ -1198,7 +1204,7 @@ function DeepResearchTester({
               <ProcessLogs
                 logs={msg.processLogs || []}
                 executing={streaming && i === messages.length - 1}
-                title="Process"
+                title={t("Process")}
               />
               {msg.error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
@@ -1231,6 +1237,7 @@ function CapabilityTester({
   enabledTools: string[];
   knowledgeBase: string;
 }) {
+  const { t, i18n } = useTranslation();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<TesterMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -1266,7 +1273,7 @@ function CapabilityTester({
             content,
             tools: enabledTools,
             knowledge_bases: enabledTools.includes("rag") && knowledgeBase ? [knowledgeBase] : [],
-            language: "en",
+            language: i18n.language,
           }),
         },
       );
@@ -1359,7 +1366,7 @@ function CapabilityTester({
       {messages.map((msg, i) => (
         <div key={`${msg.role}-${i}`}>
           <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-            {msg.role === "user" ? "You" : "Assistant"}
+            {msg.role === "user" ? t("You") : t("Assistant")}
           </div>
           {msg.role === "user" ? (
             <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">{msg.content}</div>
@@ -1369,7 +1376,7 @@ function CapabilityTester({
               <ProcessLogs
                 logs={msg.processLogs || []}
                 executing={streaming && i === messages.length - 1}
-                title="Process"
+                title={t("Process")}
               />
               {msg.error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
@@ -1391,7 +1398,7 @@ function CapabilityTester({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
           rows={2}
-          placeholder={`Try ${getCapabilityLabel(capability.name)}...`}
+          placeholder={`${t("Try")} ${t(getCapabilityLabel(capability.name))}...`}
           className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
         />
         <div className="mt-2 flex justify-end">
@@ -1401,7 +1408,7 @@ function CapabilityTester({
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {streaming ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-            {streaming ? "Running..." : "Send"}
+            {streaming ? t("Running...") : t("Send")}
           </button>
         </div>
       </div>
@@ -1414,6 +1421,7 @@ function CapabilityTester({
 /* ------------------------------------------------------------------ */
 
 export default function PlaygroundPage() {
+  const { t } = useTranslation();
   const [tools, setToolsList] = useState<ToolInfo[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityInfo[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
@@ -1550,9 +1558,9 @@ export default function PlaygroundPage() {
     <div className="min-h-screen bg-[var(--background)]">
       <div className="mx-auto max-w-5xl px-6 py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">Playground</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">{t("Playground")}</h1>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-            Explore the building blocks of DeepTutor: reusable tools and higher-level capabilities.
+            {t("Explore the building blocks of DeepTutor: reusable tools and higher-level capabilities.")}
           </p>
         </div>
 
@@ -1568,13 +1576,13 @@ export default function PlaygroundPage() {
                 onClick={() => { setActiveKind("tool"); if (tools.length) setActiveName(tools[0].name); }}
                 className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-all ${activeKind === "tool" ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}
               >
-                Tools
+                {t("Tools")}
               </button>
               <button
                 onClick={() => { setActiveKind("capability"); if (capabilityCatalog.length) setActiveName(capabilityCatalog[0].name); }}
                 className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-all ${activeKind === "capability" ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}
               >
-                Capabilities
+                {t("Capabilities")}
               </button>
             </div>
 
@@ -1585,7 +1593,7 @@ export default function PlaygroundPage() {
                 <div className="mb-3 flex items-center gap-1.5">
                   {activeKind === "tool" ? <Terminal className="h-3.5 w-3.5 text-[var(--muted-foreground)]" /> : <Sparkles className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />}
                   <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-                    {activeKind === "tool" ? "Tools" : "Capabilities"}
+                    {activeKind === "tool" ? t("Tools") : t("Capabilities")}
                   </h2>
                 </div>
                 <div className="space-y-1">
@@ -1604,7 +1612,7 @@ export default function PlaygroundPage() {
                         <div className="flex items-center gap-1.5">
                           <Icon size={13} strokeWidth={1.7} />
                           <span className="text-[13px] font-medium">
-                            {activeKind === "tool" ? getToolLabel(item.name) : getCapabilityLabel(item.name)}
+                            {activeKind === "tool" ? t(getToolLabel(item.name)) : t(getCapabilityLabel(item.name))}
                           </span>
                         </div>
                         <div className={`mt-0.5 line-clamp-2 text-[11px] leading-relaxed ${activeName === item.name ? "text-[var(--primary-foreground)]/70" : "text-[var(--muted-foreground)]"}`}>
@@ -1625,9 +1633,9 @@ export default function PlaygroundPage() {
                       <div>
                         <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
                           <ToolIcon size={13} strokeWidth={1.7} />
-                          Tool
+                          {t("Tool")}
                         </div>
-                        <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)]">{getToolLabel(activeTool.name)}</h2>
+                        <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)]">{t(getToolLabel(activeTool.name))}</h2>
                         <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-[var(--muted-foreground)]">
                           {activeTool.description}
                         </p>
@@ -1645,16 +1653,16 @@ export default function PlaygroundPage() {
                       <div>
                         <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
                           <CapIcon size={13} strokeWidth={1.7} />
-                          Capability
+                          {t("Capability")}
                         </div>
-                        <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)]">{getCapabilityLabel(activeCapability.name)}</h2>
+                        <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)]">{t(getCapabilityLabel(activeCapability.name))}</h2>
                         <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-[var(--muted-foreground)]">
                           {activeCapability.description}
                         </p>
                       </div>
 
                       <div>
-                        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Enable Tools</h3>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{t("Enable Tools")}</h3>
                         {!!activeCapability.tools_used?.length ? (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
                             {activeCapability.tools_used.map((tool) => {
@@ -1671,32 +1679,32 @@ export default function PlaygroundPage() {
                                   }`}
                                 >
                                   <TIcon size={11} strokeWidth={1.7} />
-                                  {getToolLabel(tool)}
+                                  {t(getToolLabel(tool))}
                                 </button>
                               );
                             })}
                           </div>
                         ) : (
                           <p className="mt-2 text-[12px] text-[var(--muted-foreground)]">
-                            This capability runs without optional tools.
+                            {t("This capability runs without optional tools.")}
                           </p>
                         )}
                       </div>
 
                       {activeCapabilityConfig?.enabledTools.includes("rag") && (
                         <div>
-                          <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Knowledge Base</h3>
+                          <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{t("Knowledge Base")}</h3>
                           <div className="mt-2.5 max-w-sm">
                             <select
                               value={activeCapabilityConfig.knowledgeBase}
                               onChange={(e) => setCapabilityKnowledgeBase(e.target.value)}
                               className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
                             >
-                              <option value="">Select knowledge base...</option>
+                              <option value="">{t("Select knowledge base...")}</option>
                               {knowledgeBases.map((kb) => (
                                 <option key={kb.name} value={kb.name}>
                                   {kb.name}
-                                  {kb.is_default ? " (default)" : ""}
+                                  {kb.is_default ? ` (${t("default")})` : ""}
                                 </option>
                               ))}
                             </select>
@@ -1706,8 +1714,8 @@ export default function PlaygroundPage() {
 
                       <div className="border-t border-[var(--border)] pt-6">
                         <div className="mb-3">
-                          <h3 className="text-[14px] font-semibold text-[var(--foreground)]">Try this capability</h3>
-                          <p className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">Run a focused conversation here without leaving the playground.</p>
+                          <h3 className="text-[14px] font-semibold text-[var(--foreground)]">{t("Try this capability")}</h3>
+                          <p className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">{t("Run a focused conversation here without leaving the playground.")}</p>
                         </div>
                         {activeCapability.name === "deep_question" ? (
                           <DeepQuestionTester

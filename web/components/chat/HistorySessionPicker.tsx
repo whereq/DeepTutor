@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, MessageSquare, Search, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { listSessions, type SessionSummary } from "@/lib/session-api";
 
 export interface SelectedHistorySession {
@@ -25,6 +26,7 @@ export default function HistorySessionPicker({
   onClose,
   onApply,
 }: HistorySessionPickerProps) {
+  const { t } = useTranslation();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -90,10 +92,10 @@ export default function HistorySessionPicker({
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
           <div>
             <div className="text-[16px] font-semibold text-slate-900 dark:text-slate-100">
-              Select History Sessions
+              {t("Select History Sessions")}
             </div>
             <div className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
-              Choose one or more past conversations to analyze before this turn.
+              {t("Choose one or more past conversations to analyze before this turn.")}
             </div>
           </div>
           <button
@@ -111,7 +113,7 @@ export default function HistorySessionPicker({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search sessions by title or last message"
+                placeholder={t("Search sessions by title or last message")}
                 className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13px] text-slate-900 outline-none transition focus:border-indigo-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
             </div>
@@ -152,7 +154,7 @@ export default function HistorySessionPicker({
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
                             <MessageSquare size={11} />
-                            History
+                            {t("History")}
                           </span>
                           <span className="truncate text-[14px] font-medium text-slate-900 dark:text-slate-100">
                             {session.title || "Untitled session"}
@@ -174,7 +176,7 @@ export default function HistorySessionPicker({
               </div>
             ) : (
               <div className="px-6 py-14 text-center text-[13px] text-slate-500 dark:text-slate-400">
-                No matching sessions found.
+                {t("No matching sessions found.")}
               </div>
             )}
           </div>

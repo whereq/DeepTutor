@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Bot, Loader2, Send } from "lucide-react";
 import { apiUrl, wsUrl } from "@/lib/api";
 import AssistantResponse from "@/components/common/AssistantResponse";
@@ -21,6 +22,7 @@ interface ChatMsg {
 export default function BotChatPage() {
   const { botId } = useParams<{ botId: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [bot, setBot] = useState<BotInfo | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -149,10 +151,10 @@ export default function BotChatPage() {
                 <Bot size={22} />
               </div>
               <p className="text-[14px] font-medium text-[var(--foreground)]">
-                Chat with {bot?.name ?? botId}
+                {t("Chat with {{name}}", { name: bot?.name ?? botId })}
               </p>
               <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-                Send a message to start the conversation.
+                {t("Send a message to start the conversation.")}
               </p>
             </div>
           )}
@@ -168,11 +170,11 @@ export default function BotChatPage() {
                   {msg.thinking && msg.thinking.length > 0 && (
                     <details className="mb-2">
                       <summary className="cursor-pointer text-[12px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                        Thinking ({msg.thinking.length} steps)
+                        {t("Thinking ({{count}} steps)", { count: msg.thinking.length })}
                       </summary>
                       <div className="mt-1 space-y-1 border-l-2 border-[var(--border)] pl-3">
-                        {msg.thinking.map((t, j) => (
-                          <p key={j} className="text-[12px] text-[var(--muted-foreground)]">{t}</p>
+                        {msg.thinking.map((th, j) => (
+                          <p key={j} className="text-[12px] text-[var(--muted-foreground)]">{th}</p>
                         ))}
                       </div>
                     </details>
@@ -188,14 +190,14 @@ export default function BotChatPage() {
             <div className="space-y-2">
               {thinking.length > 0 && (
                 <div className="space-y-1 border-l-2 border-[var(--border)] pl-3">
-                  {thinking.map((t, i) => (
-                    <p key={i} className="text-[12px] text-[var(--muted-foreground)]">{t}</p>
+                  {thinking.map((th, i) => (
+                    <p key={i} className="text-[12px] text-[var(--muted-foreground)]">{th}</p>
                   ))}
                 </div>
               )}
               <div className="flex items-center gap-2 text-[13px] text-[var(--muted-foreground)]">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>{thinking.length > 0 ? "Working..." : "Thinking..."}</span>
+                <span>{thinking.length > 0 ? t("Working...") : t("Thinking...")}</span>
               </div>
             </div>
           )}
@@ -210,7 +212,7 @@ export default function BotChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder={t("Type a message...")}
             rows={1}
             disabled={streaming}
             className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-transparent px-4 py-2.5 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] disabled:opacity-50 placeholder:text-[var(--muted-foreground)]/40"

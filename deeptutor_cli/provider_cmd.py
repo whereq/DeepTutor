@@ -56,13 +56,18 @@ def _login_openai_codex() -> None:
 
 async def _login_github_copilot() -> None:
     try:
-        from litellm import acompletion
+        from openai import AsyncOpenAI
     except ImportError:
-        typer.echo("litellm is not installed. Install CLI deps: pip install -r requirements/cli.txt")
+        typer.echo("openai is not installed. Install CLI deps: pip install -r requirements/cli.txt")
         raise typer.Exit(code=1)
     try:
-        await acompletion(
-            model="github_copilot/gpt-4o",
+        client = AsyncOpenAI(
+            api_key="copilot",
+            base_url="https://api.githubcopilot.com",
+            max_retries=0,
+        )
+        await client.chat.completions.create(
+            model="gpt-4o",
             messages=[{"role": "user", "content": "ping"}],
             max_tokens=1,
         )

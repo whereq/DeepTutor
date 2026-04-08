@@ -7,6 +7,7 @@ import {
   SendHorizonal,
   Sparkles,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import type { QuizQuestion } from "@/lib/quiz-types";
 
@@ -47,6 +48,7 @@ export default function QuestionFollowupPanel({
   onInputChange,
   onSend,
 }: QuestionFollowupPanelProps) {
+  const { t } = useTranslation();
   const visibleMessages = thread.messages.filter((message) => message.role !== "system");
 
   return (
@@ -58,7 +60,7 @@ export default function QuestionFollowupPanel({
         >
           <div className="min-w-0 flex items-center gap-2 text-[12px] font-medium text-[var(--foreground)]">
               <MessageSquarePlus size={13} className="text-[var(--primary)]" />
-              <span>Follow-up Chat</span>
+              <span>{t("Follow-up Chat")}</span>
           </div>
           <div className="ml-auto flex min-w-0 items-center gap-1.5">
             <span className="rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
@@ -93,10 +95,10 @@ export default function QuestionFollowupPanel({
                 <div className="rounded-md border border-dashed border-[var(--border)]/80 bg-[var(--muted)]/14 px-3 py-2.5 text-[12px] leading-[1.55] text-[var(--muted-foreground)]">
                   <div className="mb-1 flex items-center gap-1.5 font-medium text-[var(--foreground)]">
                     <Sparkles size={11} className="text-[var(--primary)]" />
-                    Ask anything about this question
+                    {t("Ask anything about this question")}
                   </div>
                   <div>
-                    Try: why this answer is correct, where your reasoning went wrong, or ask for a cleaner explanation.
+                    {t("Try: why this answer is correct, where your reasoning went wrong, or ask for a cleaner explanation.")}
                   </div>
                 </div>
               ) : (
@@ -140,7 +142,7 @@ export default function QuestionFollowupPanel({
                   onChange={(event) => onInputChange(event.target.value)}
                   rows={2}
                   disabled={thread.isStreaming}
-                  placeholder="Ask a follow-up question about this item..."
+                  placeholder={t("Ask a follow-up question about this item...")}
                   className="min-h-[56px] flex-1 resize-none rounded-md border border-[var(--border)]/80 bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]/35"
                 />
                 <button
@@ -153,7 +155,7 @@ export default function QuestionFollowupPanel({
                   ) : (
                     <SendHorizonal size={11} />
                   )}
-                  Send
+                  {t("Send")}
                 </button>
               </div>
             </div>

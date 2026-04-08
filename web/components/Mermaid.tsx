@@ -126,7 +126,7 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
   if (!stable && !svg) {
     return (
       <div className={`my-4 rounded-xl border border-[var(--border)] bg-[var(--muted)]/50 px-4 py-3 text-sm text-[var(--muted-foreground)] ${className}`}>
-        Rendering diagram...
+        {t("Rendering diagram...")}
       </div>
     );
   }

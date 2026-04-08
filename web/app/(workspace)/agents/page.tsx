@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
 import { apiUrl } from "@/lib/api";
 
@@ -51,6 +52,7 @@ type BotFile = (typeof BOT_FILES)[number];
 
 export default function AgentsPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [bots, setBots] = useState<BotInfo[]>([]);
   const [souls, setSouls] = useState<SoulTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,8 +61,8 @@ export default function AgentsPage() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(""), 3500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setToast(""), 3500);
+    return () => clearTimeout(timer);
   }, [toast]);
 
   const loadBots = useCallback(async () => {
@@ -88,13 +90,13 @@ export default function AgentsPage() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-[24px] font-semibold tracking-tight text-[var(--foreground)]">
-            TutorBot Agents
+            {t("TutorBot Agents")}
           </h1>
           {toast ? (
             <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">{toast}</p>
           ) : (
             <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-              Manage your in-process TutorBot instances
+              {t("Manage your in-process TutorBot instances")}
             </p>
           )}
         </div>
@@ -102,16 +104,16 @@ export default function AgentsPage() {
         {/* Tabs */}
         <div className="mb-6 flex items-center gap-1 border-b border-[var(--border)]/50 pb-3">
           {([
-            { key: "bots" as Tab, label: "Bots", icon: Bot },
-            { key: "profiles" as Tab, label: "Profiles", icon: FileText },
-            { key: "souls" as Tab, label: "Souls", icon: Heart },
-          ]).map((t) => {
-            const Icon = t.icon;
-            const active = activeTab === t.key;
+            { key: "bots" as Tab, label: t("Bots"), icon: Bot },
+            { key: "profiles" as Tab, label: t("Profiles"), icon: FileText },
+            { key: "souls" as Tab, label: t("Souls"), icon: Heart },
+          ]).map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.key;
             return (
               <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
                   active
                     ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
@@ -119,7 +121,7 @@ export default function AgentsPage() {
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {t.label}
+                {tab.label}
               </button>
             );
           })}
@@ -161,6 +163,7 @@ function BotsTab({
   onToast: (msg: string) => void;
   router: ReturnType<typeof useRouter>;
 }) {
+  const { t } = useTranslation();
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -229,10 +232,10 @@ function BotsTab({
   }, [onReload, onToast]);
 
   const destroyBot = useCallback(async (bid: string, name: string) => {
-    if (!window.confirm(`Permanently delete "${name}" (${bid})? This cannot be undone.`)) return;
+    if (!window.confirm(t("Permanently delete \"{{name}}\" ({{id}})? This cannot be undone.", { name, id: bid }))) return;
     const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}/destroy`), { method: "DELETE" });
     if (res.ok) { onToast(`${name} deleted`); await onReload(); }
-  }, [onReload, onToast]);
+  }, [onReload, onToast, t]);
 
   return (
     <>
@@ -243,7 +246,7 @@ function BotsTab({
           className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
         >
           <Plus className="h-3 w-3" />
-          New Bot
+          {t("New Bot")}
         </button>
       </div>
 
@@ -251,18 +254,18 @@ function BotsTab({
       {showCreate && (
         <div className="mb-6 rounded-xl border border-[var(--border)] p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[15px] font-medium text-[var(--foreground)]">Create TutorBot</h2>
+            <h2 className="text-[15px] font-medium text-[var(--foreground)]">{t("Create TutorBot")}</h2>
             <button onClick={() => { setShowCreate(false); resetForm(); }} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="grid gap-3">
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">Name</label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Name")}</label>
               <input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. Math Tutor"
+                placeholder={t("e.g. Math Tutor")}
                 className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
               />
               {botId && (
@@ -270,16 +273,16 @@ function BotsTab({
               )}
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">Description <span className="font-normal opacity-60">(optional)</span></label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Description")} <span className="font-normal opacity-60">{t("(optional)")}</span></label>
               <input
                 value={formDesc}
                 onChange={(e) => setFormDesc(e.target.value)}
-                placeholder="A brief description of what this bot does"
+                placeholder={t("A brief description of what this bot does")}
                 className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">Soul</label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Soul")}</label>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 <button
                   onClick={() => selectSoul("_custom")}
@@ -289,7 +292,7 @@ function BotsTab({
                       : "bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   }`}
                 >
-                  Custom
+                  {t("Custom")}
                 </button>
                 {souls.map((s) => (
                   <button
@@ -308,20 +311,20 @@ function BotsTab({
               <textarea
                 value={formSoul}
                 onChange={(e) => { setFormSoul(e.target.value); setFormSoulId("_custom"); }}
-                placeholder="Define the bot's personality, values, and communication style in markdown..."
+                placeholder={t("Define the bot's personality, values, and communication style in markdown...")}
                 rows={8}
                 className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 font-mono text-[13px] leading-6 text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
               />
               <p className="mt-1 text-[11px] text-[var(--muted-foreground)]/60">
-                Pick a soul from the library above, or write your own. Manage the library in the Souls tab.
+                {t("Pick a soul from the library above, or write your own. Manage the library in the Souls tab.")}
               </p>
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">Model <span className="font-normal opacity-60">(optional)</span></label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Model")} <span className="font-normal opacity-60">{t("(optional)")}</span></label>
               <input
                 value={formModel}
                 onChange={(e) => setFormModel(e.target.value)}
-                placeholder="Uses default model if empty"
+                placeholder={t("Uses default model if empty")}
                 className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
               />
             </div>
@@ -332,7 +335,7 @@ function BotsTab({
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-40"
               >
                 {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                Create & Start
+                {t("Create & Start")}
               </button>
             </div>
           </div>
@@ -349,9 +352,9 @@ function BotsTab({
           <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
             <Bot size={18} />
           </div>
-          <p className="text-[14px] font-medium text-[var(--foreground)]">No TutorBots yet</p>
+          <p className="text-[14px] font-medium text-[var(--foreground)]">{t("No TutorBots yet")}</p>
           <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
-            Create your first TutorBot to get started.
+            {t("Create your first TutorBot to get started.")}
           </p>
         </div>
       ) : (
@@ -373,7 +376,7 @@ function BotsTab({
                     )}
                     {bot.model && <span>· {bot.model}</span>}
                     {bot.started_at && (
-                      <span>· started {new Date(bot.started_at).toLocaleString()}</span>
+                      <span>· {t("started {{time}}", { time: new Date(bot.started_at).toLocaleString() })}</span>
                     )}
                   </div>
                 </div>
@@ -386,14 +389,14 @@ function BotsTab({
                       className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--primary)] transition-colors hover:border-[var(--primary)]/50"
                     >
                       <MessageCircle className="h-3 w-3" />
-                      Chat
+                      {t("Chat")}
                     </button>
                     <button
                       onClick={() => stopBot(bot.bot_id)}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-red-400 transition-colors hover:border-red-400/50"
                     >
                       <Square className="h-3 w-3" />
-                      Stop
+                      {t("Stop")}
                     </button>
                   </>
                 ) : (
@@ -402,7 +405,7 @@ function BotsTab({
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
                   >
                     <Play className="h-3 w-3" />
-                    Start
+                    {t("Start")}
                   </button>
                 )}
                 <button
@@ -431,6 +434,7 @@ function ProfilesTab({
   loading: boolean;
   onToast: (msg: string) => void;
 }) {
+  const { t } = useTranslation();
   const [selectedBot, setSelectedBot] = useState<string>("");
   const [activeFile, setActiveFile] = useState<BotFile>("SOUL.md");
   const [files, setFiles] = useState<Record<string, string>>({});
@@ -511,9 +515,9 @@ function ProfilesTab({
         <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
           <FileText size={18} />
         </div>
-        <p className="text-[14px] font-medium text-[var(--foreground)]">No bots to configure</p>
+        <p className="text-[14px] font-medium text-[var(--foreground)]">{t("No bots to configure")}</p>
         <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
-          Create a bot first in the Bots tab.
+          {t("Create a bot first in the Bots tab.")}
         </p>
       </div>
     );
@@ -523,7 +527,7 @@ function ProfilesTab({
     <div className="space-y-4">
       {/* Bot selector */}
       <div className="flex items-center gap-3">
-        <label className="text-[12px] font-medium text-[var(--muted-foreground)] shrink-0">Bot</label>
+        <label className="text-[12px] font-medium text-[var(--muted-foreground)] shrink-0">{t("Bot")}</label>
         <select
           value={selectedBot}
           onChange={(e) => setSelectedBot(e.target.value)}
@@ -567,7 +571,7 @@ function ProfilesTab({
                   : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
               }`}
             >
-              {v === "edit" ? "Edit" : "Preview"}
+              {v === "edit" ? t("Edit") : t("Preview")}
             </button>
           ))}
         </div>
@@ -577,7 +581,7 @@ function ProfilesTab({
           className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
         >
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-          Save
+          {t("Save")}
         </button>
       </div>
 
@@ -594,11 +598,11 @@ function ProfilesTab({
             onKeyDown={handleKeyDown}
             spellCheck={false}
             className="min-h-[420px] w-full resize-none rounded-xl border border-[var(--border)] bg-transparent px-5 py-4 font-mono text-[13px] leading-7 text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
-            placeholder={`Edit ${activeFile}...`}
+            placeholder={t("Edit {{file}}...", { file: activeFile })}
           />
           <p className="mt-2 text-[11px] text-[var(--muted-foreground)]/40">
-            Cmd+S to save · Markdown supported
-            {hasChanges && " · Unsaved changes"}
+            {t("Cmd+S to save · Markdown supported")}
+            {hasChanges && ` · ${t("Unsaved changes")}`}
           </p>
         </div>
       ) : editor.trim() ? (
@@ -607,9 +611,9 @@ function ProfilesTab({
         </div>
       ) : (
         <div className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-center">
-          <p className="text-[14px] font-medium text-[var(--foreground)]">{activeFile} is empty</p>
+          <p className="text-[14px] font-medium text-[var(--foreground)]">{t("{{file}} is empty", { file: activeFile })}</p>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-            Switch to Edit to add content.
+            {t("Switch to Edit to add content.")}
           </p>
         </div>
       )}
@@ -628,6 +632,7 @@ function SoulsTab({
   onReload: () => Promise<void>;
   onToast: (msg: string) => void;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -703,14 +708,14 @@ function SoulsTab({
   }, [newName, newContent, onReload, onToast]);
 
   const deleteSoul = useCallback(async (soul: SoulTemplate) => {
-    if (!window.confirm(`Delete soul "${soul.name}"?`)) return;
+    if (!window.confirm(t("Delete soul \"{{name}}\"?", { name: soul.name }))) return;
     const res = await fetch(apiUrl(`/api/v1/tutorbot/souls/${soul.id}`), { method: "DELETE" });
     if (res.ok) {
       if (editing === soul.id) cancelEdit();
       onToast(`"${soul.name}" deleted`);
       await onReload();
     }
-  }, [editing, onReload, onToast]);
+  }, [editing, onReload, onToast, t]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>, save: () => void) => {
@@ -727,14 +732,14 @@ function SoulsTab({
       {/* Header */}
       <div className="flex items-center justify-between">
         <p className="text-[13px] text-[var(--muted-foreground)]">
-          Reusable soul templates for creating TutorBots.
+          {t("Reusable soul templates for creating TutorBots.")}
         </p>
         <button
           onClick={startCreate}
           className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
         >
           <Plus className="h-3 w-3" />
-          New Soul
+          {t("New Soul")}
         </button>
       </div>
 
@@ -742,18 +747,18 @@ function SoulsTab({
       {creating && (
         <div className="rounded-xl border border-[var(--border)] p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[15px] font-medium text-[var(--foreground)]">New Soul</h2>
+            <h2 className="text-[15px] font-medium text-[var(--foreground)]">{t("New Soul")}</h2>
             <button onClick={() => setCreating(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="grid gap-3">
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">Name</label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Name")}</label>
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g. Creative Writer"
+                placeholder={t("e.g. Creative Writer")}
                 className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
               />
               {newName.trim() && (
@@ -763,12 +768,12 @@ function SoulsTab({
               )}
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">Content</label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Content")}</label>
               <textarea
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, createSoul)}
-                placeholder="Define the soul in markdown..."
+                placeholder={t("Define the soul in markdown...")}
                 rows={10}
                 spellCheck={false}
                 className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 font-mono text-[13px] leading-6 text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
@@ -779,7 +784,7 @@ function SoulsTab({
                 onClick={() => setCreating(false)}
                 className="rounded-lg px-3 py-1.5 text-[12px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
               >
-                Cancel
+                {t("Cancel")}
               </button>
               <button
                 onClick={createSoul}
@@ -787,7 +792,7 @@ function SoulsTab({
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-40"
               >
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                Create
+                {t("Create")}
               </button>
             </div>
           </div>
@@ -800,9 +805,9 @@ function SoulsTab({
           <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
             <Heart size={18} />
           </div>
-          <p className="text-[14px] font-medium text-[var(--foreground)]">No souls yet</p>
+          <p className="text-[14px] font-medium text-[var(--foreground)]">{t("No souls yet")}</p>
           <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
-            Create your first soul template. Default presets will be seeded automatically on next server restart.
+            {t("Create your first soul template. Default presets will be seeded automatically on next server restart.")}
           </p>
         </div>
       ) : (
@@ -812,7 +817,7 @@ function SoulsTab({
               <div key={soul.id} className="rounded-xl border border-[var(--ring)] p-5">
                 <div className="grid gap-3">
                   <div>
-                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">Name</label>
+                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Name")}</label>
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
@@ -820,7 +825,7 @@ function SoulsTab({
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">Content</label>
+                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Content")}</label>
                     <textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
@@ -835,7 +840,7 @@ function SoulsTab({
                       onClick={cancelEdit}
                       className="rounded-lg px-3 py-1.5 text-[12px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                     >
-                      Cancel
+                      {t("Cancel")}
                     </button>
                     <button
                       onClick={saveSoul}
@@ -843,7 +848,7 @@ function SoulsTab({
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-40"
                     >
                       {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                      Save
+                      {t("Save")}
                     </button>
                   </div>
                 </div>
