@@ -165,7 +165,9 @@ export function useGuideSession() {
       };
 
       let currentIndex = prev.current_index;
-      if (typeof payload.current_index === "number") {
+      // Only accept current_index from server/payload if user hasn't navigated yet.
+      // This prevents polling from overwriting the user's tab selection.
+      if (typeof payload.current_index === "number" && prev.current_index < 0) {
         currentIndex = payload.current_index;
       }
 
