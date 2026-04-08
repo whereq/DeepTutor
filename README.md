@@ -133,6 +133,71 @@ EMBEDDING_HOST=https://api.openai.com/v1
 EMBEDDING_DIMENSION=3072
 ```
 
+<details>
+<summary><b>Supported LLM Providers</b></summary>
+
+| Provider | Binding | Default Base URL |
+|:--|:--|:--|
+| AiHubMix | `aihubmix` | `https://aihubmix.com/v1` |
+| Anthropic | `anthropic` | `https://api.anthropic.com/v1` |
+| Azure OpenAI | `azure_openai` | — |
+| BytePlus | `byteplus` | `https://ark.ap-southeast.bytepluses.com/api/v3` |
+| BytePlus Coding Plan | `byteplus_coding_plan` | `https://ark.ap-southeast.bytepluses.com/api/coding/v3` |
+| Custom (OpenAI-compat) | `custom` | — |
+| DashScope (Qwen) | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| DeepSeek | `deepseek` | `https://api.deepseek.com` |
+| Gemini | `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| GitHub Copilot | `github_copilot` | `https://api.githubcopilot.com` |
+| Groq | `groq` | `https://api.groq.com/openai/v1` |
+| MiniMax | `minimax` | `https://api.minimax.io/v1` |
+| Mistral | `mistral` | `https://api.mistral.ai/v1` |
+| Moonshot (Kimi) | `moonshot` | `https://api.moonshot.ai/v1` |
+| Ollama | `ollama` | `http://localhost:11434/v1` |
+| OpenAI | `openai` | `https://api.openai.com/v1` |
+| OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
+| OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
+| OpenVINO Model Server | `ovms` | `http://localhost:8000/v3` |
+| Qianfan (Ernie) | `qianfan` | `https://qianfan.baidubce.com/v2` |
+| SiliconFlow | `siliconflow` | `https://api.siliconflow.cn/v1` |
+| Step Fun | `stepfun` | `https://api.stepfun.com/v1` |
+| vLLM | `vllm` | `http://localhost:8000/v1` |
+| VolcEngine | `volcengine` | `https://ark.cn-beijing.volces.com/api/v3` |
+| VolcEngine Coding Plan | `volcengine_coding_plan` | `https://ark.cn-beijing.volces.com/api/coding/v3` |
+| Xiaomi MIMO | `xiaomi_mimo` | `https://api.xiaomimimo.com/v1` |
+| Zhipu AI (GLM) | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
+
+</details>
+
+<details>
+<summary><b>Supported Embedding Providers</b></summary>
+
+Embedding uses the same provider list as LLM. Common choices:
+
+| Provider | Binding | Model Example |
+|:--|:--|:--|
+| OpenAI | `openai` | `text-embedding-3-large` |
+| DashScope | `dashscope` | `text-embedding-v3` |
+| Ollama | `ollama` | `nomic-embed-text` |
+| SiliconFlow | `siliconflow` | `BAAI/bge-m3` |
+| vLLM | `vllm` | Any embedding model |
+| Any OpenAI-compatible | `custom` | — |
+
+</details>
+
+<details>
+<summary><b>Supported Web Search Providers</b></summary>
+
+| Provider | Env Key | Notes |
+|:--|:--|:--|
+| Brave | `BRAVE_API_KEY` | Recommended, free tier available |
+| Tavily | `TAVILY_API_KEY` | |
+| Jina | `JINA_API_KEY` | |
+| SearXNG | — | Self-hosted, no API key needed |
+| DuckDuckGo | — | No API key needed |
+| Perplexity | `PERPLEXITY_API_KEY` | Requires API key |
+
+</details>
+
 **3. Start services**
 
 ```bash
