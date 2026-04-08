@@ -581,7 +581,7 @@ deeptutor session open <id>                         # Resume in REPL
 | `deeptutor config show` | Print current configuration summary |
 | `deeptutor plugin list` | List registered tools and capabilities |
 | `deeptutor plugin info <name>` | Show tool or capability details |
-| `deeptutor provider login <provider>` | OAuth login (`openai-codex`, `github-copilot`) |
+| `deeptutor provider login <provider>` | Provider auth (`openai-codex` OAuth login; `github-copilot` validates an existing Copilot auth session) |
 
 </details>
 

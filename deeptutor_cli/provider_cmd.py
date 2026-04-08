@@ -1,4 +1,4 @@
-"""CLI commands for provider auth (OAuth-first providers)."""
+"""CLI commands for provider auth and access validation."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ def register(app: typer.Typer) -> None:
     def provider_login(
         provider: str = typer.Argument(
             ...,
-            help="OAuth provider: openai-codex | github-copilot",
+            help="Provider: openai-codex (OAuth login) | github-copilot (validate existing Copilot auth)",
         ),
     ) -> None:
-        """Authenticate an OAuth-backed provider."""
+        """Authenticate or validate provider access."""
         key = provider.strip().lower().replace("-", "_")
         if key == "openai_codex":
             _login_openai_codex()
@@ -55,6 +55,7 @@ def _login_openai_codex() -> None:
 
 
 async def _login_github_copilot() -> None:
+    """Validate an existing GitHub Copilot auth session via a lightweight request."""
     try:
         from openai import AsyncOpenAI
     except ImportError:
@@ -72,6 +73,6 @@ async def _login_github_copilot() -> None:
             max_tokens=1,
         )
     except Exception as exc:
-        typer.echo(f"GitHub Copilot OAuth authentication failed: {exc}")
+        typer.echo(f"GitHub Copilot auth validation failed: {exc}")
         raise typer.Exit(code=1) from exc
-    typer.echo("GitHub Copilot OAuth authentication succeeded.")
+    typer.echo("GitHub Copilot auth validation succeeded.")
