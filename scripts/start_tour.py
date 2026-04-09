@@ -18,6 +18,39 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# ---------------------------------------------------------------------------
+# Bootstrap: ensure minimum packages required to import project modules
+# ---------------------------------------------------------------------------
+
+_BOOTSTRAP_PACKAGES = [
+    ("yaml", "PyYAML>=6.0"),
+]
+
+
+def _bootstrap() -> None:
+    missing = [pip for imp, pip in _BOOTSTRAP_PACKAGES if not _can_import(imp)]
+    if not missing:
+        return
+    print(f"  Installing bootstrap dependencies: {', '.join(missing)} ...")
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", *missing, "-q"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def _can_import(name: str) -> bool:
+    try:
+        __import__(name)
+        return True
+    except ImportError:
+        return False
+
+
+_bootstrap()
+
+# ---------------------------------------------------------------------------
+
 
 def _load_runtime_deps():
     from _cli_kit import (
@@ -191,15 +224,58 @@ def _missing_math_animator_system_deps() -> list[str]:
 
 def _math_animator_install_cmd(dep: str) -> list[str] | None:
     system = platform.system().lower()
-    if system == "darwin" and shutil.which("brew"):
-        mapping = {
+    _INSTALL_MAPS: dict[str, dict[str, list[str]]] = {
+        "brew": {
             "latex": ["brew", "install", "--cask", "basictex"],
             "pkg-config": ["brew", "install", "pkgconf"],
             "cmake": ["brew", "install", "cmake"],
             "ffmpeg": ["brew", "install", "ffmpeg"],
             "cairo": ["brew", "install", "cairo"],
-        }
-        return mapping.get(dep)
+        },
+        "apt": {
+            "latex": ["sudo", "apt", "install", "-y", "texlive-latex-base"],
+            "pkg-config": ["sudo", "apt", "install", "-y", "pkg-config"],
+            "cmake": ["sudo", "apt", "install", "-y", "cmake"],
+            "ffmpeg": ["sudo", "apt", "install", "-y", "ffmpeg"],
+            "cairo": ["sudo", "apt", "install", "-y", "libcairo2-dev"],
+        },
+        "dnf": {
+            "latex": ["sudo", "dnf", "install", "-y", "texlive-scheme-basic"],
+            "pkg-config": ["sudo", "dnf", "install", "-y", "pkgconf"],
+            "cmake": ["sudo", "dnf", "install", "-y", "cmake"],
+            "ffmpeg": ["sudo", "dnf", "install", "-y", "ffmpeg"],
+            "cairo": ["sudo", "dnf", "install", "-y", "cairo-devel"],
+        },
+        "yum": {
+            "latex": ["sudo", "yum", "install", "-y", "texlive-latex"],
+            "pkg-config": ["sudo", "yum", "install", "-y", "pkgconfig"],
+            "cmake": ["sudo", "yum", "install", "-y", "cmake"],
+            "ffmpeg": ["sudo", "yum", "install", "-y", "ffmpeg"],
+            "cairo": ["sudo", "yum", "install", "-y", "cairo-devel"],
+        },
+        "winget": {
+            "latex": ["winget", "install", "--id", "MiKTeX.MiKTeX", "-e"],
+            "cmake": ["winget", "install", "--id", "Kitware.CMake", "-e"],
+            "ffmpeg": ["winget", "install", "--id", "Gyan.FFmpeg", "-e"],
+        },
+        "choco": {
+            "latex": ["choco", "install", "miktex", "-y"],
+            "pkg-config": ["choco", "install", "pkgconfiglite", "-y"],
+            "cmake": ["choco", "install", "cmake", "-y"],
+            "ffmpeg": ["choco", "install", "ffmpeg", "-y"],
+            "cairo": ["choco", "install", "gtk-runtime", "-y"],
+        },
+    }
+    if system == "darwin" and shutil.which("brew"):
+        return _INSTALL_MAPS["brew"].get(dep)
+    if system == "linux":
+        for pm in ("apt", "dnf", "yum"):
+            if shutil.which(pm):
+                return _INSTALL_MAPS[pm].get(dep)
+    if system == "windows":
+        for pm in ("winget", "choco"):
+            if shutil.which(pm):
+                return _INSTALL_MAPS[pm].get(dep)
     return None
 
 

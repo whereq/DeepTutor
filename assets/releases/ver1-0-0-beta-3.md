@@ -5,7 +5,6 @@
 ## Highlights
 
 ### Remove LiteLLM Dependency
-
 Replaced the `litellm` abstraction layer with native `openai` and `anthropic` SDKs across both the services and TutorBot layers. Added a new `OpenAICompatProvider` (covering OpenAI, DeepSeek, Mistral, StepFun, XiaoMi-MiMo, Qianfan, oVMS, and more) and a dedicated `AnthropicProvider`. The settings UI now includes a provider dropdown with auto base-URL filling. Auto-fallback to streaming is triggered when tool-call format errors occur (fixes #265).
 
 ### Windows Math Animator Compatibility

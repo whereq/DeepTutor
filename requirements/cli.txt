@@ -43,6 +43,6 @@ arxiv>=2.0.0
 ddgs>=9.9.1
 
 # --- CLI framework ---
-typer[all]>=0.9.0
+typer>=0.9.0
 rich>=13.0.0
 prompt_toolkit>=3.0.36
