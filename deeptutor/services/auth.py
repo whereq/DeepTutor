@@ -45,10 +45,16 @@ AUTH_PASSWORD_HASH: str = os.getenv("AUTH_PASSWORD_HASH", "")
 AUTH_SECRET: str = os.getenv("AUTH_SECRET", "")
 TOKEN_EXPIRE_HOURS: int = int(os.getenv("AUTH_TOKEN_EXPIRE_HOURS", "24"))
 
+# PocketBase auth mode — active when POCKETBASE_URL is set AND AUTH_ENABLED=true.
+# When enabled, login/register proxy to PocketBase and token validation uses
+# PocketBase's auth-refresh endpoint (cached in memory — no static secret needed).
+POCKETBASE_URL: str = os.getenv("POCKETBASE_URL", "").rstrip("/")
+POCKETBASE_ENABLED: bool = bool(POCKETBASE_URL) and AUTH_ENABLED
+
 _ALGORITHM = "HS256"
 _USERS_FILE = Path("data/user/auth_users.json")
 
-if AUTH_ENABLED and not AUTH_SECRET:
+if AUTH_ENABLED and not POCKETBASE_ENABLED and not AUTH_SECRET:
     logger.warning(
         "AUTH_ENABLED=true but AUTH_SECRET is not set. "
         "A temporary secret will be generated — tokens will be invalidated on restart. "
@@ -263,8 +269,34 @@ def create_token(username: str, role: str = "user") -> str:
 
 
 def decode_token(token: str) -> TokenPayload | None:
-    """Decode and validate a JWT. Returns a TokenPayload or None if invalid."""
+    """
+    Validate a token and return a TokenPayload, or None if invalid.
+
+    - PocketBase mode: calls PocketBase's auth-refresh endpoint (cached in
+      memory for 60 s, so only the first request per token per minute makes
+      a network call). No static JWT secret required.
+    - Standard mode: local in-memory jwt.decode() using AUTH_SECRET — zero
+      network calls, same as before.
+    """
+    if not token:
+        return None
+
+    if POCKETBASE_ENABLED:
+        from deeptutor.services.pocketbase_client import validate_pb_token
+
+        payload = validate_pb_token(token)
+        if payload is None:
+            return None
+        return TokenPayload(
+            username=payload["username"],
+            role=payload.get("role", "user"),
+        )
+
+    # Standard JWT + bcrypt mode
     from jose import JWTError, jwt
+
+    if not AUTH_SECRET:
+        return None
 
     try:
         payload = jwt.decode(token, AUTH_SECRET, algorithms=[_ALGORITHM])
@@ -273,6 +305,67 @@ def decode_token(token: str) -> TokenPayload | None:
             return None
         return TokenPayload(username=username, role=payload.get("role", "user"))
     except JWTError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# PocketBase auth helpers
+# ---------------------------------------------------------------------------
+
+
+def authenticate_pb(username: str, password: str) -> tuple[TokenPayload, str] | None:
+    """
+    Authenticate against PocketBase and return (TokenPayload, raw_pb_token).
+
+    Only called when POCKETBASE_ENABLED=True.
+    Returns None on failure.
+    The raw token is the PocketBase JWT string to be stored in the cookie.
+
+    PocketBase requires an email address; plain usernames are mapped to
+    <username>@deeptutor.local to match the email used at registration.
+    """
+    try:
+        from deeptutor.services.pocketbase_client import get_pb_client
+
+        pb = get_pb_client()
+        result = pb.collection("users").auth_with_password(username, password)
+        token: str = result.token
+        record = result.record
+        username = (
+            getattr(record, "email", None)
+            or getattr(record, "name", None)
+            or getattr(record, "id", "unknown")
+        )
+        # PocketBase has no built-in "role" field by default; treat all as "user".
+        # Admins authenticated via PocketBase admin panel use a separate endpoint.
+        role = getattr(record, "role", "user") or "user"
+        return TokenPayload(username=str(username), role=str(role)), token
+    except Exception as exc:
+        logger.warning(f"PocketBase authentication failed: {exc}")
+        return None
+
+
+def register_pb(username: str, email: str, password: str) -> dict | None:
+    """
+    Create a new user in PocketBase.
+
+    Returns the created user record dict or None on failure.
+    """
+    try:
+        from deeptutor.services.pocketbase_client import get_pb_client
+
+        pb = get_pb_client()
+        record = pb.collection("users").create(
+            {
+                "username": username,
+                "email": email,
+                "password": password,
+                "passwordConfirm": password,
+            }
+        )
+        return {"id": record.id, "username": username, "email": email}
+    except Exception as exc:
+        logger.warning(f"PocketBase registration failed: {exc}")
         return None
 
 

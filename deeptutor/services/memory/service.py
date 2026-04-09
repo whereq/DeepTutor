@@ -10,15 +10,15 @@ workspace directory, not in the shared memory dir.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import re
 from typing import Literal
 
 from deeptutor.services.llm import stream as llm_stream
 from deeptutor.services.path_service import PathService, get_path_service
-from deeptutor.services.session.sqlite_store import SQLiteSessionStore, get_sqlite_session_store
+from deeptutor.services.session.protocol import SessionStoreProtocol
 
 MemoryFile = Literal["summary", "profile"]
 MEMORY_FILES: list[MemoryFile] = ["summary", "profile"]
@@ -52,10 +52,12 @@ class MemoryService:
     def __init__(
         self,
         path_service: PathService | None = None,
-        store: SQLiteSessionStore | None = None,
+        store: SessionStoreProtocol | None = None,
     ) -> None:
+        from deeptutor.services.session import get_session_store
+
         self._path_service = path_service or get_path_service()
-        self._store = store or get_sqlite_session_store()
+        self._store = store or get_session_store()
         self._migrate_legacy()
 
     @property
@@ -82,11 +84,13 @@ class MemoryService:
         self._memory_dir.mkdir(parents=True, exist_ok=True)
         if preferences:
             self._path("profile").write_text(
-                f"## Preferences\n{preferences}", encoding="utf-8",
+                f"## Preferences\n{preferences}",
+                encoding="utf-8",
             )
         if context:
             self._path("summary").write_text(
-                f"## Learning Journey\n{context}", encoding="utf-8",
+                f"## Learning Journey\n{context}",
+                encoding="utf-8",
             )
         legacy.rename(legacy.with_suffix(".md.bak"))
 
@@ -232,7 +236,8 @@ class MemoryService:
 
         messages = await self._store.get_messages_for_context(target)
         relevant = [
-            m for m in messages
+            m
+            for m in messages
             if str(m.get("role", "")) in {"user", "assistant"}
             and str(m.get("content", "") or "").strip()
         ][-max_messages:]
@@ -252,9 +257,7 @@ class MemoryService:
             cap = str(sess.get("capability", "") or "")
 
         source = (
-            f"[Session] {target}\n"
-            f"[Capability] {cap or 'chat'}\n\n"
-            f"[Recent Transcript]\n{transcript}"
+            f"[Session] {target}\n[Capability] {cap or 'chat'}\n\n[Recent Transcript]\n{transcript}"
         )
 
         p_changed = await self._rewrite_one("profile", source, language)
@@ -308,7 +311,7 @@ class MemoryService:
                 "## Identity\n## Learning Style\n## Knowledge Level\n## Preferences\n\n"
                 "规则：保持简短，删除过时内容，不要记录临时对话。\n\n"
                 f"[当前画像]\n{current or '(empty)'}\n\n"
-                f"[新增材料]\n{source}"
+                f"[新增材料]\n{source}",
             )
         return (
             "You maintain a user profile document. Only keep stable identity, "
@@ -318,7 +321,7 @@ class MemoryService:
             "## Identity\n## Learning Style\n## Knowledge Level\n## Preferences\n\n"
             "Rules: keep it short, remove stale items, no transient chatter.\n\n"
             f"[Current profile]\n{current or '(empty)'}\n\n"
-            f"[New material]\n{source}"
+            f"[New material]\n{source}",
         )
 
     @staticmethod
@@ -331,7 +334,7 @@ class MemoryService:
                 "## Current Focus\n## Accomplishments\n## Open Questions\n\n"
                 "规则：保持简短，删除已完成或过时的条目。\n\n"
                 f"[当前摘要]\n{current or '(empty)'}\n\n"
-                f"[新增材料]\n{source}"
+                f"[新增材料]\n{source}",
             )
         return (
             "You maintain a learning journey summary. Track what the user is studying, "
@@ -341,7 +344,7 @@ class MemoryService:
             "## Current Focus\n## Accomplishments\n## Open Questions\n\n"
             "Rules: keep it short, remove completed/stale items.\n\n"
             f"[Current summary]\n{current or '(empty)'}\n\n"
-            f"[New material]\n{source}"
+            f"[New material]\n{source}",
         )
 
     # ── Helpers ───────────────────────────────────────────────────────
@@ -353,11 +356,13 @@ class MemoryService:
         context = ""
         pref_match = re.search(
             r"##\s*Preferences\s*(.*?)(?=\n##\s*Context\b|\Z)",
-            text, flags=re.IGNORECASE | re.DOTALL,
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
         )
         ctx_match = re.search(
             r"##\s*Context\s*(.*)$",
-            text, flags=re.IGNORECASE | re.DOTALL,
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
         )
         if pref_match:
             preferences = pref_match.group(1).strip()

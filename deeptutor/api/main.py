@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import logging
+import os
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -110,6 +111,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to auto-start TutorBots: {e}")
 
+    # Ping PocketBase if configured — logs a warning (not an error) if unreachable
+    try:
+        from deeptutor.services.pocketbase_client import ping_pocketbase
+
+        await ping_pocketbase()
+    except Exception as e:
+        logger.warning(f"PocketBase startup check failed: {e}")
+
     yield
 
     # Execute on shutdown
@@ -164,10 +173,24 @@ async def selective_access_log(request, call_next):
     return response
 
 
-# Configure CORS
+# Configure CORS.
+# allow_origins=["*"] is incompatible with allow_credentials=True (browsers reject it).
+# We build an explicit list that covers both localhost and 127.0.0.1 variants so the
+# frontend works regardless of which loopback alias the browser resolves to.
+_frontend_port = os.getenv("FRONTEND_PORT", "3782")
+_extra_origin = os.getenv("CORS_ORIGIN", "")  # optional extra origin for deployments
+_cors_origins = [
+    f"http://localhost:{_frontend_port}",
+    f"http://127.0.0.1:{_frontend_port}",
+    "http://localhost:3000",  # common Next.js default
+    "http://127.0.0.1:3000",
+]
+if _extra_origin:
+    _cors_origins.append(_extra_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific frontend origin
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

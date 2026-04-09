@@ -68,18 +68,18 @@ export default function LoginPage() {
       {/* Card */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-sm px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Username */}
+          {/* Email */}
           <div>
             <label
               htmlFor="username"
               className="block text-sm font-medium text-[var(--foreground)] mb-1.5"
             >
-              Username
+              Email
             </label>
             <input
               id="username"
-              type="text"
-              autoComplete="username"
+              type="email"
+              autoComplete="email"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -88,7 +88,7 @@ export default function LoginPage() {
                          placeholder:text-[var(--muted-foreground)]
                          focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent
                          transition-shadow text-sm"
-              placeholder="admin"
+              placeholder="you@example.com"
             />
           </div>
 

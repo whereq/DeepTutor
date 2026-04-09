@@ -15,3 +15,7 @@ python-multipart>=0.0.6
 # --- Authentication ---
 bcrypt>=4.0.0
 python-jose[cryptography]>=3.3.0
+
+# --- PocketBase (optional sidecar backend) ---
+# Only used when POCKETBASE_URL is set in the environment.
+pocketbase>=0.12.0

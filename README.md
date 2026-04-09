@@ -81,7 +81,7 @@
 - **Knowledge Hub** — Upload PDFs, Markdown, and text files to build RAG-ready knowledge bases. Organize insights across sessions in color-coded notebooks. Your documents don't just sit there — they actively power every conversation.
 - **Persistent Memory** — DeepTutor builds a living profile of you: what you've studied, how you learn, and where you're heading. Shared across all features and TutorBots, it gets sharper with every interaction.
 - **Agent-Native CLI** — Every capability, knowledge base, session, and TutorBot is one command away. Rich terminal output for humans, structured JSON for AI agents and pipelines. Hand DeepTutor a [`SKILL.md`](SKILL.md) and your agents can operate it autonomously.
-- **Optional Authentication** — Disabled by default for local use. Flip two env vars to require login when hosting publicly. Multi-user support with bcrypt-hashed passwords, JWT sessions, a self-service registration page, and a built-in admin dashboard for managing accounts and roles.
+- **Optional Authentication** — Disabled by default for local use. Flip two env vars to require login when hosting publicly. Multi-user support with bcrypt-hashed passwords, JWT sessions, a self-service registration page, and a built-in admin dashboard for managing accounts and roles. Optionally back auth and storage with **PocketBase** for OAuth-ready authentication and improved multi-user concurrency — drops in as an optional sidecar with no code changes required.
 
 ---
 
@@ -333,6 +333,47 @@ AUTH_PASSWORD_HASH=<paste hash here>
 
 Users are stored in `data/user/auth_users.json`. Once that file exists it takes
 priority over `AUTH_USERNAME` / `AUTH_PASSWORD_HASH`.
+
+</details>
+
+<details>
+<summary><b>PocketBase sidecar (optional auth + storage)</b></summary>
+
+PocketBase is an optional lightweight backend that replaces the built-in SQLite/JSON auth and session storage. It adds OAuth-ready authentication, real-time subscriptions, and a visual admin panel — with zero changes required to switch back if you don't set `POCKETBASE_URL`.
+
+**When to use it:** public deployments where you want OAuth later, or multi-user setups that need better concurrency than the default SQLite lock.
+
+**Quick start (Docker Compose):**
+
+```bash
+# PocketBase starts automatically alongside DeepTutor when using docker compose
+docker compose up -d
+
+# 1. Open the admin panel and create your admin account
+open http://localhost:8090/_/
+
+# 2. Bootstrap collections (run once)
+pip install pocketbase
+python scripts/pb_setup.py
+
+# 3. Enable PocketBase in .env and restart
+```
+
+**Required `.env` additions:**
+
+```dotenv
+POCKETBASE_URL=http://localhost:8090          # or http://pocketbase:8090 inside Docker
+POCKETBASE_ADMIN_EMAIL=admin@example.com
+POCKETBASE_ADMIN_PASSWORD=your-admin-password
+```
+
+**devenv users:**
+
+```bash
+devenv up   # starts PocketBase on :8090 alongside backend and frontend
+```
+
+Leave `POCKETBASE_URL` unset (or remove it) to fall back to the built-in SQLite backend at any time — no data migration needed for new sessions.
 
 </details>
 

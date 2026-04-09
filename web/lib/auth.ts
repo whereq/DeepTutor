@@ -43,10 +43,25 @@ export async function login(
     if (res.ok) return { ok: true };
 
     const data = await res.json().catch(() => ({}));
-    return { ok: false, error: data.detail ?? "Login failed" };
+    return { ok: false, error: extractDetail(data.detail) ?? "Login failed" };
   } catch {
     return { ok: false, error: "Could not reach the server" };
   }
+}
+
+/**
+ * Normalise a FastAPI error detail to a plain string.
+ * FastAPI can return detail as a string (HTTPException) or as an array of
+ * validation error objects (422 Unprocessable Entity).
+ */
+function extractDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0];
+    if (typeof first === "object" && first !== null && "msg" in first)
+      return String((first as { msg: unknown }).msg);
+  }
+  return "Request failed";
 }
 
 /**
@@ -72,7 +87,7 @@ export async function register(
     const data = await res.json().catch(() => ({}));
     if (res.ok)
       return { ok: true, role: data.role, is_first_user: data.is_first_user };
-    return { ok: false, error: data.detail ?? "Registration failed" };
+    return { ok: false, error: extractDetail(data.detail) };
   } catch {
     return { ok: false, error: "Could not reach the server" };
   }

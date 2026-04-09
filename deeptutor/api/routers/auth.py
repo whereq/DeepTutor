@@ -1,21 +1,33 @@
 """Auth router — login, logout, status, registration, and user-management endpoints."""
 
+import os
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, field_validator
 
+# SameSite=None lets the cookie work when the browser accesses the frontend via
+# 127.0.0.1 and the backend via localhost (different origins on the same machine).
+# Browsers require Secure=True for SameSite=None, but that needs HTTPS — so in
+# local dev we fall back to SameSite=Lax and tell users to use localhost:// URLs.
+_SECURE = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
+_SAMESITE = "none" if _SECURE else "lax"
+
 from deeptutor.logging import get_logger
 from deeptutor.services.auth import (
     AUTH_ENABLED,
+    POCKETBASE_ENABLED,
     TOKEN_EXPIRE_HOURS,
     TokenPayload,
     add_user,
     authenticate,
+    authenticate_pb,
     create_token,
     decode_token,
     delete_user,
     is_first_user,
     list_users,
+    register_pb,
     set_role,
 )
 
@@ -49,16 +61,17 @@ class RegisterRequest(BaseModel):
     @field_validator("username")
     @classmethod
     def username_valid(cls, v: str) -> str:
+        import re
+
         v = v.strip()
         if not v:
-            raise ValueError("Username cannot be empty")
-        if len(v) < 3:
-            raise ValueError("Username must be at least 3 characters")
-        if len(v) > 32:
-            raise ValueError("Username must be at most 32 characters")
-        allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.")
-        if not all(c in allowed for c in v):
-            raise ValueError("Username may only contain letters, digits, -, _, and .")
+            raise ValueError("Email cannot be empty")
+        # Accept standard email addresses (used by PocketBase mode) or plain
+        # usernames (used by the built-in SQLite/JSON auth mode).
+        email_re = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+        plain_re = re.compile(r"^[A-Za-z0-9_\-.]{3,64}$")
+        if not email_re.match(v) and not plain_re.match(v):
+            raise ValueError("Enter a valid email address")
         return v
 
     @field_validator("password")
@@ -207,6 +220,28 @@ async def login(body: LoginRequest, response: Response) -> dict:
     if not AUTH_ENABLED:
         return {"ok": True, "message": "Auth is disabled — no login required."}
 
+    if POCKETBASE_ENABLED:
+        # PocketBase mode: email = username field for backwards-compat with the
+        # existing LoginRequest schema; users can pass their email as "username".
+        pb_result = authenticate_pb(body.username, body.password)
+        if not pb_result:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+            )
+        payload, pb_token = pb_result
+        response.set_cookie(
+            key=_COOKIE_NAME,
+            value=pb_token,
+            httponly=True,
+            samesite=_SAMESITE,
+            max_age=_COOKIE_MAX_AGE,
+            secure=_SECURE,
+        )
+        logger.info(f"User '{payload.username}' logged in via PocketBase (role={payload.role!r})")
+        return {"ok": True, "username": payload.username, "role": payload.role}
+
+    # Standard JWT + bcrypt mode
     result = authenticate(body.username, body.password)
     if not result:
         raise HTTPException(
@@ -219,9 +254,9 @@ async def login(body: LoginRequest, response: Response) -> dict:
         key=_COOKIE_NAME,
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite=_SAMESITE,
         max_age=_COOKIE_MAX_AGE,
-        secure=False,  # Set to True when served over HTTPS
+        secure=_SECURE,
     )
 
     logger.info(f"User '{result.username}' logged in (role={result.role!r})")
@@ -231,7 +266,7 @@ async def login(body: LoginRequest, response: Response) -> dict:
 @router.post("/logout")
 async def logout(response: Response) -> dict:
     """Clear the JWT cookie."""
-    response.delete_cookie(key=_COOKIE_NAME, samesite="lax")
+    response.delete_cookie(key=_COOKIE_NAME, samesite=_SAMESITE)
     return {"ok": True}
 
 
@@ -240,8 +275,8 @@ async def register(body: RegisterRequest) -> dict:
     """
     Create a new user account.
 
-    The very first user to register is automatically granted admin privileges.
-    Subsequent registrations create regular users.
+    In PocketBase mode, the username is also used as the email address.
+    In standard mode, the first user to register is automatically granted admin.
 
     Only available when AUTH_ENABLED=true.
     """
@@ -251,10 +286,18 @@ async def register(body: RegisterRequest) -> dict:
             detail="Auth is disabled — registration is not available.",
         )
 
-    # Check whether this will be the first (admin) user before writing
-    first = is_first_user()
+    if POCKETBASE_ENABLED:
+        result = register_pb(username=body.username, email=body.username, password=body.password)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Registration failed — username or email may already be taken.",
+            )
+        logger.info(f"New user registered via PocketBase: '{body.username}'")
+        return {"ok": True, "username": body.username, "role": "user", "is_first_user": False}
 
-    # Prevent duplicate usernames
+    # Standard mode
+    first = is_first_user()
     existing = {u["username"] for u in list_users()}
     if body.username in existing:
         raise HTTPException(

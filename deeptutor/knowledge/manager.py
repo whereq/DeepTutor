@@ -16,8 +16,11 @@ import sys
 
 from deeptutor.logging import get_logger
 from deeptutor.services.rag.components.routing import FileTypeRouter
-
-from deeptutor.services.rag.factory import DEFAULT_PROVIDER, LEGACY_PROVIDER_ALIASES, normalize_provider_name
+from deeptutor.services.rag.factory import (
+    DEFAULT_PROVIDER,
+    LEGACY_PROVIDER_ALIASES,
+    normalize_provider_name,
+)
 
 logger = get_logger("KnowledgeBaseManager")
 
@@ -126,6 +129,13 @@ class KnowledgeBaseManager:
         self.config_file = self.base_dir / "kb_config.json"
         self.config = self._load_config()
 
+        # PocketBase sync — enabled when POCKETBASE_URL is set.
+        # The local JSON file stays the source of truth; PocketBase gets a
+        # mirrored copy for admin-panel visibility and future multi-user access.
+        from deeptutor.services.pocketbase_client import is_pocketbase_enabled
+
+        self._pb_enabled = is_pocketbase_enabled()
+
     def _load_config(self) -> dict:
         """Load knowledge base configuration from the canonical kb_config.json file."""
         if self.config_file.exists():
@@ -173,8 +183,10 @@ class KnowledgeBaseManager:
                     kb_dir = self.base_dir / kb_name
                     legacy_storage = kb_dir / "rag_storage"
                     llamaindex_storage = kb_dir / "llamaindex_storage"
-                    if legacy_storage.exists() and legacy_storage.is_dir() and not (
-                        llamaindex_storage.exists() and llamaindex_storage.is_dir()
+                    if (
+                        legacy_storage.exists()
+                        and legacy_storage.is_dir()
+                        and not (llamaindex_storage.exists() and llamaindex_storage.is_dir())
                     ):
                         if not kb_entry.get("needs_reindex", False):
                             kb_entry["needs_reindex"] = True
@@ -208,6 +220,35 @@ class KnowledgeBaseManager:
                 f.flush()
                 os.fsync(f.fileno())  # Ensure data is written to disk
 
+    def _sync_kb_to_pb(self, name: str, kb_entry: dict) -> None:
+        """
+        Mirror a KB metadata entry to PocketBase (best-effort, non-blocking).
+        Called after every local config save when PocketBase is enabled.
+        """
+        if not self._pb_enabled:
+            return
+        try:
+            from deeptutor.services.pocketbase_client import get_pb_client
+
+            pb = get_pb_client()
+            records = pb.collection("knowledge_bases").get_full_list(
+                query_params={"filter": f'kb_name="{name}"'}
+            )
+            payload = {
+                "kb_name": name,
+                "description": kb_entry.get("description", f"Knowledge base: {name}"),
+                "rag_provider": kb_entry.get("rag_provider", "llamaindex"),
+                "needs_reindex": bool(kb_entry.get("needs_reindex", False)),
+                "status": kb_entry.get("status", "unknown"),
+                "kb_created_at": kb_entry.get("created_at", ""),
+            }
+            if records:
+                pb.collection("knowledge_bases").update(records[0].id, payload)
+            else:
+                pb.collection("knowledge_bases").create(payload)
+        except Exception as exc:
+            logger.debug(f"PocketBase KB sync failed for '{name}': {exc}")
+
     def update_kb_status(
         self,
         name: str,
@@ -216,6 +257,9 @@ class KnowledgeBaseManager:
     ):
         """
         Update knowledge base status and progress in kb_config.json.
+
+        When PocketBase is enabled, the updated entry is also mirrored to the
+        PocketBase knowledge_bases collection (best-effort).
 
         Args:
             name: Knowledge base name
@@ -262,6 +306,7 @@ class KnowledgeBaseManager:
                 kb_config["embedding_model"], kb_config["embedding_dim"] = fp
 
         self._save_config()
+        self._sync_kb_to_pb(name, kb_config)
 
     def get_kb_status(self, name: str) -> dict | None:
         """Get status and progress for a knowledge base."""
@@ -277,7 +322,7 @@ class KnowledgeBaseManager:
 
     def list_knowledge_bases(self) -> list[str]:
         """List all available knowledge bases.
-        
+
         This method:
         1. Loads registered KBs from kb_config.json
         2. Scans the directory for existing KBs not yet registered
@@ -297,38 +342,37 @@ class KnowledgeBaseManager:
             for item in self.base_dir.iterdir():
                 if not item.is_dir() or item.name.startswith(("__", ".")):
                     continue
-                    
+
                 # Skip if already in config
                 if item.name in kb_list:
                     continue
-                    
+
                 # Check if this is a valid KB directory (legacy rag_storage or llamaindex_storage)
                 rag_storage = item / "rag_storage"
                 llamaindex_storage = item / "llamaindex_storage"
-                is_valid_kb = (
-                    (rag_storage.exists() and rag_storage.is_dir()) or
-                    (llamaindex_storage.exists() and llamaindex_storage.is_dir())
+                is_valid_kb = (rag_storage.exists() and rag_storage.is_dir()) or (
+                    llamaindex_storage.exists() and llamaindex_storage.is_dir()
                 )
-                
+
                 if is_valid_kb:
                     # Auto-register this KB to kb_config.json
                     kb_list.add(item.name)
                     self._auto_register_kb(item.name)
                     config_changed = True
-            
+
             # Save config if we registered new KBs
             if config_changed:
                 self._save_config()
 
         return sorted(kb_list)
-    
+
     def _auto_register_kb(self, name: str):
         """Auto-register an existing KB to kb_config.json.
-        
+
         Reads info from metadata.json (if exists) for backward compatibility.
         """
         kb_dir = self.base_dir / name
-        
+
         # Default values
         kb_entry = {
             "path": name,
@@ -336,7 +380,7 @@ class KnowledgeBaseManager:
             "status": "ready",  # Existing KB with storage is considered ready
             "updated_at": datetime.now().isoformat(),
         }
-        
+
         # Try to read metadata.json for existing info (backward compatibility)
         metadata_file = kb_dir / "metadata.json"
         if metadata_file.exists():
@@ -350,14 +394,14 @@ class KnowledgeBaseManager:
                     raw_provider = str(metadata["rag_provider"]).strip().lower()
                     kb_entry["rag_provider"] = normalize_provider_name(raw_provider)
                     if str(raw_provider).strip().lower() in LEGACY_PROVIDER_ALIASES:
-                        kb_entry["needs_reindex"] = True
+                        kb_entry["needs_reindex"] = True  # type: ignore[assignment]
                 if metadata.get("created_at"):
                     kb_entry["created_at"] = metadata["created_at"]
                 if metadata.get("last_updated"):
                     kb_entry["updated_at"] = metadata["last_updated"]
             except Exception as e:
                 logger.warning(f"Failed to read metadata.json for '{name}': {e}")
-        
+
         # Detect rag_provider from storage type if not set
         if "rag_provider" not in kb_entry:
             rag_storage = kb_dir / "rag_storage"
@@ -366,13 +410,13 @@ class KnowledgeBaseManager:
                 kb_entry["rag_provider"] = DEFAULT_PROVIDER
             elif rag_storage.exists():
                 kb_entry["rag_provider"] = DEFAULT_PROVIDER
-                kb_entry["needs_reindex"] = True
-        
+                kb_entry["needs_reindex"] = True  # type: ignore[assignment]
+
         # Add to config
         if "knowledge_bases" not in self.config:
             self.config["knowledge_bases"] = {}
         self.config["knowledge_bases"][name] = kb_entry
-        
+
         logger.info(f"Auto-registered KB '{name}' to kb_config.json")
 
     def register_knowledge_base(self, name: str, description: str = "", set_default: bool = False):
@@ -485,7 +529,7 @@ class KnowledgeBaseManager:
 
     def get_metadata(self, name: str | None = None) -> dict:
         """Get knowledge base metadata.
-        
+
         Source:
         1. kb_config.json (authoritative source)
         """
@@ -494,11 +538,11 @@ class KnowledgeBaseManager:
             kb_name = self.get_default()
             if kb_name is None:
                 return {}
-        
+
         # First, try kb_config.json (authoritative source)
         self.config = self._load_config()
         kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
-        
+
         if kb_config:
             # Build metadata from config
             metadata = {
@@ -513,7 +557,7 @@ class KnowledgeBaseManager:
             # Remove None values
             metadata = {k: v for k, v in metadata.items() if v is not None}
             return metadata
-        
+
         return {}
 
     def get_info(self, name: str | None = None) -> dict:
@@ -627,7 +671,10 @@ class KnowledgeBaseManager:
 
         # Check rag_initialized (llamaindex storage only)
         rag_initialized = (
-            (dir_exists and llamaindex_storage_dir and llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir())
+            dir_exists
+            and llamaindex_storage_dir
+            and llamaindex_storage_dir.exists()
+            and llamaindex_storage_dir.is_dir()
         )
 
         info["statistics"] = {
