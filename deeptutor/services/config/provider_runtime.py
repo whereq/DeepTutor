@@ -139,6 +139,7 @@ class ResolvedEmbeddingConfig:
     dimension: int = 3072
     request_timeout: int = 60
     batch_size: int = 10
+    batch_delay: float = 0.0
 
 
 @dataclass(slots=True)
@@ -501,6 +502,7 @@ def resolve_embedding_runtime_config(
         dimension=dimension,
         request_timeout=60,
         batch_size=10,
+        batch_delay=0.0,
     )
 
 
