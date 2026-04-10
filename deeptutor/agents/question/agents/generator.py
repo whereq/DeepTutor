@@ -120,14 +120,28 @@ class Generator(BaseAgent):
                 "Template: {template}\n"
                 "User topic: {user_topic}\n"
                 "Preference: {preference}\n"
-                "Conversation context: {history_context}\n"
+                "Previously generated questions (do not repeat):\n{history_context}\n"
                 "Knowledge context: {knowledge_context}\n"
                 "Enabled tools: {available_tools}\n\n"
                 'Return JSON {{"question_type":"","question":"","options":{{}},"correct_answer":"","explanation":""}}'
             )
 
+        # Serialize the template without the bulky knowledge_context in metadata —
+        # it is already included via the dedicated {knowledge_context} placeholder
+        # and its presence inside the template JSON would cause it to appear twice,
+        # dominating the prompt and making the LLM generate identical questions for
+        # every template regardless of their individual concentrations.
+        template_dict = template.__dict__.copy()
+        if isinstance(template_dict.get("metadata"), dict):
+            stripped_metadata = {
+                k: v
+                for k, v in template_dict["metadata"].items()
+                if k != "knowledge_context"
+            }
+            template_dict["metadata"] = stripped_metadata
+
         user_prompt = user_prompt_template.format(
-            template=json.dumps(template.__dict__, ensure_ascii=False, indent=2),
+            template=json.dumps(template_dict, ensure_ascii=False, indent=2),
             user_topic=user_topic,
             preference=preference or "(none)",
             history_context=history_context or "(none)",
