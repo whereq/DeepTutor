@@ -64,6 +64,7 @@ def main() -> None:
         reload=True,
         reload_excludes=reload_excludes,
         log_level="info",
+        access_log=False,
     )
 
 
