@@ -234,6 +234,7 @@ export default function HomePage() {
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [showAtPopup, setShowAtPopup] = useState(false);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const [refMenuOpen, setRefMenuOpen] = useState(false);
   const [selectedNotebookRecords, setSelectedNotebookRecords] = useState<SelectedRecord[]>([]);
   const [selectedHistorySessions, setSelectedHistorySessions] = useState<SelectedHistorySession[]>([]);
   const dragCounter = useRef(0);
@@ -242,6 +243,8 @@ export default function HomePage() {
   const capBtnRef = useRef<HTMLButtonElement>(null);
   const toolMenuRef = useRef<HTMLDivElement>(null);
   const toolBtnRef = useRef<HTMLButtonElement>(null);
+  const refMenuRef = useRef<HTMLDivElement>(null);
+  const refBtnRef = useRef<HTMLButtonElement>(null);
 
   const activeCap = useMemo(() => getCapability(state.activeCapability), [state.activeCapability]);
   const isQuizMode = activeCap.value === "deep_question";
@@ -470,6 +473,12 @@ export default function HomePage() {
         toolBtnRef.current && !toolBtnRef.current.contains(t)
       ) {
         setToolMenuOpen(false);
+      }
+      if (
+        refMenuRef.current && !refMenuRef.current.contains(t) &&
+        refBtnRef.current && !refBtnRef.current.contains(t)
+      ) {
+        setRefMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -774,10 +783,13 @@ export default function HomePage() {
           capBtnRef={capBtnRef}
           toolMenuRef={toolMenuRef}
           toolBtnRef={toolBtnRef}
+          refMenuRef={refMenuRef}
+          refBtnRef={refBtnRef}
           dragCounter={dragCounter}
           dragging={dragging}
           capMenuOpen={capMenuOpen}
           toolMenuOpen={toolMenuOpen}
+          refMenuOpen={refMenuOpen}
           showAtPopup={showAtPopup}
           hasMessages={hasMessages}
           input={input}
@@ -807,6 +819,7 @@ export default function HomePage() {
           researchSources={RESEARCH_SOURCES}
           onSetCapMenuOpen={setCapMenuOpen}
           onSetToolMenuOpen={setToolMenuOpen}
+          onSetRefMenuOpen={setRefMenuOpen}
           onSetShowAtPopup={setShowAtPopup}
           onInputChange={(nextValue, cursorPos) => {
             setInput(nextValue);
