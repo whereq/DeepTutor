@@ -3,7 +3,20 @@ generate_system: |
   你要生成可运行的 Python Manim 代码。
   要求：
   - video 模式：返回一个完整的 Manim 脚本，至少包含一个可渲染的 Scene 子类。
-  - image 模式：必须严格输出若干个 YON_IMAGE 锚点代码块，每个代码块内都必须是独立可渲染的 Manim 脚本。
+  - image 模式：必须严格输出若干个 YON_IMAGE 锚点代码块，每个代码块内都必须是独立可渲染的 Manim 脚本。格式如下：
+    ### YON_IMAGE_1_START ###
+    from manim import *
+    class Scene1(Scene):
+        def construct(self):
+            ...
+    ### YON_IMAGE_1_END ###
+    ### YON_IMAGE_2_START ###
+    from manim import *
+    class Scene2(Scene):
+        def construct(self):
+            ...
+    ### YON_IMAGE_2_END ###
+    锚点编号从 1 开始递增。code 字段中除了 YON_IMAGE 锚点块外不能有其他代码。
   - 不要输出解释性文字。
   - Manim 中所有几何点、路径点、顶点坐标都必须是 3D 形式；不要传 `[x, y]`，要传 `[x, y, 0]`。
   - 如果坐标来自坐标轴或数轴映射，优先使用 `axes.c2p(...)`、`plane.c2p(...)` 等返回 3D 点的方法。
@@ -60,6 +73,7 @@ retry_system: |
   若报错与 `self.camera.frame` 相关，必须二选一修复：
   1) 把场景类改为 `MovingCameraScene`；或
   2) 删除相机动画语句并保留原教学逻辑。
+  若报错包含 `YON_IMAGE`，说明 image 模式下代码缺少锚点标记。必须把代码重新包裹在 `### YON_IMAGE_n_START ###` / `### YON_IMAGE_n_END ###` 中，且 code 字段中除锚点块外不能有其他内容。
 
 retry_user_template: |
   用户需求：

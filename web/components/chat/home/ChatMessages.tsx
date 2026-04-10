@@ -20,6 +20,7 @@ import AssistantResponse from "@/components/common/AssistantResponse";
 import type { MessageRequestSnapshot } from "@/context/UnifiedChatContext";
 import { extractMathAnimatorResult } from "@/lib/math-animator-types";
 import { extractQuizQuestions } from "@/lib/quiz-types";
+import { extractVisualizeResult } from "@/lib/visualize-types";
 import type { StreamEvent } from "@/lib/unified-ws";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
 import { CallTracePanel } from "./TracePanels";
@@ -31,6 +32,10 @@ const MathAnimatorViewer = dynamic(
 const QuizViewer = dynamic(() => import("@/components/quiz/QuizViewer"), { ssr: false });
 const ResearchOutlineEditor = dynamic(
   () => import("@/components/research/ResearchOutlineEditor"),
+  { ssr: false },
+);
+const VisualizationViewer = dynamic(
+  () => import("@/components/visualize/VisualizationViewer"),
   { ssr: false },
 );
 
@@ -59,6 +64,7 @@ function getModeBadgeLabel(capability?: string | null) {
   if (capability === "deep_question") return "Quiz Generation";
   if (capability === "deep_research") return "Deep Research";
   if (capability === "math_animator") return "Math Animator";
+  if (capability === "visualize") return "Visualize";
   return capability;
 }
 
@@ -108,6 +114,11 @@ const AssistantMessage = memo(function AssistantMessage({
     return extractMathAnimatorResult(resultEvent.metadata);
   }, [msg.capability, resultEvent]);
 
+  const visualizeResult = useMemo(() => {
+    if (msg.capability !== "visualize" || !resultEvent) return null;
+    return extractVisualizeResult(resultEvent.metadata);
+  }, [msg.capability, resultEvent]);
+
   return (
     <>
       {hasCallTrace ? (
@@ -122,6 +133,8 @@ const AssistantMessage = memo(function AssistantMessage({
         />
       ) : mathAnimatorResult ? (
         <MathAnimatorViewer result={mathAnimatorResult} />
+      ) : visualizeResult ? (
+        <VisualizationViewer result={visualizeResult} />
       ) : quizQuestions && quizQuestions.length > 0 ? (
         <QuizViewer questions={quizQuestions} sessionId={sessionId} language={language} />
       ) : (

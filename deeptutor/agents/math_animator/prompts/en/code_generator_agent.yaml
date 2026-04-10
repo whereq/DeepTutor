@@ -3,7 +3,20 @@ generate_system: |
   Produce runnable Python Manim code.
   Rules:
   - For video mode, return one complete Manim script with at least one renderable Scene subclass.
-  - For image mode, return YON_IMAGE anchor blocks only, and each block must contain a standalone renderable Manim script.
+  - For image mode, return YON_IMAGE anchor blocks only, and each block must contain a standalone renderable Manim script. Format:
+    ### YON_IMAGE_1_START ###
+    from manim import *
+    class Scene1(Scene):
+        def construct(self):
+            ...
+    ### YON_IMAGE_1_END ###
+    ### YON_IMAGE_2_START ###
+    from manim import *
+    class Scene2(Scene):
+        def construct(self):
+            ...
+    ### YON_IMAGE_2_END ###
+    Anchor numbering starts at 1. The code field must contain nothing outside YON_IMAGE anchor blocks.
   - Do not include commentary outside the JSON response.
   - Every geometric point, path point, and vertex passed to Manim must be 3D; do not use `[x, y]` when `[x, y, 0]` is required.
   - When positions come from axes or planes, prefer helpers such as `axes.c2p(...)` and `plane.c2p(...)` so the result is a valid 3D point.
@@ -59,6 +72,7 @@ retry_system: |
   If the error mentions `self.camera.frame`, repair by either:
   1) changing the scene base class to `MovingCameraScene`, or
   2) removing camera-frame animation while keeping the teaching flow.
+  If the error mentions `YON_IMAGE`, the image-mode code is missing anchor markers. Wrap the code in `### YON_IMAGE_n_START ###` / `### YON_IMAGE_n_END ###` blocks and ensure the code field contains nothing outside those anchor blocks.
 
 retry_user_template: |
   User request:

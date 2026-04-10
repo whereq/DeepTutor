@@ -21,6 +21,7 @@ import AtMentionPopup from "@/components/chat/AtMentionPopup";
 import type { SelectedRecord } from "@/app/(workspace)/guide/types";
 import type { DeepQuestionFormConfig } from "@/lib/quiz-types";
 import type { MathAnimatorFormConfig } from "@/lib/math-animator-types";
+import type { VisualizeFormConfig } from "@/lib/visualize-types";
 import type { DeepResearchFormConfig, ResearchSource } from "@/lib/research-types";
 import { ReferenceChips } from "./ChatMessages";
 
@@ -33,6 +34,10 @@ const MathAnimatorConfigPanel = dynamic(
 );
 const ResearchConfigPanel = dynamic(
   () => import("@/components/research/ResearchConfigPanel"),
+  { ssr: false },
+);
+const VisualizeConfigPanel = dynamic(
+  () => import("@/components/visualize/VisualizeConfigPanel"),
   { ssr: false },
 );
 
@@ -95,9 +100,11 @@ export default function ChatComposer({
   isResearchMode,
   isQuizMode,
   isMathAnimatorMode,
+  isVisualizeMode,
   quizConfig,
   quizPdf,
   mathAnimatorConfig,
+  visualizeConfig,
   researchConfig,
   researchValidationErrors,
   researchPanelCollapsed,
@@ -127,6 +134,7 @@ export default function ChatComposer({
   onChangeQuizConfig,
   onUploadQuizPdf,
   onChangeMathAnimatorConfig,
+  onChangeVisualizeConfig,
   onChangeResearchConfig,
   onToggleResearchCollapsed,
 }: {
@@ -157,9 +165,11 @@ export default function ChatComposer({
   isResearchMode: boolean;
   isQuizMode: boolean;
   isMathAnimatorMode: boolean;
+  isVisualizeMode: boolean;
   quizConfig: DeepQuestionFormConfig;
   quizPdf: File | null;
   mathAnimatorConfig: MathAnimatorFormConfig;
+  visualizeConfig: VisualizeFormConfig;
   researchConfig: DeepResearchFormConfig;
   researchValidationErrors: Record<string, string>;
   researchPanelCollapsed: boolean;
@@ -189,6 +199,7 @@ export default function ChatComposer({
   onChangeQuizConfig: (next: DeepQuestionFormConfig) => void;
   onUploadQuizPdf: (file: File | null) => void;
   onChangeMathAnimatorConfig: (next: MathAnimatorFormConfig) => void;
+  onChangeVisualizeConfig: (next: VisualizeFormConfig) => void;
   onChangeResearchConfig: (next: DeepResearchFormConfig) => void;
   onToggleResearchCollapsed: () => void;
 }) {
@@ -293,7 +304,9 @@ export default function ChatComposer({
               placeholder={
                 isMathAnimatorMode
                   ? t("Describe the math animation or storyboard you want...")
-                  : t("How can I help you today?")
+                  : isVisualizeMode
+                    ? t("Describe the chart or diagram you want to visualize...")
+                    : t("How can I help you today?")
               }
               className="w-full resize-none overflow-hidden bg-transparent text-[15px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
               style={{ transition: "height 0.15s ease-out", minHeight: 28 }}
@@ -464,7 +477,7 @@ export default function ChatComposer({
             </div>
           </div>
 
-          {(isQuizMode || isMathAnimatorMode || isResearchMode) && (
+          {(isQuizMode || isMathAnimatorMode || isVisualizeMode || isResearchMode) && (
             <div className="border-t border-[var(--border)]/15">
               {isQuizMode ? (
                 <QuizConfigPanel
@@ -477,6 +490,11 @@ export default function ChatComposer({
                 <MathAnimatorConfigPanel
                   value={mathAnimatorConfig}
                   onChange={onChangeMathAnimatorConfig}
+                />
+              ) : isVisualizeMode ? (
+                <VisualizeConfigPanel
+                  value={visualizeConfig}
+                  onChange={onChangeVisualizeConfig}
                 />
               ) : (
                 <ResearchConfigPanel

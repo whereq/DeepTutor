@@ -298,9 +298,17 @@ export default function KnowledgePage() {
       for (const kb of kbs) {
         const status = kb.status ?? kb.statistics?.status;
         const progress = kb.progress ?? kb.statistics?.progress;
-        if (status && status !== "ready" && status !== "error") {
+        const progressStage = (progress as ProgressInfo | undefined)?.stage;
+        if (
+          status &&
+          status !== "ready" &&
+          status !== "error" &&
+          progressStage !== "completed" &&
+          progressStage !== "error"
+        ) {
           setProgressMap((prev) => ({ ...prev, [kb.name]: progress || prev[kb.name] || {} }));
-          subscribeProgress(kb.name);
+          const taskId = (progress as ProgressInfo | undefined)?.task_id;
+          subscribeProgress(kb.name, taskId || undefined);
         }
       }
     } catch (error) {
@@ -343,7 +351,9 @@ export default function KnowledgePage() {
         const stage = progress.stage;
         if (stage === "completed" || stage === "error") {
           closeProgressSocket(kbName);
-          void loadAll();
+          if (expectedTaskId) {
+            void loadAll();
+          }
         }
       } catch {
         // Ignore malformed progress events.
