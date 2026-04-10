@@ -273,6 +273,7 @@ class AgentCoordinator:
         generator = self._create_generator()
         results: list[dict[str, Any]] = []
         total = len(templates)
+        generated_questions: list[str] = []
 
         for idx, template in enumerate(templates, 1):
             await self._send_ws_update(
@@ -285,13 +286,25 @@ class AgentCoordinator:
                 },
             )
 
+            # Build cumulative context from questions already generated in this
+            # session so the Generator can avoid producing duplicates.
+            cumulative_history = history_context
+            if generated_questions:
+                previous = "\n".join(
+                    f"Q{i}: {q}" for i, q in enumerate(generated_questions, start=1)
+                )
+                if cumulative_history:
+                    cumulative_history = f"{cumulative_history}\n\nQuestions generated in this session:\n{previous}"
+                else:
+                    cumulative_history = f"Questions generated in this session:\n{previous}"
+
             success = True
             try:
                 qa_pair = await generator.process(
                     template=template,
                     user_topic=user_topic,
                     preference=preference,
-                    history_context=history_context,
+                    history_context=cumulative_history,
                 )
             except Exception as exc:
                 success = False
@@ -313,6 +326,10 @@ class AgentCoordinator:
                 "success": success,
             }
             results.append(result)
+
+            # Track successfully generated question text for diversity enforcement
+            if success and qa_pair.question:
+                generated_questions.append(qa_pair.question)
 
             await self._send_ws_update(
                 "result",
