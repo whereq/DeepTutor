@@ -19,8 +19,11 @@ generate: |
   Tools enabled by the user:
   {available_tools}
 
-  Previously generated questions in this session (your new question MUST be different from all of these):
+  Conversation context:
   {history_context}
+
+  Previously generated questions in this session (your new question MUST be different from all of these):
+  {previous_questions}
 
   Requirements:
   - Keep strict alignment with template.concentration and template.difficulty.

@@ -19,8 +19,11 @@ generate: |
   用户当前启用的工具：
   {available_tools}
 
-  本次会话中已生成的题目（你的新题目必须与以下所有题目不同）：
+  对话上下文：
   {history_context}
+
+  本次会话中已生成的题目（你的新题目必须与以下所有题目不同）：
+  {previous_questions}
 
   要求：
   - 严格对齐 template.concentration 与 template.difficulty。

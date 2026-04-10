@@ -286,25 +286,14 @@ class AgentCoordinator:
                 },
             )
 
-            # Build cumulative context from questions already generated in this
-            # session so the Generator can avoid producing duplicates.
-            cumulative_history = history_context
-            if generated_questions:
-                previous = "\n".join(
-                    f"Q{i}: {q}" for i, q in enumerate(generated_questions, start=1)
-                )
-                if cumulative_history:
-                    cumulative_history = f"{cumulative_history}\n\nQuestions generated in this session:\n{previous}"
-                else:
-                    cumulative_history = f"Questions generated in this session:\n{previous}"
-
             success = True
             try:
                 qa_pair = await generator.process(
                     template=template,
                     user_topic=user_topic,
                     preference=preference,
-                    history_context=cumulative_history,
+                    history_context=history_context,
+                    previous_questions=generated_questions or None,
                 )
             except Exception as exc:
                 success = False
