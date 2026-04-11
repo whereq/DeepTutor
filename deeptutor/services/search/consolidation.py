@@ -223,7 +223,7 @@ class AnswerConsolidator:
 
         return response
 
-    def _get_template_for_provider(self, provider: str) -> str:
+    def _get_template_for_provider(self, provider: str) -> str | None:
         """
         Get the template for a specific provider.
 
@@ -234,10 +234,7 @@ class AnswerConsolidator:
             provider: Provider name (e.g., "serper", "jina")
 
         Returns:
-            Template string for this provider
-
-        Raises:
-            ValueError: If no template exists for this provider
+            Template string for this provider, or None if no template exists
         """
         # 1. Custom template takes highest priority
         if self.custom_template:
@@ -250,14 +247,14 @@ class AnswerConsolidator:
             _logger.debug(f"Using provider-specific template: {template_key}")
             return PROVIDER_TEMPLATES[template_key]
 
-        # 3. No template exists for this provider - fail explicitly
+        # 3. No template exists for this provider - return None for auto-fallback
         available = list(PROVIDER_TEMPLATES.keys())
-        _logger.error(f"No template for provider '{provider}'. Available: {available}")
-        raise ValueError(
-            f"No template consolidation available for provider '{provider}'. "
+        _logger.warning(
+            f"No template available for provider '{provider}'. "
             f"Template consolidation only works with: {available}. "
-            f"Use consolidation='llm' or provide a custom_template for other providers."
+            f"Auto-falling back to simple result formatting."
         )
+        return None
 
     def _build_provider_context(self, response: WebSearchResponse) -> dict[str, Any]:
         """
@@ -320,11 +317,17 @@ class AnswerConsolidator:
         return context
 
     def _consolidate_with_template(self, response: WebSearchResponse) -> str:
-        """Render results using Jinja2 template"""
+        """Render results using Jinja2 template or fallback to simple formatting"""
         _logger.debug(f"Building template context for {response.provider}")
 
         # Get template (auto-detect provider-specific if not explicitly set)
         template_str = self._get_template_for_provider(response.provider)
+
+        # Fallback: if no template available, use simple result formatting
+        if template_str is None:
+            _logger.info(f"Using fallback simple formatting for {response.provider}")
+            return self._format_simple_results(response)
+
         template = self.jinja_env.from_string(template_str)
 
         # Build context with provider-specific fields
@@ -393,6 +396,32 @@ Search Results:
 Consolidate these results into structured grounding context."""
 
         return system_prompt, user_prompt
+
+    def _format_simple_results(self, response: WebSearchResponse) -> str:
+        """
+        Format search results using a simple, provider-agnostic format.
+
+        This is used as a fallback when no provider-specific template is available.
+        """
+        lines = [f"### Search Results for \"{response.query}\"", ""]
+
+        for i, result in enumerate(response.search_results[: self.max_results], 1):
+            lines.append(f"**[{i}] {result.title}**")
+            if result.snippet:
+                lines.append(f"{result.snippet}")
+            if result.source:
+                lines.append(f"*Source: {result.source}*")
+            lines.append(f"🔗 [{result.url}]({result.url})")
+            lines.append("")
+
+        if response.search_results:
+            lines.append(
+                f"---\n*{len(response.search_results)} results via {response.provider}*"
+            )
+        else:
+            lines.append("*No results found.*")
+
+        return "\n".join(lines)
 
 
 __all__ = ["AnswerConsolidator", "CONSOLIDATION_TYPES", "PROVIDER_TEMPLATES"]
