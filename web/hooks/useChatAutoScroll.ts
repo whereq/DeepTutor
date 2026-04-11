@@ -51,7 +51,12 @@ export function useChatAutoScroll({
           lastScrollTimeRef.current = performance.now();
         }
       }, THROTTLE_MS - elapsed);
-      return;
+      return () => {
+        if (pendingRafRef.current) {
+          clearTimeout(pendingRafRef.current);
+          pendingRafRef.current = 0;
+        }
+      };
     }
 
     const raf = window.requestAnimationFrame(() => {

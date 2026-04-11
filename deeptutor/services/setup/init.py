@@ -50,8 +50,6 @@ DEFAULT_MAIN_SETTINGS = {
         },
         "web_search": {
             "enabled": True,
-            "consolidation": "template",
-            "consolidation_template": "",
         },
     },
     "capabilities": {

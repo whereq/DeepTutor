@@ -351,15 +351,19 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         },
       };
     }
-    case "NEW_SESSION":
-      return {
-        ...state,
-        selectedKey: action.key,
-        sessions: {
-          ...state.sessions,
-          [action.key]: createSessionEntry(action.key),
-        },
-      };
+    case "NEW_SESSION": {
+      const MAX_CACHED_SESSIONS = 20;
+      let nextSessions = { ...state.sessions, [action.key]: createSessionEntry(action.key) };
+      const keys = Object.keys(nextSessions);
+      if (keys.length > MAX_CACHED_SESSIONS) {
+        const evictable = keys
+          .filter((k) => k !== action.key && nextSessions[k].status !== "running")
+          .sort((a, b) => nextSessions[a].updatedAt - nextSessions[b].updatedAt);
+        const toRemove = evictable.slice(0, keys.length - MAX_CACHED_SESSIONS);
+        for (const k of toRemove) delete nextSessions[k];
+      }
+      return { ...state, selectedKey: action.key, sessions: nextSessions };
+    }
     default:
       return state;
   }
@@ -409,10 +413,21 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
     >
   >(new Map());
   const draftCounterRef = useRef(0);
+  const retryTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(
+    () => () => {
+      runnersRef.current.forEach(({ client }) => client.disconnect());
+      runnersRef.current.clear();
+      retryTimersRef.current.forEach((id) => clearTimeout(id));
+      retryTimersRef.current.clear();
+    },
+    [],
+  );
 
   const makeDraftKey = useCallback(() => {
     draftCounterRef.current += 1;
@@ -536,7 +551,11 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
           dispatch({ type: "STREAM_END", key, status: "failed" });
           return;
         }
-        window.setTimeout(() => dispatchToRunner(key, msg, attempt + 1), 200);
+        const timerId = window.setTimeout(() => {
+          retryTimersRef.current.delete(timerId);
+          dispatchToRunner(key, msg, attempt + 1);
+        }, 200);
+        retryTimersRef.current.add(timerId);
         return;
       }
       runner.client.send(msg);

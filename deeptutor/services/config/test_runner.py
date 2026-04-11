@@ -13,7 +13,11 @@ from uuid import uuid4
 
 from .env_store import get_env_store
 from .model_catalog import get_model_catalog_service
-from .provider_runtime import resolve_search_runtime_config
+from .provider_runtime import (
+    resolve_embedding_runtime_config,
+    resolve_llm_runtime_config,
+    resolve_search_runtime_config,
+)
 
 
 def _redact(value: str) -> str:
@@ -115,11 +119,11 @@ class ConfigTestRunner:
 
             with temporary_env(env_values):
                 if service == "llm":
-                    asyncio.run(self._test_llm(run))
+                    asyncio.run(self._test_llm(run, catalog))
                 elif service == "embedding":
-                    asyncio.run(self._test_embedding(run, model or {}))
+                    asyncio.run(self._test_embedding(run, model or {}, catalog))
                 elif service == "search":
-                    self._test_search(run)
+                    self._test_search(run, catalog)
                 else:
                     raise ValueError(f"Unsupported service: {service}")
             if not run.cancelled and run.status == "running":
@@ -129,13 +133,26 @@ class ConfigTestRunner:
             run.status = "failed"
             run.emit("failed", str(exc))
 
-    async def _test_llm(self, run: TestRun) -> None:
+    async def _test_llm(self, run: TestRun, catalog: dict[str, Any]) -> None:
         from deeptutor.services.llm import clear_llm_config_cache, complete as llm_complete
-        from deeptutor.services.llm import get_llm_config, get_token_limit_kwargs
+        from deeptutor.services.llm import get_token_limit_kwargs
+        from deeptutor.services.llm.config import LLMConfig
 
         clear_llm_config_cache()
         run.emit("info", "Loading LLM config from the active catalog selection.")
-        llm_config = get_llm_config()
+        resolved = resolve_llm_runtime_config(catalog=catalog)
+        llm_config = LLMConfig(
+            model=resolved.model,
+            api_key=resolved.api_key,
+            base_url=resolved.base_url,
+            effective_url=resolved.effective_url,
+            binding=resolved.binding,
+            provider_name=resolved.provider_name,
+            provider_mode=resolved.provider_mode,
+            api_version=resolved.api_version,
+            extra_headers=resolved.extra_headers,
+            reasoning_effort=resolved.reasoning_effort,
+        )
         run.emit("info", f"Resolved model `{llm_config.model}` with binding `{llm_config.binding}`.")
         run.emit("info", f"Request target: {llm_config.base_url}")
         token_kwargs = get_token_limit_kwargs(llm_config.model, max_tokens=200)
@@ -155,14 +172,30 @@ class ConfigTestRunner:
         if not snippet:
             raise ValueError("LLM returned an empty response.")
 
-    async def _test_embedding(self, run: TestRun, model: dict[str, Any]) -> None:
-        from deeptutor.services.embedding import get_embedding_client, get_embedding_config
+    async def _test_embedding(self, run: TestRun, model: dict[str, Any], catalog: dict[str, Any]) -> None:
+        from deeptutor.services.embedding.client import EmbeddingClient
+        from deeptutor.services.embedding.config import EmbeddingConfig
 
         run.emit("info", "Loading embedding config from the active catalog selection.")
-        config = get_embedding_config()
+        resolved = resolve_embedding_runtime_config(catalog=catalog)
+        config = EmbeddingConfig(
+            model=resolved.model,
+            api_key=resolved.api_key,
+            base_url=resolved.base_url,
+            effective_url=resolved.effective_url,
+            binding=resolved.binding,
+            provider_name=resolved.provider_name,
+            provider_mode=resolved.provider_mode,
+            api_version=resolved.api_version,
+            extra_headers=resolved.extra_headers,
+            dim=resolved.dimension,
+            request_timeout=max(1, resolved.request_timeout),
+            batch_size=max(1, resolved.batch_size),
+            batch_delay=max(0.0, resolved.batch_delay),
+        )
         run.emit("info", f"Resolved embedding model `{config.model}` with binding `{config.binding}`.")
         run.emit("info", f"Request target: {config.base_url}")
-        client = get_embedding_client()
+        client = EmbeddingClient(config)
         vectors = await client.embed(["DeepTutor embedding smoke test"])
         if not vectors or not vectors[0]:
             raise ValueError("Embedding service returned an empty vector.")
@@ -179,10 +212,10 @@ class ConfigTestRunner:
                 f"Embedding dimension mismatch. expected={expected_dimension}, actual={actual_dimension}"
             )
 
-    def _test_search(self, run: TestRun) -> None:
+    def _test_search(self, run: TestRun, catalog: dict[str, Any]) -> None:
         from deeptutor.services.search import web_search
 
-        resolved = resolve_search_runtime_config()
+        resolved = resolve_search_runtime_config(catalog=catalog)
         if not resolved.requested_provider:
             run.status = "completed"
             run.emit("completed", "Search skipped because no active provider is configured.")
