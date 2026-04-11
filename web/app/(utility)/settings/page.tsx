@@ -1030,7 +1030,7 @@ function SettingsPageContent() {
                             const field = activeService === "search" ? "provider" : "binding";
                             updateProfileField(field, val);
                             const match = (providers[activeService] || []).find((p) => p.value === val);
-                            if (match?.base_url && !activeProfile.base_url) {
+                            if (match?.base_url) {
                               updateProfileField("base_url", match.base_url);
                             }
                           }}
