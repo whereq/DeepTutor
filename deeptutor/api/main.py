@@ -214,6 +214,7 @@ from deeptutor.api.routers import (
     tutorbot,
     unified_ws,
     vision_solver,
+    wrong_answers,
 )
 
 # Include routers
@@ -227,6 +228,7 @@ app.include_router(notebook.router, prefix="/api/v1/notebook", tags=["notebook"]
 app.include_router(guide.router, prefix="/api/v1/guide", tags=["guide"])
 app.include_router(memory.router, prefix="/api/v1/memory", tags=["memory"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["sessions"])
+app.include_router(wrong_answers.router, prefix="/api/v1/wrong-answers", tags=["wrong-answers"])
 app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
 app.include_router(plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"])

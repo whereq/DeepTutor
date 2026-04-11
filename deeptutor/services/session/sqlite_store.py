@@ -145,6 +145,24 @@ class SQLiteSessionStore:
 
                 CREATE INDEX IF NOT EXISTS idx_turn_events_turn_seq
                     ON turn_events(turn_id, seq);
+
+                CREATE TABLE IF NOT EXISTS wrong_answers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                    question_id TEXT DEFAULT '',
+                    question TEXT NOT NULL,
+                    user_answer TEXT DEFAULT '',
+                    correct_answer TEXT DEFAULT '',
+                    resolved INTEGER NOT NULL DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    resolved_at REAL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_wrong_answers_session
+                    ON wrong_answers(session_id, created_at DESC);
+
+                CREATE INDEX IF NOT EXISTS idx_wrong_answers_resolved
+                    ON wrong_answers(resolved, created_at DESC);
                 """
             )
             columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
@@ -730,6 +748,164 @@ class SQLiteSessionStore:
         session["messages"] = await self.get_messages(session_id)
         session["active_turns"] = await self.list_active_turns(session_id)
         return session
+
+    def _add_wrong_answers_sync(
+        self,
+        session_id: str,
+        items: list[dict[str, Any]],
+    ) -> int:
+        if not items:
+            return 0
+        now = time.time()
+        with self._connect() as conn:
+            session = conn.execute(
+                "SELECT id FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            if session is None:
+                raise ValueError(f"Session not found: {session_id}")
+            inserted = 0
+            for item in items:
+                if item.get("is_correct"):
+                    continue
+                question = (item.get("question") or "").strip()
+                if not question:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO wrong_answers (
+                        session_id, question_id, question, user_answer,
+                        correct_answer, resolved, created_at, resolved_at
+                    ) VALUES (?, ?, ?, ?, ?, 0, ?, NULL)
+                    """,
+                    (
+                        session_id,
+                        item.get("question_id") or "",
+                        question,
+                        item.get("user_answer") or "",
+                        item.get("correct_answer") or "",
+                        now,
+                    ),
+                )
+                inserted += 1
+            conn.commit()
+        return inserted
+
+    async def add_wrong_answers(
+        self,
+        session_id: str,
+        items: list[dict[str, Any]],
+    ) -> int:
+        return await self._run(self._add_wrong_answers_sync, session_id, items)
+
+    def _list_wrong_answers_sync(
+        self,
+        resolved: bool | None,
+        limit: int,
+        offset: int,
+    ) -> list[dict[str, Any]]:
+        query = """
+            SELECT
+                w.id,
+                w.session_id,
+                COALESCE(s.title, '') AS session_title,
+                w.question_id,
+                w.question,
+                w.user_answer,
+                w.correct_answer,
+                w.resolved,
+                w.created_at,
+                w.resolved_at
+            FROM wrong_answers w
+            LEFT JOIN sessions s ON s.id = w.session_id
+        """
+        params: list[Any] = []
+        if resolved is not None:
+            query += " WHERE w.resolved = ?"
+            params.append(1 if resolved else 0)
+        query += " ORDER BY w.created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        with self._connect() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+        return [
+            {
+                "id": int(row["id"]),
+                "session_id": row["session_id"],
+                "session_title": row["session_title"] or "",
+                "question_id": row["question_id"] or "",
+                "question": row["question"],
+                "user_answer": row["user_answer"] or "",
+                "correct_answer": row["correct_answer"] or "",
+                "resolved": bool(row["resolved"]),
+                "created_at": float(row["created_at"]),
+                "resolved_at": (
+                    float(row["resolved_at"]) if row["resolved_at"] is not None else None
+                ),
+            }
+            for row in rows
+        ]
+
+    async def list_wrong_answers(
+        self,
+        resolved: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        return await self._run(
+            self._list_wrong_answers_sync, resolved, limit, offset
+        )
+
+    def _count_wrong_answers_sync(self, resolved: bool | None) -> int:
+        query = "SELECT COUNT(*) AS count FROM wrong_answers"
+        params: tuple[Any, ...] = ()
+        if resolved is not None:
+            query += " WHERE resolved = ?"
+            params = (1 if resolved else 0,)
+        with self._connect() as conn:
+            row = conn.execute(query, params).fetchone()
+        return int(row["count"]) if row else 0
+
+    async def count_wrong_answers(self, resolved: bool | None = None) -> int:
+        return await self._run(self._count_wrong_answers_sync, resolved)
+
+    def _update_wrong_answer_resolved_sync(
+        self,
+        wrong_answer_id: int,
+        resolved: bool,
+    ) -> bool:
+        now = time.time() if resolved else None
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE wrong_answers
+                SET resolved = ?, resolved_at = ?
+                WHERE id = ?
+                """,
+                (1 if resolved else 0, now, wrong_answer_id),
+            )
+            conn.commit()
+        return cur.rowcount > 0
+
+    async def update_wrong_answer_resolved(
+        self,
+        wrong_answer_id: int,
+        resolved: bool,
+    ) -> bool:
+        return await self._run(
+            self._update_wrong_answer_resolved_sync, wrong_answer_id, resolved
+        )
+
+    def _delete_wrong_answer_sync(self, wrong_answer_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM wrong_answers WHERE id = ?",
+                (wrong_answer_id,),
+            )
+            conn.commit()
+        return cur.rowcount > 0
+
+    async def delete_wrong_answer(self, wrong_answer_id: int) -> bool:
+        return await self._run(self._delete_wrong_answer_sync, wrong_answer_id)
 
 
 _instance: SQLiteSessionStore | None = None
