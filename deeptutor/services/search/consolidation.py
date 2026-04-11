@@ -1,9 +1,10 @@
 """
 Answer Consolidation - Generate answers from raw search results
 
-Supports two strategies:
-1. template: Fast Jinja2 template rendering
-2. llm: LLM-based answer synthesis (uses project's LLM config from env vars)
+Strategies (chosen automatically):
+- Provider-specific Jinja2 template when available (serper, jina, serper_scholar)
+- Generic fallback template for all other raw-SERP providers
+- Optional LLM synthesis when ``use_llm=True``
 """
 
 from typing import Any
@@ -15,12 +16,7 @@ from deeptutor.services.llm import get_llm_client
 
 from .types import WebSearchResponse
 
-# Module logger
 _logger = get_logger("Search.Consolidation", level="INFO")
-
-
-# Available consolidation types
-CONSOLIDATION_TYPES = ["none", "template", "llm"]
 
 
 # =============================================================================
@@ -140,19 +136,13 @@ PROVIDER_TEMPLATES = {
 
 
 class AnswerConsolidator:
-    """
-    Consolidate raw SERP results into formatted answers.
+    """Consolidate raw SERP results into a formatted answer.
 
-    IMPORTANT: Template consolidation only works for providers that have
-    specific templates defined (serper, jina, serper_scholar).
-
-    For other providers, use:
-    - consolidation_type="llm" for LLM-based synthesis
-    - custom_template for a custom Jinja2 template
+    By default, uses Jinja2 templates (provider-specific when available,
+    generic fallback otherwise).  Set ``use_llm=True`` to upgrade to
+    LLM-based synthesis instead.
     """
 
-    # Map provider names to their specific templates
-    # Only these providers support template consolidation
     PROVIDER_TEMPLATE_MAP = {
         "serper": "serper",
         "jina": "jina",
@@ -161,28 +151,17 @@ class AnswerConsolidator:
 
     def __init__(
         self,
-        consolidation_type: str = "template",
+        *,
+        use_llm: bool = False,
         custom_template: str | None = None,
         llm_config: dict[str, Any] | None = None,
         max_results: int = 5,
         autoescape: bool = True,
     ):
-        """
-        Initialize consolidator.
-
-        Args:
-            consolidation_type: "none", "template", or "llm"
-            custom_template: Custom Jinja2 template string
-            llm_config: Optional overrides (system_prompt, max_tokens, temperature)
-            max_results: Maximum results to include in answer
-            autoescape: Whether to enable Jinja2 autoescape for security (default: True)
-        """
-        self.consolidation_type = consolidation_type
+        self.use_llm = use_llm
         self.custom_template = custom_template
         self.llm_config = llm_config or {}
         self.max_results = max_results
-        # Security: autoescape defaults to True (set in function signature above).
-        # When True, Jinja2 auto-escapes HTML to prevent XSS.
         self.jinja_env = Environment(loader=BaseLoader(), autoescape=autoescape)  # nosec B701
 
         if self.custom_template is not None and autoescape:
@@ -193,67 +172,32 @@ class AnswerConsolidator:
             )
 
     def consolidate(self, response: WebSearchResponse) -> WebSearchResponse:
-        """
-        Consolidate search results into an answer.
-
-        Args:
-            response: WebSearchResponse with search_results populated
-
-        Returns:
-            WebSearchResponse with answer field populated
-        """
-        if self.consolidation_type == "none":
-            _logger.debug("Consolidation disabled, returning raw response")
-            return response
-
+        """Consolidate search results into an answer."""
         results_count = len(response.search_results)
-        _logger.info(
-            f"Consolidating {results_count} results from {response.provider} using {self.consolidation_type}"
-        )
 
-        if self.consolidation_type == "template":
-            response.answer = self._consolidate_with_template(response)
-            _logger.success(f"Template consolidation completed ({len(response.answer)} chars)")
-        elif self.consolidation_type == "llm":
+        if self.use_llm:
+            _logger.info(f"Consolidating {results_count} results from {response.provider} via LLM")
             response.answer = self._consolidate_with_llm(response)
             _logger.success(f"LLM consolidation completed ({len(response.answer)} chars)")
         else:
-            _logger.error(f"Unknown consolidation type: {self.consolidation_type}")
-            raise ValueError(f"Unknown consolidation type: {self.consolidation_type}")
+            _logger.info(f"Consolidating {results_count} results from {response.provider} via template")
+            response.answer = self._consolidate_with_template(response)
+            _logger.success(f"Template consolidation completed ({len(response.answer)} chars)")
 
         return response
 
     def _get_template_for_provider(self, provider: str) -> str | None:
-        """
-        Get the template for a specific provider.
-
-        Only provider-specific templates exist because each provider has
-        different response schemas and metadata. No universal templates.
-
-        Args:
-            provider: Provider name (e.g., "serper", "jina")
-
-        Returns:
-            Template string for this provider, or None if no template exists
-        """
-        # 1. Custom template takes highest priority
+        """Return the best Jinja2 template for *provider*, or ``None``."""
         if self.custom_template:
             _logger.debug(f"Using custom template ({len(self.custom_template)} chars)")
             return self.custom_template
 
-        # 2. Get provider-specific template
         template_key = self.PROVIDER_TEMPLATE_MAP.get(provider.lower())
         if template_key and template_key in PROVIDER_TEMPLATES:
             _logger.debug(f"Using provider-specific template: {template_key}")
             return PROVIDER_TEMPLATES[template_key]
 
-        # 3. No template exists for this provider - return None for auto-fallback
-        available = list(PROVIDER_TEMPLATES.keys())
-        _logger.warning(
-            f"No template available for provider '{provider}'. "
-            f"Template consolidation only works with: {available}. "
-            f"Auto-falling back to simple result formatting."
-        )
+        _logger.debug(f"No specific template for '{provider}', using generic fallback")
         return None
 
     def _build_provider_context(self, response: WebSearchResponse) -> dict[str, Any]:
@@ -424,4 +368,4 @@ Consolidate these results into structured grounding context."""
         return "\n".join(lines)
 
 
-__all__ = ["AnswerConsolidator", "CONSOLIDATION_TYPES", "PROVIDER_TEMPLATES"]
+__all__ = ["AnswerConsolidator", "PROVIDER_TEMPLATES"]

@@ -28,7 +28,6 @@ Available Providers:
 
 # Re-export from services layer
 from deeptutor.services.search import (
-    CONSOLIDATION_TYPES,
     PROVIDER_TEMPLATES,
     SEARCH_API_KEY_ENV,
     AnswerConsolidator,
@@ -62,7 +61,6 @@ __all__ = [
     "SearchResult",
     # Consolidation
     "AnswerConsolidator",
-    "CONSOLIDATION_TYPES",
     "PROVIDER_TEMPLATES",
     # Base class
     "BaseSearchProvider",
