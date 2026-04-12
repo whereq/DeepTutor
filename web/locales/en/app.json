@@ -857,5 +857,20 @@
   "Video Output": "Video Output",
   "Image Output": "Image Output",
   "Fullscreen math animation output": "Fullscreen math animation output",
-  "Delete this chat history?": "Delete this chat history?"
+  "Delete this chat history?": "Delete this chat history?",
+  "Wrong Answer Note": "Wrong Answer Note",
+  "Review mistakes from past quizzes across sessions.": "Review mistakes from past quizzes across sessions.",
+  "Unresolved": "Unresolved",
+  "All": "All",
+  "Total": "Total",
+  "Refresh": "Refresh",
+  "No wrong answers yet": "No wrong answers yet",
+  "Mistakes from your quizzes will appear here for review.": "Mistakes from your quizzes will appear here for review.",
+  "Your Answer": "Your Answer",
+  "Correct Answer": "Correct Answer",
+  "From session": "From session",
+  "Mark as Resolved": "Mark as Resolved",
+  "Mark as Unresolved": "Mark as Unresolved",
+  "Delete": "Delete",
+  "Delete this wrong answer?": "Delete this wrong answer?"
 }

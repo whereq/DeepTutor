@@ -857,5 +857,20 @@
   "Video Output": "视频输出",
   "Image Output": "图片输出",
   "Fullscreen math animation output": "全屏数学动画输出",
-  "Delete this chat history?": "确定删除此聊天记录吗？"
+  "Delete this chat history?": "确定删除此聊天记录吗？",
+  "Wrong Answer Note": "错题本",
+  "Review mistakes from past quizzes across sessions.": "跨会话回顾过往测验中答错的题目。",
+  "Unresolved": "未解决",
+  "All": "全部",
+  "Total": "总计",
+  "Refresh": "刷新",
+  "No wrong answers yet": "暂无错题",
+  "Mistakes from your quizzes will appear here for review.": "测验中答错的题目将汇总到此处供复习使用。",
+  "Your Answer": "你的答案",
+  "Correct Answer": "正确答案",
+  "From session": "来自会话",
+  "Mark as Resolved": "标记为已解决",
+  "Mark as Unresolved": "标记为未解决",
+  "Delete": "删除",
+  "Delete this wrong answer?": "确定删除此错题吗？"
 }

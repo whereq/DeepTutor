@@ -99,9 +99,14 @@ async def record_quiz_results(session_id: str, payload: QuizResultsRequest):
         content=content,
         capability="deep_question",
     )
+    wrong_answer_count = await store.add_wrong_answers(
+        session_id,
+        [item.model_dump() for item in payload.answers],
+    )
     return {
         "recorded": True,
         "session_id": session_id,
         "answer_count": len(payload.answers),
+        "wrong_answer_count": wrong_answer_count,
         "content": content,
     }
