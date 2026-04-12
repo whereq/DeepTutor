@@ -310,25 +310,24 @@ class LlamaIndexPipeline:
                 "provider": "llamaindex",
             }
 
-        # Detect embedding model mismatch before searching.
         embedding_mismatch_warning = ""
         try:
-            from deeptutor.knowledge.manager import KnowledgeBaseManager
+            import json as _json
 
-            kb_mgr = KnowledgeBaseManager(self.kb_base_dir)
-            kb_meta = kb_mgr.get_metadata(kb_name)
-            if kb_meta.get("embedding_mismatch"):
-                stored = kb_meta.get("embedding_model", "unknown")
-                current_cfg = get_embedding_config()
-                embedding_mismatch_warning = (
-                    f"Warning: This knowledge base was indexed with embedding model "
-                    f"'{stored}' but the current model is '{current_cfg.model}'. "
-                    f"Search quality may be degraded. Please re-index the knowledge "
-                    f"base for accurate results."
-                )
-                self.logger.warning(embedding_mismatch_warning)
-        except Exception as exc:
-            self.logger.debug(f"Embedding mismatch check skipped: {exc}")
+            cfg_path = Path(self.kb_base_dir) / "kb_config.json"
+            if cfg_path.exists():
+                with open(cfg_path, encoding="utf-8") as _f:
+                    kb_entry = _json.load(_f).get("knowledge_bases", {}).get(kb_name, {})
+                if kb_entry.get("embedding_mismatch"):
+                    stored = kb_entry.get("embedding_model", "unknown")
+                    current = get_embedding_config().model
+                    embedding_mismatch_warning = (
+                        f"Warning: KB '{kb_name}' was indexed with '{stored}' "
+                        f"but current model is '{current}'. Re-index recommended."
+                    )
+                    self.logger.warning(embedding_mismatch_warning)
+        except Exception:
+            pass
 
         try:
             # Load index from storage (run in thread pool)

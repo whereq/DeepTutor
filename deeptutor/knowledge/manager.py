@@ -19,8 +19,6 @@ from deeptutor.services.rag.components.routing import FileTypeRouter
 
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER, LEGACY_PROVIDER_ALIASES, normalize_provider_name
 
-_EMBEDDING_FINGERPRINT_KEYS = ("embedding_model", "embedding_dim")
-
 logger = get_logger("KnowledgeBaseManager")
 
 
@@ -69,19 +67,52 @@ def file_lock_exclusive(file_handle):
             fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
 
 
-def _get_current_embedding_fingerprint() -> dict[str, str | int] | None:
-    """Return the active embedding model name and dimension, or *None* on failure.
-
-    The fingerprint is stored alongside each knowledge-base entry so that a
-    mismatch can be detected after the user switches embedding models.
-    """
+def _get_embedding_fingerprint() -> tuple[str, int] | None:
+    """Return ``(model_name, dimension)`` of the active embedding config."""
     try:
         from deeptutor.services.embedding import get_embedding_config
 
         cfg = get_embedding_config()
-        return {"embedding_model": cfg.model, "embedding_dim": cfg.dim}
+        return (cfg.model, cfg.dim)
     except Exception:
         return None
+
+
+def _reconcile_embedding_flags(knowledge_bases: dict) -> bool:
+    """Flag KBs whose stored embedding fingerprint differs from the active config.
+
+    Compares both model name and dimension.  Auto-clears the flag when the
+    user reverts to the original model.  Returns *True* when any entry changed.
+    """
+    fp = _get_embedding_fingerprint()
+    if not fp:
+        return False
+
+    current_model, current_dim = fp
+    changed = False
+
+    for kb_entry in knowledge_bases.values():
+        if not isinstance(kb_entry, dict):
+            continue
+        stored_model = kb_entry.get("embedding_model")
+        if not stored_model:
+            continue
+
+        stored_dim = kb_entry.get("embedding_dim")
+        mismatch = stored_model != current_model or (
+            stored_dim is not None and stored_dim != current_dim
+        )
+
+        if mismatch and not kb_entry.get("embedding_mismatch"):
+            kb_entry["embedding_mismatch"] = True
+            if not kb_entry.get("needs_reindex"):
+                kb_entry["needs_reindex"] = True
+            changed = True
+        elif not mismatch and kb_entry.get("embedding_mismatch"):
+            del kb_entry["embedding_mismatch"]
+            changed = True
+
+    return changed
 
 
 class KnowledgeBaseManager:
@@ -149,29 +180,8 @@ class KnowledgeBaseManager:
                             kb_entry["needs_reindex"] = True
                             config_changed = True
 
-                # Detect embedding model mismatch: if the currently configured
-                # embedding model differs from the one used to index a KB, mark
-                # the KB so the user knows search quality may be degraded.
-                current_fp = _get_current_embedding_fingerprint()
-                if current_fp:
-                    for kb_name, kb_entry in knowledge_bases.items():
-                        if not isinstance(kb_entry, dict):
-                            continue
-                        stored_model = kb_entry.get("embedding_model")
-                        if not stored_model:
-                            # Legacy KB without fingerprint – skip detection
-                            continue
-                        if stored_model != current_fp["embedding_model"]:
-                            if not kb_entry.get("embedding_mismatch"):
-                                kb_entry["embedding_mismatch"] = True
-                                if not kb_entry.get("needs_reindex", False):
-                                    kb_entry["needs_reindex"] = True
-                                config_changed = True
-                        else:
-                            # Model matches again (user reverted) – clear flag
-                            if kb_entry.get("embedding_mismatch"):
-                                del kb_entry["embedding_mismatch"]
-                                config_changed = True
+                if _reconcile_embedding_flags(knowledge_bases):
+                    config_changed = True
 
                 if config_changed:
                     try:
@@ -246,13 +256,10 @@ class KnowledgeBaseManager:
                 "percent": 100,
             }
 
-        # Record the embedding model used for indexing so we can detect
-        # mismatches after the user switches to a different model.
         if status == "ready":
-            fingerprint = _get_current_embedding_fingerprint()
-            if fingerprint:
-                kb_config["embedding_model"] = fingerprint["embedding_model"]
-                kb_config["embedding_dim"] = fingerprint["embedding_dim"]
+            fp = _get_embedding_fingerprint()
+            if fp:
+                kb_config["embedding_model"], kb_config["embedding_dim"] = fp
 
         self._save_config()
 
@@ -464,6 +471,18 @@ class KnowledgeBaseManager:
 
         return None
 
+    @staticmethod
+    def _embedding_fields(kb_config: dict) -> dict:
+        """Extract embedding fingerprint fields from a KB config entry."""
+        fields = {}
+        for key in ("embedding_model", "embedding_dim"):
+            val = kb_config.get(key)
+            if val is not None:
+                fields[key] = val
+        if kb_config.get("embedding_mismatch"):
+            fields["embedding_mismatch"] = True
+        return fields
+
     def get_metadata(self, name: str | None = None) -> dict:
         """Get knowledge base metadata.
         
@@ -490,12 +509,7 @@ class KnowledgeBaseManager:
                 "created_at": kb_config.get("created_at"),
                 "last_updated": kb_config.get("updated_at"),
             }
-            if kb_config.get("embedding_model"):
-                metadata["embedding_model"] = kb_config["embedding_model"]
-            if kb_config.get("embedding_dim"):
-                metadata["embedding_dim"] = kb_config["embedding_dim"]
-            if kb_config.get("embedding_mismatch"):
-                metadata["embedding_mismatch"] = True
+            metadata.update(self._embedding_fields(kb_config))
             # Remove None values
             metadata = {k: v for k, v in metadata.items() if v is not None}
             return metadata
@@ -562,14 +576,7 @@ class KnowledgeBaseManager:
         if updated_at:
             metadata["last_updated"] = updated_at
 
-        # Include embedding fingerprint so callers can see which model was
-        # used to index this KB and whether it still matches the active config.
-        if kb_config.get("embedding_model"):
-            metadata["embedding_model"] = kb_config["embedding_model"]
-        if kb_config.get("embedding_dim"):
-            metadata["embedding_dim"] = kb_config["embedding_dim"]
-        if kb_config.get("embedding_mismatch"):
-            metadata["embedding_mismatch"] = True
+        metadata.update(self._embedding_fields(kb_config))
 
         # Remove None values
         metadata = {k: v for k, v in metadata.items() if v is not None}
