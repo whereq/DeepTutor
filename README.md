@@ -658,6 +658,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on setting up your develop
 
 </div>
 
+<p align="center">
+ <a href="https://www.star-history.com/hkuds/deeptutor">
+  <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=HKUDS/DeepTutor&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=HKUDS/DeepTutor" />
+   <img alt="Star History Rank" src="https://api.star-history.com/badge?repo=HKUDS/DeepTutor" />
+  </picture>
+ </a>
+</p>
+
 <div align="center">
 
 **[Data Intelligence Lab @ HKU](https://github.com/HKUDS)**
