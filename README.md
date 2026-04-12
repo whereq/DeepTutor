@@ -604,8 +604,10 @@ deeptutor session open <id>                         # Resume in REPL
 
 | Status | Milestone |
 |:---:|:---|
-| 🔜 | **Authentication & Login** — Optional login page for public deployments with multi-user support |
-| 🔜 | **Themes & Appearance** — Diverse theme options and customizable UI appearance |
+| 🎯 | **Authentication & Login** — Optional login page for public deployments with multi-user support |
+| 🎯 | **Themes & Appearance** — Diverse theme options and customizable UI appearance |
+| 🎯 | **Interaction Improvement** — optimize icon design and interaction details |
+| 🔜 | **Better Memories** — integrating better memory management |
 | 🔜 | **LightRAG Integration** — Integrate [LightRAG](https://github.com/HKUDS/LightRAG) as an advanced knowledge base engine |
 | 🔜 | **Documentation Site** — Comprehensive docs page with guides, API reference, and tutorials |
 
