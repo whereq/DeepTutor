@@ -310,6 +310,26 @@ class LlamaIndexPipeline:
                 "provider": "llamaindex",
             }
 
+        # Detect embedding model mismatch before searching.
+        embedding_mismatch_warning = ""
+        try:
+            from deeptutor.knowledge.manager import KnowledgeBaseManager
+
+            kb_mgr = KnowledgeBaseManager(self.kb_base_dir)
+            kb_meta = kb_mgr.get_metadata(kb_name)
+            if kb_meta.get("embedding_mismatch"):
+                stored = kb_meta.get("embedding_model", "unknown")
+                current_cfg = get_embedding_config()
+                embedding_mismatch_warning = (
+                    f"Warning: This knowledge base was indexed with embedding model "
+                    f"'{stored}' but the current model is '{current_cfg.model}'. "
+                    f"Search quality may be degraded. Please re-index the knowledge "
+                    f"base for accurate results."
+                )
+                self.logger.warning(embedding_mismatch_warning)
+        except Exception as exc:
+            self.logger.debug(f"Embedding mismatch check skipped: {exc}")
+
         try:
             # Load index from storage (run in thread pool)
             loop = asyncio.get_event_loop()
@@ -343,13 +363,16 @@ class LlamaIndexPipeline:
 
             content = "\n\n".join(context_parts) if context_parts else ""
 
-            return {
+            result: Dict[str, Any] = {
                 "query": query,
                 "answer": content,
                 "content": content,
                 "sources": sources,
                 "provider": "llamaindex",
             }
+            if embedding_mismatch_warning:
+                result["warning"] = embedding_mismatch_warning
+            return result
 
         except Exception as e:
             self.logger.error(f"Search failed: {e}")
