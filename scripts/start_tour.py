@@ -281,9 +281,9 @@ def _math_animator_install_cmd(dep: str) -> list[str] | None:
             "cairo": ["sudo", "yum", "install", "-y", "cairo-devel"],
         },
         "winget": {
-            "latex": ["winget", "install", "--id", "MiKTeX.MiKTeX", "-e"],
-            "cmake": ["winget", "install", "--id", "Kitware.CMake", "-e"],
-            "ffmpeg": ["winget", "install", "--id", "Gyan.FFmpeg", "-e"],
+            "latex": ["winget", "install", "MiKTeX.MiKTeX"],
+            "cmake": ["winget", "install", "Kitware.CMake"],
+            "ffmpeg": ["winget", "install", "Gyan.FFmpeg"],
         },
         "choco": {
             "latex": ["choco", "install", "miktex", "-y"],
@@ -379,7 +379,7 @@ def _get_npm_command() -> str:
     With shell=True on Windows, we can just use "npm" and let the shell resolve it.
     """
     if platform.system().lower() == "windows":
-        return "npm"
+        return "npm.cmd"
     else:
         # On Unix-like systems, npm should be found directly
         npm = shutil.which("npm")
@@ -419,7 +419,11 @@ def _run_cmd(cmd: list[str], cwd: Path) -> None:
     use_shell = platform.system().lower() == "windows"
     result = subprocess.run(cmd, cwd=str(cwd), check=False, shell=use_shell)
     if result.returncode != 0:
-        raise RuntimeError(f"Command failed (exit {result.returncode}): {' '.join(cmd)}")
+        # winget may return non-zero even on success (e.g., pending reboot)
+        if "winget" in cmd[0]:
+            log_warn(f"winget command may have issues (exit {result.returncode}): {' '.join(cmd)}")
+        else:
+            raise RuntimeError(f"Command failed (exit {result.returncode}): {' '.join(cmd)}")
 
 
 # ---------------------------------------------------------------------------
