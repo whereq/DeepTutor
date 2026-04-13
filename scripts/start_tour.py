@@ -28,11 +28,14 @@ def _resolve_python() -> str:
     """
     exe = sys.executable
     if exe:
+        # Prefer the unresolved path first — resolving symlinks can escape
+        # a virtual-env and point at the system Python, which on modern
+        # Homebrew / PEP 668 installs will refuse ``pip install``.
+        if Path(exe).exists():
+            return exe
         resolved = str(Path(exe).resolve())
         if Path(resolved).exists():
             return resolved
-        if Path(exe).exists():
-            return exe
     for name in ("python3", "python"):
         found = shutil.which(name)
         if found:
