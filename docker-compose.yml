@@ -42,6 +42,7 @@ services:
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_HOST=${LLM_HOST}
       - LLM_API_VERSION=${LLM_API_VERSION:-}
+      - LLM_TEST_MAX_TOKENS=${LLM_TEST_MAX_TOKENS:-1024}
       - DISABLE_SSL_VERIFY=${DISABLE_SSL_VERIFY:-false}
       # Embedding Configuration (Required for Knowledge Base)
       - EMBEDDING_BINDING=${EMBEDDING_BINDING:-openai}
