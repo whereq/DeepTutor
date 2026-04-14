@@ -156,12 +156,11 @@ class ConfigTestRunner:
         run.emit("info", f"Resolved model `{llm_config.model}` with binding `{llm_config.binding}`.")
         run.emit("info", f"Request target: {llm_config.base_url}")
         # Reasoning models spend part of the budget on internal thinking;
-        # too tight a cap makes them return empty content. Override via
-        # LLM_TEST_MAX_TOKENS when the default (1024) isn't enough.
-        try:
-            max_tokens = max(1, int(os.getenv("LLM_TEST_MAX_TOKENS", "1024")))
-        except ValueError:
-            max_tokens = 1024
+        # too tight a cap makes them return empty content. Configurable
+        # via diagnostics.llm_probe.max_tokens in agents.yaml.
+        from .loader import get_agent_params
+        probe_params = get_agent_params("llm_probe")
+        max_tokens = max(1, int(probe_params.get("max_tokens", 1024)))
         token_kwargs = get_token_limit_kwargs(llm_config.model, max_tokens=max_tokens)
         run.emit("info", f"Token options: {json.dumps(token_kwargs)}")
         response = await llm_complete(

@@ -26,6 +26,8 @@
 
 ### 📦 Releases
 
+> **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX block math parsing overhaul, LLM diagnostic probe agents.yaml configuration, extra headers forwarding in LLM factory, SaveToNotebookModal UUID fix, Docker + local LLM guidance, and expanded test suite.
+
 > **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — URL-based chat routing with bookmarkable sessions, Snow theme, WebSocket heartbeat & auto-reconnect with resume, ChatComposer performance optimization, embedding provider registry overhaul, Serper search provider, streaming idle timeout, and expanded test suite.
 
 > **[2026.4.13]** [v1.0.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.3) — Question Notebook for unified quiz review with bookmarks & categories, Mermaid diagram support in Visualize, embedding model mismatch detection, system message merging for Qwen/vLLM compatibility, LM Studio & llama.cpp provider support, and Glass theme.

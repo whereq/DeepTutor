@@ -90,16 +90,13 @@ function normalizeEditorMdInlineMath(content: string): string {
       }
     }
 
-    // Preserve block math on its own line, but normalize one-line block math.
     if (
-      /^\$\$[\s\S]+\$\$/.test(trimmed) &&
+      /^\$\$[\s\S]+\$\$$/.test(trimmed) &&
       (trimmed.match(/\$\$/g)?.length ?? 0) === 2
     ) {
-      if (line.trim() === trimmed) {
-        const inner = trimmed.slice(2, -2).trim();
-        result.push(`$$\n${inner}\n$$`);
-        continue;
-      }
+      const inner = trimmed.slice(2, -2).trim();
+      result.push(`$$\n${inner}\n$$`);
+      continue;
     }
 
     // editor.md commonly uses $...$ for inline math.
