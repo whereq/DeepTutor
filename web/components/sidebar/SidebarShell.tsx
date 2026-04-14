@@ -29,7 +29,7 @@ interface NavEntry {
 }
 
 const PRIMARY_NAV: NavEntry[] = [
-  { href: "/", label: "Chat", icon: MessageSquare },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/agents", label: "TutorBot", icon: Bot },
   { href: "/co-writer", label: "Co-Writer", icon: PenLine },
   { href: "/guide", label: "Guided Learning", icon: GraduationCap },
@@ -75,7 +75,7 @@ export function SidebarShell({
       onNewChat();
       return;
     }
-    router.push("/");
+    router.push("/chat");
   };
 
   /* ---- Collapsed state ---- */
@@ -100,7 +100,7 @@ export function SidebarShell({
 
         <nav className="flex flex-col items-center gap-px pt-1">
           {PRIMARY_NAV.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const active = pathname.startsWith(item.href);
             return (
               <div key={item.href} className="flex flex-col items-center">
                 <Link
@@ -114,6 +114,7 @@ export function SidebarShell({
                   <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
                 </Link>
                 {item.href === "/agents" && <TutorBotRecent collapsed />}
+
               </div>
             );
           })}
@@ -177,8 +178,8 @@ export function SidebarShell({
           </button>
 
           {PRIMARY_NAV.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            const hasSessionsBelow = item.href === "/" && showSessions && onSelectSession && onRenameSession && onDeleteSession;
+            const active = pathname.startsWith(item.href);
+            const hasSessionsBelow = item.href === "/chat" && showSessions && onSelectSession && onRenameSession && onDeleteSession;
             const hasBots = item.href === "/agents";
             return (
               <div key={item.href}>
