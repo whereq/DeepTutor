@@ -40,17 +40,6 @@
 
 > **[2026.4.4]** [v1.0.0-beta.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.1) — Agent-native architecture rewrite (～200k lines) with two-layer plugin model (Tools + Capabilities), CLI & SDK entry points, TutorBot multi-channel bot agent, Co-Writer, Guided Learning, and persistent memory.
 
-### 📰 News
-
-> **[2026.4.4]** Long time no see! ✨ DeepTutor v1.0.0 is finally here — an agent-native evolution featuring a ground-up architecture rewrite, TutorBot, and flexible mode switching under the Apache-2.0 license. A new chapter begins, and our story continues! 
-
-> **[2026.2.6]** 🚀 We've reached 10k stars in just 39 days! A huge thank you to our incredible community for the support! 
-
-> **[2026.1.1]** Happy New Year! Join our [Discord](https://discord.gg/eRsjPgMU4t), [WeChat](https://github.com/HKUDS/DeepTutor/issues/78), or [Discussions](https://github.com/HKUDS/DeepTutor/discussions) — let's shape the future of DeepTutor together!
-
-> **[2025.12.29]** DeepTutor is officially released!
-
-
 <details>
 <summary><b>Past releases</b></summary>
 
@@ -615,8 +604,10 @@ deeptutor session open <id>                         # Resume in REPL
 
 | Status | Milestone |
 |:---:|:---|
-| 🔜 | **Authentication & Login** — Optional login page for public deployments with multi-user support |
-| 🔜 | **Themes & Appearance** — Diverse theme options and customizable UI appearance |
+| 🎯 | **Authentication & Login** — Optional login page for public deployments with multi-user support |
+| 🎯 | **Themes & Appearance** — Diverse theme options and customizable UI appearance |
+| 🎯 | **Interaction Improvement** — optimize icon design and interaction details |
+| 🔜 | **Better Memories** — integrating better memory management |
 | 🔜 | **LightRAG Integration** — Integrate [LightRAG](https://github.com/HKUDS/LightRAG) as an advanced knowledge base engine |
 | 🔜 | **Documentation Site** — Comprehensive docs page with guides, API reference, and tutorials |
 
@@ -668,6 +659,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on setting up your develop
 </a>
 
 </div>
+
+<p align="center">
+ <a href="https://www.star-history.com/hkuds/deeptutor">
+  <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=HKUDS/DeepTutor&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=HKUDS/DeepTutor" />
+   <img alt="Star History Rank" src="https://api.star-history.com/badge?repo=HKUDS/DeepTutor" />
+  </picture>
+ </a>
+</p>
 
 <div align="center">
 
