@@ -712,6 +712,10 @@ export default function HomePage() {
     [researchConfig, sendMessage],
   );
 
+  const handleRetryMessage = useCallback((snapshot?: MessageRequestSnapshot) => {
+    replaySnapshot(snapshot);
+  }, [replaySnapshot]);
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[var(--background)]">
       <div className="mx-auto flex w-full max-w-[960px] flex-1 min-h-0 flex-col overflow-hidden px-6">
@@ -768,7 +772,7 @@ export default function HomePage() {
               onCancelStreaming={cancelStreamingTurn}
               onAnswerNow={handleAnswerNow}
               onCopyAssistantMessage={copyAssistantMessage}
-              onRetryMessage={(snapshot) => replaySnapshot(snapshot)}
+              onRetryMessage={handleRetryMessage}
               onConfirmOutline={handleConfirmOutline}
             />
             <div ref={messagesEndRef} className="h-px w-full shrink-0" />
