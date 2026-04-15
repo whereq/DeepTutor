@@ -103,12 +103,14 @@ async def recent_bots(limit: int = 3):
 @router.post("")
 async def create_and_start_bot(payload: CreateBotRequest):
     mgr = get_tutorbot_manager()
+    # Load existing config from disk first so fields like channels are preserved
+    existing = mgr._load_bot_config(payload.bot_id)
     config = BotConfig(
-        name=payload.name or payload.bot_id,
-        description=payload.description,
-        persona=payload.persona,
-        channels=payload.channels,
-        model=payload.model,
+        name=payload.name or (existing.name if existing else payload.bot_id),
+        description=payload.description or (existing.description if existing else ""),
+        persona=payload.persona or (existing.persona if existing else ""),
+        channels=payload.channels if payload.channels else (existing.channels if existing else {}),
+        model=payload.model or (existing.model if existing else None),
     )
     try:
         instance = await mgr.start_bot(payload.bot_id, config)
