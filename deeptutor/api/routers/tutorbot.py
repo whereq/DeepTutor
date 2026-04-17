@@ -11,7 +11,6 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from deeptutor.services.tutorbot import get_tutorbot_manager
-from deeptutor.services.tutorbot.manager import BotConfig
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,9 +19,9 @@ router = APIRouter()
 class CreateBotRequest(BaseModel):
     bot_id: str
     name: str | None = None
-    description: str = ""
-    persona: str = ""
-    channels: dict = {}
+    description: str | None = None
+    persona: str | None = None
+    channels: dict | None = None
     model: str | None = None
 
 
@@ -103,13 +102,12 @@ async def recent_bots(limit: int = 3):
 @router.post("")
 async def create_and_start_bot(payload: CreateBotRequest):
     mgr = get_tutorbot_manager()
-    config = BotConfig(
-        name=payload.name or payload.bot_id,
-        description=payload.description,
-        persona=payload.persona,
-        channels=payload.channels,
-        model=payload.model,
-    )
+    # Only fields the client actually sent are forwarded as overrides; this lets
+    # users explicitly clear values (e.g. ``description=""``) while *omitted*
+    # fields fall back to the on-disk config — preventing the historical bug
+    # where each restart wiped out user-configured channels.
+    overrides = payload.model_dump(exclude_unset=True, exclude={"bot_id"})
+    config = mgr.merge_bot_config(payload.bot_id, overrides)
     try:
         instance = await mgr.start_bot(payload.bot_id, config)
     except RuntimeError as e:
@@ -123,7 +121,7 @@ async def get_bot(bot_id: str):
     instance = mgr.get_bot(bot_id)
     if instance:
         return instance.to_dict()
-    cfg = mgr._load_bot_config(bot_id)
+    cfg = mgr.load_bot_config(bot_id)
     if cfg:
         return {
             "bot_id": bot_id, "name": cfg.name, "description": cfg.description,
@@ -167,7 +165,7 @@ async def update_bot(bot_id: str, payload: UpdateBotRequest):
     if payload.model is not None:
         instance.config.model = payload.model
 
-    mgr._save_bot_config(bot_id, instance.config)
+    mgr.save_bot_config(bot_id, instance.config)
     return instance.to_dict()
 
 

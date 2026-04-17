@@ -118,6 +118,28 @@ export function buildQuizFollowupConfig(
   };
 }
 
+function titleCase(value: string): string {
+  if (!value) return "";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/**
+ * One-line summary of the quiz form, shown next to the collapsed `Settings`
+ * chevron in the composer.
+ */
+export function summarizeQuizConfig(cfg: DeepQuestionFormConfig): string {
+  if (cfg.mode === "mimic") {
+    const target = cfg.paper_path.trim() || "no paper";
+    return ["Mimic", target, `max ${cfg.max_questions}`].join(" · ");
+  }
+  return [
+    "Custom",
+    `${cfg.num_questions}q`,
+    titleCase(cfg.difficulty || "auto"),
+    titleCase(cfg.question_type || "auto"),
+  ].join(" · ");
+}
+
 /**
  * Build the `config` payload to send over WebSocket for a quiz generation
  * request.

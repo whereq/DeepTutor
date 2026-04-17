@@ -206,7 +206,11 @@ class TurnRuntimeManager:
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         capability = str(payload.get("capability") or "chat")
         raw_config = dict(payload.get("config", {}) or {})
-        runtime_only_keys = ("_persist_user_message", "followup_question_context")
+        runtime_only_keys = (
+            "_persist_user_message",
+            "followup_question_context",
+            "answer_now_context",
+        )
         runtime_only_config = {
             key: raw_config.pop(key)
             for key in runtime_only_keys

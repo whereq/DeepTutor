@@ -43,7 +43,18 @@ class ChatOrchestrator:
         if not context.session_id:
             context.session_id = str(uuid.uuid4())
 
-        cap_name = context.active_capability or "chat"
+        # "Answer now" is a universal escape hatch: the user is impatient and
+        # wants the system to synthesize a final reply from the partial trace
+        # captured so far. The chat capability owns this synthesis path
+        # (see _stage_answer_now), so we re-route here regardless of the
+        # original capability so this works uniformly across deep_solve,
+        # deep_research, math_animator, etc.
+        if isinstance(context.config_overrides, dict) and context.config_overrides.get(
+            "answer_now_context"
+        ):
+            cap_name = "chat"
+        else:
+            cap_name = context.active_capability or "chat"
         capability = self._cap_registry.get(cap_name)
 
         if capability is None:

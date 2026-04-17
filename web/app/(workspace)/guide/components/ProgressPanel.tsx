@@ -45,40 +45,40 @@ export default function ProgressPanel({
     const status = sessionState.page_statuses[knowledgeIndex];
 
     if (status === "ready") {
-      return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+      return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
     }
     if (status === "generating") {
-      return <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />;
+      return <Loader2 className="h-4 w-4 animate-spin text-[var(--primary)]" />;
     }
     if (status === "failed") {
-      return <XCircle className="w-4 h-4 text-rose-500" />;
+      return <XCircle className="h-4 w-4 text-rose-500" />;
     }
-    return <AlertCircle className="w-4 h-4 text-slate-400" />;
+    return <AlertCircle className="h-4 w-4 text-[var(--muted-foreground)]" />;
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-      <div className="flex items-center justify-between mb-2 gap-3">
-        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+    <div className="surface-card border border-[var(--border)] bg-[var(--card)] p-4 text-[var(--card-foreground)]">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
           {t("Learning Progress")}
         </span>
-        <span className="text-xs text-slate-400 dark:text-slate-500">
+        <span className="text-xs text-[var(--muted-foreground)]">
           {readyCount}/{totalCount} {t("pages ready")}
         </span>
       </div>
-      <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-4">
+      <div className="mb-4 h-2 overflow-hidden rounded-full bg-[var(--muted)]">
         <div
-          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+          className="h-full rounded-full bg-[var(--primary)] transition-all duration-500"
           style={{ width: `${sessionState.progress}%` }}
         />
       </div>
       {totalCount > 0 && (
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
+        <p className="mb-4 text-xs text-[var(--muted-foreground)]">
           {t("Open any page once it is ready. Early stages are prioritized.")}
         </p>
       )}
 
-      <div className="space-y-2 mb-4">
+      <div className="mb-4 space-y-2">
         {sessionState.knowledge_points.map((knowledge, index) => {
           const status = sessionState.page_statuses[index] || "pending";
           const isCurrent = sessionState.current_index === index;
@@ -88,10 +88,10 @@ export default function ProgressPanel({
           return (
             <div
               key={`${knowledge.knowledge_title}-${index}`}
-              className={`rounded-xl border px-3 py-3 transition ${
+              className={`rounded-xl border px-3 py-3 transition-colors ${
                 isCurrent
-                  ? "border-indigo-300 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-950/30"
-                  : "border-slate-200 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-900/50"
+                  ? "border-[var(--primary)]/40 bg-[var(--primary)]/8"
+                  : "border-[var(--border)] bg-[var(--muted)]/30"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -99,12 +99,12 @@ export default function ProgressPanel({
                   onClick={() => onNavigate(index)}
                   className="flex-1 text-left"
                 >
-                  <div className="flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-slate-100">
+                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
                     {renderStatusIcon(index)}
                     <span>{index + 1}.</span>
                     <span className="line-clamp-2">{knowledge.knowledge_title}</span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
                     {status === "ready"
                       ? t("Ready to open")
                       : status === "generating"
@@ -118,18 +118,18 @@ export default function ProgressPanel({
                 {isFailed && (
                   <button
                     onClick={() => onRetryPage(index)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                    className="inline-flex items-center gap-1 rounded-lg border border-rose-300/50 bg-rose-500/8 px-2 py-1 text-xs text-rose-600 hover:bg-rose-500/15 dark:text-rose-300"
                   >
-                    <RotateCcw className="w-3 h-3" />
+                    <RotateCcw className="h-3 w-3" />
                     {t("Retry")}
                   </button>
                 )}
                 {isReady && (
                   <button
                     onClick={() => onNavigate(index)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/50 bg-emerald-500/8 px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-300"
                   >
-                    <Sparkles className="w-3 h-3" />
+                    <Sparkles className="h-3 w-3" />
                     {t("Open")}
                   </button>
                 )}
@@ -144,16 +144,16 @@ export default function ProgressPanel({
           <button
             onClick={onStartLearning}
             disabled={isLoading}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+            className="btn-primary flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 {t("Starting...")}
               </>
             ) : (
               <>
-                <Play className="w-4 h-4" />
+                <Play className="h-4 w-4" />
                 {t("Start Learning")}
               </>
             )}
@@ -163,9 +163,9 @@ export default function ProgressPanel({
         {!canStart && (
           <button
             onClick={onResetSession}
-            className="flex-1 px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors flex items-center justify-center gap-2 text-sm font-medium dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--muted)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/70"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="h-4 w-4" />
             {t("New Session")}
           </button>
         )}
@@ -174,16 +174,16 @@ export default function ProgressPanel({
           <button
             onClick={onCompleteLearning}
             disabled={isLoading || !allPagesReady}
-            className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 {t("Generating Summary...")}
               </>
             ) : (
               <>
-                <CheckCircle2 className="w-4 h-4" />
+                <CheckCircle2 className="h-4 w-4" />
                 {t("Complete Learning")}
               </>
             )}

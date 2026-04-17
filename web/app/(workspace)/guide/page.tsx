@@ -171,20 +171,20 @@ export default function GuidePage() {
         }}
       >
         {isIdle ? (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
-            <div className="p-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
-              <h2 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <div className="surface-card flex flex-col overflow-hidden border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)]">
+            <div className="border-b border-[var(--border)] bg-[var(--muted)]/35 p-3">
+              <h2 className="flex items-center gap-2 font-semibold text-[var(--foreground)]">
+                <Sparkles className="h-5 w-5 text-[var(--primary)]" />
                 {t("Describe what you want to learn")}
               </h2>
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                 {t(
                   "Write a short learning request, and the system will design a progressive guided learning plan for you.",
                 )}
               </p>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="space-y-4 p-4">
               <textarea
                 value={topicInput}
                 onChange={(e) => setTopicInput(e.target.value)}
@@ -192,35 +192,45 @@ export default function GuidePage() {
                   "For example: Teach me linear algebra from the basics, with intuition, key formulas, and common mistakes.",
                 )}
                 rows={8}
-                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-indigo-900/40"
+                className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]/50 focus:ring-2 focus:ring-[var(--primary)]/15"
               />
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-900/50">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                      {t("Notebook Context")}
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {t("Optionally ground the learning plan with saved notebook records.")}
-                    </p>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                    <BookOpen className="h-3 w-3" />
+                    {t("Notebook Context")}
                   </div>
-                  <button
-                    onClick={() => setShowNotebookPicker(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    <BookOpen className="h-4 w-4" />
-                    {t("Select Records")}
-                  </button>
+                  <span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
+                    {t("Optional")}
+                  </span>
                 </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted-foreground)]">
+                  {t("Ground the plan with saved notebook records.")}
+                </p>
+                <button
+                  onClick={() => setShowNotebookPicker(true)}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-dashed border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/50 hover:bg-[var(--primary)]/8 hover:text-[var(--primary)]"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  {selectedNotebookRecords.length > 0
+                    ? t("Update selection ({n})", {
+                        n: selectedNotebookRecords.length,
+                      })
+                    : t("Select records")}
+                </button>
                 {notebookReferenceGroups.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {notebookReferenceGroups.map((group) => (
                       <span
                         key={group.notebookId}
-                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                        className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-0.5 text-[11px] text-[var(--foreground)]"
+                        title={`${group.notebookName} (${group.count})`}
                       >
-                        {group.notebookName} ({group.count})
+                        <span className="truncate">{group.notebookName}</span>
+                        <span className="shrink-0 text-[var(--muted-foreground)]">
+                          {group.count}
+                        </span>
                       </span>
                     ))}
                   </div>
@@ -230,12 +240,12 @@ export default function GuidePage() {
               <button
                 onClick={handleCreateSession}
                 disabled={isLoading || !topicInput.trim()}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-primary inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-sm font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="h-4 w-4" />
                 )}
                 {t("Generate learning plan")}
               </button>
@@ -246,7 +256,7 @@ export default function GuidePage() {
             <div className="flex items-center justify-end">
               <button
                 onClick={() => setShowSaveModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/8 hover:text-[var(--primary)]"
               >
                 <BookOpen className="h-4 w-4" />
                 {t("Add to Notebook")}
@@ -290,21 +300,21 @@ export default function GuidePage() {
           <div className="absolute top-4 left-4 z-20 flex gap-2">
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+              className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
               title={
                 sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")
               }
             >
               {sidebarCollapsed ? (
-                <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                <ChevronRight className="h-4 w-4" />
               ) : (
-                <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                <ChevronLeft className="h-4 w-4" />
               )}
             </button>
             {!sidebarCollapsed && (
               <button
                 onClick={() => setSidebarWide(!sidebarWide)}
-                className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                 title={
                   sidebarWide
                     ? t("Switch to narrow sidebar (1:3)")
@@ -312,7 +322,7 @@ export default function GuidePage() {
                 }
               >
                 <ArrowRight
-                  className={`w-4 h-4 text-slate-600 dark:text-slate-300 transition-transform ${sidebarWide ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 transition-transform ${sidebarWide ? "rotate-180" : ""}`}
                 />
               </button>
             )}
@@ -320,7 +330,7 @@ export default function GuidePage() {
         )}
 
         {isIdle ? (
-          <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
+          <div className="surface-card flex flex-1 flex-col overflow-hidden border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)]">
             <SessionHistoryList
               sessions={sessions}
               loading={historyLoading}
@@ -388,11 +398,9 @@ export default function GuidePage() {
                   onOpenDebugModal={() => setShowDebugModal(true)}
                 />
               ) : (
-                <div className="h-full bg-white dark:bg-slate-800 rounded-b-2xl border border-t-0 border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-300 dark:text-slate-600 p-8">
-                  <Loader2 className="w-12 h-12 text-indigo-400 dark:text-indigo-500 animate-spin mb-4" />
-                  <p className="text-slate-500 dark:text-slate-400">
-                    {loadingMessage || t("Loading learning content...")}
-                  </p>
+                <div className="flex h-full flex-col items-center justify-center rounded-b-2xl border border-t-0 border-[var(--border)] bg-[var(--card)] p-8 text-[var(--muted-foreground)]">
+                  <Loader2 className="mb-4 h-12 w-12 animate-spin text-[var(--primary)]" />
+                  <p>{loadingMessage || t("Loading learning content...")}</p>
                 </div>
               )}
             </div>

@@ -433,24 +433,28 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const hydrateMessages = useCallback((messages: SessionMessage[]): MessageItem[] => {
-    return messages.map((message) => ({
-      role: message.role,
-      content:
-        message.role === "assistant"
-          ? normalizeMarkdownForDisplay(message.content)
-          : message.content,
-      capability: message.capability || "",
-      events: Array.isArray(message.events) ? message.events : [],
-      attachments: Array.isArray(message.attachments)
-        ? message.attachments.map((item) => ({
-            type: item.type,
-            filename: item.filename,
-            base64: item.base64,
-            url: item.url,
-            mime_type: item.mime_type,
-          }))
-        : [],
-    }));
+    // System messages (e.g. quiz follow-up grounding context written by the
+    // backend turn runtime) are LLM-only and must not surface in the chat UI.
+    return messages
+      .filter((message) => message.role !== "system")
+      .map((message) => ({
+        role: message.role,
+        content:
+          message.role === "assistant"
+            ? normalizeMarkdownForDisplay(message.content)
+            : message.content,
+        capability: message.capability || "",
+        events: Array.isArray(message.events) ? message.events : [],
+        attachments: Array.isArray(message.attachments)
+          ? message.attachments.map((item) => ({
+              type: item.type,
+              filename: item.filename,
+              base64: item.base64,
+              url: item.url,
+              mime_type: item.mime_type,
+            }))
+          : [],
+      }));
   }, []);
 
   const moveRunner = useCallback((oldKey: string, newKey: string) => {

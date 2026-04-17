@@ -3,14 +3,24 @@
 import { useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { DeepQuestionFormConfig, DeepQuestionMode } from "@/lib/quiz-types";
-import { Field, INPUT_CLS } from "@/components/chat/home/composer-field";
+import {
+  summarizeQuizConfig,
+  type DeepQuestionFormConfig,
+  type DeepQuestionMode,
+} from "@/lib/quiz-types";
+import {
+  CollapsibleConfigSection,
+  Field,
+  INPUT_CLS,
+} from "@/components/chat/home/composer-field";
 
 interface QuizConfigPanelProps {
   value: DeepQuestionFormConfig;
   onChange: (next: DeepQuestionFormConfig) => void;
   uploadedPdf: File | null;
   onUploadPdf: (file: File | null) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 export default function QuizConfigPanel({
@@ -18,6 +28,8 @@ export default function QuizConfigPanel({
   onChange,
   uploadedPdf,
   onUploadPdf,
+  collapsed,
+  onToggleCollapsed,
 }: QuizConfigPanelProps) {
   const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -31,7 +43,12 @@ export default function QuizConfigPanel({
   const setMode = (m: DeepQuestionMode) => update("mode", m);
 
   return (
-    <div className="px-3.5 py-2.5 space-y-2.5">
+    <CollapsibleConfigSection
+      collapsed={collapsed}
+      summary={summarizeQuizConfig(value)}
+      onToggleCollapsed={onToggleCollapsed}
+      bodyClassName="px-3.5 pb-2.5 space-y-2.5"
+    >
       <div className="inline-flex rounded-lg border border-[var(--border)]/25 p-0.5">
         {(["custom", "mimic"] as const).map((m) => (
           <button
@@ -185,7 +202,7 @@ export default function QuizConfigPanel({
           </Field>
         </div>
       )}
-    </div>
+    </CollapsibleConfigSection>
   );
 }
 

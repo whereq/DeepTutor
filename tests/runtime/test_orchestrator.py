@@ -116,6 +116,42 @@ class TestOrchestratorRouting:
         assert content_events[0].content == "hello"
 
     @pytest.mark.asyncio
+    async def test_answer_now_context_reroutes_to_chat(self) -> None:
+        """When ``answer_now_context`` is set, the orchestrator must route
+        to the ``chat`` capability so the answer-now synthesizer handles the
+        turn regardless of the original ``active_capability``."""
+        chat_cap = _EchoCapability()
+        chat_cap.manifest = CapabilityManifest(
+            name="chat", description="Chat capability.", stages=["responding"]
+        )
+        deep_cap = _EchoCapability()
+        deep_cap.manifest = CapabilityManifest(
+            name="deep_solve", description="Deep solve.", stages=["responding"]
+        )
+        deep_cap.run = AsyncMock(side_effect=AssertionError("deep_solve must not run"))
+        orch = _make_orchestrator({"chat": chat_cap, "deep_solve": deep_cap})
+
+        ctx = UnifiedContext(
+            user_message="ping",
+            active_capability="deep_solve",
+            config_overrides={
+                "answer_now_context": {
+                    "original_user_message": "ping",
+                    "partial_response": "",
+                    "events": [],
+                }
+            },
+        )
+        events: list[StreamEvent] = []
+        async for event in orch.handle(ctx):
+            events.append(event)
+
+        content_events = [e for e in events if e.type == StreamEventType.CONTENT]
+        assert len(content_events) == 1
+        assert content_events[0].content == "ping"
+        deep_cap.run.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_unknown_capability_yields_error(self) -> None:
         orch = _make_orchestrator({})
 

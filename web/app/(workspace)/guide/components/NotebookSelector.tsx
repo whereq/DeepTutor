@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ChevronDown,
   Check,
+  NotebookPen,
 } from "lucide-react";
 import {
   Notebook,
@@ -54,29 +55,34 @@ export default function NotebookSelector({
   const { t } = useTranslation();
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-[18px] border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+      <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--card)] px-4 py-3.5">
+        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-[var(--foreground)]">
+          <NotebookPen className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
           {t("Select Source (Cross-Notebook)")}
         </h2>
         {selectedRecords.size > 0 && (
           <button
             onClick={onClearAll}
-            className="text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+            className="rounded-md px-2 py-1 text-xs text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--destructive)]"
           >
             {t("Clear")} ({selectedRecords.size})
           </button>
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto max-h-[460px] px-2 py-2">
+      <div className="max-h-[460px] flex-1 overflow-y-auto px-2 py-2">
         {loadingNotebooks ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-[var(--muted-foreground)]" />
           </div>
         ) : notebooks.length === 0 ? (
-          <div className="p-4 text-center text-sm text-slate-400 dark:text-slate-500">
-            {t("No notebooks with records found")}
+          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-sm text-[var(--muted-foreground)]">
+            <NotebookPen className="h-5 w-5 text-[var(--muted-foreground)]/60" />
+            <span>{t("No notebooks with records found")}</span>
+            <span className="text-[11px] text-[var(--muted-foreground)]/80">
+              {t("Save a chat or guided learning result first to populate a notebook.")}
+            </span>
           </div>
         ) : (
           <div className="space-y-2">
@@ -91,51 +97,56 @@ export default function NotebookSelector({
               return (
                 <div
                   key={notebook.id}
-                  className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+                  className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)]/60"
                 >
                   {/* Notebook Header */}
-                  <div
-                    className="flex cursor-pointer items-center gap-2 px-3 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/70"
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[var(--muted)]/50"
                     onClick={() => onToggleExpanded(notebook.id)}
                   >
                     {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                      <ChevronDown className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
                     ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                      <ChevronRight className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
                     )}
-                    <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: notebook.color || "var(--primary)" }}
+                    />
+                    <span className="flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">
                       {notebook.name}
                     </span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">
+                    <span className="text-[11px] tabular-nums text-[var(--muted-foreground)]">
                       {selectedFromThis > 0 && (
-                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                        <span className="font-medium text-[var(--primary)]">
                           {selectedFromThis}/
                         </span>
                       )}
                       {notebook.record_count}
                     </span>
-                  </div>
+                  </button>
 
                   {/* Records List */}
                   {isExpanded && (
-                    <div className="bg-slate-50/70 pb-3 pl-6 pr-3 dark:bg-slate-950/30">
+                    <div className="border-t border-[var(--border)] bg-[var(--background)]/30 px-3 pb-3 pt-2">
                       {isLoadingRecords ? (
                         <div className="flex items-center justify-center py-4">
-                          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                          <Loader2 className="h-4 w-4 animate-spin text-[var(--muted-foreground)]" />
                         </div>
                       ) : records.length === 0 ? (
-                        <div className="py-2 text-xs text-slate-400 dark:text-slate-500 text-center">
+                        <div className="py-3 text-center text-[12px] text-[var(--muted-foreground)]">
                           {t("No records")}
                         </div>
                       ) : (
                         <>
-                          <div className="flex gap-2 mb-2">
+                          <div className="mb-2 flex gap-3 text-[11px]">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onSelectAll(notebook.id, notebook.name);
                               }}
-                              className="text-xs text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                              className="text-[var(--primary)] transition-colors hover:opacity-80"
                             >
                               {t("Select All")}
                             </button>
@@ -144,59 +155,64 @@ export default function NotebookSelector({
                                 e.stopPropagation();
                                 onDeselectAll(notebook.id);
                               }}
-                              className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                              className="text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
                             >
                               {t("Deselect")}
                             </button>
                           </div>
-                          <div className="space-y-2">
-                            {records.map((record) => (
-                              <div
-                                key={record.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onToggleRecord(
-                                    record,
-                                    notebook.id,
-                                    notebook.name,
-                                  );
-                                }}
-                                className={`cursor-pointer rounded-lg border p-3 transition-all ${
-                                  selectedRecords.has(record.id)
-                                    ? "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60"
-                                    : "border-transparent hover:border-slate-200 hover:bg-white dark:hover:border-slate-700 dark:hover:bg-slate-800/75"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                                      selectedRecords.has(record.id)
-                                        ? "border-slate-700 bg-slate-700 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900"
-                                        : "border-slate-300 dark:border-slate-500"
-                                    }`}
-                                  >
-                                    {selectedRecords.has(record.id) && (
-                                      <Check className="w-2.5 h-2.5" />
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <span
-                                      className={`rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase ${getTypeColor(record.type)}`}
+                          <div className="space-y-1.5">
+                            {records.map((record) => {
+                              const isSelected = selectedRecords.has(record.id);
+                              return (
+                                <div
+                                  key={record.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleRecord(
+                                      record,
+                                      notebook.id,
+                                      notebook.name,
+                                    );
+                                  }}
+                                  className={`cursor-pointer rounded-lg border p-2.5 transition-all ${
+                                    isSelected
+                                      ? "border-[var(--primary)]/40 bg-[var(--primary)]/8"
+                                      : "border-transparent hover:border-[var(--border)] hover:bg-[var(--muted)]/40"
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <div
+                                      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                        isSelected
+                                          ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
+                                          : "border-[var(--border)]"
+                                      }`}
                                     >
-                                      {record.type}
-                                    </span>
-                                    <span className="ml-2 truncate text-xs text-slate-700 dark:text-slate-200">
-                                      {record.title}
-                                    </span>
-                                    {record.summary && (
-                                      <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
-                                        {record.summary}
-                                      </p>
-                                    )}
+                                      {isSelected && (
+                                        <Check className="h-2.5 w-2.5" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase ${getTypeColor(record.type)}`}
+                                        >
+                                          {record.type}
+                                        </span>
+                                        <span className="truncate text-[12px] text-[var(--foreground)]">
+                                          {record.title}
+                                        </span>
+                                      </div>
+                                      {record.summary && (
+                                        <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-[var(--muted-foreground)]">
+                                          {record.summary}
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </>
                       )}
@@ -209,16 +225,16 @@ export default function NotebookSelector({
         )}
       </div>
 
-      {/* Generate Button */}
-      <div className="border-t border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      {/* Generate / Apply Button */}
+      <div className="border-t border-[var(--border)] bg-[var(--card)] p-4">
         <button
           onClick={onCreateSession}
           disabled={isLoading || selectedRecords.size === 0}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 font-medium text-[var(--primary-foreground)] transition disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {isLoading ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
               {t("Generating...")}
             </>
           ) : (

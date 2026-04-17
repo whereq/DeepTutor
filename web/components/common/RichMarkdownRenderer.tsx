@@ -87,6 +87,14 @@ function stripLeadingHashes(children: React.ReactNode): React.ReactNode {
   return children;
 }
 
+function sourceLineAttr(node: any): { "data-source-line"?: number } {
+  const line = node?.position?.start?.line;
+  if (typeof line === "number" && Number.isFinite(line)) {
+    return { "data-source-line": line };
+  }
+  return {};
+}
+
 export default function RichMarkdownRenderer({
   content,
   className = "",
@@ -95,8 +103,18 @@ export default function RichMarkdownRenderer({
   enableCode = false,
   enableMermaid = false,
   allowHtml = false,
+  trackSourceLines = false,
 }: MarkdownRendererProps) {
-  const normalizedContent = useMemo(() => normalizeMarkdownForDisplay(content), [content]);
+  // When `trackSourceLines` is on the consumer wants `data-source-line`
+  // attributes that map back to the *original* markdown lines (e.g. for
+  // editor/preview scroll sync). `normalizeMarkdownForDisplay` strips empty
+  // blocks, collapses runs of blank lines, etc, all of which shift line
+  // numbers and break that contract. In that mode we forward the raw text
+  // straight to react-markdown so AST positions stay faithful.
+  const normalizedContent = useMemo(
+    () => (trackSourceLines ? content : normalizeMarkdownForDisplay(content)),
+    [content, trackSourceLines],
+  );
   const [plugins, setPlugins] = useState<PluginBundle>({});
   const isTrace = variant === "trace";
   const gap = isTrace ? "my-1" : variant === "compact" ? "my-2" : "my-4";
@@ -138,8 +156,16 @@ export default function RichMarkdownRenderer({
   }, [allowHtml, enableMath]);
 
   const processedContent = useMemo(() => {
+    // `processMarkdownContent` aggressively rewrites the source: it expands
+    // `[TOC]`, converts `flow`/`seq` fences into multi-line mermaid blocks,
+    // turns `\(...\)` / `\[...\]` into multi-line `$$...$$`, and collapses
+    // runs of blank lines. Every one of those transformations changes line
+    // numbers, which would invalidate the source line attributes we expose
+    // for scroll sync. So when `trackSourceLines` is on we render the raw
+    // markdown verbatim and rely on standard fences (` ```mermaid `, `$$`).
+    if (trackSourceLines) return normalizedContent;
     return enableMath || enableMermaid ? processMarkdownContent(normalizedContent) : normalizedContent;
-  }, [enableMath, enableMermaid, normalizedContent]);
+  }, [enableMath, enableMermaid, normalizedContent, trackSourceLines]);
 
   const traceComponents: Record<string, React.ComponentType<any>> = {
     p: ({ node, ...props }: any) => <p className="mb-1.5 last:mb-0" {...props} />,
@@ -206,6 +232,8 @@ export default function RichMarkdownRenderer({
       hasRenderableChildren(children) ? <span>{children}</span> : null,
   };
 
+  const lineAttr = (node: any) => (trackSourceLines ? sourceLineAttr(node) : {});
+
   const headingComponents = {
     h1: ({ node, children, className: headingClassName, ...props }: any) => {
       const clean = stripLeadingHashes(children);
@@ -215,6 +243,7 @@ export default function RichMarkdownRenderer({
           className={`scroll-mt-20 font-sans text-2xl font-bold tracking-tight ${textColor} ${
             variant === "compact" ? "mt-5 mb-2" : "mt-8 mb-4"
           } ${headingClassName || ""}`}
+          {...lineAttr(node)}
           {...props}
         >
           {clean}
@@ -229,6 +258,7 @@ export default function RichMarkdownRenderer({
           className={`scroll-mt-20 font-sans text-xl font-semibold tracking-tight ${textColor} ${
             variant === "compact" ? "mt-4 mb-2" : "mt-7 mb-3"
           } ${headingClassName || ""}`}
+          {...lineAttr(node)}
           {...props}
         >
           {clean}
@@ -243,6 +273,7 @@ export default function RichMarkdownRenderer({
           className={`scroll-mt-20 font-sans text-lg font-semibold tracking-tight ${textColor} ${
             variant === "compact" ? "mt-4 mb-1.5" : "mt-6 mb-2.5"
           } ${headingClassName || ""}`}
+          {...lineAttr(node)}
           {...props}
         >
           {clean}
@@ -257,6 +288,7 @@ export default function RichMarkdownRenderer({
           className={`scroll-mt-20 font-sans text-base font-semibold ${textColor} ${
             variant === "compact" ? "mt-3 mb-1.5" : "mt-5 mb-2"
           } ${headingClassName || ""}`}
+          {...lineAttr(node)}
           {...props}
         >
           {clean}
@@ -271,6 +303,7 @@ export default function RichMarkdownRenderer({
           className={`scroll-mt-20 font-sans text-sm font-semibold ${textColor} ${
             variant === "compact" ? "mt-3 mb-1.5" : "mt-4 mb-2"
           } ${headingClassName || ""}`}
+          {...lineAttr(node)}
           {...props}
         >
           {clean}
@@ -285,6 +318,7 @@ export default function RichMarkdownRenderer({
           className={`scroll-mt-20 font-sans text-sm font-semibold uppercase tracking-wide text-[var(--muted-foreground)] ${
             variant === "compact" ? "mt-3 mb-1.5" : "mt-4 mb-2"
           } ${headingClassName || ""}`}
+          {...lineAttr(node)}
           {...props}
         >
           {clean}
@@ -295,9 +329,15 @@ export default function RichMarkdownRenderer({
 
   const normalComponents: Record<string, React.ComponentType<any>> = {
     ...headingComponents,
+    p: ({ node, ...props }: any) => <p {...lineAttr(node)} {...props} />,
+    ul: ({ node, ...props }: any) => <ul {...lineAttr(node)} {...props} />,
+    ol: ({ node, ...props }: any) => <ol {...lineAttr(node)} {...props} />,
     table: ({ node, children, ...props }: any) =>
       hasRenderableChildren(children) ? (
-        <div className={`overflow-x-auto rounded-lg border border-[var(--border)] shadow-sm ${gap}`}>
+        <div
+          className={`overflow-x-auto rounded-lg border border-[var(--border)] shadow-sm ${gap}`}
+          {...lineAttr(node)}
+        >
           <table className="min-w-full divide-y divide-[var(--border)] text-sm" {...props}>
             {children}
           </table>
@@ -327,21 +367,39 @@ export default function RichMarkdownRenderer({
       const raw = String(children).replace(/\n$/, "");
       const langMatch = /language-([A-Za-z0-9_+#.-]+)/.exec(blockClassName || "");
       const lang = langMatch?.[1]?.toLowerCase() || "";
+      const isMultiline = raw.includes("\n");
+      const lineProps = isMultiline ? lineAttr(node) : {};
 
       if (lang === "mermaid" && enableMermaid) {
-        return <LazyMermaid chart={raw} className={gap} />;
+        return (
+          <div {...lineProps}>
+            <LazyMermaid chart={raw} className={gap} />
+          </div>
+        );
+      }
+
+      // Route every multi-line block through the rich code block so the
+      // indented (no-language) variant still gets a polished, consistent
+      // theme instead of the washed-out fallback panel.
+      if (isMultiline && enableCode) {
+        return (
+          <div {...lineProps}>
+            <LazyCodeBlock raw={raw} lang={lang || "text"} className={gap} />
+          </div>
+        );
       }
 
       if (lang && enableCode) {
         return <LazyCodeBlock raw={raw} lang={lang} className={gap} />;
       }
 
-      if (raw.includes("\n")) {
+      if (isMultiline) {
         return (
           <div
-            className={`md-code-block ${gap} overflow-hidden rounded-xl border border-[var(--border)] bg-[#292524]`}
+            className={`md-code-block ${gap} overflow-hidden rounded-xl border border-[var(--border)] bg-[#1f2937]`}
+            {...lineProps}
           >
-            <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-[#D6D3D1]">
+            <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-[#e5e7eb]">
               <code {...props}>{raw}</code>
             </pre>
           </div>
@@ -420,17 +478,19 @@ export default function RichMarkdownRenderer({
         alt={alt || ""}
         loading="lazy"
         className={`${gap} inline-block max-w-full rounded-lg border border-[var(--border)]`}
+        {...lineAttr(node)}
         {...props}
       />
     ),
     blockquote: ({ node, ...props }: any) => (
       <blockquote
         className={`${gap} border-l-[3px] border-[var(--muted-foreground)] pl-4 italic text-[var(--muted-foreground)] [&>p]:mb-1`}
+        {...lineAttr(node)}
         {...props}
       />
     ),
     hr: ({ node, ...props }: any) => (
-      <hr className={`${gap} h-px border-none bg-[var(--border)]`} {...props} />
+      <hr className={`${gap} h-px border-none bg-[var(--border)]`} {...lineAttr(node)} {...props} />
     ),
     input: ({ node, type, checked, ...props }: any) =>
       type === "checkbox" ? (
@@ -471,7 +531,7 @@ export default function RichMarkdownRenderer({
   const components = useMemo(
     () => (isTrace ? traceComponents : normalComponents),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- components only change with variant/feature flags
-    [isTrace, variant, enableMermaid, enableCode],
+    [isTrace, variant, enableMermaid, enableCode, trackSourceLines],
   );
 
   const rootClasses = isTrace

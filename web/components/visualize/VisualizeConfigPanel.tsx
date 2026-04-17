@@ -1,22 +1,38 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import type { VisualizeFormConfig } from "@/lib/visualize-types";
-import { Field, INPUT_CLS } from "@/components/chat/home/composer-field";
+import {
+  summarizeVisualizeConfig,
+  type VisualizeFormConfig,
+} from "@/lib/visualize-types";
+import {
+  CollapsibleConfigSection,
+  Field,
+  INPUT_CLS,
+} from "@/components/chat/home/composer-field";
 
 interface VisualizeConfigPanelProps {
   value: VisualizeFormConfig;
   onChange: (next: VisualizeFormConfig) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 export default function VisualizeConfigPanel({
   value,
   onChange,
+  collapsed,
+  onToggleCollapsed,
 }: VisualizeConfigPanelProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 py-2.5">
+    <CollapsibleConfigSection
+      collapsed={collapsed}
+      summary={summarizeVisualizeConfig(value)}
+      onToggleCollapsed={onToggleCollapsed}
+      bodyClassName="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 pb-2.5"
+    >
       <Field label="Render Mode" width="w-[120px]">
         <select
           value={value.render_mode}
@@ -31,6 +47,6 @@ export default function VisualizeConfigPanel({
           <option value="mermaid">{t("Mermaid")}</option>
         </select>
       </Field>
-    </div>
+    </CollapsibleConfigSection>
   );
 }

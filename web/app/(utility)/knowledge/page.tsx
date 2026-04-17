@@ -45,6 +45,10 @@ import {
   updateNotebookEntry,
   deleteNotebookEntry,
   removeEntryFromCategory,
+  listNotebooks,
+  getNotebook,
+  createNotebook,
+  deleteNotebook,
   type NotebookEntry,
   type NotebookCategory,
 } from "@/lib/notebook-api";
@@ -397,10 +401,10 @@ function KnowledgePageContent() {
     setLoading(true);
     setPageError(null);
     try {
-      const [kbs, providerData, cats] = await Promise.all([
+      const [kbs, providerData, nbs] = await Promise.all([
         listKnowledgeBases(),
         listRagProviders(),
-        listCategories(),
+        listNotebooks(),
       ]);
       setKnowledgeBases(kbs);
       setProviders(
@@ -414,10 +418,14 @@ function KnowledgePageContent() {
               },
             ],
       );
-      const nextNotebooks: NotebookInfo[] = cats.map((c) => ({
-        id: String(c.id),
-        name: c.name,
-        record_count: c.entry_count ?? 0,
+      const nextNotebooks: NotebookInfo[] = nbs.map((nb) => ({
+        id: String(nb.id),
+        name: nb.name,
+        description: nb.description,
+        record_count: nb.record_count ?? 0,
+        color: nb.color,
+        icon: nb.icon,
+        updated_at: nb.updated_at,
       }));
       setNotebooks(nextNotebooks);
       if (!selectedNotebookId && nextNotebooks.length > 0) {
@@ -648,11 +656,24 @@ function KnowledgePageContent() {
     await loadAll();
   };
 
-  const createNotebook = async () => {
+  const handleCreateNotebook = async () => {
     if (!newNotebookName.trim()) return;
-    await createCategory(newNotebookName.trim());
+    await createNotebook({
+      name: newNotebookName.trim(),
+      description: newNotebookDescription.trim(),
+    });
     setNewNotebookName("");
     setNewNotebookDescription("");
+    await loadAll();
+  };
+
+  const handleDeleteNotebook = async (notebookId: string, name: string) => {
+    if (!window.confirm(t('Delete notebook "{{name}}"?', { name }))) return;
+    await deleteNotebook(notebookId);
+    if (selectedNotebookId === notebookId) {
+      setSelectedNotebookId(null);
+      setSelectedNotebook(null);
+    }
     await loadAll();
   };
 
@@ -662,22 +683,25 @@ function KnowledgePageContent() {
     setLoadingNotebookDetail(true);
     try {
       const info = notebooks.find((n) => n.id === notebookId);
-      const data = await listNotebookEntries({ category_id: Number(notebookId) });
-      const records: NotebookRecord[] = (data.items || []).map((e) => ({
-        id: String(e.id),
-        type: e.question_type,
-        title: e.question,
-        summary: e.explanation,
-        user_query: e.question,
-        output: e.correct_answer,
-        created_at: e.created_at,
+      const data = await getNotebook(notebookId);
+      const records: NotebookRecord[] = (data.records || []).map((rec) => ({
+        id: String(rec.id),
+        type: String(rec.type),
+        title: rec.title,
+        summary: rec.summary,
+        user_query: rec.user_query,
+        output: rec.output,
+        metadata: rec.metadata,
+        created_at: rec.created_at,
       }));
       setSelectedNotebook({
         id: notebookId,
-        name: info?.name ?? "",
-        description: info?.description,
-        record_count: data.total,
-        color: info?.color,
+        name: data.name ?? info?.name ?? "",
+        description: data.description ?? info?.description,
+        record_count: records.length,
+        color: data.color ?? info?.color,
+        icon: data.icon ?? info?.icon,
+        updated_at: data.updated_at ?? info?.updated_at,
         records,
       });
     } catch {
@@ -1152,7 +1176,7 @@ function KnowledgePageContent() {
                   className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25"
                 />
                 <button
-                  onClick={createNotebook}
+                  onClick={() => void handleCreateNotebook()}
                   disabled={!newNotebookName.trim()}
                   className="rounded-lg bg-[var(--primary)] px-3.5 py-2 text-[13px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -1175,36 +1199,52 @@ function KnowledgePageContent() {
                   {notebooks.map((notebook) => {
                     const active = selectedNotebookId === notebook.id;
                     return (
-                      <button
+                      <div
                         key={notebook.id}
-                        onClick={() => void loadNotebookDetail(notebook.id)}
-                        className={`w-full rounded-xl border p-4 text-left transition-all ${
+                        className={`group relative w-full rounded-xl border p-4 text-left transition-all ${
                           active
-                            ? "border-indigo-200 bg-indigo-50/70 shadow-[0_8px_24px_rgba(99,102,241,0.08)] dark:border-indigo-800 dark:bg-indigo-950/25"
-                            : "border-[var(--border)] bg-[var(--background)] hover:border-[var(--foreground)]/12 hover:bg-[var(--muted)]/18"
+                            ? "border-[var(--primary)]/40 bg-[var(--primary)]/8 shadow-sm"
+                            : "border-[var(--border)] bg-[var(--background)] hover:border-[var(--foreground)]/15 hover:bg-[var(--muted)]/30"
                         }`}
                       >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className="mt-1 h-3 w-3 rounded-full"
-                            style={{ backgroundColor: notebook.color || "#6366f1" }}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[14px] font-semibold text-[var(--foreground)]">
-                              {notebook.name}
-                            </div>
-                            {notebook.description && (
-                              <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
-                                {notebook.description}
-                              </p>
-                            )}
-                            <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
-                              <span>{notebook.record_count ?? 0} {t("records")}</span>
-                              <span>{notebook.updated_at ? formatTimestamp(notebook.updated_at) : ""}</span>
+                        <button
+                          type="button"
+                          onClick={() => void loadNotebookDetail(notebook.id)}
+                          className="block w-full text-left"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className="mt-1 h-3 w-3 rounded-full"
+                              style={{ backgroundColor: notebook.color || "var(--primary)" }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[14px] font-semibold text-[var(--foreground)]">
+                                {notebook.name}
+                              </div>
+                              {notebook.description && (
+                                <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
+                                  {notebook.description}
+                                </p>
+                              )}
+                              <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
+                                <span>{notebook.record_count ?? 0} {t("records")}</span>
+                                <span>{notebook.updated_at ? formatTimestamp(notebook.updated_at) : ""}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDeleteNotebook(notebook.id, notebook.name);
+                          }}
+                          title={t("Delete")}
+                          className="absolute right-2 top-2 rounded-md p-1.5 text-[var(--muted-foreground)] opacity-0 transition-opacity hover:bg-[var(--destructive)]/10 hover:text-[var(--destructive)] group-hover:opacity-100"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     );
                   })}
 
@@ -1226,7 +1266,7 @@ function KnowledgePageContent() {
                         <div className="flex items-center gap-2.5">
                           <div
                             className="h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: selectedNotebook.color || "#6366f1" }}
+                            style={{ backgroundColor: selectedNotebook.color || "var(--primary)" }}
                           />
                           <h3 className="text-[15px] font-semibold text-[var(--foreground)]">
                             {selectedNotebook.name}
@@ -1294,7 +1334,7 @@ function KnowledgePageContent() {
                                   {canOpenSession && (
                                     <button
                                       onClick={() => openNotebookRecord(record)}
-                                      className="mb-3 inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3.5 py-2 text-[12px] font-medium text-[var(--foreground)] transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/30 dark:hover:text-indigo-300"
+                                      className="mb-3 inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3.5 py-2 text-[12px] font-medium text-[var(--foreground)] transition-colors hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/8 hover:text-[var(--primary)]"
                                     >
                                       <ExternalLink size={13} />
                                       {sessionLabel}
