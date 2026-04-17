@@ -32,8 +32,14 @@ class DeepQuestionCapability(BaseCapability):
 
     async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
         from deeptutor.agents.question.coordinator import AgentCoordinator
+        from deeptutor.capabilities._answer_now import extract_answer_now_context
         from deeptutor.services.llm.config import get_llm_config
         from deeptutor.services.path_service import get_path_service
+
+        answer_now_payload = extract_answer_now_context(context)
+        if answer_now_payload is not None:
+            await self._run_answer_now(context, stream, answer_now_payload)
+            return
 
         llm_config = get_llm_config()
         kb_name = context.knowledge_bases[0] if context.knowledge_bases else None
@@ -187,6 +193,188 @@ class DeepQuestionCapability(BaseCapability):
         if cost_meta:
             result_payload["metadata"] = {"cost_summary": cost_meta}
         await stream.result(result_payload, source=self.name)
+
+    async def _run_answer_now(
+        self,
+        context: UnifiedContext,
+        stream: StreamBus,
+        payload: dict[str, Any],
+    ) -> None:
+        """
+        Fast-path for ``deep_question``: skip ideation/template generation
+        and synthesise a complete quiz in one structured LLM call.
+
+        The result envelope mirrors the standard pipeline (``summary.results``
+        with ``qa_pair`` items) so the existing ``QuizViewer`` renders it
+        without changes.
+        """
+        import json
+
+        from deeptutor.capabilities._answer_now import (
+            build_answer_now_trace_metadata,
+            format_trace_summary,
+            join_chunks,
+            labeled_block,
+            make_skip_notice,
+            stream_synthesis,
+        )
+
+        is_zh = context.language.lower().startswith("zh")
+        original = str(payload.get("original_user_message") or context.user_message).strip()
+        partial = str(payload.get("partial_response") or "").strip()
+        trace_summary = format_trace_summary(payload.get("events"), language=context.language)
+
+        overrides = context.config_overrides
+        topic = str(overrides.get("topic") or original).strip() or original
+        num_questions = max(1, int(overrides.get("num_questions", 1) or 1))
+        difficulty = str(overrides.get("difficulty", "") or "auto")
+        question_type = str(overrides.get("question_type", "") or "auto")
+
+        if is_zh:
+            system_prompt = (
+                "你是 DeepTutor 的题目生成器。用户已经在等待，请基于现有信息直接输出一组题目。"
+                "严格输出 JSON：{\"questions\": [{\"question_id\": \"q_1\", "
+                "\"question\": \"...\", \"question_type\": \"choice|written|coding\", "
+                "\"options\": {\"A\": \"...\"}, \"correct_answer\": \"...\", "
+                "\"explanation\": \"...\", \"difficulty\": \"...\", "
+                "\"concentration\": \"...\"}, ...]}。"
+                "若不是 choice 题，options 字段可省略。所有字符串使用 UTF-8。"
+            )
+            user_prompt = (
+                f"用户原始问题/主题：{topic}\n\n"
+                f"题量要求：{num_questions}\n"
+                f"题型偏好：{question_type}（auto 表示自由选择）\n"
+                f"难度偏好：{difficulty}\n\n"
+                f"{labeled_block('Current Draft', partial)}\n\n"
+                f"{labeled_block('Execution Trace', trace_summary)}\n\n"
+                "立即输出符合上述 JSON schema 的题目集合，不要包含其他文字。"
+            )
+        else:
+            system_prompt = (
+                "You are DeepTutor's question generator. The user is waiting, "
+                "so produce a complete question set in one shot using the "
+                "context already gathered. Output strictly the JSON schema "
+                "{\"questions\": [{\"question_id\": \"q_1\", \"question\": "
+                "\"...\", \"question_type\": \"choice|written|coding\", "
+                "\"options\": {\"A\": \"...\"}, \"correct_answer\": \"...\", "
+                "\"explanation\": \"...\", \"difficulty\": \"...\", "
+                "\"concentration\": \"...\"}, ...]}. Omit ``options`` when the "
+                "type is not ``choice``."
+            )
+            user_prompt = (
+                f"Topic: {topic}\n\n"
+                f"Number of questions requested: {num_questions}\n"
+                f"Preferred type: {question_type} (auto = free choice)\n"
+                f"Preferred difficulty: {difficulty}\n\n"
+                f"{labeled_block('Current Draft', partial)}\n\n"
+                f"{labeled_block('Execution Trace', trace_summary)}\n\n"
+                "Emit the JSON object now, no surrounding prose."
+            )
+
+        trace_meta = build_answer_now_trace_metadata(
+            capability=self.name, phase="generation", label="Answer now"
+        )
+
+        notice = make_skip_notice(
+            capability=self.name,
+            language=context.language,
+            stages_skipped=["ideation"],
+        )
+
+        chunks: list[str] = []
+        async with stream.stage("generation", source=self.name, metadata=trace_meta):
+            async for chunk in stream_synthesis(
+                stream=stream,
+                source=self.name,
+                stage="generation",
+                trace_meta=trace_meta,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=2400,
+                push_content=False,
+                response_format={"type": "json_object"},
+            ):
+                chunks.append(chunk)
+
+        raw = join_chunks(chunks).strip()
+        questions = self._parse_answer_now_json(raw, num_questions=num_questions)
+
+        results = [
+            {
+                "qa_pair": {
+                    "question_id": q.get("question_id") or f"q_{idx+1}",
+                    "question": q.get("question", ""),
+                    "question_type": q.get("question_type", "written"),
+                    "options": q.get("options") or {},
+                    "correct_answer": q.get("correct_answer", ""),
+                    "explanation": q.get("explanation", ""),
+                    "difficulty": q.get("difficulty", ""),
+                    "concentration": q.get("concentration", ""),
+                },
+                "metadata": {"answer_now": True},
+            }
+            for idx, q in enumerate(questions)
+        ]
+        summary = {"results": results, "mode": "answer_now"}
+
+        markdown = self._render_summary_markdown(summary)
+        body = (notice + "\n\n" + markdown).strip() if notice else markdown
+        if body:
+            await stream.content(body, source=self.name, stage="generation")
+
+        result_payload: dict[str, Any] = {
+            "response": body or "No questions generated.",
+            "summary": summary,
+            "mode": "answer_now",
+            "metadata": {"answer_now": True},
+        }
+        cost_meta = self._collect_cost_summary("question")
+        if cost_meta:
+            result_payload["metadata"]["cost_summary"] = cost_meta
+        await stream.result(result_payload, source=self.name)
+
+    @staticmethod
+    def _parse_answer_now_json(raw: str, *, num_questions: int) -> list[dict[str, Any]]:
+        """Tolerantly parse the model's JSON answer-now payload.
+
+        We accept either ``{"questions": [...]}`` or a bare list. Anything
+        unparseable yields a single placeholder so the UI doesn't crash.
+        """
+        import json
+
+        if not raw:
+            return []
+        text = raw.strip()
+        # Some models wrap JSON in fences even when response_format=json_object
+        # is requested; strip a single fenced block defensively.
+        if text.startswith("```"):
+            text = text.strip("`")
+            if "\n" in text:
+                text = text.split("\n", 1)[1]
+            if text.endswith("```"):
+                text = text[: -3]
+            text = text.strip()
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return [
+                {
+                    "question_id": "q_1",
+                    "question": raw[:500],
+                    "question_type": "written",
+                    "correct_answer": "",
+                    "explanation": "Model returned unparseable JSON during answer-now.",
+                }
+            ]
+
+        if isinstance(parsed, dict):
+            items = parsed.get("questions")
+        else:
+            items = parsed
+        if not isinstance(items, list):
+            return []
+        cleaned = [item for item in items if isinstance(item, dict)]
+        return cleaned[: max(num_questions, 1)] if cleaned else []
 
     @staticmethod
     def _collect_cost_summary(module_name: str) -> dict[str, Any] | None:

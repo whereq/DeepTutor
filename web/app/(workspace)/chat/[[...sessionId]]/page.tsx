@@ -357,13 +357,13 @@ export default function ChatPage() {
         metadata: event.metadata ?? {},
       }));
       cancelStreamingTurn();
-      // Force the follow-up turn to the chat capability so the answer-now
-      // synthesizer (chat._stage_answer_now) handles it regardless of
-      // whether the original turn was deep_solve / deep_research / etc.
-      // The orchestrator also re-routes server-side as a defensive guard.
+      // Preserve the original capability — each capability now owns its
+      // own answer-now fast-path (deep_solve jumps to writing,
+      // deep_question to direct quiz synthesis, math_animator to
+      // code-gen + render, etc.). The backend orchestrator only falls
+      // back to ``chat`` if the requested capability is missing.
       const answerNowSnapshot: MessageRequestSnapshot = {
         ...snapshot,
-        capability: "chat",
         config: {
           ...(snapshot.config || {}),
           answer_now_context: {
