@@ -945,13 +945,10 @@ class AgenticChatPipeline:
 
     @staticmethod
     def _extract_answer_now_context(context: UnifiedContext) -> dict[str, Any] | None:
-        raw = context.config_overrides.get("answer_now_context")
-        if not isinstance(raw, dict):
-            return None
-        original_user_message = str(raw.get("original_user_message") or "").strip()
-        if not original_user_message:
-            return None
-        return raw
+        # Delegate to the shared helper so every capability uses the
+        # exact same gate (presence + non-empty original_user_message).
+        from deeptutor.capabilities._answer_now import extract_answer_now_context
+        return extract_answer_now_context(context)
 
     async def _execute_tool_call(
         self,

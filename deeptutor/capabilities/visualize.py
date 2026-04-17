@@ -29,7 +29,13 @@ class VisualizeCapability(BaseCapability):
 
     async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
         from deeptutor.agents.visualize.pipeline import VisualizePipeline
+        from deeptutor.capabilities._answer_now import extract_answer_now_context
         from deeptutor.services.llm.config import get_llm_config
+
+        answer_now_payload = extract_answer_now_context(context)
+        if answer_now_payload is not None:
+            await self._run_answer_now(context, stream, answer_now_payload)
+            return
 
         llm_config = get_llm_config()
         history_context = str(
@@ -130,6 +136,146 @@ class VisualizeCapability(BaseCapability):
                 },
                 "analysis": analysis.model_dump(),
                 "review": review.model_dump(),
+            },
+            source=self.name,
+        )
+
+    async def _run_answer_now(
+        self,
+        context: UnifiedContext,
+        stream: StreamBus,
+        payload: dict[str, Any],
+    ) -> None:
+        """
+        Fast-path for ``visualize``: skip analysis + review and emit final
+        code in a single structured LLM call. The result envelope mirrors
+        the standard pipeline so ``VisualizationViewer`` renders it
+        directly.
+        """
+        import json
+        import re
+
+        from deeptutor.capabilities._answer_now import (
+            build_answer_now_trace_metadata,
+            format_trace_summary,
+            join_chunks,
+            labeled_block,
+            make_skip_notice,
+            stream_synthesis,
+        )
+
+        is_zh = context.language.lower().startswith("zh")
+        original = str(payload.get("original_user_message") or context.user_message).strip()
+        partial = str(payload.get("partial_response") or "").strip()
+        trace_summary = format_trace_summary(payload.get("events"), language=context.language)
+
+        render_mode = str(
+            context.config_overrides.get("render_mode", "auto") or "auto"
+        ).strip().lower()
+
+        if is_zh:
+            system_prompt = (
+                "你是 DeepTutor 的可视化代码生成器。用户已经在等待，"
+                "请直接输出最终可渲染的代码。"
+                "严格输出 JSON：{\"render_type\": \"svg|chartjs|mermaid\", "
+                "\"code\": \"...\"}。"
+                "code 字段是可直接渲染的源代码（SVG 标签 / Chart.js JS 代码 / Mermaid 文本）。"
+            )
+            user_prompt = (
+                f"用户请求：{original}\n\n"
+                f"render_mode：{render_mode}\n\n"
+                f"{labeled_block('Current Draft', partial)}\n\n"
+                f"{labeled_block('Execution Trace', trace_summary)}\n\n"
+                "立即输出符合 schema 的 JSON。"
+            )
+        else:
+            system_prompt = (
+                "You are DeepTutor's visualization code generator. The user "
+                "is waiting, so emit the final renderable code in one shot. "
+                "Output strictly the JSON {\"render_type\": "
+                "\"svg|chartjs|mermaid\", \"code\": \"...\"}, where ``code`` "
+                "is the renderable source (SVG markup, Chart.js JS, or "
+                "Mermaid DSL)."
+            )
+            user_prompt = (
+                f"User request: {original}\n\n"
+                f"render_mode hint: {render_mode}\n\n"
+                f"{labeled_block('Current Draft', partial)}\n\n"
+                f"{labeled_block('Execution Trace', trace_summary)}\n\n"
+                "Emit the JSON now."
+            )
+
+        trace_meta = build_answer_now_trace_metadata(
+            capability=self.name, phase="generating", label="Answer now"
+        )
+        notice = make_skip_notice(
+            capability=self.name,
+            language=context.language,
+            stages_skipped=["analyzing", "reviewing"],
+        )
+
+        chunks: list[str] = []
+        async with stream.stage("generating", source=self.name, metadata=trace_meta):
+            async for chunk in stream_synthesis(
+                stream=stream,
+                source=self.name,
+                stage="generating",
+                trace_meta=trace_meta,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=2400,
+                push_content=False,
+                response_format={"type": "json_object"},
+            ):
+                chunks.append(chunk)
+
+        raw = join_chunks(chunks).strip()
+        # Strip optional code fences for resilience.
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-zA-Z]*\n?", "", raw)
+            if raw.endswith("```"):
+                raw = raw[: -3].rstrip()
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = {"render_type": "svg", "code": raw}
+        if not isinstance(parsed, dict):
+            parsed = {"render_type": "svg", "code": str(parsed)}
+
+        render_type = str(parsed.get("render_type") or "svg").strip().lower()
+        if render_type not in {"svg", "chartjs", "mermaid"}:
+            render_type = "svg"
+        final_code = str(parsed.get("code") or "").strip()
+
+        lang_tag = "svg" if render_type == "svg" else (
+            "mermaid" if render_type == "mermaid" else "javascript"
+        )
+        content_md = f"```{lang_tag}\n{final_code}\n```"
+        body = (notice + "\n\n" + content_md).strip() if notice else content_md
+        await stream.content(body, source=self.name, stage="generating")
+
+        await stream.result(
+            {
+                "response": body,
+                "render_type": render_type,
+                "code": {
+                    "language": lang_tag,
+                    "content": final_code,
+                },
+                "analysis": {
+                    "render_type": render_type,
+                    "description": "Answer-now: skipped analysis stage.",
+                    "data_description": "",
+                    "chart_type": "",
+                    "visual_elements": [],
+                    "rationale": "",
+                },
+                "review": {
+                    "optimized_code": final_code,
+                    "changed": False,
+                    "review_notes": "Answer-now: skipped review stage.",
+                },
+                "metadata": {"answer_now": True},
             },
             source=self.name,
         )

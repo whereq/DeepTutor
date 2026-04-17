@@ -9,6 +9,8 @@ Wraps the existing ``MainSolver``.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
+
 from deeptutor.capabilities.request_contracts import get_capability_request_schema
 from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
 from deeptutor.core.context import UnifiedContext
@@ -28,7 +30,13 @@ class DeepSolveCapability(BaseCapability):
 
     async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
         from deeptutor.agents.solve.main_solver import MainSolver
+        from deeptutor.capabilities._answer_now import extract_answer_now_context
         from deeptutor.services.llm.config import get_llm_config
+
+        answer_now_payload = extract_answer_now_context(context)
+        if answer_now_payload is not None:
+            await self._run_answer_now(context, stream, answer_now_payload)
+            return
 
         llm_config = get_llm_config()
         detailed = context.config_overrides.get("detailed_answer", True)
@@ -262,6 +270,108 @@ class DeepSolveCapability(BaseCapability):
                 "response": final_answer,
                 "output_dir": result.get("output_dir", ""),
                 "metadata": result.get("metadata", {}),
+            },
+            source=self.name,
+        )
+
+    async def _run_answer_now(
+        self,
+        context: UnifiedContext,
+        stream: StreamBus,
+        payload: dict[str, Any],
+    ) -> None:
+        """
+        Fast-path for ``deep_solve``: skip Plan + ReAct, jump straight into
+        the writer with whatever reasoning trace has streamed so far.
+
+        The result payload preserves the same envelope shape as a normal
+        ``deep_solve`` turn (``response`` + ``metadata``) so the frontend
+        renders it identically.
+        """
+        from deeptutor.capabilities._answer_now import (
+            build_answer_now_trace_metadata,
+            format_trace_summary,
+            join_chunks,
+            labeled_block,
+            make_skip_notice,
+            stream_synthesis,
+        )
+
+        is_zh = context.language.lower().startswith("zh")
+        original = str(payload.get("original_user_message") or context.user_message).strip()
+        partial = str(payload.get("partial_response") or "").strip()
+        trace_summary = format_trace_summary(payload.get("events"), language=context.language)
+
+        if is_zh:
+            system_prompt = (
+                "你是 DeepTutor 的写作组件。用户已经在等待，"
+                "你必须基于当前已经收集到的推理与工具调用轨迹直接输出最终答复。"
+                "不要再做新的规划或调用工具，不要提到内部阶段。"
+                "如果信息仍有缺口，请诚实说明不确定之处，但仍尽可能给出当前最有用的回答。"
+            )
+            user_prompt = (
+                f"用户原始问题：\n{original}\n\n"
+                f"{labeled_block('Current Draft', partial)}\n\n"
+                f"{labeled_block('Execution Trace', trace_summary)}\n\n"
+                "请基于以上材料立即生成给用户的最终回答。"
+            )
+            notice_label = "Writing"
+        else:
+            system_prompt = (
+                "You are the writer component of DeepTutor. The user is "
+                "already waiting, so produce the final user-facing answer "
+                "right now using only the partial reasoning trace that has "
+                "streamed so far. Do not plan further or call tools, and do "
+                "not mention internal stages. If something is still uncertain, "
+                "acknowledge it briefly while still giving the most useful "
+                "answer you can."
+            )
+            user_prompt = (
+                f"Original user request:\n{original}\n\n"
+                f"{labeled_block('Current Draft', partial)}\n\n"
+                f"{labeled_block('Execution Trace', trace_summary)}\n\n"
+                "Produce the final user-facing answer using only this context."
+            )
+            notice_label = "Writing"
+
+        trace_meta = build_answer_now_trace_metadata(
+            capability=self.name, phase="writing", label="Answer now"
+        )
+
+        notice = make_skip_notice(
+            capability=self.name,
+            language=context.language,
+            stages_skipped=["planning", "reasoning"],
+        )
+
+        async with stream.stage("writing", source=self.name, metadata=trace_meta):
+            if notice:
+                await stream.content(
+                    notice + "\n\n",
+                    source=self.name,
+                    stage="writing",
+                )
+            chunks: list[str] = []
+            async for chunk in stream_synthesis(
+                stream=stream,
+                source=self.name,
+                stage="writing",
+                trace_meta=trace_meta,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=2000,
+            ):
+                chunks.append(chunk)
+
+        final_answer = join_chunks(chunks)
+        await stream.result(
+            {
+                "response": (notice + "\n\n" + final_answer).strip() if notice else final_answer,
+                "output_dir": "",
+                "metadata": {
+                    "answer_now": True,
+                    "synthesizer": notice_label,
+                },
             },
             source=self.name,
         )

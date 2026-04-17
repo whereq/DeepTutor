@@ -43,19 +43,30 @@ class ChatOrchestrator:
         if not context.session_id:
             context.session_id = str(uuid.uuid4())
 
-        # "Answer now" is a universal escape hatch: the user is impatient and
-        # wants the system to synthesize a final reply from the partial trace
-        # captured so far. The chat capability owns this synthesis path
-        # (see _stage_answer_now), so we re-route here regardless of the
-        # original capability so this works uniformly across deep_solve,
-        # deep_research, math_animator, etc.
-        if isinstance(context.config_overrides, dict) and context.config_overrides.get(
-            "answer_now_context"
-        ):
-            cap_name = "chat"
-        else:
-            cap_name = context.active_capability or "chat"
+        # "Answer now" is a universal escape hatch but the actual fast-path
+        # is *capability-specific* (deep_solve jumps to writing, deep_question
+        # jumps to generation, math_animator skips analysis/design but still
+        # renders, etc.). Each capability inspects ``answer_now_context`` at
+        # the top of its own ``run()``; the orchestrator only adds a defensive
+        # fallback here: if the requested capability has been removed from
+        # the registry but the user is mid-``answer_now``, route to ``chat``
+        # so they still get *some* response instead of a hard error.
+        cap_name = context.active_capability or "chat"
         capability = self._cap_registry.get(cap_name)
+
+        is_answer_now = bool(
+            isinstance(context.config_overrides, dict)
+            and context.config_overrides.get("answer_now_context")
+        )
+        if capability is None and is_answer_now:
+            fallback = self._cap_registry.get("chat")
+            if fallback is not None:
+                logger.info(
+                    "Capability %s missing for answer_now; falling back to chat.",
+                    cap_name,
+                )
+                cap_name = "chat"
+                capability = fallback
 
         if capability is None:
             bus = StreamBus()

@@ -34,8 +34,14 @@ class DeepResearchCapability(BaseCapability):
             build_research_runtime_config,
             validate_research_request_config,
         )
+        from deeptutor.capabilities._answer_now import extract_answer_now_context
         from deeptutor.services.config import load_config_with_main
         from deeptutor.services.llm.config import get_llm_config
+
+        answer_now_payload = extract_answer_now_context(context)
+        if answer_now_payload is not None:
+            await self._run_answer_now(context, stream, answer_now_payload)
+            return
 
         llm_config = get_llm_config()
         kb_name = context.knowledge_bases[0] if context.knowledge_bases else None
@@ -343,6 +349,96 @@ class DeepResearchCapability(BaseCapability):
 
         await stream.result(
             {"response": report, "metadata": result.get("metadata", {})},
+            source=self.name,
+        )
+
+    async def _run_answer_now(
+        self,
+        context: UnifiedContext,
+        stream: StreamBus,
+        payload: dict[str, Any],
+    ) -> None:
+        """
+        Fast-path for ``deep_research``: skip the rephrase/decompose/research
+        loop and synthesize the report directly from whatever evidence the
+        partial trace already contains.
+        """
+        from deeptutor.capabilities._answer_now import (
+            build_answer_now_trace_metadata,
+            format_trace_summary,
+            join_chunks,
+            labeled_block,
+            make_skip_notice,
+            stream_synthesis,
+        )
+
+        is_zh = context.language.lower().startswith("zh")
+        original = str(payload.get("original_user_message") or context.user_message).strip()
+        partial = str(payload.get("partial_response") or "").strip()
+        trace_summary = format_trace_summary(payload.get("events"), language=context.language)
+
+        if is_zh:
+            system_prompt = (
+                "你是 DeepTutor 的研究报告写作组件。用户已经在等待，"
+                "请根据当前已经收集到的研究 trace（包括 rephrase、decompose、检索结果、"
+                "笔记/纲要等）直接输出一篇结构清晰的研究报告。"
+                "不要再继续检索或调用工具。如果证据稀薄，请在报告中标注信息覆盖度。"
+                "使用 Markdown，包含 1) 引言、2) 主体小节（按你能识别的子主题）、3) 结论。"
+            )
+            user_prompt = (
+                f"研究主题：{original}\n\n"
+                f"{labeled_block('Current Draft', partial)}\n\n"
+                f"{labeled_block('Research Trace', trace_summary)}\n\n"
+                "请基于以上材料立即输出最终报告。"
+            )
+        else:
+            system_prompt = (
+                "You are DeepTutor's research-report writer. The user is "
+                "waiting, so produce a structured research report right now "
+                "from whatever evidence has streamed so far (rephrase, "
+                "decompose, search hits, notes/outline, ...). Do not retrieve "
+                "more evidence and do not call tools. If coverage is thin, "
+                "say so explicitly in the report. Use Markdown with: 1) intro, "
+                "2) body sections (one per identifiable subtopic), 3) conclusion."
+            )
+            user_prompt = (
+                f"Research topic: {original}\n\n"
+                f"{labeled_block('Current Draft', partial)}\n\n"
+                f"{labeled_block('Research Trace', trace_summary)}\n\n"
+                "Produce the final research report from this material now."
+            )
+
+        trace_meta = build_answer_now_trace_metadata(
+            capability=self.name, phase="reporting", label="Answer now"
+        )
+        notice = make_skip_notice(
+            capability=self.name,
+            language=context.language,
+            stages_skipped=["rephrasing", "decomposing", "researching"],
+        )
+
+        async with stream.stage("reporting", source=self.name, metadata=trace_meta):
+            if notice:
+                await stream.content(notice + "\n\n", source=self.name, stage="reporting")
+            chunks: list[str] = []
+            async for chunk in stream_synthesis(
+                stream=stream,
+                source=self.name,
+                stage="reporting",
+                trace_meta=trace_meta,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=3200,
+            ):
+                chunks.append(chunk)
+
+        report = join_chunks(chunks)
+        full = (notice + "\n\n" + report).strip() if notice else report
+        await stream.result(
+            {
+                "response": full,
+                "metadata": {"answer_now": True},
+            },
             source=self.name,
         )
 
