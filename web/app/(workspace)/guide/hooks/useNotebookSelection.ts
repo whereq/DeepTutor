@@ -1,9 +1,13 @@
 import { useState, useCallback } from "react";
-import { listCategories, listNotebookEntries } from "@/lib/notebook-api";
+import { listNotebooks, getNotebook } from "@/lib/notebook-api";
 import { Notebook, NotebookRecord, SelectedRecord } from "../types";
 
 /**
- * Hook for managing notebook and record selection
+ * Hook for managing notebook and record selection.
+ *
+ * Backed by the real notebook system (`/api/v1/notebook/*`) so that records
+ * saved via Save-to-Notebook from any surface are immediately discoverable
+ * here as references.
  */
 export function useNotebookSelection() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
@@ -22,23 +26,25 @@ export function useNotebookSelection() {
   );
 
   const fetchNotebooks = useCallback(async () => {
+    setLoadingNotebooks(true);
     try {
-      const categories = await listCategories();
-      const notebooksWithRecords = categories
-        .filter((cat) => (cat.entry_count ?? 0) > 0)
+      const data = await listNotebooks();
+      const items = data
+        .filter((nb) => (nb.record_count ?? 0) > 0)
         .map(
-          (cat): Notebook => ({
-            id: String(cat.id),
-            name: cat.name,
-            description: "",
-            record_count: cat.entry_count ?? 0,
-            color: "",
+          (nb): Notebook => ({
+            id: String(nb.id),
+            name: nb.name,
+            description: nb.description ?? "",
+            record_count: nb.record_count ?? 0,
+            color: nb.color ?? "",
           }),
         );
-      setNotebooks(notebooksWithRecords);
-      setLoadingNotebooks(false);
+      setNotebooks(items);
     } catch (err) {
       console.error("Failed to fetch notebooks:", err);
+      setNotebooks([]);
+    } finally {
       setLoadingNotebooks(false);
     }
   }, []);
@@ -53,15 +59,15 @@ export function useNotebookSelection() {
         return newSet;
       });
       try {
-        const data = await listNotebookEntries({ category_id: Number(notebookId) });
-        const records = (data.items || []).map(
-          (entry): NotebookRecord => ({
-            id: String(entry.id),
-            title: entry.question,
-            summary: entry.explanation,
-            user_query: entry.question,
-            output: entry.correct_answer,
-            type: entry.question_type,
+        const detail = await getNotebook(notebookId);
+        const records = (detail.records || []).map(
+          (rec): NotebookRecord => ({
+            id: String(rec.id),
+            title: rec.title,
+            summary: rec.summary,
+            user_query: rec.user_query,
+            output: rec.output,
+            type: String(rec.type),
           }),
         );
         setNotebookRecordsMap((prev) =>

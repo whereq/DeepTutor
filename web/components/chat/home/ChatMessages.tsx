@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   BookOpen,
@@ -9,7 +9,6 @@ import {
   Copy,
   MessageSquare,
   RotateCcw,
-  Square,
   X,
   Zap,
   type LucideIcon,
@@ -75,6 +74,7 @@ const AssistantMessage = memo(function AssistantMessage({
   sessionId,
   language,
   onConfirmOutline,
+  onAnswerNow,
 }: {
   msg: { content: string; capability?: string; events?: StreamEvent[] };
   isStreaming?: boolean;
@@ -82,6 +82,7 @@ const AssistantMessage = memo(function AssistantMessage({
   sessionId?: string | null;
   language?: string;
   onConfirmOutline?: (outline: Array<{ title: string; overview: string }>, topic: string, researchConfig?: Record<string, unknown> | null) => void;
+  onAnswerNow?: () => void;
 }) {
   const events = useMemo(() => msg.events ?? [], [msg.events]);
   const hasCallTrace = useMemo(
@@ -124,6 +125,7 @@ const AssistantMessage = memo(function AssistantMessage({
       {hasCallTrace ? (
         <CallTracePanel events={events} isStreaming={isStreaming} />
       ) : null}
+      {isStreaming && onAnswerNow ? <AnswerNowRow onAnswerNow={onAnswerNow} /> : null}
       {outlinePreview && outlinePreview.sub_topics.length > 0 ? (
         <ResearchOutlineEditor
           outline={outlinePreview.sub_topics}
@@ -145,6 +147,53 @@ const AssistantMessage = memo(function AssistantMessage({
 });
 
 AssistantMessage.displayName = "AssistantMessage";
+
+/**
+ * Inline "Answer now" affordance shown alongside the active assistant turn.
+ * Lives outside the trace panel so it is visible as soon as the turn starts
+ * — i.e. even before any tool / reasoning trace has been emitted, which is
+ * the common case for the very first user message.
+ */
+const AnswerNowRow = memo(function AnswerNowRow({
+  onAnswerNow,
+}: {
+  onAnswerNow: () => void;
+}) {
+  const { t } = useTranslation();
+  // Local single-shot guard: once the user has fired "answer now" we lock
+  // the button so a second click can't queue a duplicate cancel + restart
+  // race against the in-flight synthesis turn. The next assistant turn
+  // mounts a fresh ``AnswerNowRow`` with its own state, so this naturally
+  // resets per turn without any external bookkeeping.
+  const [triggered, setTriggered] = useState(false);
+  const handleClick = useCallback(() => {
+    if (triggered) return;
+    setTriggered(true);
+    onAnswerNow();
+  }, [triggered, onAnswerNow]);
+
+  return (
+    <div className="mt-1.5 mb-3 flex items-center">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={triggered}
+        title={t("Skip reasoning and answer now")}
+        aria-disabled={triggered}
+        className="group inline-flex items-center gap-1.5 rounded-md border border-[var(--border)]/60 bg-[var(--card)]/60 px-2.5 py-1 text-[11.5px] font-medium text-[var(--muted-foreground)] shadow-sm transition-colors hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/5 hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-[var(--border)]/60 disabled:hover:bg-[var(--card)]/60 disabled:hover:text-[var(--muted-foreground)]"
+      >
+        <Zap
+          size={12}
+          strokeWidth={1.8}
+          className="shrink-0 transition-colors group-hover:text-[var(--primary)] group-disabled:group-hover:text-[var(--muted-foreground)]"
+        />
+        <span>{triggered ? t("Answering…") : t("Answer now")}</span>
+      </button>
+    </div>
+  );
+});
+
+AnswerNowRow.displayName = "AnswerNowRow";
 
 function CostFooter({ cost, tokens, calls }: { cost: number; tokens: number; calls: number }) {
   const formatCost = (usd: number) => {
@@ -194,20 +243,9 @@ function RoughActionButton({
 const UserMessage = memo(function UserMessage({
   msg,
   index,
-  showInlineControls,
-  onCancelStreaming,
-  onAnswerNow,
-  activeAssistantMessage,
 }: {
   msg: ChatMessageItem;
   index: number;
-  showInlineControls: boolean;
-  onCancelStreaming: () => void;
-  onAnswerNow: (
-    snapshot?: MessageRequestSnapshot,
-    assistantMsg?: { content: string; events?: StreamEvent[] },
-  ) => void;
-  activeAssistantMessage: ChatMessageItem | null;
 }) {
   const { t } = useTranslation();
   if (msg.content.startsWith("[Quiz Performance]")) return null;
@@ -269,30 +307,6 @@ const UserMessage = memo(function UserMessage({
           })()}
           <div>{msg.content}</div>
         </div>
-        {showInlineControls ? (
-          <div className="flex justify-end gap-2">
-            <RoughActionButton
-              icon={Square}
-              label="Stop"
-              onClick={onCancelStreaming}
-            />
-            <RoughActionButton
-              icon={Zap}
-              label="Answer now"
-              onClick={() =>
-                onAnswerNow(
-                  msg.requestSnapshot,
-                  activeAssistantMessage?.role === "assistant"
-                    ? {
-                        content: activeAssistantMessage.content,
-                        events: activeAssistantMessage.events,
-                      }
-                    : undefined,
-                )
-              }
-            />
-          </div>
-        ) : null}
       </div>
     </div>
   );
@@ -359,11 +373,8 @@ ReferenceChips.displayName = "ReferenceChips";
 export const ChatMessageList = memo(function ChatMessageList({
   messages,
   isStreaming,
-  activeUserIndex,
-  activeAssistantMessage,
   sessionId,
   language,
-  onCancelStreaming,
   onAnswerNow,
   onCopyAssistantMessage,
   onRetryMessage,
@@ -371,11 +382,8 @@ export const ChatMessageList = memo(function ChatMessageList({
 }: {
   messages: ChatMessageItem[];
   isStreaming: boolean;
-  activeUserIndex: number;
-  activeAssistantMessage: ChatMessageItem | null;
   sessionId?: string | null;
   language?: string;
-  onCancelStreaming: () => void;
   onAnswerNow: (
     snapshot?: MessageRequestSnapshot,
     assistantMsg?: { content: string; events?: StreamEvent[] },
@@ -412,45 +420,58 @@ export const ChatMessageList = memo(function ChatMessageList({
   }, [messages, isStreaming]);
 
   const messageRows = useMemo(() => {
-    return messages.map((msg, index) => {
-      if (msg.role === "user") {
-        return { msg, pairedUserMessage: null as ChatMessageItem | null };
-      }
-      const pairedUserMessage =
-        [...messages.slice(0, index)].reverse().find((previous) => previous.role === "user") ?? null;
-      return { msg, pairedUserMessage };
-    });
+    // System messages are backend grounding (e.g. quiz follow-up context) and
+    // must never be rendered as a chat bubble. Filter them out defensively in
+    // addition to the hydration-time filter in UnifiedChatContext.
+    return messages
+      .map((msg, index) => ({ msg, originalIndex: index }))
+      .filter(({ msg }) => msg.role !== "system")
+      .map(({ msg, originalIndex }) => {
+        if (msg.role === "user") {
+          return { msg, originalIndex, pairedUserMessage: null as ChatMessageItem | null };
+        }
+        const pairedUserMessage =
+          [...messages.slice(0, originalIndex)]
+            .reverse()
+            .find((previous) => previous.role === "user") ?? null;
+        return { msg, originalIndex, pairedUserMessage };
+      });
   }, [messages]);
 
   return (
     <>
-      {messageRows.map(({ msg, pairedUserMessage }, i) => {
+      {messageRows.map(({ msg, originalIndex, pairedUserMessage }) => {
+        const i = originalIndex;
         if (msg.role === "user") {
-          const showInlineControls =
-            i === activeUserIndex &&
-            (!msg.capability || msg.capability === "chat") &&
-            Boolean(msg.requestSnapshot) &&
-            activeAssistantMessage?.role === "assistant";
           return (
             <UserMessage
               key={`${msg.role}-${i}`}
               msg={msg}
               index={i}
-              showInlineControls={showInlineControls}
-              onCancelStreaming={onCancelStreaming}
-              onAnswerNow={onAnswerNow}
-              activeAssistantMessage={activeAssistantMessage}
             />
           );
         }
 
-        const msgDone = !isStreaming || i !== messages.length - 1;
+        const isActiveAssistant = isStreaming && i === messages.length - 1;
+        const msgDone = !isActiveAssistant;
         const showActions =
           msgDone && hasVisibleMarkdownContent(msg.content);
         const showRetry =
           showActions &&
           (!pairedUserMessage?.capability || pairedUserMessage?.capability === "chat") &&
           Boolean(pairedUserMessage?.requestSnapshot);
+
+        // The "Answer now" affordance lives inside the trace panel for the
+        // currently-streaming assistant turn. We hand the panel a thin
+        // closure so it does not need to know about MessageRequestSnapshot.
+        const handleTraceAnswerNow =
+          isActiveAssistant && pairedUserMessage?.requestSnapshot
+            ? () =>
+                onAnswerNow(pairedUserMessage.requestSnapshot, {
+                  content: msg.content,
+                  events: msg.events,
+                })
+            : undefined;
 
         const costSummary = (() => {
           if (!msgDone) return null;
@@ -466,11 +487,12 @@ export const ChatMessageList = memo(function ChatMessageList({
           <div key={`${msg.role}-${i}`} className="w-full">
             <AssistantMessage
               msg={msg}
-              isStreaming={isStreaming && i === messages.length - 1}
+              isStreaming={isActiveAssistant}
               outlineStatus={outlineStatusByIndex.get(i)}
               sessionId={sessionId}
               language={language}
               onConfirmOutline={onConfirmOutline}
+              onAnswerNow={handleTraceAnswerNow}
             />
             {(showActions || costSummary) && (
               <div className="mt-2 flex items-center">

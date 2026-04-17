@@ -5,24 +5,24 @@
 @layer base {
   :root {
     --background: #FAF9F6;
-    --foreground: #2D2B28;
+    --foreground: #1F1D1B;
     --card: #FFFFFF;
-    --card-foreground: #2D2B28;
+    --card-foreground: #1F1D1B;
     --popover: #FFFFFF;
-    --popover-foreground: #2D2B28;
-    --primary: #C35A2C;
+    --popover-foreground: #1F1D1B;
+    --primary: #B0501E;
     --primary-foreground: #FFFFFF;
-    --secondary: #F0EDE7;
-    --secondary-foreground: #2D2B28;
-    --muted: #F0EDE7;
-    --muted-foreground: #8B8580;
-    --accent: #F0EDE7;
-    --accent-foreground: #2D2B28;
-    --destructive: #D44A3C;
+    --secondary: #ECE7DD;
+    --secondary-foreground: #1F1D1B;
+    --muted: #ECE7DD;
+    --muted-foreground: #6B655F;
+    --accent: #ECE7DD;
+    --accent-foreground: #1F1D1B;
+    --destructive: #C53A2C;
     --destructive-foreground: #FFFFFF;
-    --border: #E8E4DE;
-    --input: #E8E4DE;
-    --ring: #C35A2C;
+    --border: #DBD4C8;
+    --input: #DBD4C8;
+    --ring: #B0501E;
   }
 
   .dark {
@@ -48,25 +48,25 @@
   }
 
   .theme-snow {
-    --background: #FFFFFF;
-    --foreground: #1E293B;
+    --background: #F8FAFC;
+    --foreground: #0F172A;
     --card: #FFFFFF;
-    --card-foreground: #1E293B;
+    --card-foreground: #0F172A;
     --popover: #FFFFFF;
-    --popover-foreground: #1E293B;
-    --primary: #C35A2C;
+    --popover-foreground: #0F172A;
+    --primary: #B0501E;
     --primary-foreground: #FFFFFF;
-    --secondary: #F1F5F9;
-    --secondary-foreground: #1E293B;
-    --muted: #F1F5F9;
-    --muted-foreground: #94A3B8;
-    --accent: #F1F5F9;
-    --accent-foreground: #1E293B;
-    --destructive: #DC2626;
+    --secondary: #E8EEF5;
+    --secondary-foreground: #0F172A;
+    --muted: #E8EEF5;
+    --muted-foreground: #5A6B82;
+    --accent: #E8EEF5;
+    --accent-foreground: #0F172A;
+    --destructive: #C7281F;
     --destructive-foreground: #FFFFFF;
-    --border: #E2E8F0;
-    --input: #E2E8F0;
-    --ring: #C35A2C;
+    --border: #CBD5E1;
+    --input: #CBD5E1;
+    --ring: #B0501E;
   }
 
   .theme-glass {

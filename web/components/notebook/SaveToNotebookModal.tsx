@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Check, Loader2, MessageSquare, NotebookPen, Sparkles, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiUrl } from "@/lib/api";
+import {
+  listNotebooks,
+  type NotebookSummary as RealNotebookSummary,
+} from "@/lib/notebook-api";
 
 type RecordType =
   | "solve"
@@ -12,13 +16,6 @@ type RecordType =
   | "co_writer"
   | "chat"
   | "guided_learning";
-
-interface NotebookSummary {
-  id: string;
-  name: string;
-  color?: string;
-  description?: string;
-}
 
 export interface NotebookSavePayload {
   recordType: RecordType;
@@ -29,9 +26,23 @@ export interface NotebookSavePayload {
   kbName?: string | null;
 }
 
+export interface NotebookSaveMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+  capability?: string;
+}
+
 interface SaveToNotebookModalProps {
   open: boolean;
   payload: NotebookSavePayload | null;
+  /**
+   * Optional list of chat messages. When provided, the modal switches to
+   * "selection mode" and lets the user pick which messages to include in the
+   * saved notebook record. The transcript / userQuery in the final request
+   * are rebuilt from the selected subset, while other fields (recordType,
+   * metadata, kbName) come from `payload`.
+   */
+  messages?: NotebookSaveMessage[] | null;
   onClose: () => void;
   onSaved?: (result: { summary: string }) => void;
 }
@@ -56,43 +67,140 @@ function parseSseEvents(buffer: string): Array<{ payload: Record<string, unknown
   return events;
 }
 
+function roleLabelKey(role: NotebookSaveMessage["role"]): string {
+  if (role === "user") return "User";
+  if (role === "assistant") return "Assistant";
+  return "System";
+}
+
+function buildTranscript(messages: NotebookSaveMessage[]): string {
+  return messages
+    .map((msg) => {
+      const role = msg.role === "user" ? "User" : msg.role === "assistant" ? "Assistant" : "System";
+      return `## ${role}\n${msg.content}`;
+    })
+    .join("\n\n");
+}
+
+function buildUserQuery(messages: NotebookSaveMessage[]): string {
+  return messages
+    .filter((msg) => msg.role === "user")
+    .map((msg) => msg.content)
+    .join("\n\n");
+}
+
+function deriveTitle(messages: NotebookSaveMessage[], fallback: string): string {
+  const firstUser = messages.find((msg) => msg.role === "user");
+  const candidate = firstUser?.content.trim();
+  if (!candidate) return fallback;
+  return candidate.slice(0, 80);
+}
+
+/**
+ * Compute the indexes of the most recent N "turns". A turn is loosely
+ * defined as a user message plus any assistant/system messages that follow
+ * it until the next user message. When N exceeds the available turn count
+ * we just return all message indexes.
+ */
+function indexesForLastTurns(
+  messages: NotebookSaveMessage[],
+  turnCount: number,
+): number[] {
+  if (messages.length === 0 || turnCount <= 0) return [];
+  const userPositions: number[] = [];
+  messages.forEach((msg, idx) => {
+    if (msg.role === "user") userPositions.push(idx);
+  });
+  if (userPositions.length === 0) {
+    return messages.map((_, idx) => idx);
+  }
+  const startUserIdx = Math.max(0, userPositions.length - turnCount);
+  const startMessageIdx = userPositions[startUserIdx];
+  const result: number[] = [];
+  for (let i = startMessageIdx; i < messages.length; i += 1) result.push(i);
+  return result;
+}
+
 export default function SaveToNotebookModal({
   open,
   payload,
+  messages,
   onClose,
   onSaved,
 }: SaveToNotebookModalProps) {
   const { t } = useTranslation();
-  const [notebooks, setNotebooks] = useState<NotebookSummary[]>([]);
+  const [notebooks, setNotebooks] = useState<RealNotebookSummary[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [title, setTitle] = useState("");
+  const [titleEdited, setTitleEdited] = useState(false);
   const [summaryPreview, setSummaryPreview] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingNotebooks, setIsLoadingNotebooks] = useState(false);
   const [error, setError] = useState("");
+  const [selectedMessageIdx, setSelectedMessageIdx] = useState<Set<number>>(new Set());
   const abortRef = useRef<AbortController | null>(null);
+
+  const hasMessageSelection = Array.isArray(messages) && messages.length > 0;
 
   useEffect(() => {
     if (!open) {
       abortRef.current?.abort();
       return;
     }
-    setTitle(payload?.title || "");
     setSummaryPreview("");
     setError("");
     setSelectedIds([]);
+    setTitleEdited(false);
+    if (hasMessageSelection && messages) {
+      setSelectedMessageIdx(new Set(messages.map((_, idx) => idx)));
+      setTitle(deriveTitle(messages, payload?.title || ""));
+    } else {
+      setSelectedMessageIdx(new Set());
+      setTitle(payload?.title || "");
+    }
+    setIsLoadingNotebooks(true);
     void (async () => {
       try {
-        const res = await fetch(apiUrl("/api/v1/notebook/list"), { cache: "no-store" });
-        if (!res.ok) throw new Error("Failed to fetch notebooks");
-        const data = (await res.json()) as {
-          notebooks: Array<{ id: string; name: string; color?: string; description?: string }>;
-        };
-        setNotebooks(data.notebooks.map((nb) => ({ id: nb.id, name: nb.name, color: nb.color, description: nb.description })));
+        const list = await listNotebooks();
+        setNotebooks(list);
       } catch {
         setNotebooks([]);
+      } finally {
+        setIsLoadingNotebooks(false);
       }
     })();
-  }, [open, payload]);
+  }, [open, payload, messages, hasMessageSelection]);
+
+  const orderedSelectedMessages = useMemo<NotebookSaveMessage[]>(() => {
+    if (!hasMessageSelection || !messages) return [];
+    const indexes = Array.from(selectedMessageIdx).sort((a, b) => a - b);
+    return indexes
+      .map((idx) => messages[idx])
+      .filter((msg): msg is NotebookSaveMessage => Boolean(msg));
+  }, [hasMessageSelection, messages, selectedMessageIdx]);
+
+  // When the user hasn't manually edited the title yet, keep it in sync
+  // with the first selected user message so it stays meaningful as the
+  // selection changes.
+  useEffect(() => {
+    if (!open || !hasMessageSelection || titleEdited) return;
+    const next = deriveTitle(orderedSelectedMessages, payload?.title || "");
+    setTitle(next);
+  }, [open, hasMessageSelection, titleEdited, orderedSelectedMessages, payload?.title]);
+
+  const effectiveOutput = useMemo(() => {
+    if (hasMessageSelection) {
+      return buildTranscript(orderedSelectedMessages);
+    }
+    return payload?.output || "";
+  }, [hasMessageSelection, orderedSelectedMessages, payload?.output]);
+
+  const effectiveUserQuery = useMemo(() => {
+    if (hasMessageSelection) {
+      return buildUserQuery(orderedSelectedMessages);
+    }
+    return payload?.userQuery || "";
+  }, [hasMessageSelection, orderedSelectedMessages, payload?.userQuery]);
 
   const canSave = useMemo(
     () =>
@@ -100,15 +208,49 @@ export default function SaveToNotebookModal({
         payload &&
           title.trim() &&
           selectedIds.length > 0 &&
-          payload.output.trim(),
+          effectiveOutput.trim() &&
+          (!hasMessageSelection || orderedSelectedMessages.length > 0),
       ),
-    [payload, selectedIds.length, title],
+    [
+      payload,
+      title,
+      selectedIds.length,
+      effectiveOutput,
+      hasMessageSelection,
+      orderedSelectedMessages.length,
+    ],
   );
 
   const toggleNotebook = (id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
+  };
+
+  const toggleMessage = (idx: number) => {
+    setSelectedMessageIdx((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
+  };
+
+  const selectAllMessages = () => {
+    if (!messages) return;
+    setSelectedMessageIdx(new Set(messages.map((_, idx) => idx)));
+  };
+
+  const clearMessages = () => {
+    setSelectedMessageIdx(new Set());
+  };
+
+  const selectLastTurns = (turnCount: number) => {
+    if (!messages) return;
+    setSelectedMessageIdx(new Set(indexesForLastTurns(messages, turnCount)));
   };
 
   const handleSave = async () => {
@@ -120,6 +262,15 @@ export default function SaveToNotebookModal({
     setError("");
     setSummaryPreview("");
 
+    const metadata: Record<string, unknown> = { ...(payload.metadata || {}) };
+    if (hasMessageSelection && messages) {
+      metadata.message_count = orderedSelectedMessages.length;
+      metadata.total_message_count = messages.length;
+      metadata.selected_message_indexes = Array.from(selectedMessageIdx).sort(
+        (a, b) => a - b,
+      );
+    }
+
     try {
       const response = await fetch(apiUrl("/api/v1/notebook/add_record_with_summary"), {
         method: "POST",
@@ -128,9 +279,9 @@ export default function SaveToNotebookModal({
           notebook_ids: selectedIds,
           record_type: payload.recordType,
           title: title.trim(),
-          user_query: payload.userQuery,
-          output: payload.output,
-          metadata: payload.metadata || {},
+          user_query: effectiveUserQuery,
+          output: effectiveOutput,
+          metadata,
           kb_name: payload.kbName || null,
         }),
         signal: controller.signal,
@@ -184,56 +335,171 @@ export default function SaveToNotebookModal({
 
   if (!open || !payload) return null;
 
+  const totalMessages = messages?.length ?? 0;
+  const selectedMessageCount = selectedMessageIdx.size;
+  const allMessagesSelected = totalMessages > 0 && selectedMessageCount === totalMessages;
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-md">
-      <div className="w-full max-w-2xl rounded-[22px] border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.24)] dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
-          <div>
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-500">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[var(--background)]/65 p-4 backdrop-blur-md">
+      <div className="surface-card flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[0_22px_70px_rgba(0,0,0,0.18)]">
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
+          <div className="min-w-0">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
               {t("Notebook Output")}
             </div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
               {t("Save to Notebook")}
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {t("Select one or more notebooks. A summary will be generated automatically.")}
+            <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
+              {hasMessageSelection
+                ? t(
+                    "Choose which messages to include, pick one or more notebooks, and a summary will be generated automatically.",
+                  )
+                : t("Select one or more notebooks. A summary will be generated automatically.")}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded-lg p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+            aria-label={t("Close")}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="space-y-5 bg-slate-50/70 px-5 py-5 dark:bg-slate-950/35">
+        <div className="flex-1 space-y-5 overflow-y-auto bg-[var(--background)]/40 px-5 py-5">
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">
               {t("Title")}
             </label>
             <input
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-indigo-900/40"
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setTitleEdited(true);
+              }}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--primary)]/60 focus:ring-2 focus:ring-[var(--primary)]/15"
             />
           </div>
 
+          {hasMessageSelection && messages && (
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label className="block text-sm font-medium text-[var(--foreground)]">
+                  {t("Messages to include")}
+                </label>
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {t("{{selected}} of {{total}} selected", {
+                    selected: selectedMessageCount,
+                    total: totalMessages,
+                  })}
+                </span>
+              </div>
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={selectAllMessages}
+                  disabled={allMessagesSelected}
+                  className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("Select all")}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearMessages}
+                  disabled={selectedMessageCount === 0}
+                  className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("Clear")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectLastTurns(1)}
+                  className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]"
+                >
+                  {t("Last turn")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectLastTurns(3)}
+                  className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]"
+                >
+                  {t("Last 3 turns")}
+                </button>
+              </div>
+              <div className="max-h-72 space-y-1.5 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--card)] p-2">
+                {messages.map((msg, idx) => {
+                  const selected = selectedMessageIdx.has(idx);
+                  const Icon = msg.role === "user" ? User : msg.role === "assistant" ? Sparkles : MessageSquare;
+                  const preview = msg.content.replace(/\s+/g, " ").trim();
+                  const empty = preview.length === 0;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => toggleMessage(idx)}
+                      className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2 text-left transition ${
+                        selected
+                          ? "border-[var(--primary)]/40 bg-[var(--primary)]/8"
+                          : "border-transparent hover:border-[var(--border)] hover:bg-[var(--muted)]/40"
+                      }`}
+                    >
+                      <span
+                        className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors ${
+                          selected
+                            ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
+                            : "border-[var(--border)] text-transparent"
+                        }`}
+                      >
+                        <Check className="h-3 w-3" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-[var(--muted-foreground)]">
+                          <Icon className="h-3 w-3" />
+                          <span>{t(roleLabelKey(msg.role))}</span>
+                          <span className="text-[var(--muted-foreground)]/60">·</span>
+                          <span>#{idx + 1}</span>
+                        </div>
+                        <p
+                          className={`line-clamp-2 text-xs leading-5 ${
+                            empty
+                              ? "italic text-[var(--muted-foreground)]/70"
+                              : "text-[var(--foreground)]/85"
+                          }`}
+                        >
+                          {empty ? t("(empty message)") : preview}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+              <label className="block text-sm font-medium text-[var(--foreground)]">
                 {t("Notebooks")}
               </label>
               {selectedIds.length > 0 && (
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {selectedIds.length} selected
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {selectedIds.length} {t("selected")}
                 </span>
               )}
             </div>
-            <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
-              {notebooks.length === 0 ? (
-                <div className="px-3 py-6 text-center text-sm text-slate-400 dark:text-slate-500">
-                  {t("No notebooks found.")}
+            <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--card)] p-2">
+              {isLoadingNotebooks ? (
+                <div className="flex items-center justify-center px-3 py-8">
+                  <Loader2 className="h-4 w-4 animate-spin text-[var(--muted-foreground)]" />
+                </div>
+              ) : notebooks.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-3 py-6 text-center text-sm text-[var(--muted-foreground)]">
+                  <NotebookPen className="h-5 w-5 text-[var(--muted-foreground)]/60" />
+                  <span>{t("No notebooks found.")}</span>
+                  <span className="text-[11px] text-[var(--muted-foreground)]/80">
+                    {t("Create one from the Knowledge → Notebooks page.")}
+                  </span>
                 </div>
               ) : (
                 notebooks.map((notebook) => {
@@ -244,23 +510,38 @@ export default function SaveToNotebookModal({
                       onClick={() => toggleNotebook(notebook.id)}
                       className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
                         selected
-                          ? "border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/25"
-                          : "border-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-slate-700 dark:hover:bg-slate-800/70"
+                          ? "border-[var(--primary)]/40 bg-[var(--primary)]/8"
+                          : "border-transparent hover:border-[var(--border)] hover:bg-[var(--muted)]/40"
                       }`}
                     >
                       <div
-                        className="mt-1 h-3 w-3 rounded-full"
-                        style={{ backgroundColor: notebook.color || "#6366f1" }}
+                        className="mt-1 h-3 w-3 shrink-0 rounded-full"
+                        style={{ backgroundColor: notebook.color || "var(--primary)" }}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                          {notebook.name}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-medium text-[var(--foreground)]">
+                            {notebook.name}
+                          </div>
+                          <span
+                            className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                              selected
+                                ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
+                                : "border-[var(--border)] text-transparent"
+                            }`}
+                            style={{ width: 18, height: 18 }}
+                          >
+                            <Check className="h-3 w-3" />
+                          </span>
                         </div>
                         {notebook.description && (
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          <p className="mt-1 line-clamp-2 text-xs text-[var(--muted-foreground)]">
                             {notebook.description}
                           </p>
                         )}
+                        <div className="mt-1 text-[11px] text-[var(--muted-foreground)]/85">
+                          {notebook.record_count ?? 0} {t("records")}
+                        </div>
                       </div>
                     </button>
                   );
@@ -270,12 +551,12 @@ export default function SaveToNotebookModal({
           </div>
 
           <div>
-            <div className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+            <div className="mb-2 text-sm font-medium text-[var(--foreground)]">
               {t("Summary preview")}
             </div>
-            <div className="min-h-24 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+            <div className="min-h-24 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm leading-6 text-[var(--foreground)]/85">
               {summaryPreview || (
-                <span className="text-slate-400 dark:text-slate-500">
+                <span className="text-[var(--muted-foreground)]">
                   {t("The generated summary will appear here during saving.")}
                 </span>
               )}
@@ -283,23 +564,23 @@ export default function SaveToNotebookModal({
           </div>
 
           {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+            <div className="rounded-xl border border-[var(--destructive)]/30 bg-[var(--destructive)]/8 px-4 py-3 text-sm text-[var(--destructive)]">
               {error}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+        <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--card)] px-5 py-4">
           <button
             onClick={onClose}
-            className="rounded-xl px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-xl px-4 py-2 text-sm text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
           >
             {t("Cancel")}
           </button>
           <button
             onClick={handleSave}
             disabled={!canSave || isLoading}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-400 to-fuchsia-400 px-4 py-2 text-sm font-medium text-white transition hover:from-indigo-500 hover:to-fuchsia-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-primary inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
             {t("Save")}

@@ -158,9 +158,9 @@ export default function HTMLViewer({
 
   if (!html) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-slate-800 rounded-b-2xl border border-t-0 border-slate-200 dark:border-slate-700">
-        <Loader2 className="w-12 h-12 text-indigo-400 dark:text-indigo-500 animate-spin mb-4" />
-        <p className="text-slate-500 dark:text-slate-400">
+      <div className="flex flex-1 flex-col items-center justify-center rounded-b-2xl border border-t-0 border-[var(--border)] bg-[var(--card)]">
+        <Loader2 className="mb-4 h-12 w-12 animate-spin text-[var(--primary)]" />
+        <p className="text-[var(--muted-foreground)]">
           {loadingMessage || t("Loading learning content...")}
         </p>
       </div>
@@ -168,13 +168,13 @@ export default function HTMLViewer({
   }
 
   return (
-    <div className="flex-1 bg-white dark:bg-slate-800 rounded-b-2xl shadow-sm border border-t-0 border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden relative">
+    <div className="surface-card relative flex flex-1 flex-col overflow-hidden rounded-b-2xl rounded-t-none border border-t-0 border-[var(--border)] bg-[var(--card)]">
       <button
         onClick={onOpenDebugModal}
-        className="absolute top-4 right-4 z-10 p-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors shadow-sm"
+        className="absolute right-4 top-4 z-10 rounded-lg border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
         title={t("Fix HTML")}
       >
-        <Bug className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+        <Bug className="h-4 w-4" />
       </button>
 
       <iframe

@@ -59,20 +59,20 @@ export default function KnowledgeTabBar({
   const renderStatusIcon = (index: number) => {
     const status = sessionState.page_statuses[index];
     if (status === "ready")
-      return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />;
+      return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
     if (status === "generating")
-      return <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" />;
+      return <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--primary)]" />;
     if (status === "failed")
-      return <XCircle className="w-3.5 h-3.5 text-rose-500" />;
-    return <AlertCircle className="w-3.5 h-3.5 text-slate-400" />;
+      return <XCircle className="h-3.5 w-3.5 text-rose-500" />;
+    return <AlertCircle className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />;
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-t-2xl border border-b-0 border-slate-200 dark:border-slate-700 flex flex-col shrink-0">
-      <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+    <div className="flex shrink-0 flex-col rounded-t-2xl border border-b-0 border-[var(--border)] bg-[var(--card)]">
+      <div className="flex items-center gap-2 px-3 pb-1 pt-2">
         <div
           ref={scrollRef}
-          className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-hide"
+          className="scrollbar-hide flex flex-1 items-center gap-1 overflow-x-auto"
         >
           {sessionState.knowledge_points.map((knowledge, index) => {
             const isCurrent = sessionState.current_index === index;
@@ -93,12 +93,12 @@ export default function KnowledgeTabBar({
                 }}
                 disabled={!isReady && !isFailed}
                 title={knowledge.knowledge_title}
-                className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap ${
+                className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
                   isCurrent && !isCompleted
-                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200"
+                    ? "bg-[var(--primary)]/12 text-[var(--primary)]"
                     : isReady
-                      ? "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-                      : "bg-slate-50 text-slate-400 dark:bg-slate-800 dark:text-slate-500 cursor-default"
+                      ? "bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/80"
+                      : "cursor-default bg-[var(--muted)]/40 text-[var(--muted-foreground)]"
                 }`}
               >
                 {renderStatusIcon(index)}
@@ -110,29 +110,29 @@ export default function KnowledgeTabBar({
             <button
               ref={isCompleted ? activeRef : null}
               onClick={onShowSummary}
-              className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap ${
+              className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 isCompleted
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                  : "bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--muted)]/80"
               }`}
             >
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
               <span>{t("Summary")}</span>
             </button>
           )}
         </div>
 
-        <div className="shrink-0 flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-700">
+        <div className="flex shrink-0 items-center gap-1.5 border-l border-[var(--border)] pl-2">
           {canStart && (
             <button
               onClick={onStartLearning}
               disabled={isLoading}
-              className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition"
+              className="btn-primary inline-flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {isLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Play className="w-3.5 h-3.5" />
+                <Play className="h-3.5 w-3.5" />
               )}
               {t("Start")}
             </button>
@@ -142,12 +142,12 @@ export default function KnowledgeTabBar({
             <button
               onClick={onCompleteLearning}
               disabled={isLoading || !allPagesReady}
-              className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 transition"
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
             >
               {isLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <CheckCircle2 className="w-3.5 h-3.5" />
+                <CheckCircle2 className="h-3.5 w-3.5" />
               )}
               {t("Complete")}
             </button>
@@ -155,16 +155,17 @@ export default function KnowledgeTabBar({
 
           <button
             onClick={onResetSession}
-            className="inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 transition"
+            className="inline-flex items-center gap-1 rounded-lg bg-[var(--muted)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/70"
+            title={t("Reset session")}
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="h-1 bg-slate-100 dark:bg-slate-700 mx-3 mb-1 rounded-full overflow-hidden">
+      <div className="mx-3 mb-1 h-1 overflow-hidden rounded-full bg-[var(--muted)]">
         <div
-          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+          className="h-full rounded-full bg-[var(--primary)] transition-all duration-500"
           style={{
             width: `${totalCount > 0 ? (readyCount / totalCount) * 100 : 0}%`,
           }}

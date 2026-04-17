@@ -69,6 +69,10 @@ interface KnowledgeBase {
 
 const STORAGE_KEY = "deeptutor.co_writer.draft";
 const HISTORY_KEY = "deeptutor.co_writer.history";
+const SPLIT_RATIO_KEY = "deeptutor.co_writer.split_ratio";
+const SYNC_SCROLL_KEY = "deeptutor.co_writer.sync_scroll";
+const MIN_PANEL_RATIO = 0.18;
+const MAX_PANEL_RATIO = 0.82;
 
 const ACTION_LABELS: Record<EditAction, string> = {
   rewrite: "Rewrite",
@@ -144,6 +148,10 @@ interface StreamEditResult {
 export default function CoWriterPage() {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const previewScrollRef = useRef<HTMLDivElement>(null);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const scrollSyncSourceRef = useRef<"editor" | "preview" | null>(null);
+  const scrollSyncResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionPopoverRef = useRef<HTMLDivElement>(null);
   const preserveSelectionTraceRef = useRef(false);
   const selectionRequestAbortRef = useRef<AbortController | null>(null);
@@ -182,6 +190,11 @@ export default function CoWriterPage() {
 
   const [editorCollapsed, setEditorCollapsed] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
+  const [editorRatio, setEditorRatio] = useState(0.5);
+  const [isResizingSplit, setIsResizingSplit] = useState(false);
+  const [syncScrollEnabled, setSyncScrollEnabled] = useState(true);
+  const showEditor = !editorCollapsed;
+  const showPreview = !previewCollapsed;
 
   const [showSaveModal, setShowSaveModal] = useState(false);
 
@@ -194,12 +207,52 @@ export default function CoWriterPage() {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     setMarkdown(saved === null ? CO_WRITER_SAMPLE_TEMPLATE : saved);
     setHasLoadedDraft(true);
+
+    const savedRatio = window.localStorage.getItem(SPLIT_RATIO_KEY);
+    if (savedRatio) {
+      const parsed = Number.parseFloat(savedRatio);
+      if (Number.isFinite(parsed)) {
+        setEditorRatio(
+          Math.min(MAX_PANEL_RATIO, Math.max(MIN_PANEL_RATIO, parsed)),
+        );
+      }
+    }
+
+    const savedSync = window.localStorage.getItem(SYNC_SCROLL_KEY);
+    if (savedSync !== null) {
+      setSyncScrollEnabled(savedSync !== "0");
+    }
   }, []);
 
   useEffect(() => {
     if (!hasLoadedDraft) return;
     window.localStorage.setItem(STORAGE_KEY, markdown);
   }, [hasLoadedDraft, markdown]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SPLIT_RATIO_KEY, String(editorRatio));
+  }, [editorRatio]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SYNC_SCROLL_KEY, syncScrollEnabled ? "1" : "0");
+  }, [syncScrollEnabled]);
+
+  useEffect(() => {
+    // Drop the cached editor line positions when the viewport changes width;
+    // wrapping behavior depends on it.
+    const handleResize = () => {
+      editorYCacheRef.current = null;
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Editor inner width can change without a window resize (collapsing the
+  // preview pane, dragging the splitter, etc). Invalidate the y cache so the
+  // mirror remeasures with the new wrap width.
+  useEffect(() => {
+    editorYCacheRef.current = null;
+  }, [editorRatio, editorCollapsed, previewCollapsed]);
 
   useEffect(() => {
     (async () => {
@@ -836,9 +889,6 @@ export default function CoWriterPage() {
     [handleUndo, handleRedo],
   );
 
-  const showEditor = !editorCollapsed;
-  const showPreview = !previewCollapsed;
-
   useEffect(() => {
     if (!selectionPopover.visible) return;
     const handleViewportChange = () => updateSelectionPopover();
@@ -896,8 +946,374 @@ export default function CoWriterPage() {
   useEffect(() => {
     return () => {
       selectionRequestAbortRef.current?.abort();
+      if (scrollSyncResetTimerRef.current) {
+        clearTimeout(scrollSyncResetTimerRef.current);
+      }
     };
   }, []);
+
+  const handleSplitterPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!showEditor || !showPreview) return;
+      event.preventDefault();
+      setIsResizingSplit(true);
+      try {
+        (event.target as HTMLDivElement).setPointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+    },
+    [showEditor, showPreview],
+  );
+
+  useEffect(() => {
+    if (!isResizingSplit) return;
+    const handleMove = (event: PointerEvent) => {
+      const container = splitContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const ratio = (event.clientX - rect.left) / rect.width;
+      setEditorRatio(
+        Math.min(MAX_PANEL_RATIO, Math.max(MIN_PANEL_RATIO, ratio)),
+      );
+    };
+    const handleEnd = () => setIsResizingSplit(false);
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleEnd);
+    window.addEventListener("pointercancel", handleEnd);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleEnd);
+      window.removeEventListener("pointercancel", handleEnd);
+    };
+  }, [isResizingSplit]);
+
+  const releaseScrollSyncSource = useCallback(() => {
+    if (scrollSyncResetTimerRef.current) {
+      clearTimeout(scrollSyncResetTimerRef.current);
+    }
+    scrollSyncResetTimerRef.current = setTimeout(() => {
+      scrollSyncSourceRef.current = null;
+    }, 90);
+  }, []);
+
+  // ── Line-anchored scroll synchronization ──
+  //
+  // Each block element rendered in the preview carries a `data-source-line`
+  // attribute that points back at its starting line in the markdown source
+  // (provided by remark's AST position info). For the editor side we cannot
+  // assume `scrollTop / lineHeight = source line` because long lines wrap
+  // visually. Instead we build a hidden mirror that mimics the textarea's
+  // wrapping and read the real pixel y of every source line. With both sides
+  // expressed as pixel coordinates we can interpolate either direction with
+  // a single piecewise-linear map.
+
+  // Cache: rebuilding the mirror is moderately expensive, so cache by
+  // (markdown content, textarea inner width). Both invalidate the cache.
+  const editorYCacheRef = useRef<{
+    signature: string;
+    ys: Map<number, number>;
+  } | null>(null);
+
+  const measureEditorLineYs = useCallback((): Map<number, number> => {
+    const editor = textareaRef.current;
+    if (!editor) return new Map();
+    const value = editor.value;
+    const sourceLines = value.split("\n");
+    if (sourceLines.length === 0) return new Map();
+
+    const computed = window.getComputedStyle(editor);
+    const rect = editor.getBoundingClientRect();
+    const mirror = document.createElement("div");
+
+    const properties = [
+      "box-sizing",
+      "width",
+      "border-top-width",
+      "border-right-width",
+      "border-bottom-width",
+      "border-left-width",
+      "padding-top",
+      "padding-right",
+      "padding-bottom",
+      "padding-left",
+      "font-style",
+      "font-variant",
+      "font-weight",
+      "font-stretch",
+      "font-size",
+      "font-size-adjust",
+      "line-height",
+      "font-family",
+      "letter-spacing",
+      "text-align",
+      "text-transform",
+      "text-indent",
+      "tab-size",
+    ];
+    for (const property of properties) {
+      mirror.style.setProperty(property, computed.getPropertyValue(property));
+    }
+
+    mirror.style.position = "fixed";
+    mirror.style.top = `${rect.top}px`;
+    mirror.style.left = `${rect.left}px`;
+    mirror.style.height = "auto";
+    mirror.style.maxHeight = "none";
+    mirror.style.minHeight = "0";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.overflowWrap = "break-word";
+    mirror.style.wordBreak = "normal";
+    mirror.style.visibility = "hidden";
+    mirror.style.pointerEvents = "none";
+    mirror.style.zIndex = "-1";
+
+    const spans: HTMLSpanElement[] = [];
+    for (let i = 0; i < sourceLines.length; i += 1) {
+      if (i > 0) mirror.appendChild(document.createTextNode("\n"));
+      const span = document.createElement("span");
+      // Empty lines need measurable content for offsetTop to be meaningful.
+      span.textContent =
+        sourceLines[i].length > 0 ? sourceLines[i] : "\u200B";
+      mirror.appendChild(span);
+      spans.push(span);
+    }
+
+    document.body.appendChild(mirror);
+
+    const result = new Map<number, number>();
+    // span.offsetTop is the y-position of the line within the mirror, which
+    // mirrors the textarea's scroll content. Setting `editor.scrollTop` to
+    // this value lifts that source line to the top of the visible viewport.
+    for (let i = 0; i < spans.length; i += 1) {
+      result.set(i + 1, spans[i].offsetTop);
+    }
+
+    document.body.removeChild(mirror);
+    return result;
+  }, []);
+
+  const getEditorLineYs = useCallback((): Map<number, number> => {
+    const editor = textareaRef.current;
+    if (!editor) return new Map();
+    const signature = `${editor.clientWidth}|${markdown}`;
+    const cached = editorYCacheRef.current;
+    if (cached && cached.signature === signature) return cached.ys;
+    const ys = measureEditorLineYs();
+    editorYCacheRef.current = { signature, ys };
+    return ys;
+  }, [markdown, measureEditorLineYs]);
+
+  const collectPreviewLineYs = useCallback((): Map<number, number> => {
+    const preview = previewScrollRef.current;
+    if (!preview) return new Map();
+    const nodes = preview.querySelectorAll<HTMLElement>("[data-source-line]");
+    if (nodes.length === 0) return new Map();
+    const previewRect = preview.getBoundingClientRect();
+    const baseTop = previewRect.top - preview.scrollTop;
+    const result = new Map<number, number>();
+    for (const el of Array.from(nodes)) {
+      const raw = el.getAttribute("data-source-line");
+      const line = raw ? Number.parseInt(raw, 10) : NaN;
+      if (!Number.isFinite(line)) continue;
+      // Keep the first occurrence; nested wrappers often repeat the same line.
+      if (result.has(line)) continue;
+      const rect = el.getBoundingClientRect();
+      result.set(line, rect.top - baseTop);
+    }
+    return result;
+  }, []);
+
+  const buildJointMarkers = useCallback((): Array<{
+    line: number;
+    editorY: number;
+    previewY: number;
+  }> => {
+    const editorYs = getEditorLineYs();
+    const previewYs = collectPreviewLineYs();
+    if (editorYs.size === 0 || previewYs.size === 0) return [];
+
+    const lines = Array.from(previewYs.keys())
+      .filter((line) => editorYs.has(line))
+      .sort((a, b) => a - b);
+
+    const editor = textareaRef.current;
+    const preview = previewScrollRef.current;
+    const markers: Array<{ line: number; editorY: number; previewY: number }> =
+      [];
+    for (const line of lines) {
+      const editorY = editorYs.get(line);
+      const previewY = previewYs.get(line);
+      if (typeof editorY !== "number" || typeof previewY !== "number") continue;
+      markers.push({ line, editorY, previewY });
+    }
+
+    // Anchor the very top so we don't snap to the first heading when the user
+    // is still above it.
+    if (markers.length === 0 || markers[0].editorY > 0 || markers[0].previewY > 0) {
+      markers.unshift({ line: 0, editorY: 0, previewY: 0 });
+    }
+
+    // Anchor the bottom so the bottom of the document matches.
+    if (editor && preview) {
+      const editorMax = Math.max(0, editor.scrollHeight - editor.clientHeight);
+      const previewMax = Math.max(0, preview.scrollHeight - preview.clientHeight);
+      const last = markers[markers.length - 1];
+      if (
+        editorMax > last.editorY + 1 ||
+        previewMax > last.previewY + 1
+      ) {
+        markers.push({
+          line: last.line + 1,
+          editorY: editorMax,
+          previewY: previewMax,
+        });
+      }
+    }
+
+    return markers;
+  }, [collectPreviewLineYs, getEditorLineYs]);
+
+  const interpolate = (
+    value: number,
+    fromA: number,
+    fromB: number,
+    toA: number,
+    toB: number,
+  ): number => {
+    if (fromA === fromB) return toA;
+    const ratio = (value - fromA) / (fromB - fromA);
+    return toA + (toB - toA) * ratio;
+  };
+
+  const handleEditorScrollSync = useCallback(() => {
+    updateSelectionPopover();
+    if (!syncScrollEnabled) return;
+    if (scrollSyncSourceRef.current === "preview") return;
+    const editor = textareaRef.current;
+    const preview = previewScrollRef.current;
+    if (!editor || !preview) return;
+    const markers = buildJointMarkers();
+    if (markers.length === 0) return;
+
+    const editorScroll = editor.scrollTop;
+    let lower = markers[0];
+    let upper = markers[markers.length - 1];
+    for (const marker of markers) {
+      if (marker.editorY <= editorScroll) lower = marker;
+      if (marker.editorY >= editorScroll) {
+        upper = marker;
+        break;
+      }
+    }
+
+    const target = interpolate(
+      editorScroll,
+      lower.editorY,
+      upper.editorY,
+      lower.previewY,
+      upper.previewY,
+    );
+
+    const max = preview.scrollHeight - preview.clientHeight;
+    const next = Math.max(0, Math.min(max, target));
+    if (Math.abs(next - preview.scrollTop) < 0.5) return;
+    scrollSyncSourceRef.current = "editor";
+    preview.scrollTop = next;
+    releaseScrollSyncSource();
+  }, [
+    buildJointMarkers,
+    releaseScrollSyncSource,
+    syncScrollEnabled,
+    updateSelectionPopover,
+  ]);
+
+  const handlePreviewScrollSync = useCallback(() => {
+    if (!syncScrollEnabled) return;
+    if (scrollSyncSourceRef.current === "editor") return;
+    const editor = textareaRef.current;
+    const preview = previewScrollRef.current;
+    if (!editor || !preview) return;
+    const markers = buildJointMarkers();
+    if (markers.length === 0) return;
+
+    const previewScroll = preview.scrollTop;
+    let lower = markers[0];
+    let upper = markers[markers.length - 1];
+    for (const marker of markers) {
+      if (marker.previewY <= previewScroll) lower = marker;
+      if (marker.previewY >= previewScroll) {
+        upper = marker;
+        break;
+      }
+    }
+
+    const target = interpolate(
+      previewScroll,
+      lower.previewY,
+      upper.previewY,
+      lower.editorY,
+      upper.editorY,
+    );
+
+    const max = editor.scrollHeight - editor.clientHeight;
+    const next = Math.max(0, Math.min(max, target));
+    if (Math.abs(next - editor.scrollTop) < 0.5) return;
+    scrollSyncSourceRef.current = "preview";
+    editor.scrollTop = next;
+    releaseScrollSyncSource();
+  }, [buildJointMarkers, releaseScrollSyncSource, syncScrollEnabled]);
+
+  // Mermaid diagrams, images, and KaTeX render asynchronously, so the preview's
+  // scrollHeight (and the y position of every marker after them) shifts well
+  // after the initial render. Without intervention, the user's last alignment
+  // becomes stale and the next scroll feels "jumpy" because all the markers
+  // moved underneath them. Whenever the preview's intrinsic height changes we
+  // re-run the editor→preview sync to put the preview back in lock-step with
+  // the editor's current scroll position.
+  const handleEditorScrollSyncRef = useRef(handleEditorScrollSync);
+  useEffect(() => {
+    handleEditorScrollSyncRef.current = handleEditorScrollSync;
+  }, [handleEditorScrollSync]);
+
+  useEffect(() => {
+    const preview = previewScrollRef.current;
+    if (!preview) return;
+    const inner = preview.firstElementChild as HTMLElement | null;
+    if (!inner) return;
+
+    let raf = 0;
+    const schedule = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        // Treat this as an editor-driven update; we want preview to follow
+        // wherever the editor cursor currently anchors us, not the other way
+        // around (which would feed back into editor scroll).
+        if (scrollSyncSourceRef.current) return;
+        handleEditorScrollSyncRef.current();
+      });
+    };
+
+    const observer = new ResizeObserver(schedule);
+    observer.observe(inner);
+
+    // Images load asynchronously and don't always trigger a ResizeObserver
+    // update on the parent, so we listen to load events directly too.
+    const onLoad = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.tagName === "IMG" || target.tagName === "IFRAME") schedule();
+    };
+    inner.addEventListener("load", onLoad, true);
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      observer.disconnect();
+      inner.removeEventListener("load", onLoad, true);
+    };
+  }, [showPreview]);
 
   return (
     <div className="flex h-full min-h-full flex-col overflow-hidden bg-[var(--background)]">
@@ -911,31 +1327,31 @@ export default function CoWriterPage() {
             {wordCount} {t("words")} &middot; {charCount} {t("chars")}
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <ToolbarIconBtn
             title={t("Clear")}
             onClick={clearDocument}
           >
-            <Eraser size={15} />
+            <Eraser size={17} strokeWidth={1.7} />
           </ToolbarIconBtn>
           <ToolbarIconBtn
             title={t("Export Markdown")}
             onClick={handleDownload}
           >
-            <Download size={15} />
+            <Download size={17} strokeWidth={1.7} />
           </ToolbarIconBtn>
           <ToolbarIconBtn
             title={t("Load Example Template")}
             onClick={loadExampleTemplate}
           >
-            <FileText size={15} />
+            <FileText size={17} strokeWidth={1.7} />
           </ToolbarIconBtn>
           <div className="relative">
             <ToolbarIconBtn
               title={t("Add to Notebook")}
               onClick={() => setShowSaveModal(true)}
             >
-              <BookPlus size={15} />
+              <BookPlus size={17} strokeWidth={1.7} />
             </ToolbarIconBtn>
           </div>
           <a
@@ -984,7 +1400,31 @@ export default function CoWriterPage() {
           );
         })}
 
-        <div className="ml-auto flex shrink-0 items-center gap-1 pl-3 text-[10px] text-[var(--muted-foreground)]">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3 text-[10px] text-[var(--muted-foreground)]">
+          <button
+            type="button"
+            onClick={() => setSyncScrollEnabled((prev) => !prev)}
+            disabled={!showEditor || !showPreview}
+            title={
+              syncScrollEnabled
+                ? t("Scroll sync is on. Click to disable.")
+                : t("Scroll sync is off. Click to enable.")
+            }
+            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              syncScrollEnabled
+                ? "border-[var(--primary)]/40 bg-[var(--primary)]/10 text-[var(--primary)]"
+                : "border-[var(--border)] bg-transparent text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                syncScrollEnabled ? "bg-[var(--primary)]" : "bg-[var(--muted-foreground)]/60"
+              }`}
+            />
+            {t("Sync Scroll")}
+          </button>
+          <span className="mx-0.5 h-3 w-px bg-[var(--border)]" aria-hidden="true" />
           <span className="rounded bg-[var(--muted)] px-1.5 py-0.5">GFM</span>
           <span className="rounded bg-[var(--muted)] px-1.5 py-0.5">
             KaTeX
@@ -996,11 +1436,19 @@ export default function CoWriterPage() {
       </div>
 
       {/* ── Editor + Preview ── */}
-      <div className="relative flex min-h-0 flex-1">
+      <div
+        ref={splitContainerRef}
+        className={`relative flex min-h-0 flex-1 ${
+          isResizingSplit ? "select-none" : ""
+        }`}
+      >
         {/* Editor panel */}
         {showEditor && (
           <div
-            className={`flex min-h-0 flex-col ${showPreview ? "w-1/2" : "w-full"} border-r border-[var(--border)]`}
+            className="flex min-h-0 flex-col"
+            style={{
+              width: showPreview ? `${editorRatio * 100}%` : "100%",
+            }}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-1">
               <span className="text-xs font-medium text-[var(--muted-foreground)]">
@@ -1021,10 +1469,37 @@ export default function CoWriterPage() {
               onSelect={updateSelectionPopover}
               onKeyUp={updateSelectionPopover}
               onMouseUp={updateSelectionPopover}
-              onScroll={updateSelectionPopover}
+              onScroll={handleEditorScrollSync}
               spellCheck={false}
               className="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-[13px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
               placeholder={t("Start writing in Markdown...")}
+            />
+          </div>
+        )}
+
+        {/* Draggable splitter (only when both panes are visible) */}
+        {showEditor && showPreview && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("Resize editor and preview")}
+            onPointerDown={handleSplitterPointerDown}
+            onDoubleClick={() => setEditorRatio(0.5)}
+            className={`group relative z-10 flex w-1 shrink-0 cursor-col-resize items-stretch border-x border-[var(--border)] transition-colors ${
+              isResizingSplit
+                ? "bg-[var(--primary)]/40"
+                : "bg-transparent hover:bg-[var(--primary)]/30"
+            }`}
+            title={t("Drag to resize, double-click to reset")}
+          >
+            {/* Wider invisible hit-area so the handle is easy to grab */}
+            <div className="absolute inset-y-0 -left-1.5 -right-1.5" />
+            <div
+              className={`pointer-events-none absolute left-1/2 top-1/2 h-10 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full transition-opacity ${
+                isResizingSplit
+                  ? "bg-[var(--primary)] opacity-100"
+                  : "bg-[var(--muted-foreground)]/40 opacity-0 group-hover:opacity-100"
+              }`}
             />
           </div>
         )}
@@ -1053,7 +1528,10 @@ export default function CoWriterPage() {
         {/* Preview panel */}
         {showPreview && (
           <div
-            className={`flex min-h-0 flex-col ${showEditor ? "w-1/2" : "w-full"}`}
+            className="flex min-h-0 flex-col"
+            style={{
+              width: showEditor ? `${(1 - editorRatio) * 100}%` : "100%",
+            }}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-1">
               <span className="text-xs font-medium text-[var(--muted-foreground)]">
@@ -1067,10 +1545,15 @@ export default function CoWriterPage() {
                 <ChevronRight size={14} />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <div
+              ref={previewScrollRef}
+              onScroll={handlePreviewScrollSync}
+              className="min-h-0 flex-1 overflow-y-auto p-5"
+            >
               <MarkdownRenderer
                 content={markdown || `_${t("Nothing to preview yet.")}_`}
                 variant="prose"
+                trackSourceLines
               />
             </div>
           </div>
@@ -1454,7 +1937,7 @@ function ToolbarIconBtn({
     <button
       title={title}
       onClick={onClick}
-      className="rounded p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
     >
       {children}
     </button>

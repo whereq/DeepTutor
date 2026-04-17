@@ -185,7 +185,11 @@ class TutorBotManager:
 
     # ── Config persistence ────────────────────────────────────────
 
-    def _load_bot_config(self, bot_id: str) -> BotConfig | None:
+    # Field names from BotConfig that are persisted via merge.
+    _MERGEABLE_FIELDS = ("name", "description", "persona", "channels", "model")
+
+    def load_bot_config(self, bot_id: str) -> BotConfig | None:
+        """Read the on-disk ``config.yaml`` for a bot, or ``None`` if missing."""
         path = self._bot_dir(bot_id) / "config.yaml"
         if not path.exists():
             return None
@@ -202,7 +206,12 @@ class TutorBotManager:
             logger.exception("Failed to load bot config %s", bot_id)
             return None
 
-    def _save_bot_config(self, bot_id: str, config: BotConfig, *, auto_start: bool = True) -> None:
+    def save_bot_config(self, bot_id: str, config: BotConfig, *, auto_start: bool = True) -> None:
+        """Persist ``config`` to ``config.yaml`` atomically (write-temp + replace).
+
+        Atomic write ensures we never leave a half-written/corrupt yaml on disk
+        if the process is killed mid-write.
+        """
         bot_dir = self._bot_dir(bot_id)
         bot_dir.mkdir(parents=True, exist_ok=True)
         path = bot_dir / "config.yaml"
@@ -215,7 +224,27 @@ class TutorBotManager:
         }
         if config.model:
             data["model"] = config.model
-        path.write_text(yaml.dump(data, allow_unicode=True), encoding="utf-8")
+
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        tmp_path.write_text(yaml.dump(data, allow_unicode=True), encoding="utf-8")
+        tmp_path.replace(path)
+
+    def merge_bot_config(self, bot_id: str, overrides: dict[str, Any]) -> BotConfig:
+        """Build a ``BotConfig`` by overlaying ``overrides`` onto the on-disk config.
+
+        Keys in ``overrides`` whose value is ``None`` are treated as "not provided"
+        and fall through to the existing on-disk value (or to the dataclass default
+        for a brand-new bot). Empty strings / empty dicts are intentional clears
+        and DO override — callers must use ``None`` to mean "leave as-is".
+
+        Unknown keys are silently ignored.
+        """
+        existing = self.load_bot_config(bot_id)
+        base = existing or BotConfig(name=bot_id)
+        for key in self._MERGEABLE_FIELDS:
+            if key in overrides and overrides[key] is not None:
+                setattr(base, key, overrides[key])
+        return base
 
     # ── Bot lifecycle ─────────────────────────────────────────────
 
@@ -227,10 +256,10 @@ class TutorBotManager:
         self._ensure_bot_dirs(bot_id)
 
         if config is None:
-            config = self._load_bot_config(bot_id)
+            config = self.load_bot_config(bot_id)
         if config is None:
             config = BotConfig(name=bot_id)
-            self._save_bot_config(bot_id, config)
+            self.save_bot_config(bot_id, config)
 
         from deeptutor.tutorbot.providers.deeptutor_adapter import create_deeptutor_provider
         from deeptutor.tutorbot.bus.queue import MessageBus
@@ -335,7 +364,7 @@ class TutorBotManager:
         await heartbeat.start()
 
         self._bots[bot_id] = instance
-        self._save_bot_config(bot_id, config)
+        self.save_bot_config(bot_id, config)
         logger.info("TutorBot '%s' started (workspace=%s)", bot_id, workspace)
         return instance
 
@@ -419,7 +448,7 @@ class TutorBotManager:
             except Exception:
                 pass
 
-        self._save_bot_config(bot_id, instance.config, auto_start=False)
+        self.save_bot_config(bot_id, instance.config, auto_start=False)
         del self._bots[bot_id]
         logger.info("TutorBot '%s' stopped", bot_id)
         return True
@@ -450,7 +479,7 @@ class TutorBotManager:
             if bid in result:
                 continue
             self._maybe_migrate_legacy(bid)
-            cfg = self._load_bot_config(bid)
+            cfg = self.load_bot_config(bid)
             result[bid] = {
                 "bot_id": bid,
                 "name": cfg.name if cfg else bid,
@@ -528,7 +557,7 @@ class TutorBotManager:
             except Exception:
                 pass
 
-            cfg = self._load_bot_config(bid)
+            cfg = self.load_bot_config(bid)
             instance = self._bots.get(bid)
             bot_activity.append((mtime, bid, {
                 "bot_id": bid,

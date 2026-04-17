@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { Layers, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import NotebookSelector from "@/app/(workspace)/guide/components/NotebookSelector";
 import { useNotebookSelection } from "@/app/(workspace)/guide/hooks/useNotebookSelection";
@@ -44,25 +44,30 @@ export default function NotebookRecordPicker({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-md">
-      <div className="w-full max-w-4xl overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.24)] dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-[var(--background)]/65 p-4 backdrop-blur-md">
+      <div className="surface-card w-full max-w-4xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[0_22px_70px_rgba(0,0,0,0.18)]">
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
+          <div className="min-w-0">
+            <div className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+              <Layers className="h-3 w-3" />
+              {t("Notebook Reference")}
+            </div>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
               {t("Select Notebook Records")}
             </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
               {t("Choose records across one or more notebooks to ground the next request.")}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded-lg p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+            aria-label={t("Close")}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="bg-slate-50/70 p-5 dark:bg-slate-950/40">
+        <div className="bg-[var(--background)]/40 p-5">
           <NotebookSelector
             notebooks={notebooks}
             expandedNotebooks={expandedNotebooks}

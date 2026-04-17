@@ -26,6 +26,8 @@
 
 ### 📦 Releases
 
+> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — Universal "Answer now" escape hatch across every capability, Co-Writer resizable split with line-anchored scroll sync, Save-to-Notebook message-selection mode, real notebook system adoption across Knowledge/Guide/Save flows, unified collapsible settings panel, dedicated streaming Stop button, TutorBot config manager refactor with atomic writes, light/Snow theme refresh, and expanded test suite.
+
 > **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX block math parsing overhaul, LLM diagnostic probe agents.yaml configuration, extra headers forwarding in LLM factory, SaveToNotebookModal UUID fix, Docker + local LLM guidance, and expanded test suite.
 
 > **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — URL-based chat routing with bookmarkable sessions, Snow theme, WebSocket heartbeat & auto-reconnect with resume, ChatComposer performance optimization, embedding provider registry overhaul, Serper search provider, streaming idle timeout, and expanded test suite.

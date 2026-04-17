@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, MessageSquare, Search, X } from "lucide-react";
+import { Check, History as HistoryIcon, Loader2, MessageSquare, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { listSessions, type SessionSummary } from "@/lib/session-api";
 
@@ -16,9 +16,15 @@ interface HistorySessionPickerProps {
   onApply: (sessions: SelectedHistorySession[]) => void;
 }
 
-function formatTimestamp(value?: number) {
-  if (!value) return "";
-  return new Date(value).toLocaleString();
+/**
+ * Format a backend session timestamp (stored as float seconds via time.time())
+ * into a localized string. Returns an empty string when the timestamp is
+ * missing or non-positive so we don't render nonsensical 1970 dates.
+ */
+function formatSessionTimestamp(value?: number): string {
+  if (!value || value <= 0) return "";
+  // Backend stores REAL seconds. JS Date expects milliseconds.
+  return new Date(value * 1000).toLocaleString();
 }
 
 export default function HistorySessionPicker({
@@ -39,7 +45,7 @@ export default function HistorySessionPicker({
     const load = async () => {
       setLoading(true);
       try {
-        const data = await listSessions(200, 0);
+        const data = await listSessions(200, 0, { force: true });
         if (!mounted) return;
         setSessions(data);
       } catch {
@@ -87,87 +93,101 @@ export default function HistorySessionPicker({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-md">
-      <div className="w-full max-w-4xl overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.24)] dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
-          <div>
-            <div className="text-[16px] font-semibold text-slate-900 dark:text-slate-100">
+    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-[var(--background)]/65 p-4 backdrop-blur-md">
+      <div className="surface-card w-full max-w-4xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[0_22px_70px_rgba(0,0,0,0.18)]">
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
+          <div className="min-w-0">
+            <div className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+              <HistoryIcon className="h-3 w-3" />
+              {t("Chat History Reference")}
+            </div>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
               {t("Select History Sessions")}
-            </div>
-            <div className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">
+            </h2>
+            <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
               {t("Choose one or more past conversations to analyze before this turn.")}
-            </div>
+            </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded-lg p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+            aria-label={t("Close")}
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="bg-slate-50/70 p-5 dark:bg-slate-950/40">
-          <div className="mb-4 flex items-center gap-3">
+        <div className="bg-[var(--background)]/40 p-5">
+          <div className="mb-4 flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t("Search sessions by title or last message")}
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-[13px] text-slate-900 outline-none transition focus:border-indigo-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] py-2.5 pl-9 pr-3 text-[13px] text-[var(--foreground)] outline-none transition focus:border-[var(--primary)]/50 focus:ring-2 focus:ring-[var(--primary)]/15"
               />
             </div>
             <button
               onClick={() => setSelectedIds([])}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[12px] font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             >
-              Clear
+              {t("Clear")}
             </button>
           </div>
 
-          <div className="max-h-[56vh] overflow-y-auto rounded-[18px] border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="max-h-[56vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)]">
             {loading ? (
               <div className="flex min-h-[280px] items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-[var(--muted-foreground)]" />
               </div>
             ) : filteredSessions.length ? (
-              <div className="divide-y divide-slate-200 dark:divide-slate-800">
+              <div className="divide-y divide-[var(--border)]">
                 {filteredSessions.map((session) => {
                   const id = session.session_id || session.id;
                   const selected = selectedIds.includes(id);
+                  const timestamp = formatSessionTimestamp(
+                    session.updated_at || session.created_at,
+                  );
                   return (
                     <button
                       key={id}
                       onClick={() => toggleSession(session)}
-                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors ${
+                        selected
+                          ? "bg-[var(--primary)]/8"
+                          : "hover:bg-[var(--muted)]/40"
+                      }`}
                     >
                       <div
-                        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+                        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
                           selected
-                            ? "border-indigo-500 bg-indigo-500 text-white"
-                            : "border-slate-300 text-transparent dark:border-slate-600"
+                            ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
+                            : "border-[var(--border)] text-transparent"
                         }`}
                       >
                         <Check size={12} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--muted)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted-foreground)]">
                             <MessageSquare size={11} />
                             {t("History")}
                           </span>
-                          <span className="truncate text-[14px] font-medium text-slate-900 dark:text-slate-100">
-                            {session.title || "Untitled session"}
+                          <span className="truncate text-[14px] font-medium text-[var(--foreground)]">
+                            {session.title || t("Untitled session")}
                           </span>
                         </div>
                         {session.last_message ? (
-                          <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
+                          <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--muted-foreground)]">
                             {session.last_message}
                           </p>
                         ) : null}
-                        <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500">
-                          <span>{session.message_count ?? 0} messages</span>
-                          <span>{formatTimestamp(session.updated_at)}</span>
+                        <div className="mt-2 flex items-center gap-3 text-[11px] text-[var(--muted-foreground)]/85">
+                          <span>
+                            {(session.message_count ?? 0)} {t("messages")}
+                          </span>
+                          {timestamp && <span>{timestamp}</span>}
                         </div>
                       </div>
                     </button>
@@ -175,22 +195,24 @@ export default function HistorySessionPicker({
                 })}
               </div>
             ) : (
-              <div className="px-6 py-14 text-center text-[13px] text-slate-500 dark:text-slate-400">
+              <div className="px-6 py-14 text-center text-[13px] text-[var(--muted-foreground)]">
                 {t("No matching sessions found.")}
               </div>
             )}
           </div>
 
-          <div className="mt-4 flex items-center justify-between">
-            <div className="text-[12px] text-slate-500 dark:text-slate-400">
-              {selectedIds.length} session{selectedIds.length === 1 ? "" : "s"} selected
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="text-[12px] text-[var(--muted-foreground)]">
+              {selectedIds.length === 1
+                ? t("1 session selected")
+                : t("{n} sessions selected", { n: selectedIds.length })}
             </div>
             <button
               onClick={handleApply}
               disabled={!selectedIds.length}
-              className="rounded-xl bg-[var(--primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--primary-foreground)] transition disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-primary rounded-xl bg-[var(--primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Use Selected Sessions ({selectedIds.length})
+              {t("Use Selected Sessions ({n})", { n: selectedIds.length })}
             </button>
           </div>
         </div>

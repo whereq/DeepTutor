@@ -9,10 +9,11 @@ import {
   BookOpen,
   ChevronDown,
   FilePlus2,
-  Loader2,
+  Layers,
   MessageSquare,
   Paperclip,
   Sparkles,
+  Square,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -117,7 +118,7 @@ export default memo(function ChatComposer({
   visualizeConfig,
   researchConfig,
   researchValidationErrors,
-  researchPanelCollapsed,
+  panelCollapsed,
   capabilities,
   researchSources,
   onSetCapMenuOpen,
@@ -138,12 +139,13 @@ export default memo(function ChatComposer({
   onDrop,
   onPaste,
   onSelectCapability,
+  onCancelStreaming,
   onChangeQuizConfig,
   onUploadQuizPdf,
   onChangeMathAnimatorConfig,
   onChangeVisualizeConfig,
   onChangeResearchConfig,
-  onToggleResearchCollapsed,
+  onTogglePanelCollapsed,
 }: {
   composerRef: RefObject<HTMLDivElement | null>;
   capMenuRef: RefObject<HTMLDivElement | null>;
@@ -179,7 +181,7 @@ export default memo(function ChatComposer({
   visualizeConfig: VisualizeFormConfig;
   researchConfig: DeepResearchFormConfig;
   researchValidationErrors: Record<string, string>;
-  researchPanelCollapsed: boolean;
+  panelCollapsed: boolean;
   capabilities: CapabilityDef[];
   researchSources: ResearchSourceDef[];
   onSetCapMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
@@ -200,12 +202,13 @@ export default memo(function ChatComposer({
   onDrop: (event: React.DragEvent) => void;
   onPaste: (event: React.ClipboardEvent) => void;
   onSelectCapability: (value: string) => void;
+  onCancelStreaming: () => void;
   onChangeQuizConfig: (next: DeepQuestionFormConfig) => void;
   onUploadQuizPdf: (file: File | null) => void;
   onChangeMathAnimatorConfig: (next: MathAnimatorFormConfig) => void;
   onChangeVisualizeConfig: (next: VisualizeFormConfig) => void;
   onChangeResearchConfig: (next: DeepResearchFormConfig) => void;
-  onToggleResearchCollapsed: () => void;
+  onTogglePanelCollapsed: () => void;
 }) {
   const { t } = useTranslation();
   const CapIcon = activeCap.icon;
@@ -278,7 +281,7 @@ export default memo(function ChatComposer({
   return (
     <div
       ref={composerRef}
-      className={`relative z-20 mx-auto w-full shrink-0 pb-5 ${hasMessages ? "pt-4" : ""}`}
+      className={`relative z-20 mx-auto w-full shrink-0 pb-5 ${hasMessages ? "pt-1" : ""}`}
     >
       {hasMessages && (
         <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-transparent to-[var(--background)]/72" />
@@ -429,24 +432,55 @@ export default memo(function ChatComposer({
 
               <div className="flex min-w-0 flex-1 items-center gap-1">
                 {isResearchMode ? (
-                  researchSources.map((source) => {
-                    const active = researchConfig.sources.includes(source.name);
-                    const Icon = source.icon;
-                    return (
-                      <button
-                        key={source.name}
-                        onClick={() => onToggleResearchSource(source.name)}
-                        className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-[3px] text-[10px] font-medium transition-all ${
-                          active
-                            ? "border-[var(--primary)]/25 bg-[var(--primary)]/8 text-[var(--primary)]"
-                            : "border-[var(--border)]/30 text-[var(--muted-foreground)]/60 hover:border-[var(--border)]/50 hover:text-[var(--foreground)]"
-                        }`}
+                  <div className="relative flex items-center gap-0.5">
+                    <button
+                      ref={toolBtnRef}
+                      onClick={() => onSetToolMenuOpen((v) => !v)}
+                      className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                    >
+                      <Layers size={12} strokeWidth={1.7} />
+                      {t("Sources")}
+                      <ChevronDown size={10} className={`transition-transform ${toolMenuOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {researchConfig.sources.length > 0 && (
+                      <div className="flex items-center gap-[3px] overflow-hidden">
+                        {researchSources
+                          .filter((rs) => researchConfig.sources.includes(rs.name))
+                          .map((rs, i) => (
+                            <span key={rs.name} className="shrink-0 text-[10px] text-[var(--muted-foreground)]/35">
+                              {i > 0 && <span className="text-[12px] leading-none">·</span>}
+                              {t(rs.label)}
+                            </span>
+                          ))}
+                      </div>
+                    )}
+                    {toolMenuOpen && (
+                      <div
+                        ref={toolMenuRef}
+                        className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg"
                       >
-                        <Icon size={11} strokeWidth={1.7} />
-                        {t(source.label)}
-                      </button>
-                    );
-                  })
+                        {researchSources.map((source) => {
+                          const active = researchConfig.sources.includes(source.name);
+                          const Icon = source.icon;
+                          return (
+                            <button
+                              key={source.name}
+                              onClick={() => onToggleResearchSource(source.name)}
+                              className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] transition-colors ${
+                                active
+                                  ? "text-[var(--primary)]"
+                                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                              } hover:bg-[var(--muted)]/40`}
+                            >
+                              <Icon size={13} strokeWidth={1.7} />
+                              <span className="flex-1 font-medium">{t(source.label)}</span>
+                              {active && <div className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 ) : visibleTools.length > 0 ? (
                   <div className="relative flex items-center gap-0.5">
                     <button
@@ -567,18 +601,38 @@ export default memo(function ChatComposer({
                   ))}
                 </select>
 
-                <button
-                  onClick={doSend}
-                  disabled={!canSend}
-                  className="rounded-full bg-[var(--primary)] p-[7px] text-white shadow-[0_4px_12px_rgba(195,90,44,0.15)] transition-[transform,opacity,box-shadow] hover:shadow-[0_6px_16px_rgba(195,90,44,0.22)] disabled:opacity-25 disabled:shadow-none"
-                  aria-label={t("Send")}
-                >
-                  {isStreaming ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    onClick={onCancelStreaming}
+                    className="group relative inline-flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-[0_4px_12px_rgba(195,90,44,0.18)] transition-[background-color,box-shadow] hover:bg-[var(--primary)]/90 hover:shadow-[0_6px_16px_rgba(195,90,44,0.28)]"
+                    aria-label={t("Stop generating")}
+                    title={t("Stop generating")}
+                  >
+                    {/* A faint ring slowly rotates around the rim while
+                        streaming, signalling "still working — click to
+                        cancel". The white square sits front-and-center so
+                        the click target is always obvious. */}
+                    <span
+                      className="pointer-events-none absolute inset-0 rounded-full border-[1.5px] border-white/30 border-t-white/85 animate-spin opacity-90 transition-opacity group-hover:opacity-40"
+                    />
+                    <Square
+                      size={9}
+                      strokeWidth={2.6}
+                      className="relative z-10 fill-current"
+                    />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={doSend}
+                    disabled={!canSend}
+                    className="rounded-full bg-[var(--primary)] p-[7px] text-white shadow-[0_4px_12px_rgba(195,90,44,0.15)] transition-[transform,opacity,box-shadow] hover:shadow-[0_6px_16px_rgba(195,90,44,0.22)] disabled:opacity-25 disabled:shadow-none"
+                    aria-label={t("Send")}
+                  >
                     <ArrowUp size={15} strokeWidth={2.5} />
-                  )}
-                </button>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -591,24 +645,30 @@ export default memo(function ChatComposer({
                   onChange={onChangeQuizConfig}
                   uploadedPdf={quizPdf}
                   onUploadPdf={onUploadQuizPdf}
+                  collapsed={panelCollapsed}
+                  onToggleCollapsed={onTogglePanelCollapsed}
                 />
               ) : isMathAnimatorMode ? (
                 <MathAnimatorConfigPanel
                   value={mathAnimatorConfig}
                   onChange={onChangeMathAnimatorConfig}
+                  collapsed={panelCollapsed}
+                  onToggleCollapsed={onTogglePanelCollapsed}
                 />
               ) : isVisualizeMode ? (
                 <VisualizeConfigPanel
                   value={visualizeConfig}
                   onChange={onChangeVisualizeConfig}
+                  collapsed={panelCollapsed}
+                  onToggleCollapsed={onTogglePanelCollapsed}
                 />
               ) : (
                 <ResearchConfigPanel
                   value={researchConfig}
                   errors={researchValidationErrors}
-                  collapsed={researchPanelCollapsed}
+                  collapsed={panelCollapsed}
                   onChange={onChangeResearchConfig}
-                  onToggleCollapsed={onToggleResearchCollapsed}
+                  onToggleCollapsed={onTogglePanelCollapsed}
                 />
               )}
             </div>

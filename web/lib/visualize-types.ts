@@ -15,6 +15,21 @@ export function buildVisualizeWSConfig(
   return { render_mode: cfg.render_mode };
 }
 
+const VISUALIZE_RENDER_LABELS: Record<VisualizeRenderMode, string> = {
+  auto: "Auto",
+  chartjs: "Chart.js",
+  svg: "SVG",
+  mermaid: "Mermaid",
+};
+
+/**
+ * One-line summary of the visualize form, shown next to the collapsed
+ * `Settings` chevron in the composer.
+ */
+export function summarizeVisualizeConfig(cfg: VisualizeFormConfig): string {
+  return VISUALIZE_RENDER_LABELS[cfg.render_mode] ?? cfg.render_mode;
+}
+
 export interface VisualizeResult {
   response: string;
   render_type: VisualizeRenderType;

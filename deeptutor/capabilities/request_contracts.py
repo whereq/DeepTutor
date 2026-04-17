@@ -15,7 +15,15 @@ from deeptutor.agents.research.request_config import (
     validate_research_request_config,
 )
 
-_RUNTIME_ONLY_KEYS = {"_persist_user_message", "followup_question_context"}
+_RUNTIME_ONLY_KEYS = {
+    "_persist_user_message",
+    "followup_question_context",
+    # "answer_now" is a universal escape hatch: the orchestrator re-routes
+    # any capability to chat when this is present. It is never declared on
+    # any per-capability ``RequestConfig`` schema, so we strip it before
+    # pydantic validation and re-attach it on the runtime-only side.
+    "answer_now_context",
+}
 
 
 class ChatRequestConfig(BaseModel):

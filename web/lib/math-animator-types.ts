@@ -61,6 +61,19 @@ export function buildMathAnimatorWSConfig(
   };
 }
 
+function titleCase(value: string): string {
+  if (!value) return "";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/**
+ * One-line summary of the math-animator form, shown next to the collapsed
+ * `Settings` chevron in the composer.
+ */
+export function summarizeMathAnimatorConfig(cfg: MathAnimatorFormConfig): string {
+  return [titleCase(cfg.output_mode), titleCase(cfg.quality)].join(" · ");
+}
+
 export function extractMathAnimatorResult(
   resultMetadata: Record<string, unknown> | undefined,
 ): MathAnimatorResult | null {

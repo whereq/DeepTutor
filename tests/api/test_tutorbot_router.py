@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,26 +24,45 @@ pytestmark = pytest.mark.skipif(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_fake_manager(existing_channels: dict | None = None):
+def _make_fake_manager(existing: dict | None = None):
     """Return a (manager, saved) pair.
 
-    manager   — fake TutorBotManager whose start_bot captures the final config
-    saved     — dict populated with {"config": BotConfig} after start_bot runs
+    Parameters
+    ----------
+    existing
+        If ``None``, simulates "no on-disk config". Otherwise, treated as a
+        partial override on top of sensible defaults to construct an existing
+        ``BotConfig``.
     """
     from deeptutor.services.tutorbot.manager import BotConfig
 
     saved: dict = {}
 
-    class FakeManager:
-        def _load_bot_config(self, bot_id: str) -> BotConfig | None:
-            if existing_channels is not None:
-                return BotConfig(
-                    name=bot_id,
-                    description="existing description",
-                    persona="existing persona",
-                    channels=existing_channels,
-                )
+    def _build_existing() -> BotConfig | None:
+        if existing is None:
             return None
+        defaults: dict[str, Any] = {
+            "name": "existing-name",
+            "description": "existing description",
+            "persona": "existing persona",
+            "channels": {},
+            "model": None,
+        }
+        defaults.update(existing)
+        return BotConfig(**defaults)
+
+    class FakeManager:
+        _MERGEABLE_FIELDS = ("name", "description", "persona", "channels", "model")
+
+        def load_bot_config(self, bot_id: str) -> BotConfig | None:
+            return _build_existing()
+
+        def merge_bot_config(self, bot_id: str, overrides: dict[str, Any]) -> BotConfig:
+            base = self.load_bot_config(bot_id) or BotConfig(name=bot_id)
+            for key in self._MERGEABLE_FIELDS:
+                if key in overrides and overrides[key] is not None:
+                    setattr(base, key, overrides[key])
+            return base
 
         async def start_bot(self, bot_id: str, config: BotConfig):
             saved["config"] = config
@@ -59,9 +78,9 @@ def _make_fake_manager(existing_channels: dict | None = None):
     return FakeManager(), saved
 
 
-def _make_client(monkeypatch, existing_channels: dict | None = None):
+def _make_client(monkeypatch, existing: dict | None = None):
     """Build a TestClient with the tutorbot router and a patched manager."""
-    manager, saved = _make_fake_manager(existing_channels)
+    manager, saved = _make_fake_manager(existing)
 
     tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
     monkeypatch.setattr(tutorbot_router_mod, "get_tutorbot_manager", lambda: manager)
@@ -76,7 +95,7 @@ def _make_client(monkeypatch, existing_channels: dict | None = None):
 # ---------------------------------------------------------------------------
 
 class TestCreateBotPreservesExistingConfig:
-    """Regression tests for the config-wipe bug.
+    """Regression tests for the config-wipe bug (issue #331 / PR #332).
 
     When the web UI starts a bot via POST /api/v1/tutorbot without supplying
     channel config, the previously saved channels must be kept — not wiped.
@@ -91,7 +110,9 @@ class TestCreateBotPreservesExistingConfig:
                 "allow_from": ["999"],
             }
         }
-        client, saved = _make_client(monkeypatch, existing_channels=existing_channels)
+        client, saved = _make_client(
+            monkeypatch, existing={"channels": existing_channels}
+        )
 
         resp = client.post("/api/v1/tutorbot", json={"bot_id": "my-bot"})
 
@@ -105,7 +126,9 @@ class TestCreateBotPreservesExistingConfig:
         existing_channels = {"telegram": {"enabled": True, "token": "old"}}
         new_channels = {"slack": {"enabled": True, "token": "new-slack-token"}}
 
-        client, saved = _make_client(monkeypatch, existing_channels=existing_channels)
+        client, saved = _make_client(
+            monkeypatch, existing={"channels": existing_channels}
+        )
 
         resp = client.post(
             "/api/v1/tutorbot",
@@ -119,7 +142,7 @@ class TestCreateBotPreservesExistingConfig:
 
     def test_fresh_bot_with_no_existing_config(self, monkeypatch):
         """A brand-new bot with no existing config should start without error."""
-        client, saved = _make_client(monkeypatch, existing_channels=None)
+        client, saved = _make_client(monkeypatch, existing=None)
 
         resp = client.post(
             "/api/v1/tutorbot",
@@ -132,11 +155,99 @@ class TestCreateBotPreservesExistingConfig:
 
     def test_existing_name_and_persona_preserved(self, monkeypatch):
         """Other fields (description, persona) from disk must also survive when not in payload."""
-        existing_channels = {"telegram": {"enabled": True, "token": "tok"}}
-        client, saved = _make_client(monkeypatch, existing_channels=existing_channels)
+        client, saved = _make_client(
+            monkeypatch, existing={"channels": {"telegram": {"enabled": True}}}
+        )
 
         resp = client.post("/api/v1/tutorbot", json={"bot_id": "my-bot"})
 
         assert resp.status_code == 200
         assert saved["config"].description == "existing description"
         assert saved["config"].persona == "existing persona"
+
+
+class TestCreateBotExplicitClearSemantics:
+    """Verify the new "explicit empty value clears the field" semantics.
+
+    The original PR #332 fix used ``payload.x or existing.x`` which silently
+    swallowed empty strings / empty dicts. Following the upgrade to
+    ``model_dump(exclude_unset=True)`` + ``is not None`` merging, clients
+    can now intentionally clear fields by sending an explicit empty value.
+    """
+
+    def test_explicit_empty_channels_clears_existing(self, monkeypatch):
+        """Sending ``channels: {}`` explicitly must clear the disk channels."""
+        client, saved = _make_client(
+            monkeypatch, existing={"channels": {"telegram": {"enabled": True}}}
+        )
+
+        resp = client.post(
+            "/api/v1/tutorbot",
+            json={"bot_id": "my-bot", "channels": {}},
+        )
+
+        assert resp.status_code == 200
+        assert saved["config"].channels == {}, (
+            "Explicit empty channels dict should clear existing channels, "
+            "not silently fall back to the disk value"
+        )
+
+    def test_explicit_empty_description_clears_existing(self, monkeypatch):
+        """Sending ``description: ''`` explicitly must clear the existing description."""
+        client, saved = _make_client(
+            monkeypatch,
+            existing={"description": "old long description"},
+        )
+
+        resp = client.post(
+            "/api/v1/tutorbot",
+            json={"bot_id": "my-bot", "description": ""},
+        )
+
+        assert resp.status_code == 200
+        assert saved["config"].description == ""
+
+    def test_omitted_fields_fall_back_to_existing(self, monkeypatch):
+        """Fields entirely missing from the payload must inherit from disk."""
+        client, saved = _make_client(
+            monkeypatch,
+            existing={
+                "name": "Disk Name",
+                "description": "Disk Desc",
+                "persona": "Disk Persona",
+                "channels": {"telegram": {"enabled": True}},
+                "model": "gpt-4o",
+            },
+        )
+
+        resp = client.post(
+            "/api/v1/tutorbot",
+            json={"bot_id": "my-bot", "persona": "New Persona"},
+        )
+
+        assert resp.status_code == 200
+        cfg = saved["config"]
+        assert cfg.name == "Disk Name"
+        assert cfg.description == "Disk Desc"
+        assert cfg.persona == "New Persona"
+        assert cfg.channels == {"telegram": {"enabled": True}}
+        assert cfg.model == "gpt-4o"
+
+    def test_null_field_in_payload_falls_back_to_existing(self, monkeypatch):
+        """Explicit ``null`` for an optional field is treated as 'not provided'.
+
+        This guarantees a frontend that sends ``{description: null}`` (e.g.
+        because a form input was unset) does NOT clobber the existing value —
+        only an explicit empty string does that.
+        """
+        client, saved = _make_client(
+            monkeypatch, existing={"description": "Disk Desc"}
+        )
+
+        resp = client.post(
+            "/api/v1/tutorbot",
+            json={"bot_id": "my-bot", "description": None},
+        )
+
+        assert resp.status_code == 200
+        assert saved["config"].description == "Disk Desc"

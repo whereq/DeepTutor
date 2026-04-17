@@ -1,5 +1,119 @@
 import { apiUrl } from "@/lib/api";
 
+// ── Real notebook system (file-backed under data/user/workspace/notebook) ──
+//
+// Notebooks created in the Knowledge → Notebooks tab and consumed everywhere
+// chat output is saved (SaveToNotebookModal) or referenced
+// (NotebookRecordPicker) live in this system. They are distinct from the
+// "Question Notebook" categories below which only track quiz entries.
+
+export type NotebookRecordType =
+  | "solve"
+  | "question"
+  | "research"
+  | "co_writer"
+  | "chat"
+  | "guided_learning";
+
+export interface NotebookSummary {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  record_count?: number;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface NotebookRecordItem {
+  id: string;
+  type: NotebookRecordType | string;
+  title: string;
+  summary?: string;
+  user_query: string;
+  output: string;
+  metadata?: Record<string, unknown>;
+  created_at?: number;
+  kb_name?: string | null;
+}
+
+export interface NotebookDetail extends NotebookSummary {
+  records: NotebookRecordItem[];
+}
+
+export async function listNotebooks(): Promise<NotebookSummary[]> {
+  const response = await fetch(apiUrl("/api/v1/notebook/list"), {
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  const data = (await response.json()) as { notebooks: NotebookSummary[] };
+  return data.notebooks ?? [];
+}
+
+export async function getNotebook(notebookId: string): Promise<NotebookDetail> {
+  const response = await fetch(apiUrl(`/api/v1/notebook/${notebookId}`), {
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  return (await response.json()) as NotebookDetail;
+}
+
+export async function createNotebook(payload: {
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+}): Promise<NotebookSummary> {
+  const response = await fetch(apiUrl("/api/v1/notebook/create"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: payload.name,
+      description: payload.description ?? "",
+      color: payload.color ?? "#6366F1",
+      icon: payload.icon ?? "book",
+    }),
+  });
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  const data = (await response.json()) as { notebook: NotebookSummary };
+  return data.notebook;
+}
+
+export async function updateNotebook(
+  notebookId: string,
+  payload: { name?: string; description?: string; color?: string; icon?: string },
+): Promise<NotebookSummary> {
+  const response = await fetch(apiUrl(`/api/v1/notebook/${notebookId}`), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  const data = (await response.json()) as { notebook: NotebookSummary };
+  return data.notebook;
+}
+
+export async function deleteNotebook(notebookId: string): Promise<void> {
+  const response = await fetch(apiUrl(`/api/v1/notebook/${notebookId}`), {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+}
+
+export async function deleteNotebookRecord(
+  notebookId: string,
+  recordId: string,
+): Promise<void> {
+  const response = await fetch(
+    apiUrl(`/api/v1/notebook/${notebookId}/records/${recordId}`),
+    { method: "DELETE" },
+  );
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+}
+
+// ── Question notebook (quiz entries + categories) ─────────────────
+
 export interface NotebookEntry {
   id: number;
   session_id: string;
