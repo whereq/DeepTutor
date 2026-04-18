@@ -44,7 +44,7 @@ class DecomposeAgent(BaseAgent):
         api_key: str | None = None,
         base_url: str | None = None,
         api_version: str | None = None,
-        kb_name: str = "ai_textbook",
+        kb_name: str | None = None,
     ):
         language = config.get("system", {}).get("language", "zh")
         super().__init__(
@@ -56,11 +56,17 @@ class DecomposeAgent(BaseAgent):
             language=language,
             config=config,
         )
-        rag_cfg = config.get("rag", {})
-        self.kb_name = rag_cfg.get("kb_name", kb_name or "ai_textbook")
+        rag_cfg = config.get("rag", {}) or {}
+        self.kb_name = rag_cfg.get("kb_name") or kb_name or None
 
         researching_cfg = config.get("researching", {})
         self.enable_rag = researching_cfg.get("enable_rag", True)
+        # Defensive: never attempt RAG without a real KB name. The
+        # capability/runtime config layer is responsible for stripping
+        # ``kb`` from sources when no KB is attached, but this guard keeps
+        # the agent safe even when called directly.
+        if not self.kb_name:
+            self.enable_rag = False
 
         self.conversation_history: list[dict[str, Any]] = config.get("conversation_history", [])
 
@@ -173,6 +179,9 @@ class DecomposeAgent(BaseAgent):
         source_query = (topic or "").strip()
         if not source_query:
             return "", ""
+        if not self.kb_name:
+            print("  ⚠️ No knowledge base configured; skipping RAG retrieval.")
+            return "", source_query
 
         try:
             result = await rag_search(query=source_query, kb_name=self.kb_name)

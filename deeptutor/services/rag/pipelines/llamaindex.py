@@ -21,7 +21,7 @@ from llama_index.core.bridge.pydantic import PrivateAttr
 
 from deeptutor.logging import get_logger
 from deeptutor.services.embedding import get_embedding_client, get_embedding_config
-from deeptutor.services.rag.components.routing import FileTypeRouter
+from deeptutor.services.rag.file_routing import FileTypeRouter
 
 # Default knowledge base directory
 DEFAULT_KB_BASE_DIR = str(

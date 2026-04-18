@@ -10,13 +10,13 @@ Memory is shared across all bots via ``data/memory/``.
 from __future__ import annotations
 
 import asyncio
-import logging
-import shutil
-import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+import logging
 from pathlib import Path
+import shutil
+import sys
 from typing import Any
 
 import yaml
@@ -30,6 +30,57 @@ _BUILTIN_SKILLS_DIR = _PACKAGE_TUTORBOT / "skills"
 _BUILTIN_TEMPLATES_DIR = _PACKAGE_TUTORBOT / "templates"
 
 _RESERVED_NAMES = {"workspace", "media", "cron", "logs", "sessions", "_souls"}
+
+# Substrings (case-insensitive) on channel field names that flag a value as a
+# secret which must be masked before being serialised in non-edit responses.
+# Matches existing channel configs: telegram.token, slack.bot_token /
+# slack.app_token, discord.token, matrix.access_token, whatsapp.bridge_token,
+# mochat.claw_token, feishu.app_secret / encrypt_key / verification_token,
+# wecom.secret, qq.secret, dingtalk.client_secret, email.imap_password /
+# smtp_password, etc.
+_SECRET_FIELD_HINTS: tuple[str, ...] = (
+    "token",
+    "secret",
+    "password",
+    "api_key",
+    "apikey",
+    "encrypt_key",
+)
+_SECRET_MASK = "***"
+
+
+def _is_secret_field(name: str) -> bool:
+    n = name.lower()
+    return any(hint in n for hint in _SECRET_FIELD_HINTS)
+
+
+def mask_channel_secrets(channels: dict[str, Any]) -> dict[str, Any]:
+    """Deep-copy ``channels`` and replace any secret-looking string field with ``***``.
+
+    Lists/tuples are walked element-wise; non-string secret values are passed
+    through unchanged so we don't accidentally hide non-credential booleans
+    (e.g. a ``token_required`` flag, hypothetical).
+    """
+    def _walk(value: Any, key_hint: str | None = None) -> Any:
+        if isinstance(value, dict):
+            return {k: _walk(v, key_hint=k) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_walk(v, key_hint=key_hint) for v in value]
+        if isinstance(value, tuple):
+            return tuple(_walk(v, key_hint=key_hint) for v in value)
+        if (
+            key_hint is not None
+            and _is_secret_field(key_hint)
+            and isinstance(value, str)
+            and value
+        ):
+            return _SECRET_MASK
+        return value
+
+    walked = _walk(channels)
+    if not isinstance(walked, dict):  # defensive — should not happen
+        return {}
+    return walked
 
 
 @dataclass
@@ -56,21 +107,50 @@ class TutorBotInstance:
     heartbeat: Any = None
     notify_queue: asyncio.Queue = field(default_factory=asyncio.Queue)
     channel_bindings: dict[str, str] = field(default_factory=dict)
+    # Serialise concurrent reload_channels invocations on the same bot.
+    reload_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
+    # Last error from reload_channels (clears on success); surfaced via API
+    # so the UI can warn that on-disk config and live listeners diverged.
+    last_reload_error: str | None = None
 
     @property
     def running(self) -> bool:
         return any(not t.done() for t in self.tasks)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(
+        self,
+        *,
+        include_secrets: bool = False,
+        mask_secrets: bool = False,
+    ) -> dict[str, Any]:
+        """Serialise instance to a JSON-friendly dict.
+
+        Channel field shape:
+        - default (``include_secrets=False, mask_secrets=False``): list of channel
+          names — safe for list / index endpoints.
+        - ``mask_secrets=True``: full nested dict, but secret-looking strings
+          replaced with ``***`` — safe for read-only detail views.
+        - ``include_secrets=True``: full nested dict including raw secrets —
+          ONLY use for the admin edit form (and only on the explicitly-opt-in
+          single-bot GET).
+        """
+        if include_secrets:
+            channels: Any = self.config.channels
+        elif mask_secrets:
+            channels = mask_channel_secrets(self.config.channels)
+        else:
+            channels = list(self.config.channels.keys())
+
         return {
             "bot_id": self.bot_id,
             "name": self.config.name,
             "description": self.config.description,
             "persona": self.config.persona,
-            "channels": self.config.channels,
+            "channels": channels,
             "model": self.config.model,
             "running": self.running,
             "started_at": self.started_at.isoformat(),
+            "last_reload_error": self.last_reload_error,
         }
 
 
@@ -261,10 +341,10 @@ class TutorBotManager:
             config = BotConfig(name=bot_id)
             self.save_bot_config(bot_id, config)
 
-        from deeptutor.tutorbot.providers.deeptutor_adapter import create_deeptutor_provider
-        from deeptutor.tutorbot.bus.queue import MessageBus
         from deeptutor.tutorbot.agent.loop import AgentLoop
+        from deeptutor.tutorbot.bus.queue import MessageBus
         from deeptutor.tutorbot.config.schema import ExecToolConfig
+        from deeptutor.tutorbot.providers.deeptutor_adapter import create_deeptutor_provider
         from deeptutor.tutorbot.session.manager import SessionManager
 
         provider = create_deeptutor_provider()
@@ -295,25 +375,11 @@ class TutorBotManager:
         )
 
         # -- Channel setup ---------------------------------------------------
-        channel_manager = None
-        if config.channels:
-            try:
-                from deeptutor.tutorbot.channels.manager import ChannelManager
-                from deeptutor.tutorbot.config.schema import ChannelsConfig
-
-                channels_config = ChannelsConfig(**config.channels)
-                channel_manager = ChannelManager(channels_config, bus)
-                if channel_manager.channels:
-                    logger.info(
-                        "Channels enabled for bot '%s': %s",
-                        bot_id, list(channel_manager.channels.keys()),
-                    )
-                else:
-                    logger.info("No channels matched config for bot '%s'", bot_id)
-                    channel_manager = None
-            except Exception:
-                logger.exception("Failed to initialise channels for bot '%s'", bot_id)
-                channel_manager = None
+        try:
+            channel_manager = self._build_channel_manager(config, bus, bot_id=bot_id)
+        except Exception:
+            logger.exception("Failed to initialise channels for bot '%s'", bot_id)
+            channel_manager = None
 
         instance = TutorBotInstance(
             bot_id=bot_id,
@@ -453,15 +519,86 @@ class TutorBotManager:
         logger.info("TutorBot '%s' stopped", bot_id)
         return True
 
+    def _build_channel_manager(
+        self,
+        config: BotConfig,
+        bus: Any,
+        *,
+        bot_id: str,
+    ) -> Any | None:
+        """Construct a ``ChannelManager`` from ``config.channels`` or return ``None``.
+
+        Centralised so ``start_bot`` and ``reload_channels`` produce identical
+        behaviour. Raises ``pydantic.ValidationError`` if the channels dict is
+        malformed; callers decide whether to swallow or propagate.
+        """
+        if not config.channels:
+            return None
+        from deeptutor.tutorbot.channels.manager import ChannelManager
+        from deeptutor.tutorbot.config.schema import ChannelsConfig
+
+        channels_config = ChannelsConfig(**config.channels)
+        manager = ChannelManager(channels_config, bus)
+        if not manager.channels:
+            logger.info("No channels matched config for bot '%s'", bot_id)
+            return None
+        logger.info(
+            "Channels enabled for bot '%s': %s",
+            bot_id, list(manager.channels.keys()),
+        )
+        return manager
+
     async def reload_channels(self, bot_id: str) -> None:
         """Restart channel listeners from ``instance.config.channels`` (same MessageBus).
 
-        Cancels only ``tutorbot:{bot_id}:ch:*`` tasks; agent loop and outbound router keep running.
+        Cancels only ``tutorbot:{bot_id}:ch:*`` tasks; agent loop and outbound
+        router keep running. Concurrent invocations on the same bot are
+        serialised via ``instance.reload_lock`` to avoid duplicate listeners.
+
+        On success, ``instance.last_reload_error`` is cleared. On failure, the
+        listeners are torn down (bot is left running with no channels) and the
+        error is recorded; callers should surface it to the user.
         """
         instance = self._bots.get(bot_id)
         if not instance or not instance.running:
             return
 
+        async with instance.reload_lock:
+            await self._teardown_channel_listeners(instance, bot_id)
+
+            try:
+                channel_manager = self._build_channel_manager(
+                    instance.config, instance.agent_loop.bus, bot_id=bot_id,
+                )
+            except Exception as exc:
+                logger.exception("Failed to reload channels for bot '%s'", bot_id)
+                instance.channel_manager = None
+                instance.last_reload_error = f"{type(exc).__name__}: {exc}"
+                raise
+
+            instance.channel_manager = channel_manager
+            instance.last_reload_error = None
+            if channel_manager:
+                for ch_name, ch in channel_manager.channels.items():
+                    ch_task = asyncio.create_task(
+                        ch.start(), name=f"tutorbot:{bot_id}:ch:{ch_name}",
+                    )
+                    instance.tasks.append(ch_task)
+                logger.info(
+                    "Reloaded channels for bot '%s': %s",
+                    bot_id, list(channel_manager.channels.keys()),
+                )
+
+    async def _teardown_channel_listeners(
+        self, instance: TutorBotInstance, bot_id: str,
+    ) -> None:
+        """Cancel ``tutorbot:{bot_id}:ch:*`` tasks and stop the existing manager.
+
+        Note: ``channel_bindings`` are intentionally cleared — they map
+        channel→last-seen chat_id and will be rebuilt as the rebooted listeners
+        receive new traffic. Pending heartbeat replies bound to a stale chat_id
+        will be dropped (acceptable: same behaviour as Stop/Start).
+        """
         ch_prefix = f"tutorbot:{bot_id}:ch:"
         to_remove = [t for t in instance.tasks if (t.get_name() or "").startswith(ch_prefix)]
         for t in to_remove:
@@ -483,34 +620,6 @@ class TutorBotManager:
         instance.channel_manager = None
         instance.channel_bindings.clear()
 
-        bus = instance.agent_loop.bus
-        config = instance.config
-        channel_manager = None
-        if config.channels:
-            try:
-                from deeptutor.tutorbot.channels.manager import ChannelManager
-                from deeptutor.tutorbot.config.schema import ChannelsConfig
-
-                channels_config = ChannelsConfig(**config.channels)
-                channel_manager = ChannelManager(channels_config, bus)
-                if not channel_manager.channels:
-                    channel_manager = None
-            except Exception:
-                logger.exception("Failed to reload channels for bot '%s'", bot_id)
-                raise
-
-        instance.channel_manager = channel_manager
-        if channel_manager:
-            for ch_name, ch in channel_manager.channels.items():
-                ch_task = asyncio.create_task(
-                    ch.start(), name=f"tutorbot:{bot_id}:ch:{ch_name}",
-                )
-                instance.tasks.append(ch_task)
-            logger.info(
-                "Reloaded channels for bot '%s': %s",
-                bot_id, list(channel_manager.channels.keys()),
-            )
-
     # ── Listing & discovery ───────────────────────────────────────
 
     def _discover_bot_ids(self) -> set[str]:
@@ -527,13 +636,14 @@ class TutorBotManager:
         return ids
 
     def list_bots(self) -> list[dict[str, Any]]:
-        """List all known bots (running + configured on disk)."""
+        """List all known bots (running + configured on disk).
+
+        Channel field is keys-only — never expose secrets via the list endpoint.
+        """
         result: dict[str, dict[str, Any]] = {}
 
         for inst in self._bots.values():
-            row = inst.to_dict()
-            row["channels"] = list(inst.config.channels.keys())
-            result[inst.bot_id] = row
+            result[inst.bot_id] = inst.to_dict()
 
         for bid in self._discover_bot_ids():
             if bid in result:

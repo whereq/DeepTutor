@@ -13,8 +13,8 @@ import shutil
 from typing import Optional
 
 from deeptutor.logging import get_logger
-from deeptutor.services.rag.components.routing import FileTypeRouter
-from deeptutor.services.rag.factory import DEFAULT_PROVIDER, normalize_provider_name
+from deeptutor.services.rag.file_routing import FileTypeRouter
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.service import RAGService
 
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
@@ -44,7 +44,7 @@ class KnowledgeBaseInitializer:
         self.api_key = api_key
         self.base_url = base_url
         self.progress_tracker = progress_tracker or ProgressTracker(kb_name, self.base_dir)
-        self.rag_provider = normalize_provider_name(rag_provider or DEFAULT_PROVIDER)
+        self.rag_provider = DEFAULT_PROVIDER
 
     def _register_to_config(self) -> None:
         """Register KB in kb_config.json with initializing state."""
@@ -85,7 +85,7 @@ class KnowledgeBaseInitializer:
             except Exception:
                 metadata = {}
 
-        metadata["rag_provider"] = normalize_provider_name(provider)
+        metadata["rag_provider"] = DEFAULT_PROVIDER
         metadata["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         with open(metadata_file, "w", encoding="utf-8") as f:
@@ -152,7 +152,7 @@ class KnowledgeBaseInitializer:
         )
 
         doc_files: list[Path] = []
-        for pattern in FileTypeRouter.get_glob_patterns_for_provider(provider):
+        for pattern in FileTypeRouter.get_glob_patterns():
             doc_files.extend(list(self.raw_dir.glob(pattern)))
 
         if not doc_files:
@@ -319,7 +319,7 @@ async def main() -> None:
     if args.docs_dir:
         docs_dir = Path(args.docs_dir)
         if docs_dir.exists() and docs_dir.is_dir():
-            for pattern in FileTypeRouter.get_glob_patterns_for_provider(DEFAULT_PROVIDER):
+            for pattern in FileTypeRouter.get_glob_patterns():
                 doc_files.extend([str(f) for f in docs_dir.glob(pattern)])
 
     initializer = KnowledgeBaseInitializer(

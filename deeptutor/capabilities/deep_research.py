@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-
 from deeptutor.capabilities.request_contracts import get_capability_request_schema
 from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
 from deeptutor.core.context import UnifiedContext
@@ -52,6 +51,37 @@ class DeepResearchCapability(BaseCapability):
             else context.enabled_tools
         )
         request_config = validate_research_request_config(context.config_overrides)
+
+        # Consistency normalization: if "kb" is selected as a research source
+        # but no knowledge base is actually attached, drop "kb" from the
+        # effective sources. This avoids any code path falling through to a
+        # placeholder KB at the pipeline layer. If after the downgrade no
+        # source is left at all, surface a clear error to the user.
+        if "kb" in request_config.sources and not kb_name:
+            request_config = request_config.model_copy(
+                update={
+                    "sources": [src for src in request_config.sources if src != "kb"],
+                }
+            )
+            await stream.progress(
+                message=(
+                    "Knowledge base source was selected, but no knowledge "
+                    "base is attached; KB retrieval is disabled for this "
+                    "research run."
+                ),
+                source=self.name,
+                stage="rephrasing",
+                metadata={"trace_kind": "warning", "reason": "kb_without_kb_name"},
+            )
+            if not request_config.sources:
+                await stream.error(
+                    "Deep research requires at least one source. Please "
+                    "either attach a knowledge base or enable web/papers "
+                    "sources.",
+                    source=self.name,
+                )
+                return
+
         config = build_research_runtime_config(
             base_config=load_config_with_main("main.yaml"),
             request_config=request_config,

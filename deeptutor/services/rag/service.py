@@ -10,13 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from deeptutor.logging import get_logger
 
-from .factory import (
-    DEFAULT_PROVIDER,
-    get_pipeline,
-    has_pipeline,
-    list_pipelines,
-    normalize_provider_name,
-)
+from .factory import DEFAULT_PROVIDER, get_pipeline, list_pipelines
 
 
 class _RAGRawLogHandler(logging.Handler):
@@ -59,35 +53,27 @@ DEFAULT_KB_BASE_DIR = str(
 
 
 class RAGService:
-    """Unified RAG service that currently uses llamaindex provider(s)."""
+    """Unified RAG service backed by the LlamaIndex pipeline."""
 
     def __init__(
         self,
         kb_base_dir: Optional[str] = None,
-        provider: Optional[str] = None,
+        provider: Optional[str] = None,  # accepted for backward compatibility
     ):
         self.logger = get_logger("RAGService")
         self.kb_base_dir = kb_base_dir or DEFAULT_KB_BASE_DIR
-        from deeptutor.services.config import get_kb_config_service
-
-        configured_default = (
-            get_kb_config_service()
-            .get_all_configs()
-            .get("defaults", {})
-            .get("rag_provider", DEFAULT_PROVIDER)
-        )
-        self.provider = normalize_provider_name(provider or configured_default)
+        self.provider = DEFAULT_PROVIDER
         self._pipeline = None
 
     def _get_pipeline(self):
         if self._pipeline is None:
-            self._pipeline = get_pipeline(self.provider, kb_base_dir=self.kb_base_dir)
+            self._pipeline = get_pipeline(kb_base_dir=self.kb_base_dir)
         return self._pipeline
 
     async def initialize(
         self, kb_name: str, file_paths: List[str], **kwargs
     ) -> bool:
-        self.logger.info(f"Initializing KB '{kb_name}' with provider '{self.provider}'")
+        self.logger.info(f"Initializing KB '{kb_name}'")
         pipeline = self._get_pipeline()
         return await pipeline.initialize(
             kb_name=kb_name, file_paths=file_paths, **kwargs
@@ -101,31 +87,24 @@ class RAGService:
         **kwargs,
     ) -> Dict[str, Any]:
         kwargs.pop("mode", None)
-        provider = self._get_provider_for_kb(kb_name)
-        with self._capture_raw_logs(event_sink, provider):
+        with self._capture_raw_logs(event_sink):
             await self._emit_tool_event(
                 event_sink,
                 "status",
                 f"Query: {query}",
                 {"query": query, "kb_name": kb_name, "trace_layer": "summary"},
             )
-            await self._emit_tool_event(
-                event_sink,
-                "status",
-                f"Selecting provider: {provider}",
-                {"provider": provider, "trace_layer": "summary"},
-            )
 
             self.logger.info(
-                f"Searching KB '{kb_name}' with provider '{provider}' and query: {query[:50]}..."
+                f"Searching KB '{kb_name}' with query: {query[:50]}..."
             )
-            pipeline = get_pipeline(provider, kb_base_dir=self.kb_base_dir)
+            pipeline = self._get_pipeline()
 
             await self._emit_tool_event(
                 event_sink,
                 "status",
                 f"Retrieving from knowledge base '{kb_name}'...",
-                {"provider": provider, "trace_layer": "summary"},
+                {"provider": DEFAULT_PROVIDER, "trace_layer": "summary"},
             )
 
             result = await pipeline.search(query=query, kb_name=kb_name, **kwargs)
@@ -136,7 +115,7 @@ class RAGService:
                 result["answer"] = result["content"]
             if "content" not in result and "answer" in result:
                 result["content"] = result["answer"]
-            result["provider"] = normalize_provider_name(result.get("provider") or provider)
+            result["provider"] = DEFAULT_PROVIDER
 
             answer = result.get("answer") or result.get("content") or ""
             await self._emit_tool_event(
@@ -144,7 +123,7 @@ class RAGService:
                 "status",
                 f"Retrieved {len(answer)} characters of grounded context.",
                 {
-                    "provider": result["provider"],
+                    "provider": DEFAULT_PROVIDER,
                     "kb_name": kb_name,
                     "trace_layer": "summary",
                 },
@@ -163,7 +142,7 @@ class RAGService:
             return
         await event_sink(event_type, message, metadata or {})
 
-    def _capture_raw_logs(self, event_sink, provider: str):
+    def _capture_raw_logs(self, event_sink):
         from contextlib import ExitStack, contextmanager
         import asyncio
 
@@ -176,7 +155,14 @@ class RAGService:
             loop = asyncio.get_running_loop()
             handler = _RAGRawLogHandler(event_sink, loop)
             handler.setLevel(logging.DEBUG)
-            targets = self._iter_rag_loggers(provider)
+            targets = [
+                logging.getLogger(name)
+                for name in (
+                    "deeptutor.RAGService",
+                    "deeptutor.RAGForward",
+                    "deeptutor.LlamaIndexPipeline",
+                )
+            ]
             with ExitStack() as stack:
                 for logger in targets:
                     logger.addHandler(handler)
@@ -187,34 +173,6 @@ class RAGService:
                     handler.close()
 
         return _manager()
-
-    def _iter_rag_loggers(self, provider: str) -> list[logging.Logger]:
-        provider_name = normalize_provider_name(provider)
-        names = {
-            "deeptutor.RAGService",
-            "deeptutor.RAGForward",
-        }
-        if provider_name == DEFAULT_PROVIDER:
-            names.add("deeptutor.LlamaIndexPipeline")
-        return [logging.getLogger(name) for name in sorted(names)]
-
-    def _get_provider_for_kb(self, kb_name: str) -> str:
-        """Resolve provider from KB config and normalize legacy values."""
-        try:
-            from deeptutor.services.config import get_kb_config_service
-
-            service = get_kb_config_service()
-            provider_raw = service.get_kb_config(kb_name).get("rag_provider")
-            provider = normalize_provider_name(provider_raw)
-            if provider_raw and provider_raw != provider:
-                service.set_rag_provider(kb_name, provider)
-                self.logger.info(
-                    f"Normalized legacy provider '{provider_raw}' -> '{provider}' for KB '{kb_name}'"
-                )
-            return provider
-        except Exception as e:
-            self.logger.warning(f"Error reading provider from config: {e}, using instance provider")
-            return self.provider
 
     async def delete(self, kb_name: str) -> bool:
         self.logger.info(f"Deleting KB '{kb_name}'")
@@ -296,8 +254,11 @@ class RAGService:
 
     @staticmethod
     def get_current_provider() -> str:
-        return normalize_provider_name(os.getenv("RAG_PROVIDER", DEFAULT_PROVIDER))
+        # ``RAG_PROVIDER`` env var is honoured for visibility but the
+        # service only ships with a single backend.
+        os.getenv("RAG_PROVIDER")
+        return DEFAULT_PROVIDER
 
     @staticmethod
     def has_provider(name: str) -> bool:
-        return has_pipeline((name or "").strip().lower())
+        return (name or "").strip().lower() == DEFAULT_PROVIDER

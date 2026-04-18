@@ -253,39 +253,57 @@ class TestCreateBotExplicitClearSemantics:
         assert saved["config"].description == "Disk Desc"
 
 
-class TestGetBotStoppedReturnsFullChannels:
-    """GET /{bot_id} must return nested channel config when the bot is not running."""
+class TestGetBotStoppedSecretHandling:
+    """GET /{bot_id} masks channel secrets by default; ?include_secrets=true reveals them."""
 
-    def test_get_stopped_bot_includes_telegram_config(self, monkeypatch):
+    _CHANNELS = {
+        "telegram": {"enabled": True, "token": "123:ABC", "allow_from": ["1"]},
+        "send_progress": True,
+        "send_tool_hints": False,
+    }
+
+    def _client(self, monkeypatch):
         from deeptutor.services.tutorbot.manager import BotConfig
-
-        channels = {"telegram": {"enabled": True, "token": "x:y", "allow_from": ["1"]}}
 
         class FakeMgr:
             def get_bot(self, bot_id: str):
                 return None
 
             def load_bot_config(self, bot_id: str) -> BotConfig | None:
-                return BotConfig(name="b", channels=channels)
+                return BotConfig(name="b", channels=TestGetBotStoppedSecretHandling._CHANNELS)
 
         tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
         monkeypatch.setattr(tutorbot_router_mod, "get_tutorbot_manager", lambda: FakeMgr())
 
         app = FastAPI()
         app.include_router(tutorbot_router_mod.router, prefix="/api/v1/tutorbot")
-        client = TestClient(app)
+        return TestClient(app)
 
+    def test_default_get_masks_token(self, monkeypatch):
+        client = self._client(monkeypatch)
         resp = client.get("/api/v1/tutorbot/b")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["channels"] == channels
+        # Structure preserved, but token replaced with mask
+        assert body["channels"]["telegram"]["enabled"] is True
+        assert body["channels"]["telegram"]["allow_from"] == ["1"]
+        assert body["channels"]["telegram"]["token"] == "***"
+        assert body["channels"]["send_progress"] is True
         assert body["running"] is False
+        assert body["last_reload_error"] is None
+
+    def test_explicit_include_secrets_reveals_token(self, monkeypatch):
+        client = self._client(monkeypatch)
+        resp = client.get("/api/v1/tutorbot/b?include_secrets=true")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["channels"]["telegram"]["token"] == "123:ABC"
 
 
 class TestPatchBotStoppedAndRunning:
     """PATCH must work when the bot is stopped; running + channels triggers reload."""
 
-    def test_patch_stopped_saves_and_returns_channels(self, monkeypatch):
+    def test_patch_stopped_saves_and_masks_response(self, monkeypatch):
         from deeptutor.services.tutorbot.manager import BotConfig
 
         saved_cfg: list[BotConfig | None] = []
@@ -313,9 +331,13 @@ class TestPatchBotStoppedAndRunning:
         new_ch = {"telegram": {"enabled": True, "token": "1:2"}}
         resp = client.patch("/api/v1/tutorbot/b", json={"channels": new_ch})
         assert resp.status_code == 200
-        assert resp.json()["channels"] == new_ch
+        body = resp.json()
+        # Disk write keeps the real value
         assert len(saved_cfg) == 1
         assert saved_cfg[0].channels == new_ch
+        # Response masks the token
+        assert body["channels"]["telegram"]["token"] == "***"
+        assert body["channels"]["telegram"]["enabled"] is True
 
     def test_patch_running_channels_calls_reload(self, monkeypatch):
         from deeptutor.services.tutorbot.manager import BotConfig
@@ -326,17 +348,19 @@ class TestPatchBotStoppedAndRunning:
             def __init__(self):
                 self.config = BotConfig(name="b", channels={"telegram": {"enabled": True}})
                 self._running = True
+                self.last_reload_error = None
 
             @property
             def running(self) -> bool:
                 return self._running
 
-            def to_dict(self):
+            def to_dict(self, *, include_secrets: bool = False, mask_secrets: bool = False):
                 return {
                     "bot_id": "b",
                     "name": self.config.name,
-                    "channels": self.config.channels,
+                    "channels": [] if not (include_secrets or mask_secrets) else self.config.channels,
                     "running": True,
+                    "last_reload_error": self.last_reload_error,
                 }
 
         inst = FakeInst()
@@ -361,3 +385,79 @@ class TestPatchBotStoppedAndRunning:
         resp = client.patch("/api/v1/tutorbot/b", json={"channels": {"telegram": {"enabled": False}}})
         assert resp.status_code == 200
         assert reloaded == [True]
+
+    def test_patch_invalid_channels_rejected_422(self, monkeypatch):
+        """Malformed channels must be rejected at the boundary, not after disk write."""
+        from deeptutor.services.tutorbot.manager import BotConfig
+
+        saved_cfg: list[BotConfig] = []
+
+        class FakeMgr:
+            def get_bot(self, bot_id: str):
+                return None
+
+            def load_bot_config(self, bot_id: str) -> BotConfig | None:
+                return BotConfig(name="b")
+
+            def save_bot_config(self, bot_id: str, config: BotConfig, *, auto_start: bool = True) -> None:
+                saved_cfg.append(config)
+
+        tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
+        monkeypatch.setattr(tutorbot_router_mod, "get_tutorbot_manager", lambda: FakeMgr())
+
+        app = FastAPI()
+        app.include_router(tutorbot_router_mod.router, prefix="/api/v1/tutorbot")
+        client = TestClient(app)
+
+        # send_progress should be a bool, not an int-string-list garbage value;
+        # unknown extras are allowed (extra="allow" on ChannelsConfig), so we
+        # use a clearly typed-wrong primitive for a known field.
+        resp = client.patch(
+            "/api/v1/tutorbot/b",
+            json={"channels": {"send_progress": ["nope"]}},
+        )
+        assert resp.status_code == 422
+        # IMPORTANT: nothing should have been written to disk
+        assert saved_cfg == []
+
+    def test_patch_running_reload_failure_returns_500(self, monkeypatch):
+        """If reload_channels raises, PATCH responds with 500 and a hint."""
+        from deeptutor.services.tutorbot.manager import BotConfig
+
+        class FakeInst:
+            def __init__(self):
+                self.config = BotConfig(name="b", channels={"telegram": {"enabled": True}})
+                self.last_reload_error = None
+
+            @property
+            def running(self) -> bool:
+                return True
+
+            def to_dict(self, *, include_secrets: bool = False, mask_secrets: bool = False):
+                return {"bot_id": "b", "channels": [], "running": True}
+
+        class FakeMgr:
+            def get_bot(self, bot_id: str):
+                return FakeInst()
+
+            def save_bot_config(self, bot_id: str, config: BotConfig, *, auto_start: bool = True) -> None:
+                pass
+
+            async def reload_channels(self, bot_id: str) -> None:
+                raise RuntimeError("telegram bind failed")
+
+        tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
+        monkeypatch.setattr(tutorbot_router_mod, "get_tutorbot_manager", lambda: FakeMgr())
+
+        app = FastAPI()
+        app.include_router(tutorbot_router_mod.router, prefix="/api/v1/tutorbot")
+        client = TestClient(app)
+
+        resp = client.patch(
+            "/api/v1/tutorbot/b",
+            json={"channels": {"telegram": {"enabled": True, "token": "1:2"}}},
+        )
+        assert resp.status_code == 500
+        detail = resp.json()["detail"]
+        assert "RuntimeError" in detail
+        assert "stopping and starting" in detail.lower()

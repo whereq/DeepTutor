@@ -26,6 +26,8 @@
 
 ### 📦 Releases
 
+> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Schema-driven TutorBot Channels tab covering every built-in/plugin channel with per-field secret reveal, end-to-end channel secret masking with `?include_secrets=true` opt-in, concurrent `reload_channels` lock + 422 validation on bad channel config, RAG service collapsed to a single LlamaIndex pipeline (~2.6k lines of stale scaffolding removed), centralized `FileTypeRouter`, defensive RAG/KB consistency normalization across `deep_solve` / `deep_research` / `SolveToolRuntime` / `ResearchPipeline` / `DecomposeAgent` (no more phantom `DE-all` / `ai_textbook` fallbacks), externalized `agentic_chat.yaml` prompts, Thai README, and 6 new test modules.
+
 > **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — Universal "Answer now" escape hatch across every capability, Co-Writer resizable split with line-anchored scroll sync, Save-to-Notebook message-selection mode, real notebook system adoption across Knowledge/Guide/Save flows, unified collapsible settings panel, dedicated streaming Stop button, TutorBot config manager refactor with atomic writes, light/Snow theme refresh, and expanded test suite.
 
 > **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX block math parsing overhaul, LLM diagnostic probe agents.yaml configuration, extra headers forwarding in LLM factory, SaveToNotebookModal UUID fix, Docker + local LLM guidance, and expanded test suite.

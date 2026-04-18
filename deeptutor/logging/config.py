@@ -8,7 +8,7 @@ A single `level` parameter controls all logging (including RAG modules).
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 
 @dataclass
@@ -24,9 +24,6 @@ class LoggingConfig:
 
     # Log directory (relative to project root or absolute)
     log_dir: Optional[str] = None
-
-    # RAG module logger name mapping
-    rag_logger_names: Optional[Dict[str, str]] = None
 
     # File rotation settings
     max_bytes: int = 10 * 1024 * 1024  # 10MB
@@ -76,7 +73,6 @@ def load_logging_config() -> LoggingConfig:
             console_output=logging_config.get("console_output", True),
             file_output=logging_config.get("save_to_file", True),
             log_dir=get_path_from_config(config, "user_log_dir"),
-            rag_logger_names=logging_config.get("rag_logger_names"),
         )
     except Exception:
         return LoggingConfig()

@@ -2,7 +2,7 @@
 File Type Router
 ================
 
-Centralized file type classification and routing for RAG pipelines.
+Centralized file type classification and routing for the RAG pipeline.
 Determines the appropriate processing method for each document type.
 """
 
@@ -17,80 +17,53 @@ logger = get_logger("FileTypeRouter")
 
 
 class DocumentType(Enum):
-    """Document type classification"""
+    """Document type classification."""
 
-    PDF = "pdf"  # Requires PDF parser
-    TEXT = "text"  # Plain text, direct read
-    MARKDOWN = "markdown"  # Structured text
-    DOCX = "docx"  # Word documents
-    IMAGE = "image"  # Images (may need OCR)
-    UNKNOWN = "unknown"  # Unsupported
+    PDF = "pdf"
+    TEXT = "text"
+    MARKDOWN = "markdown"
+    DOCX = "docx"
+    IMAGE = "image"
+    UNKNOWN = "unknown"
 
 
 @dataclass
 class FileClassification:
-    """
-    Result of file classification.
-
-    Attributes:
-        parser_files: Files requiring parser processing (currently PDF)
-        text_files: Files that can be read directly as text
-        unsupported: Files with unsupported formats
-    """
+    """Result of file classification."""
 
     parser_files: List[str]
     text_files: List[str]
     unsupported: List[str]
 
+
 class FileTypeRouter:
-    """
-    File type router for RAG pipelines.
+    """File type router for the RAG pipeline.
 
     Classifies files before processing to route them to appropriate handlers:
     - PDF files -> PDF parsing
     - Text files -> Direct read (fast, simple)
     - Unsupported -> Skip with warning
-
-    Usage:
-        router = FileTypeRouter()
-        classification = router.classify_files(file_paths)
-
-        # Process PDF files with parser
-        for pdf in classification.parser_files:
-            ...
-
-        # Process text files directly
-        for txt in classification.text_files:
-            content = await FileTypeRouter.read_text_file(txt)
-            ...
     """
 
-    # Extensions requiring parser processing (currently PDF)
     PARSER_EXTENSIONS = {".pdf"}
 
-    # Extensions for direct text reading
     TEXT_EXTENSIONS = {
-        # Plain text
         ".txt",
         ".text",
         ".log",
-        # Markup languages
         ".md",
         ".markdown",
         ".rst",
         ".asciidoc",
-        # Data formats
         ".json",
         ".yaml",
         ".yml",
         ".toml",
         ".csv",
         ".tsv",
-        # LaTeX
         ".tex",
         ".latex",
         ".bib",
-        # Code files
         ".py",
         ".js",
         ".ts",
@@ -114,7 +87,6 @@ class FileTypeRouter:
         ".bash",
         ".zsh",
         ".ps1",
-        # Web
         ".html",
         ".htm",
         ".xml",
@@ -122,7 +94,6 @@ class FileTypeRouter:
         ".scss",
         ".sass",
         ".less",
-        # Config
         ".ini",
         ".cfg",
         ".conf",
@@ -130,23 +101,12 @@ class FileTypeRouter:
         ".properties",
     }
 
-    # Word document extensions (unsupported in llamaindex-only mode)
     DOCX_EXTENSIONS = {".docx", ".doc"}
-
-    # Image extensions (unsupported in llamaindex-only mode)
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
 
     @classmethod
     def get_document_type(cls, file_path: str) -> DocumentType:
-        """
-        Classify a single file by its type.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            DocumentType enum value
-        """
+        """Classify a single file by its type."""
         ext = Path(file_path).suffix.lower()
 
         if ext in cls.PARSER_EXTENSIONS:
@@ -158,32 +118,20 @@ class FileTypeRouter:
         elif ext in cls.IMAGE_EXTENSIONS:
             return DocumentType.IMAGE
         else:
-            # Try to detect if it's a text file by content
             if cls._is_text_file(file_path):
                 return DocumentType.TEXT
             return DocumentType.UNKNOWN
 
     @classmethod
     def _is_text_file(cls, file_path: str, sample_size: int = 8192) -> bool:
-        """
-        Detect if a file is text-based by examining its content.
-
-        Args:
-            file_path: Path to the file
-            sample_size: Number of bytes to sample
-
-        Returns:
-            True if file appears to be text
-        """
+        """Detect if a file is text-based by examining its content."""
         try:
             with open(file_path, "rb") as f:
                 chunk = f.read(sample_size)
 
-            # Check for null bytes (binary file indicator)
             if b"\x00" in chunk:
                 return False
 
-            # Try to decode as UTF-8
             chunk.decode("utf-8")
             return True
         except (UnicodeDecodeError, IOError, OSError):
@@ -191,15 +139,7 @@ class FileTypeRouter:
 
     @classmethod
     def classify_files(cls, file_paths: List[str]) -> FileClassification:
-        """
-        Classify a list of files by processing method.
-
-        Args:
-            file_paths: List of file paths to classify
-
-        Returns:
-            FileClassification with files grouped by processing method
-        """
+        """Classify a list of files by processing method."""
         parser_files = []
         text_files = []
         unsupported = []
@@ -227,15 +167,7 @@ class FileTypeRouter:
 
     @classmethod
     async def read_text_file(cls, file_path: str) -> str:
-        """
-        Read a text file with automatic encoding detection.
-
-        Args:
-            file_path: Path to the text file
-
-        Returns:
-            File content as string
-        """
+        """Read a text file with automatic encoding detection."""
         encodings = ["utf-8", "utf-8-sig", "gbk", "gb2312", "gb18030", "latin-1", "cp1252"]
 
         for encoding in encodings:
@@ -245,64 +177,27 @@ class FileTypeRouter:
             except UnicodeDecodeError:
                 continue
 
-        # Last resort: read with error replacement
         with open(file_path, "rb") as f:
             return f.read().decode("utf-8", errors="replace")
 
     @classmethod
     def needs_parser(cls, file_path: str) -> bool:
-        """
-        Quick check if a single file needs parser processing.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            True if file requires parser processing
-        """
+        """Quick check if a single file needs parser processing."""
         doc_type = cls.get_document_type(file_path)
         return doc_type in (DocumentType.PDF, DocumentType.DOCX, DocumentType.IMAGE)
 
     @classmethod
     def is_text_readable(cls, file_path: str) -> bool:
-        """
-        Check if a file can be read directly as text.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            True if file can be read as text
-        """
+        """Check if a file can be read directly as text."""
         doc_type = cls.get_document_type(file_path)
         return doc_type in (DocumentType.TEXT, DocumentType.MARKDOWN)
 
     @classmethod
-    def get_extensions_for_provider(cls, provider: str) -> set[str]:
-        """
-        Get supported file extensions for a specific RAG provider.
-
-        Args:
-            provider: RAG provider name
-
-        Returns:
-            Set of supported file extensions (with leading dot, e.g., {".pdf", ".txt"})
-        """
-        # Only llamaindex is supported; keep provider param for forward compatibility.
-        if provider and provider != "llamaindex":
-            logger.warning(f"Unknown/legacy provider '{provider}', using llamaindex extension set")
+    def get_supported_extensions(cls) -> set[str]:
+        """Get the set of all supported file extensions."""
         return cls.PARSER_EXTENSIONS | cls.TEXT_EXTENSIONS
 
     @classmethod
-    def get_glob_patterns_for_provider(cls, provider: str) -> list[str]:
-        """
-        Get glob patterns for file searching based on RAG provider.
-
-        Args:
-            provider: RAG provider name
-
-        Returns:
-            List of glob patterns (e.g., ["*.pdf", "*.txt", "*.md"])
-        """
-        extensions = cls.get_extensions_for_provider(provider)
-        return [f"*{ext}" for ext in sorted(extensions)]
+    def get_glob_patterns(cls) -> list[str]:
+        """Get glob patterns for file searching."""
+        return [f"*{ext}" for ext in sorted(cls.get_supported_extensions())]

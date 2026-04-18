@@ -122,11 +122,28 @@ class SolveToolRuntime:
         temperature: float | None = None,
         event_sink: Any | None = None,
     ) -> ToolResult:
+        from deeptutor.core.tool_protocol import ToolResult as _ToolResult
+
         tool = self._core_registry.get(action)
         if tool is None:
             raise KeyError(f"Unknown tool action: {action}")
         if tool.name not in self._tool_names:
             raise PermissionError(f"Tool action '{action}' is not enabled for solve.")
+
+        # Defensive guard: rag without a knowledge base must never reach the
+        # underlying RAG service. Returning a structured ToolResult keeps the
+        # ReAct loop alive (the LLM sees a clear observation and can replan).
+        if tool.name == "rag" and not kb_name:
+            return _ToolResult(
+                content=(
+                    "RAG retrieval was requested, but no knowledge base is "
+                    "configured for this turn. Continue without retrieved "
+                    "knowledge or ask the user to select a knowledge base."
+                ),
+                sources=[],
+                metadata={"skipped": True, "reason": "no_kb_selected"},
+                success=False,
+            )
 
         kwargs = self._build_action_input_kwargs(tool.name, action_input)
         kwargs = self._apply_runtime_context(

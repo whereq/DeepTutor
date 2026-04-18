@@ -15,9 +15,9 @@ import shutil
 import sys
 
 from deeptutor.logging import get_logger
-from deeptutor.services.rag.components.routing import FileTypeRouter
+from deeptutor.services.rag.file_routing import FileTypeRouter
 
-from deeptutor.services.rag.factory import DEFAULT_PROVIDER, LEGACY_PROVIDER_ALIASES, normalize_provider_name
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 
 logger = get_logger("KnowledgeBaseManager")
 
@@ -157,14 +157,13 @@ class KnowledgeBaseManager:
                         continue
 
                     raw_provider = kb_entry.get("rag_provider")
-                    normalized_provider = normalize_provider_name(raw_provider or DEFAULT_PROVIDER)
-                    if kb_entry.get("rag_provider") != normalized_provider:
-                        kb_entry["rag_provider"] = normalized_provider
+                    if kb_entry.get("rag_provider") != DEFAULT_PROVIDER:
+                        kb_entry["rag_provider"] = DEFAULT_PROVIDER
                         config_changed = True
 
                     if (
                         isinstance(raw_provider, str)
-                        and raw_provider.strip().lower() in LEGACY_PROVIDER_ALIASES
+                        and raw_provider.strip().lower() not in {"", DEFAULT_PROVIDER}
                     ):
                         if not kb_entry.get("needs_reindex", False):
                             kb_entry["needs_reindex"] = True
@@ -348,8 +347,8 @@ class KnowledgeBaseManager:
                     kb_entry["description"] = metadata["description"]
                 if metadata.get("rag_provider"):
                     raw_provider = str(metadata["rag_provider"]).strip().lower()
-                    kb_entry["rag_provider"] = normalize_provider_name(raw_provider)
-                    if str(raw_provider).strip().lower() in LEGACY_PROVIDER_ALIASES:
+                    kb_entry["rag_provider"] = DEFAULT_PROVIDER
+                    if raw_provider not in {"", DEFAULT_PROVIDER}:
                         kb_entry["needs_reindex"] = True
                 if metadata.get("created_at"):
                     kb_entry["created_at"] = metadata["created_at"]
@@ -504,7 +503,7 @@ class KnowledgeBaseManager:
             metadata = {
                 "name": kb_name,
                 "description": kb_config.get("description", f"Knowledge base: {kb_name}"),
-                "rag_provider": normalize_provider_name(kb_config.get("rag_provider")),
+                "rag_provider": DEFAULT_PROVIDER,
                 "needs_reindex": bool(kb_config.get("needs_reindex", False)),
                 "created_at": kb_config.get("created_at"),
                 "last_updated": kb_config.get("updated_at"),
@@ -540,7 +539,7 @@ class KnowledgeBaseManager:
         status = kb_config.get("status")
         progress = kb_config.get("progress")
         description = kb_config.get("description", f"Knowledge base: {kb_name}")
-        rag_provider = normalize_provider_name(kb_config.get("rag_provider"))
+        rag_provider = DEFAULT_PROVIDER
         needs_reindex = bool(kb_config.get("needs_reindex", False))
         created_at = kb_config.get("created_at")
         updated_at = kb_config.get("updated_at")
@@ -748,13 +747,7 @@ class KnowledgeBaseManager:
         if not folder.is_dir():
             raise ValueError(f"Path is not a directory: {folder}")
 
-        # Get RAG provider from kb_config.json to determine supported extensions
-        self.config = self._load_config()
-        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
-        provider = normalize_provider_name(kb_config.get("rag_provider") or DEFAULT_PROVIDER)
-
-        # Get supported files in folder based on provider
-        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
+        supported_extensions = FileTypeRouter.get_supported_extensions()
         files: list[Path] = []
         for ext in supported_extensions:
             files.extend(folder.glob(f"**/*{ext}"))
@@ -885,7 +878,7 @@ class KnowledgeBaseManager:
         if not folder.exists() or not folder.is_dir():
             return []
 
-        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
+        supported_extensions = FileTypeRouter.get_supported_extensions()
         files = []
 
         for ext in supported_extensions:
@@ -930,13 +923,7 @@ class KnowledgeBaseManager:
             except Exception:
                 pass
 
-        # Get RAG provider from kb_config.json to determine supported extensions
-        self.config = self._load_config()
-        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
-        provider = normalize_provider_name(kb_config.get("rag_provider") or DEFAULT_PROVIDER)
-
-        # Scan current files based on provider's supported extensions
-        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
+        supported_extensions = FileTypeRouter.get_supported_extensions()
         new_files = []
         modified_files = []
 

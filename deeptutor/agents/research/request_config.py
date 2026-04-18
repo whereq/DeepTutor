@@ -169,7 +169,7 @@ def build_research_runtime_config(
         if isinstance(research_root.get("reporting"), dict)
         else {}
     )
-    rag_root = research_root.get("rag", {}) if isinstance(research_root.get("rag"), dict) else {}
+    rag_root: dict = {}
     policy = build_research_execution_policy(
         request_config=request_config,
         enabled_tools=enabled_tools,

@@ -1,94 +1,146 @@
-"""RAG provider registry and tool integration tests (llamaindex-only)."""
+"""RAGService end-to-end behavior tests (with a fake pipeline)."""
 
 from __future__ import annotations
 
-import os
+from typing import Any, Dict
 
 import pytest
 
-
-def test_list_available_providers_only_llamaindex() -> None:
-    """Provider list should expose only llamaindex."""
-    from deeptutor.tools.rag_tool import get_available_providers
-
-    providers = get_available_providers()
-    assert [p["id"] for p in providers] == ["llamaindex"]
+from deeptutor.services.rag.service import RAGService
 
 
-def test_factory_has_pipeline_only_llamaindex() -> None:
-    """Factory should only report llamaindex as selectable provider."""
-    from deeptutor.services.rag.factory import has_pipeline
+class _FakePipeline:
+    """Minimal pipeline stub that records calls and returns canned results."""
 
-    assert has_pipeline("llamaindex") is True
-    assert has_pipeline("lightrag") is False
-    assert has_pipeline("raganything") is False
-    assert has_pipeline("nonexistent") is False
+    def __init__(self, search_result: Dict[str, Any] | None = None) -> None:
+        self.calls: list[dict] = []
+        self.search_result = search_result or {
+            "answer": "fake answer",
+            "sources": [{"id": 1}],
+            "provider": "lightrag",  # deliberately wrong; service must overwrite
+        }
 
+    async def initialize(self, kb_name: str, file_paths, **kwargs) -> bool:
+        self.calls.append({"op": "initialize", "kb_name": kb_name, "files": list(file_paths)})
+        return True
 
-def test_normalize_legacy_provider_aliases() -> None:
-    """Legacy provider names should normalize to llamaindex."""
-    from deeptutor.services.rag.factory import normalize_provider_name
+    async def search(self, query: str, kb_name: str, **kwargs) -> Dict[str, Any]:
+        self.calls.append({"op": "search", "query": query, "kb_name": kb_name, "kwargs": kwargs})
+        return dict(self.search_result)
 
-    assert normalize_provider_name("llamaindex") == "llamaindex"
-    assert normalize_provider_name("lightrag") == "llamaindex"
-    assert normalize_provider_name("raganything") == "llamaindex"
-    assert normalize_provider_name("raganything_docling") == "llamaindex"
-
-
-def test_get_current_provider_normalizes_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Current provider should normalize legacy env values."""
-    from deeptutor.tools.rag_tool import get_current_provider
-
-    monkeypatch.setenv("RAG_PROVIDER", "lightrag")
-    assert get_current_provider() == "llamaindex"
-
-    monkeypatch.setenv("RAG_PROVIDER", "llamaindex")
-    assert get_current_provider() == "llamaindex"
-
-    monkeypatch.delenv("RAG_PROVIDER", raising=False)
-    assert get_current_provider() == "llamaindex"
+    async def delete(self, kb_name: str) -> bool:
+        self.calls.append({"op": "delete", "kb_name": kb_name})
+        return True
 
 
-def test_get_pipeline_llamaindex_interface() -> None:
-    """LlamaIndex pipeline should be constructible with optional dependency installed."""
-    from deeptutor.services.rag.factory import get_pipeline
-
-    try:
-        pipeline = get_pipeline("llamaindex")
-    except ValueError as exc:
-        pytest.skip(f"LlamaIndex optional dependency missing: {exc}")
-
-    assert hasattr(pipeline, "initialize")
-    assert hasattr(pipeline, "search")
-    assert hasattr(pipeline, "delete")
+@pytest.fixture
+def fake_service(tmp_path) -> tuple[RAGService, _FakePipeline]:
+    pipeline = _FakePipeline()
+    service = RAGService(kb_base_dir=str(tmp_path))
+    service._pipeline = pipeline  # type: ignore[attr-defined]
+    return service, pipeline
 
 
-def test_get_pipeline_invalid_raises() -> None:
-    """Unknown provider names should raise explicit error."""
-    from deeptutor.services.rag.factory import get_pipeline
-
-    with pytest.raises(ValueError, match="Unknown pipeline"):
-        get_pipeline("nonexistent")
+def test_provider_argument_is_silently_ignored(tmp_path) -> None:
+    """Constructor accepts ``provider`` for back-compat but always uses llamaindex."""
+    service = RAGService(kb_base_dir=str(tmp_path), provider="lightrag")
+    assert service.provider == "llamaindex"
 
 
 @pytest.mark.asyncio
-async def test_rag_search_invalid_provider_falls_back_to_kb_provider(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Tool wrapper should defer to KB-resolved provider (llamaindex-only runtime)."""
-    from deeptutor.services.rag import service as rag_service_module
-    from deeptutor.tools.rag_tool import rag_search
+async def test_search_force_overwrites_provider_in_result(fake_service) -> None:
+    """Even if the underlying pipeline lies about its provider, RAGService normalizes."""
+    service, pipeline = fake_service
+    pipeline.search_result = {"answer": "x", "provider": "raganything"}
 
-    monkeypatch.setattr(
-        rag_service_module.RAGService,
-        "_get_provider_for_kb",
-        lambda self, kb_name: "llamaindex",
-    )
-
-    result = await rag_search(
-        query="hello",
-        kb_name="demo",
-        provider="nonexistent",
-        kb_base_dir=os.getcwd(),
-    )
+    result = await service.search(query="hello", kb_name="kb")
     assert result["provider"] == "llamaindex"
+
+
+@pytest.mark.asyncio
+async def test_search_drops_mode_kwarg_before_calling_pipeline(fake_service) -> None:
+    """The ``mode`` kwarg is intentionally consumed by the service layer."""
+    service, pipeline = fake_service
+    await service.search(query="hi", kb_name="kb", mode="hybrid", top_k=5)
+
+    last = pipeline.calls[-1]
+    assert last["op"] == "search"
+    assert "mode" not in last["kwargs"]
+    assert last["kwargs"].get("top_k") == 5
+
+
+@pytest.mark.asyncio
+async def test_search_aliases_answer_and_content(fake_service) -> None:
+    """Pipelines that only return ``content`` should still expose ``answer`` and vice versa."""
+    service, pipeline = fake_service
+
+    pipeline.search_result = {"content": "only-content", "provider": "x"}
+    result = await service.search(query="q", kb_name="kb")
+    assert result["answer"] == "only-content"
+    assert result["content"] == "only-content"
+    assert result["query"] == "q"
+
+    pipeline.search_result = {"answer": "only-answer", "provider": "x"}
+    result = await service.search(query="q2", kb_name="kb")
+    assert result["content"] == "only-answer"
+    assert result["answer"] == "only-answer"
+
+
+@pytest.mark.asyncio
+async def test_smart_retrieve_aggregates_passages_with_query_hints(
+    fake_service, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, pipeline = fake_service
+    pipeline.search_result = {"answer": "PASSAGE", "content": "PASSAGE", "provider": "x"}
+
+    async def _fake_aggregate(_self, _ctx, passages):
+        return "AGG:" + "|".join(passages)
+
+    monkeypatch.setattr(RAGService, "_aggregate", _fake_aggregate, raising=True)
+
+    out = await service.smart_retrieve(
+        context="anything",
+        kb_name="kb",
+        query_hints=["q1", "q2"],
+    )
+    assert out["answer"].startswith("AGG:")
+    assert out["answer"].count("PASSAGE") == 2
+    assert len(out["sources"]) == 2
+    queries = [c["query"] for c in pipeline.calls if c["op"] == "search"]
+    assert queries == ["q1", "q2"]
+
+
+@pytest.mark.asyncio
+async def test_smart_retrieve_returns_empty_when_no_passages(
+    fake_service, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, pipeline = fake_service
+    pipeline.search_result = {"answer": "", "content": "", "provider": "x"}
+
+    out = await service.smart_retrieve(
+        context="anything",
+        kb_name="kb",
+        query_hints=["q"],
+    )
+    assert out == {"answer": "", "sources": []}
+
+
+@pytest.mark.asyncio
+async def test_delete_removes_kb_directory_when_pipeline_lacks_delete(tmp_path) -> None:
+    """Fallback path: delete the KB dir directly if the pipeline does not implement delete."""
+    kb_dir = tmp_path / "demo"
+    (kb_dir / "raw").mkdir(parents=True)
+    (kb_dir / "raw" / "f.txt").write_text("hi")
+
+    class _NoDeletePipeline:
+        async def initialize(self, *a, **k):
+            return True
+
+        async def search(self, *a, **k):
+            return {}
+
+    service = RAGService(kb_base_dir=str(tmp_path))
+    service._pipeline = _NoDeletePipeline()  # type: ignore[attr-defined]
+
+    assert await service.delete(kb_name="demo") is True
+    assert not kb_dir.exists()

@@ -18,7 +18,7 @@ from rich.table import Table
 
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.services.path_service import get_path_service
-from deeptutor.services.rag.components.routing import FileTypeRouter
+from deeptutor.services.rag.file_routing import FileTypeRouter
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 
 console = Console()
@@ -43,7 +43,7 @@ def _collect_documents(docs: list[str], docs_dir: Optional[str]) -> list[str]:
         base = Path(docs_dir).expanduser().resolve()
         if not base.exists() or not base.is_dir():
             raise typer.BadParameter(f"docs directory does not exist: {base}")
-        for pattern in FileTypeRouter.get_glob_patterns_for_provider(DEFAULT_PROVIDER):
+        for pattern in FileTypeRouter.get_glob_patterns():
             candidates.extend(path for path in base.rglob(pattern) if path.is_file())
 
     unique: list[str] = []

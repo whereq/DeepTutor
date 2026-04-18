@@ -32,8 +32,8 @@ from deeptutor.knowledge.add_documents import DocumentAdder
 from deeptutor.knowledge.initializer import KnowledgeBaseInitializer
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
-from deeptutor.services.rag.components.routing import FileTypeRouter
-from deeptutor.services.rag.factory import DEFAULT_PROVIDER, has_pipeline, normalize_provider_name
+from deeptutor.services.rag.file_routing import FileTypeRouter
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.utils.document_validator import DocumentValidator
 from deeptutor.utils.error_utils import format_exception_message
 
@@ -171,23 +171,8 @@ def _task_log(task_id: str, message: str, level: str = "info") -> None:
 
 
 def _validate_registered_provider(raw_provider: str | None) -> str:
-    candidate = (raw_provider or DEFAULT_PROVIDER).strip().lower()
-    if not candidate:
-        candidate = DEFAULT_PROVIDER
-
-    if not has_pipeline(candidate):
-        from deeptutor.services.rag.service import RAGService
-
-        available_providers = [item["id"] for item in RAGService.list_providers()]
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Unsupported RAG provider '{candidate}'. "
-                f"Available providers: {available_providers}"
-            ),
-        )
-
-    return normalize_provider_name(candidate)
+    """Always return the canonical provider; field is kept as a stub."""
+    return DEFAULT_PROVIDER
 
 
 def _load_kb_entry_or_404(manager: KnowledgeBaseManager, kb_name: str) -> dict:
@@ -656,7 +641,7 @@ async def upload_files(
                     "Update KB config first."
                 ),
             )
-        allowed_extensions = FileTypeRouter.get_extensions_for_provider(kb_provider)
+        allowed_extensions = FileTypeRouter.get_supported_extensions()
         uploaded_files, uploaded_file_paths = _save_uploaded_files(
             files, raw_dir, allowed_extensions=allowed_extensions
         )
@@ -746,7 +731,7 @@ async def create_knowledge_base(
             logger.warning(f"KB {name} not found in config, registering manually")
             initializer._register_to_config()
 
-        allowed_extensions = FileTypeRouter.get_extensions_for_provider(rag_provider)
+        allowed_extensions = FileTypeRouter.get_supported_extensions()
         uploaded_files, _ = _save_uploaded_files(
             files, initializer.raw_dir, allowed_extensions=allowed_extensions
         )

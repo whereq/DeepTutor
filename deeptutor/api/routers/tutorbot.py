@@ -7,10 +7,15 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, ValidationError
 
 from deeptutor.services.tutorbot import get_tutorbot_manager
+from deeptutor.services.tutorbot.manager import (
+    BotConfig,
+    TutorBotInstance,
+    mask_channel_secrets,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -99,6 +104,41 @@ async def recent_bots(limit: int = 3):
     return get_tutorbot_manager().get_recent_active_bots(limit=limit)
 
 
+@router.get("/channels/schema")
+async def list_channel_schemas():
+    """Return JSON-Schema metadata for every available channel.
+
+    Powers the schema-driven Channels tab in the Web UI: lets it render a
+    generic form for ANY channel (built-in or plugin) without per-channel
+    front-end code. Secret-looking fields are flagged via ``secret_fields``
+    so the UI can mask them.
+
+    Shape:
+        {
+          "channels": {
+            "telegram": {
+              "name": "telegram",
+              "display_name": "Telegram",
+              "default_config": {...},
+              "secret_fields": ["token"],
+              "json_schema": {...}
+            },
+            ...
+          },
+          "global": {"json_schema": {...}, "secret_fields": []}
+        }
+    """
+    from deeptutor.api.routers._tutorbot_channel_schema import (
+        all_channel_schemas,
+        global_channels_schema,
+    )
+
+    return {
+        "channels": all_channel_schemas(),
+        "global": global_channels_schema(),
+    }
+
+
 @router.post("")
 async def create_and_start_bot(payload: CreateBotRequest):
     mgr = get_tutorbot_manager()
@@ -112,27 +152,56 @@ async def create_and_start_bot(payload: CreateBotRequest):
         instance = await mgr.start_bot(payload.bot_id, config)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return instance.to_dict()
+    # Response is masked — secrets are only revealed via the explicit
+    # GET /{bot_id}?include_secrets=true edit-form route.
+    return instance.to_dict(mask_secrets=True)
+
+
+def _stopped_bot_dict(
+    bot_id: str,
+    cfg: BotConfig,
+    *,
+    include_secrets: bool = False,
+) -> dict:
+    """Serialise a stopped bot — secret fields masked unless explicitly opted-in."""
+    if include_secrets:
+        channels: object = cfg.channels
+    else:
+        channels = mask_channel_secrets(cfg.channels)
+    return {
+        "bot_id": bot_id,
+        "name": cfg.name,
+        "description": cfg.description,
+        "persona": cfg.persona,
+        "channels": channels,
+        "model": cfg.model,
+        "running": False,
+        "started_at": None,
+        "last_reload_error": None,
+    }
 
 
 @router.get("/{bot_id}")
-async def get_bot(bot_id: str):
+async def get_bot(
+    bot_id: str,
+    include_secrets: bool = Query(
+        False,
+        description=(
+            "Return raw channel secrets (tokens, passwords). Required by the "
+            "admin edit form; default response masks all secret-looking fields."
+        ),
+    ),
+):
     mgr = get_tutorbot_manager()
     instance = mgr.get_bot(bot_id)
     if instance:
-        return instance.to_dict()
+        return instance.to_dict(
+            include_secrets=include_secrets,
+            mask_secrets=not include_secrets,
+        )
     cfg = mgr.load_bot_config(bot_id)
     if cfg:
-        return {
-            "bot_id": bot_id,
-            "name": cfg.name,
-            "description": cfg.description,
-            "persona": cfg.persona,
-            "channels": cfg.channels,
-            "model": cfg.model,
-            "running": False,
-            "started_at": None,
-        }
+        return _stopped_bot_dict(bot_id, cfg, include_secrets=include_secrets)
     raise HTTPException(status_code=404, detail="Bot not found")
 
 
@@ -152,51 +221,32 @@ async def destroy_bot(bot_id: str):
     return {"bot_id": bot_id, "destroyed": True}
 
 
-def _stopped_bot_dict(bot_id: str, cfg: BotConfig) -> dict:
-    return {
-        "bot_id": bot_id,
-        "name": cfg.name,
-        "description": cfg.description,
-        "persona": cfg.persona,
-        "channels": cfg.channels,
-        "model": cfg.model,
-        "running": False,
-        "started_at": None,
-    }
+def _validate_channels_payload(channels: dict) -> None:
+    """Reject malformed channel configs at the API boundary (returns 422).
+
+    Without this check, the bad config would still hit disk and only blow up
+    later inside ``reload_channels`` / next ``start_bot`` — leaving a confusing
+    500 with no guidance to the caller.
+    """
+    from deeptutor.tutorbot.config.schema import ChannelsConfig
+
+    try:
+        ChannelsConfig(**channels)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Invalid channels config", "errors": exc.errors()},
+        ) from None
+    except TypeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid channels config: {exc}",
+        ) from None
 
 
-@router.patch("/{bot_id}")
-async def update_bot(bot_id: str, payload: UpdateBotRequest):
-    mgr = get_tutorbot_manager()
-    instance = mgr.get_bot(bot_id)
-    if instance:
-        if payload.name is not None:
-            instance.config.name = payload.name
-        if payload.description is not None:
-            instance.config.description = payload.description
-        if payload.persona is not None:
-            instance.config.persona = payload.persona
-        if payload.channels is not None:
-            instance.config.channels = payload.channels
-        if payload.model is not None:
-            instance.config.model = payload.model
-
-        mgr.save_bot_config(bot_id, instance.config)
-        if payload.channels is not None:
-            try:
-                await mgr.reload_channels(bot_id)
-            except Exception:
-                logger.exception("reload_channels failed for bot '%s'", bot_id)
-                raise HTTPException(
-                    status_code=500,
-                    detail="Channels saved but failed to restart listeners; try stopping and starting the bot.",
-                ) from None
-        return instance.to_dict()
-
-    cfg = mgr.load_bot_config(bot_id)
-    if not cfg:
-        raise HTTPException(status_code=404, detail="Bot not found")
-
+def _apply_payload(target: BotConfig | TutorBotInstance, payload: UpdateBotRequest) -> None:
+    """Apply non-None fields from ``payload`` onto a ``BotConfig`` (or instance.config)."""
+    cfg: BotConfig = target.config if isinstance(target, TutorBotInstance) else target
     if payload.name is not None:
         cfg.name = payload.name
     if payload.description is not None:
@@ -208,6 +258,38 @@ async def update_bot(bot_id: str, payload: UpdateBotRequest):
     if payload.model is not None:
         cfg.model = payload.model
 
+
+@router.patch("/{bot_id}")
+async def update_bot(bot_id: str, payload: UpdateBotRequest):
+    if payload.channels is not None:
+        _validate_channels_payload(payload.channels)
+
+    mgr = get_tutorbot_manager()
+    instance = mgr.get_bot(bot_id)
+    if instance:
+        _apply_payload(instance, payload)
+        mgr.save_bot_config(bot_id, instance.config)
+        if payload.channels is not None:
+            try:
+                await mgr.reload_channels(bot_id)
+            except Exception as exc:
+                logger.exception("reload_channels failed for bot '%s'", bot_id)
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "Channels saved but failed to restart listeners "
+                        f"({type(exc).__name__}); try stopping and starting the bot."
+                    ),
+                ) from None
+        # NOTE: response masks secrets — front-end should re-fetch with
+        # ``?include_secrets=true`` if it needs the raw token to refill its form.
+        return instance.to_dict(mask_secrets=True)
+
+    cfg = mgr.load_bot_config(bot_id)
+    if not cfg:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    _apply_payload(cfg, payload)
     mgr.save_bot_config(bot_id, cfg)
     return _stopped_bot_dict(bot_id, cfg)
 

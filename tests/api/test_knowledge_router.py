@@ -120,20 +120,26 @@ def test_create_kb_does_not_require_llm_precheck(monkeypatch, tmp_path: Path) ->
     assert manager.config["knowledge_bases"]["kb-new"]["needs_reindex"] is False
 
 
-def test_create_rejects_unregistered_provider(monkeypatch, tmp_path: Path) -> None:
+def test_create_coerces_legacy_provider_to_llamaindex(monkeypatch, tmp_path: Path) -> None:
+    """`rag_provider` is now a stub: legacy values silently normalize to llamaindex."""
     manager = _FakeKBManager(tmp_path / "knowledge_bases")
     monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+
+    async def _noop_init_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(knowledge_router_module, "run_initialization_task", _noop_init_task)
     monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
 
     with TestClient(_build_app()) as client:
         response = client.post(
             "/api/v1/knowledge/create",
-            data={"name": "kb-invalid", "rag_provider": "lightrag"},
+            data={"name": "kb-legacy", "rag_provider": "lightrag"},
             files=_upload_payload(),
         )
 
-    assert response.status_code == 400
-    assert "Unsupported RAG provider" in response.json()["detail"]
+    assert response.status_code == 200
+    assert manager.config["knowledge_bases"]["kb-legacy"]["rag_provider"] == "llamaindex"
 
 
 def test_upload_returns_409_when_kb_needs_reindex(monkeypatch, tmp_path: Path) -> None:
@@ -177,8 +183,13 @@ def test_upload_ready_kb_returns_task_id(monkeypatch, tmp_path: Path) -> None:
     assert isinstance(body.get("task_id"), str) and body["task_id"]
 
 
-def test_update_config_rejects_unregistered_provider() -> None:
+def test_update_config_coerces_legacy_provider_to_llamaindex() -> None:
+    """Legacy `rag_provider` values are accepted and normalized to llamaindex."""
+
     class _FakeConfigService:
+        def __init__(self) -> None:
+            self.config: dict = {}
+
         def set_kb_config(self, kb_name: str, config: dict) -> None:
             self.kb_name = kb_name
             self.config = config
@@ -199,5 +210,5 @@ def test_update_config_rejects_unregistered_provider() -> None:
                 json={"rag_provider": "raganything"},
             )
 
-    assert response.status_code == 400
-    assert "Unsupported RAG provider" in response.json()["detail"]
+    assert response.status_code in {200, 204}
+    assert fake_service.config.get("rag_provider") == "llamaindex"

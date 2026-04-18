@@ -14,7 +14,7 @@ Unified service layer for DeepTutor providing:
 Usage:
     from deeptutor.services.llm import get_llm_client
     from deeptutor.services.embedding import get_embedding_client
-    from deeptutor.services.rag import get_pipeline
+    from deeptutor.services.rag import RAGService
     from deeptutor.services.prompt import get_prompt_manager
     from deeptutor.services.search import web_search
     from deeptutor.services.setup import init_user_directories
@@ -28,9 +28,9 @@ Usage:
     embed = get_embedding_client()
     vectors = await embed.embed(["text1", "text2"])
 
-    # RAG
-    pipeline = get_pipeline("llamaindex")
-    result = await pipeline.search("query", "kb_name")
+    # RAG (LlamaIndex backend)
+    rag = RAGService()
+    result = await rag.search("query", kb_name="my_kb")
 
     # Prompt
     pm = get_prompt_manager()

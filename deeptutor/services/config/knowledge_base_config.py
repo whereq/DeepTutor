@@ -5,11 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from deeptutor.logging import get_logger
-from deeptutor.services.rag.factory import (
-    DEFAULT_PROVIDER,
-    LEGACY_PROVIDER_ALIASES,
-    normalize_provider_name,
-)
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.path_service import get_path_service
 
 logger = get_logger("KBConfigService")
@@ -58,7 +54,7 @@ class KnowledgeBaseConfigService:
 
     def _normalize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         defaults = payload.setdefault("defaults", _default_payload()["defaults"])
-        defaults["rag_provider"] = normalize_provider_name(defaults.get("rag_provider"))
+        defaults["rag_provider"] = DEFAULT_PROVIDER
 
         knowledge_bases = payload.setdefault("knowledge_bases", {})
         kb_base_dir = self.config_path.parent
@@ -67,10 +63,9 @@ class KnowledgeBaseConfigService:
                 continue
 
             raw_provider = config.get("rag_provider")
-            normalized = normalize_provider_name(raw_provider or defaults["rag_provider"])
-            config["rag_provider"] = normalized
+            config["rag_provider"] = DEFAULT_PROVIDER
 
-            if isinstance(raw_provider, str) and raw_provider.strip().lower() in LEGACY_PROVIDER_ALIASES:
+            if isinstance(raw_provider, str) and raw_provider.strip().lower() not in {"", DEFAULT_PROVIDER}:
                 config["needs_reindex"] = True
 
             kb_dir = kb_base_dir / kb_name
@@ -101,13 +96,12 @@ class KnowledgeBaseConfigService:
         kb_config = dict(self._config.get("knowledge_bases", {}).get(kb_name, {}))
         merged = {
             "default_kb": defaults.get("default_kb"),
-            "rag_provider": normalize_provider_name(
-                kb_config.get("rag_provider") or defaults.get("rag_provider", DEFAULT_PROVIDER)
-            ),
+            "rag_provider": DEFAULT_PROVIDER,
             "search_mode": kb_config.get("search_mode") or defaults.get("search_mode", "hybrid"),
             "needs_reindex": bool(kb_config.get("needs_reindex", False)),
             **kb_config,
         }
+        merged["rag_provider"] = DEFAULT_PROVIDER
         return merged
 
     def set_kb_config(self, kb_name: str, config: dict[str, Any]) -> None:
@@ -116,15 +110,10 @@ class KnowledgeBaseConfigService:
         self._save()
 
     def get_rag_provider(self, kb_name: str) -> str:
-        return str(self.get_kb_config(kb_name).get("rag_provider", DEFAULT_PROVIDER))
+        return DEFAULT_PROVIDER
 
     def set_rag_provider(self, kb_name: str, provider: str) -> None:
-        self.set_kb_config(
-            kb_name,
-            {
-                "rag_provider": normalize_provider_name(provider),
-            },
-        )
+        self.set_kb_config(kb_name, {"rag_provider": DEFAULT_PROVIDER})
 
     def get_search_mode(self, kb_name: str) -> str:
         return str(self.get_kb_config(kb_name).get("search_mode", "hybrid"))
@@ -166,8 +155,8 @@ class KnowledgeBaseConfigService:
         config: dict[str, Any] = {}
         if metadata.get("rag_provider"):
             raw_provider = metadata["rag_provider"]
-            config["rag_provider"] = normalize_provider_name(raw_provider)
-            if str(raw_provider).strip().lower() in LEGACY_PROVIDER_ALIASES:
+            config["rag_provider"] = DEFAULT_PROVIDER
+            if str(raw_provider).strip().lower() not in {"", DEFAULT_PROVIDER}:
                 config["needs_reindex"] = True
         if metadata.get("search_mode"):
             config["search_mode"] = metadata["search_mode"]
