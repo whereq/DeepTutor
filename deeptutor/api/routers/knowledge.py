@@ -32,13 +32,12 @@ from deeptutor.knowledge.add_documents import DocumentAdder
 from deeptutor.knowledge.initializer import KnowledgeBaseInitializer
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
+from deeptutor.logging import get_logger
+from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.rag.components.routing import FileTypeRouter
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER, has_pipeline, normalize_provider_name
 from deeptutor.utils.document_validator import DocumentValidator
 from deeptutor.utils.error_utils import format_exception_message
-
-from deeptutor.logging import get_logger
-from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 
 # Initialize logger with config
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
@@ -109,9 +108,21 @@ def _save_uploaded_files(
     files: list[UploadFile],
     target_dir: Path,
     allowed_extensions: set[str] | None = None,
+    kb_name: str | None = None,
 ) -> tuple[list[str], list[str]]:
+    """
+    Save uploaded files to the local raw/ directory.
+
+    When PocketBase is enabled and ``kb_name`` is supplied, each file is also
+    uploaded to the PocketBase knowledge_bases record as a file attachment
+    (best-effort — local write is always the primary path).
+    """
     uploaded_files: list[str] = []
     uploaded_file_paths: list[str] = []
+
+    from deeptutor.services.pocketbase_client import is_pocketbase_enabled
+
+    _pb_sync = is_pocketbase_enabled() and bool(kb_name)
 
     for file in files:
         file_path = None
@@ -142,6 +153,16 @@ def _save_uploaded_files(
             )
             uploaded_files.append(sanitized_filename)
             uploaded_file_paths.append(str(file_path))
+
+            # Mirror file to PocketBase when enabled (best-effort, non-blocking)
+            if _pb_sync and file_path:
+                try:
+                    _upload_file_to_pb(kb_name, sanitized_filename, file_path)
+                except Exception as pb_exc:
+                    logger.debug(
+                        "PocketBase file upload failed for '%s': %s", sanitized_filename, pb_exc
+                    )
+
         except Exception as e:
             if file_path and file_path.exists():
                 try:
@@ -156,6 +177,29 @@ def _save_uploaded_files(
             raise HTTPException(status_code=400, detail=error_message) from e
 
     return uploaded_files, uploaded_file_paths
+
+
+def _upload_file_to_pb(kb_name: str, filename: str, file_path: Path) -> None:
+    """Upload a single file to the PocketBase knowledge_bases record."""
+    try:
+        from deeptutor.services.pocketbase_client import get_pb_client
+
+        pb = get_pb_client()
+        records = pb.collection("knowledge_bases").get_full_list(
+            query_params={"filter": f'kb_name="{kb_name}"'}
+        )
+        if not records:
+            logger.debug(f"PocketBase KB record not found for '{kb_name}', skipping file upload")
+            return
+        with open(file_path, "rb") as fh:
+            pb.collection("knowledge_bases").update(
+                records[0].id,
+                body={"kb_name": kb_name},
+                files={"raw_files": (filename, fh)},
+            )
+        logger.debug(f"Uploaded '{filename}' to PocketBase KB '{kb_name}'")
+    except Exception as exc:
+        logger.debug(f"_upload_file_to_pb failed: {exc}")
 
 
 def _task_log(task_id: str, message: str, level: str = "info") -> None:
@@ -232,7 +276,10 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
             _task_log(task_id, "Finalizing initialization")
 
             initializer.progress_tracker.update(
-                ProgressStage.COMPLETED, "Knowledge base initialization complete!", current=1, total=1
+                ProgressStage.COMPLETED,
+                "Knowledge base initialization complete!",
+                current=1,
+                total=1,
             )
 
             manager = get_kb_manager()
@@ -250,7 +297,9 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
                 },
             )
 
-            _task_log(task_id, f"Knowledge base '{initializer.kb_name}' initialized", level="success")
+            _task_log(
+                task_id, f"Knowledge base '{initializer.kb_name}' initialized", level="success"
+            )
             task_manager.update_task_status(task_id, "completed")
             task_stream_manager.emit_complete(
                 task_id, f"Knowledge base '{initializer.kb_name}' initialization complete"
@@ -363,7 +412,9 @@ async def run_upload_processing_task(
                     )
                     _task_log(task_id, f"Updated folder sync state: {folder_id}")
                 except Exception as sync_err:
-                    _task_log(task_id, f"Folder sync state update failed: {sync_err}", level="warning")
+                    _task_log(
+                        task_id, f"Folder sync state update failed: {sync_err}", level="warning"
+                    )
 
             num_processed = len(processed_files) if processed_files else 0
             progress_tracker.update(
@@ -373,7 +424,9 @@ async def run_upload_processing_task(
                 total=num_processed,
             )
 
-            _task_log(task_id, f"Processed {num_processed} file(s) for '{kb_name}'", level="success")
+            _task_log(
+                task_id, f"Processed {num_processed} file(s) for '{kb_name}'", level="success"
+            )
             task_manager.update_task_status(task_id, "completed")
             task_stream_manager.emit_complete(
                 task_id, f"Successfully processed {num_processed} files for '{kb_name}'"
@@ -647,7 +700,9 @@ async def upload_files(
 
         kb_entry = _load_kb_entry_or_404(manager, kb_name)
         _assert_kb_writable_or_409(kb_name, kb_entry)
-        kb_provider = _validate_registered_provider(kb_entry.get("rag_provider") or DEFAULT_PROVIDER)
+        kb_provider = _validate_registered_provider(
+            kb_entry.get("rag_provider") or DEFAULT_PROVIDER
+        )
         if requested_provider and requested_provider != kb_provider:
             raise HTTPException(
                 status_code=400,
@@ -837,24 +892,29 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
 
         if not has_active_task and not expected_task_id:
             if kb_is_ready:
-                await websocket.send_json({
-                    "type": "progress",
-                    "data": {
-                        "stage": "completed",
-                        "message": "Knowledge base is ready.",
-                        "percent": 100,
-                        "current": 1,
-                        "total": 1,
-                    },
-                })
+                await websocket.send_json(
+                    {
+                        "type": "progress",
+                        "data": {
+                            "stage": "completed",
+                            "message": "Knowledge base is ready.",
+                            "percent": 100,
+                            "current": 1,
+                            "total": 1,
+                        },
+                    }
+                )
             else:
-                await websocket.send_json({
-                    "type": "progress",
-                    "data": initial_progress or {
-                        "stage": "error",
-                        "message": "Knowledge base needs reindex or initialization.",
-                    },
-                })
+                await websocket.send_json(
+                    {
+                        "type": "progress",
+                        "data": initial_progress
+                        or {
+                            "stage": "error",
+                            "message": "Knowledge base needs reindex or initialization.",
+                        },
+                    }
+                )
             return
 
         if initial_progress:
@@ -891,7 +951,11 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
                     current_progress = progress_tracker.get_progress()
                     if current_progress:
                         progress_task_id = current_progress.get("task_id")
-                        if expected_task_id and progress_task_id and progress_task_id != expected_task_id:
+                        if (
+                            expected_task_id
+                            and progress_task_id
+                            and progress_task_id != expected_task_id
+                        ):
                             continue
                         current_timestamp = current_progress.get("timestamp")
                         if current_timestamp != last_timestamp:
@@ -993,7 +1057,9 @@ async def sync_folder(kb_name: str, folder_id: str, background_tasks: Background
         manager = get_kb_manager()
         kb_entry = _load_kb_entry_or_404(manager, kb_name)
         _assert_kb_writable_or_409(kb_name, kb_entry)
-        kb_provider = _validate_registered_provider(kb_entry.get("rag_provider") or DEFAULT_PROVIDER)
+        kb_provider = _validate_registered_provider(
+            kb_entry.get("rag_provider") or DEFAULT_PROVIDER
+        )
 
         # Get linked folders and find the one with matching ID
         folders = manager.get_linked_folders(kb_name)

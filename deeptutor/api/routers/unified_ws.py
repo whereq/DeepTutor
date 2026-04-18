@@ -20,6 +20,18 @@ logger = logging.getLogger(__name__)
 
 @router.websocket("/ws")
 async def unified_websocket(ws: WebSocket) -> None:
+    # Auth check — mirrors the require_auth HTTP dependency.
+    # Token is read from the ?token= query param (WebSocket headers can't
+    # carry cookies cross-origin in all browsers).
+    # Uses the same local jwt.decode() path — no network call.
+    from deeptutor.services.auth import AUTH_ENABLED, decode_token
+
+    if AUTH_ENABLED:
+        token = ws.query_params.get("token") or ws.cookies.get("dt_token")
+        if not token or not decode_token(token):
+            await ws.close(code=4001)
+            return
+
     await ws.accept()
     closed = False
     subscription_tasks: dict[str, asyncio.Task[None]] = {}
