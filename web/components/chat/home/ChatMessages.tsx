@@ -5,6 +5,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   BookOpen,
+  ClipboardList,
   Coins,
   Copy,
   MessageSquare,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
+import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import AssistantResponse from "@/components/common/AssistantResponse";
 import type { MessageRequestSnapshot } from "@/context/UnifiedChatContext";
 import { extractMathAnimatorResult } from "@/lib/math-animator-types";
@@ -317,16 +319,25 @@ UserMessage.displayName = "UserMessage";
 export const ReferenceChips = memo(function ReferenceChips({
   historySessions,
   notebookGroups,
+  questionEntries,
   onRemoveHistory,
   onRemoveNotebook,
+  onRemoveQuestion,
 }: {
   historySessions: SelectedHistorySession[];
   notebookGroups: NotebookReferenceGroup[];
+  questionEntries: SelectedQuestionEntry[];
   onRemoveHistory: (sessionId: string) => void;
   onRemoveNotebook: (notebookId: string) => void;
+  onRemoveQuestion: (entryId: number) => void;
 }) {
   const { t } = useTranslation();
-  if (historySessions.length === 0 && notebookGroups.length === 0) return null;
+  if (
+    historySessions.length === 0 &&
+    notebookGroups.length === 0 &&
+    questionEntries.length === 0
+  )
+    return null;
 
   return (
     <div className="mb-3 flex flex-wrap gap-2">
@@ -358,6 +369,26 @@ export const ReferenceChips = memo(function ReferenceChips({
           </span>
           <button
             onClick={() => onRemoveNotebook(group.notebookId)}
+            className="shrink-0 opacity-60 transition hover:opacity-100"
+          >
+            <X size={12} />
+          </button>
+        </span>
+      ))}
+      {questionEntries.map((entry) => (
+        <span
+          key={entry.id}
+          className="inline-flex max-w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[12px] text-amber-800 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+          <ClipboardList size={12} strokeWidth={1.8} className="shrink-0" />
+          <span className="shrink-0 font-medium">{t("Question Bank")}</span>
+          <span className="truncate text-amber-700/90 dark:text-amber-200/90">
+            {entry.question.length > 40
+              ? `${entry.question.slice(0, 40)}…`
+              : entry.question}
+          </span>
+          <button
+            onClick={() => onRemoveQuestion(entry.id)}
             className="shrink-0 opacity-60 transition hover:opacity-100"
           >
             <X size={12} />
