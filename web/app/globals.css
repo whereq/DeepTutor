@@ -226,6 +226,17 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* Force light text on dark code blocks regardless of theme. The wrapper
+   .md-code-block always uses a fixed dark background (#1f2937 / #292524),
+   so we need to override .prose pre (color: #D6D3D1) and any inherited
+   --foreground from the prose wrapper that would otherwise render as
+   near-black in the light theme. Specificity (0,2,1) beats .prose pre. */
+.md-renderer .md-code-block,
+.md-renderer .md-code-block pre,
+.md-renderer .md-code-block code {
+  color: #e5e7eb;
+}
+
 .md-renderer .md-code-block pre,
 .md-renderer .md-code-block code {
   background: transparent !important;
