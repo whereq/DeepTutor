@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, MessageSquare } from "lucide-react";
 
@@ -32,6 +32,23 @@ import SpineEditor from "./components/SpineEditor";
 type View = "list" | "creator" | "spine" | "reader";
 
 export default function BookPage() {
+  // `useSearchParams()` requires a Suspense boundary during static prerender
+  // (Next.js CSR bailout). Wrap the actual page implementation here so the
+  // production build (`next build`) doesn't fail prerendering `/book`.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-full items-center justify-center text-[var(--muted-foreground)]">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
+        </div>
+      }
+    >
+      <BookPageInner />
+    </Suspense>
+  );
+}
+
+function BookPageInner() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loadingBooks, setLoadingBooks] = useState(false);
   const [view, setView] = useState<View>("list");

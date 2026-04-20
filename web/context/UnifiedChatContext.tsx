@@ -12,7 +12,7 @@ import React, {
 import {
   readStoredLanguage,
   writeStoredActiveSessionId,
-} from "@/context/AppShellContext";
+} from "@/context/app-shell-storage";
 import type { StreamEvent, ChatMessage } from "@/lib/unified-ws";
 import { UnifiedWSClient } from "@/lib/unified-ws";
 import { getSession, type SessionMessage } from "@/lib/session-api";
