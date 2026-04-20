@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 import json
 
-from deeptutor.agents.co_writer.edit_agent import (
+from deeptutor.co_writer.edit_agent import (
     TOOL_CALLS_DIR,
     EditAgent,
     load_history,

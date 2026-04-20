@@ -8,7 +8,7 @@ import {
   BookOpen,
   Bot,
   Brain,
-  GraduationCap,
+  Library,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
@@ -20,6 +20,7 @@ import {
 import { useTranslation } from "react-i18next";
 import SessionList from "@/components/SessionList";
 import { TutorBotRecent } from "@/components/sidebar/TutorBotRecent";
+import { BookRecent } from "@/components/sidebar/BookRecent";
 import type { SessionSummary } from "@/lib/session-api";
 
 interface NavEntry {
@@ -32,7 +33,7 @@ const PRIMARY_NAV: NavEntry[] = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/agents", label: "TutorBot", icon: Bot },
   { href: "/co-writer", label: "Co-Writer", icon: PenLine },
-  { href: "/guide", label: "Guided Learning", icon: GraduationCap },
+  { href: "/book", label: "Book", icon: Library },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen },
   { href: "/memory", label: "Memory", icon: Brain },
 ];
@@ -114,6 +115,7 @@ export function SidebarShell({
                   <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
                 </Link>
                 {item.href === "/agents" && <TutorBotRecent collapsed />}
+                {item.href === "/book" && <BookRecent collapsed />}
 
               </div>
             );
@@ -187,6 +189,7 @@ export function SidebarShell({
             const active = pathname.startsWith(item.href);
             const hasSessionsBelow = item.href === "/chat" && showSessions && onSelectSession && onRenameSession && onDeleteSession;
             const hasBots = item.href === "/agents";
+            const hasBooks = item.href === "/book";
             return (
               <div key={item.href}>
                 <Link
@@ -214,6 +217,7 @@ export function SidebarShell({
                   </div>
                 )}
                 {hasBots && <TutorBotRecent />}
+                {hasBooks && <BookRecent />}
               </div>
             );
           })}

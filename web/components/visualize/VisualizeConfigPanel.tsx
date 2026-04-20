@@ -45,6 +45,7 @@ export default function VisualizeConfigPanel({
           <option value="chartjs">{t("Chart.js")}</option>
           <option value="svg">{t("SVG")}</option>
           <option value="mermaid">{t("Mermaid")}</option>
+          <option value="html">{t("HTML")}</option>
         </select>
       </Field>
     </CollapsibleConfigSection>

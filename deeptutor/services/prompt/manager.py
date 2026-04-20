@@ -28,17 +28,21 @@ class PromptManager:
     MODULES = [
         "research",
         "solve",
-        "guide",
         "question",
         "co_writer",
         "math_animator",
+        "book",
         "notebook",
         "visualize",
         "chat",
     ]
 
     # Modules that are not under deeptutor/agents/ directory
-    NON_AGENT_MODULES: dict[str, str] = {}
+    # Map module_name → on-disk path component under deeptutor/
+    NON_AGENT_MODULES: dict[str, str] = {
+        "book": "book",
+        "co_writer": "co_writer",
+    }
 
     def __new__(cls) -> "PromptManager":
         if cls._instance is None:
@@ -56,7 +60,7 @@ class PromptManager:
         Load prompts for an agent.
 
         Args:
-            module_name: Module name (research, solve, guide, question, co_writer)
+            module_name: Module name (research, solve, question, co_writer)
             agent_name: Agent name (filename without .yaml)
             language: Language code ('zh' or 'en')
             subdirectory: Optional subdirectory (e.g., 'solve_loop' for solve module)
