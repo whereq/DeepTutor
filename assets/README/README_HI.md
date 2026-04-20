@@ -25,6 +25,9 @@
 ---
 ### 📦 रिलीज़
 
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` में चरण-दर-चरण चैट टोकन सीमाएँ (8000-टोकन उत्तर), CLI / WebSocket / वेब UI पर अंतिम उत्तर पुनर्जनन, RAG `None`-एम्बेडिंग क्रैश ठीक, Gemma `json_object` अनुकूलता, गहरे कोड ब्लॉक पठनीयता।
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine: 14 ब्लॉक प्रकारों के साथ मल्टी-एजेंट «जीवंत पुस्तक» संकलक, मल्टी-दस्तावेज़ Co-Workspace, इंटरैक्टिव HTML विज़ुअलाइज़ेशन, चैट में प्रश्न बैंक @-उल्लेख, प्रॉम्प्ट बाहरीकरण चरण 2, साइडबार ओवरहॉल।
+
 > **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — स्कीमा-चालित Channels टैब व सीक्रेट मास्किंग; एकल RAG पाइपलाइन; RAG/KB स्थिरता मजबूत; चैट प्रॉम्प्ट बाहरी फ़ाइलों में; थाई README।
 
 > **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — सभी क्षमताओं पर सार्वभौमिक «अभी उत्तर दें»; Co-Writer स्क्रॉल सिंक; नोटबुक में सहेजते समय संदेश चयन; एकीकृत सेटिंग्स पैनल; स्ट्रीमिंग Stop बटन; TutorBot कॉन्फ़िगरेशन परमाणु लेखन।
@@ -77,12 +80,12 @@
 <a id="key-features"></a>
 ## ✨ मुख्य विशेषताएँ
 
-- **एकीकृत चैट वर्कस्पेस** — पाँच मोड, एक थ्रेड: Chat, Deep Solve, क्विज़, Deep Research, Math Animator एक संदर्भ साझा करते हैं।
-- **व्यक्तिगत TutorBot** — चैटबॉट नहीं: स्वायत्त ट्यूटर, अपना वर्कस्पेस, मेमोरी, व्यक्तित्व, कौशल। [nanobot](https://github.com/HKUDS/nanobot)।
-- **AI Co-Writer** — Markdown में AI सह-लेखक: फिर से लिखें, विस्तार, संक्षेप; KB व वेब।
-- **Guided Learning** — आपकी सामग्री से संरचित दृश्य यात्राएँ।
-- **नॉलेज हब** — PDF, Markdown, टेक्स्ट से RAG-तैयार KB; रंगीन नोटबुक।
+- **एकीकृत चैट वर्कस्पेस** — छह मोड, एक थ्रेड: Chat, Deep Solve, क्विज़, Deep Research, Math Animator और Visualize एक संदर्भ साझा करते हैं।
+- **AI Co-Writer** — मल्टी-दस्तावेज़ Markdown वर्कस्पेस में AI सह-लेखक: फिर से लिखें, विस्तार, संक्षेप; KB व वेब।
+- **Book Engine** — संरचित इंटरैक्टिव «जीवंत पुस्तकें»: मल्टी-एजेंट पाइपलाइन, 14 ब्लॉक प्रकार (क्विज़, फ्लैशकार्ड, टाइमलाइन, कॉन्सेप्ट ग्राफ़ आदि)।
+- **नॉलेज हब** — RAG KB, रंगीन नोटबुक, प्रश्न बैंक, कस्टम Skills से शिक्षण शैली।
 - **स्थायी मेमोरी** — प्रगति सारांश व शिक्षार्थी प्रोफ़ाइल; TutorBot के साथ साझा।
+- **व्यक्तिगत TutorBot** — चैटबॉट नहीं: स्वायत्त ट्यूटर, अपना वर्कस्पेस, मेमोरी, व्यक्तित्व, कौशल। [nanobot](https://github.com/HKUDS/nanobot)।
 - **एजेंट-नेटिव CLI** — क्षमता, KB, सत्र, TutorBot एक कमांड में; Rich व JSON। [`SKILL.md`](../../SKILL.md)।
 
 ---
@@ -239,6 +242,7 @@ OpenAI-संगत प्रदाता (DashScope, SiliconFlow, आदि) `c
 |:--|:--|:--|
 | Brave | `BRAVE_API_KEY` | अनुशंसित, मुफ़्त स्तर |
 | Tavily | `TAVILY_API_KEY` | |
+| Serper | `SERPER_API_KEY` | Serper के माध्यम से Google परिणाम |
 | Jina | `JINA_API_KEY` | |
 | SearXNG | — | सेल्फ-होस्ट, API कुंजी नहीं |
 | DuckDuckGo | — | API कुंजी नहीं |
@@ -440,7 +444,7 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-chat.png" alt="चैट" width="800">
 </div>
 
-पाँच मोड, **एकीकृत संदर्भ प्रबंधन**।
+छह मोड, **एकीकृत संदर्भ प्रबंधन**।
 
 | मोड | कार्य |
 |:---|:---|
@@ -449,27 +453,29 @@ deeptutor kb create my-kb --doc textbook.pdf
 | **क्विज़ जनरेशन** | KB आधारित मूल्यांकन। |
 | **Deep Research** | उप-विषय, समानांतर एजेंट, उद्धृत रिपोर्ट। |
 | **Math Animator** | Manim। |
+| **Visualize** | प्राकृतिक भाषा से SVG, Chart.js, Mermaid या स्वतंत्र HTML। |
 
 टूल **वर्कफ़्लो से अलग** — आप चुनते हैं क्या सक्रिय करना है।
 
-### ✍️ Co-Writer — संपादक में AI
+### ✍️ Co-Writer — मल्टी-दस्तावेज़ AI लेखन वर्कस्पेस
 
 <div align="center">
 <img src="../../assets/figs/dt-cowriter.png" alt="Co-Writer" width="800">
 </div>
 
-**फिर से लिखें**, **विस्तार**, **संक्षेप**; अनडू/रीडू; नोटबुक।
+कई दस्तावेज़ बनाएं, प्रत्येक सहेजा गया — एक बार का मसौदा नहीं: पूर्ण Markdown, AI सह-लेखक। **फिर से लिखें**, **विस्तार**, **संक्षेप**; अनडू/रीडू; नोटबुक।
 
-### 🎓 Guided Learning
+### 📖 Book Engine — इंटरैक्टिव «जीवंत पुस्तकें»
 
 <div align="center">
-<img src="../../assets/figs/dt-guide.png" alt="Guided Learning" width="800">
+<img src="../../assets/figs/dt-book-0.png" alt="लाइब्रेरी" width="270"><img src="../../assets/figs/dt-book-1.png" alt="रीडर" width="270"><img src="../../assets/figs/dt-book-2.png" alt="एनीमेशन" width="270">
 </div>
 
-1. योजना (3–5 बिंदु)।  
-2. इंटरैक्टिव पृष्ठ।  
-3. संदर्भ Q&A।  
-4. सारांश।
+विषय दें, नॉलेज बेस दिखाएँ — संरचित इंटरैक्टिव पुस्तक: पढ़ने, स्व-परीक्षण और संदर्भ में चर्चा के लिए जीवित दस्तावेज़।
+
+पर्दे के पीछे मल्टी-एजेंट रूपरेखा, स्रोत, अध्याय वृक्ष, पृष्ठ योजना और ब्लॉक संकलन। आप नियंत्रण में: प्रस्ताव समीक्षा, अध्याय पुनःक्रम, किसी भी पृष्ठ पर चैट।
+
+14 ब्लॉक प्रकार — पाठ, कॉलआउट, क्विज़, फ्लैशकार्ड, कोड, आकृति, डीप डाइव, एनीमेशन, इंटरैक्टिव, टाइमलाइन, कॉन्सेप्ट ग्राफ़, अनुभाग, उपयोगकर्ता नोट, प्लेसहोल्डर — प्रत्येक अपने इंटरैक्टिव घटक के साथ। वास्तविक समय प्रगति टाइमलाइन।
 
 ### 📚 ज्ञान प्रबंधन
 
@@ -477,8 +483,12 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-knowledge.png" alt="ज्ञान" width="800">
 </div>
 
+दस्तावेज़ संग्रह, नोट्स और शिक्षण व्यक्तित्व।
+
 - **नॉलेज बेस** — PDF, TXT, MD।  
-- **नोटबुक** — सत्र व रंग।
+- **नोटबुक** — Chat, Co-Writer, Book या Deep Research से अंतर्दृष्टि, रंगों से।
+- **प्रश्न बैंक** — जनरेट किए गए क्विज़ देखें; बुकमार्क और चैट में @-उल्लेख पिछले प्रदर्शन के लिए।
+- **Skills** — `SKILL.md` से कस्टम शिक्षण व्यक्तित्व: नाम, विवरण, वैकल्पिक ट्रिगर, सक्रिय होने पर चैट सिस्टम प्रॉम्प्ट में Markdown।
 
 ### 🧠 मेमोरी
 
@@ -534,6 +544,7 @@ deeptutor run chat "Explain the Fourier transform" -t rag --kb textbook
 deeptutor run deep_solve "Prove that √2 is irrational" -t reason
 deeptutor run deep_question "Linear algebra" --config num_questions=5
 deeptutor run deep_research "Attention mechanisms in transformers"
+deeptutor run visualize "Draw the architecture of a transformer"
 ```
 
 ```bash
@@ -565,7 +576,7 @@ deeptutor session open <id>
 
 | कमांड | विवरण |
 |:---|:---|
-| `deeptutor run <capability> <message>` | एक बार में क्षमता चलाएँ (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`) |
+| `deeptutor run <capability> <message>` | एक बार में क्षमता चलाएँ (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`, `visualize`) |
 | `deeptutor chat` | इंटरैक्टिव REPL (`--capability`, `--tool`, `--kb`, `--language` आदि) |
 | `deeptutor serve` | DeepTutor API सर्वर शुरू करें |
 
@@ -617,6 +628,14 @@ deeptutor session open <id>
 | `deeptutor notebook add-md <id> <path>` | Markdown आयात |
 | `deeptutor notebook replace-md <id> <rec> <path>` | रिकॉर्ड बदलें |
 | `deeptutor notebook remove-record <id> <rec>` | रिकॉर्ड हटाएँ |
+
+**`deeptutor book`**
+
+| कमांड | विवरण |
+|:---|:---|
+| `deeptutor book list` | वर्कस्पेस में सभी पुस्तकें |
+| `deeptutor book health <book_id>` | KB ड्रिफ्ट व पुस्तक स्वास्थ्य |
+| `deeptutor book refresh-fingerprints <book_id>` | KB फिंगरप्रिंट ताज़ा करें, पुराने पृष्ठ साफ़ करें |
 
 **`deeptutor config` / `plugin` / `provider`**
 

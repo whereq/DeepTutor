@@ -25,6 +25,10 @@
 ---
 ### 📦 Versions
 
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — Limites de tokens par étape dans `agents.yaml` (réponses 8000 tokens), régénérer la dernière réponse (CLI / WebSocket / Web UI), correctif crash RAG sur embeddings `None`, compatibilité Gemma `json_object`, lisibilité des blocs de code sombres.
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine : compilateur multi-agents de « livres vivants » avec 14 types de blocs, espace Co-Writer multi-documents, visualisations HTML interactives, mentions @ de la banque de questions dans le chat, phase 2 d’externalisation des prompts, refonte de la barre latérale.
+
 > **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Onglet Channels piloté par schéma et masquage des secrets ; RAG fusionné en un seul pipeline ; renforcement de la cohérence RAG/KB ; prompts de chat externalisés ; README en thaï.
 
 > **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — « Répondre maintenant » universel sur toutes les capacités ; synchronisation du défilement Co-Writer ; sélection des messages pour l’enregistrement dans le carnet ; panneau de paramètres unifié ; bouton Stop en streaming ; écriture atomique de la configuration TutorBot.
@@ -77,12 +81,12 @@
 <a id="key-features"></a>
 ## ✨ Points clés
 
-- **Espace de chat unifié** — Cinq modes, un fil : Chat, Deep Solve, quiz, Deep Research, Math Animator partagent le contexte.
-- **TutorBots personnels** — Pas des chatbots : tuteurs autonomes, espace de travail, mémoire, personnalité, compétences. [nanobot](https://github.com/HKUDS/nanobot).
-- **AI Co-Writer** — Markdown : réécrire, développer, raccourcir avec KB et web.
-- **Apprentissage guidé** — Parcours visuels par étapes à partir de vos documents.
-- **Hub de connaissances** — PDF, Markdown, texte pour des bases RAG ; carnets colorés.
+- **Espace de chat unifié** — Six modes, un fil : Chat, Deep Solve, quiz, Deep Research, Math Animator et Visualize partagent le contexte.
+- **AI Co-Writer** — Espace Markdown multi-documents : réécrire, développer, raccourcir avec KB et web.
+- **Book Engine** — Transformez vos matériaux en « livres vivants » structurés et interactifs : pipeline multi-agents, 14 types de blocs (quiz, cartes, timelines, graphes de concepts, etc.).
+- **Hub de connaissances** — Bases RAG, carnets colorés, banque de questions, Skills personnalisés pour façonner l’enseignement.
 - **Mémoire persistante** — Synthèse de progression et profil d’apprenant ; partagé avec les TutorBots.
+- **TutorBots personnels** — Pas des chatbots : tuteurs autonomes, espace de travail, mémoire, personnalité, compétences. [nanobot](https://github.com/HKUDS/nanobot).
 - **CLI natif agents** — Capacités, KB, sessions, TutorBot en une commande ; Rich et JSON. [`SKILL.md`](../../SKILL.md) pour les agents.
 
 ---
@@ -239,6 +243,7 @@ Les fournisseurs compatibles OpenAI (DashScope, SiliconFlow, etc.) fonctionnent 
 |:--|:--|:--|
 | Brave | `BRAVE_API_KEY` | Recommandé, palier gratuit disponible |
 | Tavily | `TAVILY_API_KEY` | |
+| Serper | `SERPER_API_KEY` | Résultats Google via Serper |
 | Jina | `JINA_API_KEY` | |
 | SearXNG | — | Auto-hébergé, pas de clé API |
 | DuckDuckGo | — | Pas de clé API |
@@ -440,7 +445,7 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-chat.png" alt="Chat" width="800">
 </div>
 
-Cinq modes, **contexte unifié**.
+Six modes, **contexte unifié**.
 
 | Mode | Rôle |
 |:---|:---|
@@ -449,27 +454,29 @@ Cinq modes, **contexte unifié**.
 | **Génération de quiz** | Évaluations ancrées à la KB. |
 | **Deep Research** | Sous-sujets, agents parallèles, rapport cité. |
 | **Math Animator** | Manim. |
+| **Visualize** | SVG, Chart.js, Mermaid ou page HTML autonome à partir du langage naturel. |
 
 Les outils sont **découplés des flux** — vous choisissez ce qui est actif.
 
-### ✍️ Co-Writer — IA dans l’éditeur
+### ✍️ Co-Writer — Espace d’écriture multi-documents avec IA
 
 <div align="center">
 <img src="../../assets/figs/dt-cowriter.png" alt="Co-Writer" width="800">
 </div>
 
-**Réécrire**, **Développer**, **Raccourcir** ; annuler/refaire ; carnets.
+Créez et gérez plusieurs documents, chacun persisté — pas un brouillon unique : Markdown complet où l’IA est co-auteur. **Réécrire**, **Développer**, **Raccourcir** ; annuler/refaire ; carnets.
 
-### 🎓 Apprentissage guidé
+### 📖 Book Engine — « Livres vivants » interactifs
 
 <div align="center">
-<img src="../../assets/figs/dt-guide.png" alt="Guidé" width="800">
+<img src="../../assets/figs/dt-book-0.png" alt="Bibliothèque" width="270"><img src="../../assets/figs/dt-book-1.png" alt="Lecteur" width="270"><img src="../../assets/figs/dt-book-2.png" alt="Animation" width="270">
 </div>
 
-1. Plan (3–5 points).  
-2. Pages interactives.  
-3. Q&R contextuelles.  
-4. Synthèse.
+Donnez un sujet, pointez votre base de connaissances : DeepTutor produit un livre structuré et interactif — document vivant pour lire, s’auto-évaluer et discuter en contexte.
+
+En coulisses, un pipeline multi-agents propose le plan, récupère les sources, fusionne l’arbre des chapitres, planifie chaque page et compile chaque bloc. Vous gardez la main : validation, réorganisation des chapitres, chat à côté de chaque page.
+
+14 types de blocs — texte, encadré, quiz, cartes mémoire, code, figure, plongée, animation, interactif, chronologie, graphe de concepts, section, note utilisateur, espace réservé — avec composants interactifs dédiés. Une frise de progression en temps réel suit la compilation.
 
 ### 📚 Gestion des connaissances
 
@@ -477,8 +484,12 @@ Les outils sont **découplés des flux** — vous choisissez ce qui est actif.
 <img src="../../assets/figs/dt-knowledge.png" alt="Connaissances" width="800">
 </div>
 
+Collections de documents, notes et personas pédagogiques.
+
 - **Bases de connaissances** — PDF, TXT, MD.  
-- **Carnets** — Couleurs et sessions.
+- **Carnets** — Insights depuis Chat, Co-Writer, Book ou Deep Research, par couleurs.
+- **Banque de questions** — Parcourir les quiz générés ; favoris et @mentions dans le chat pour analyser les performances passées.
+- **Skills** — Personas via `SKILL.md` : nom, description, déclencheurs optionnels, corps Markdown injecté dans le prompt système du chat lorsqu’ils sont actifs.
 
 ### 🧠 Mémoire
 
@@ -534,6 +545,7 @@ deeptutor run chat "Explain the Fourier transform" -t rag --kb textbook
 deeptutor run deep_solve "Prove that √2 is irrational" -t reason
 deeptutor run deep_question "Linear algebra" --config num_questions=5
 deeptutor run deep_research "Attention mechanisms in transformers"
+deeptutor run visualize "Draw the architecture of a transformer"
 ```
 
 ```bash
@@ -565,7 +577,7 @@ deeptutor session open <id>
 
 | Commande | Description |
 |:---|:---|
-| `deeptutor run <capability> <message>` | Exécute une capacité en un tour (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`) |
+| `deeptutor run <capability> <message>` | Exécute une capacité en un tour (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`, `visualize`) |
 | `deeptutor chat` | REPL interactif avec `--capability`, `--tool`, `--kb`, `--language`, etc. |
 | `deeptutor serve` | Démarre le serveur API DeepTutor |
 
@@ -617,6 +629,14 @@ deeptutor session open <id>
 | `deeptutor notebook add-md <id> <path>` | Importer du Markdown |
 | `deeptutor notebook replace-md <id> <rec> <path>` | Remplacer un enregistrement |
 | `deeptutor notebook remove-record <id> <rec>` | Supprimer un enregistrement |
+
+**`deeptutor book`**
+
+| Commande | Description |
+|:---|:---|
+| `deeptutor book list` | Liste tous les livres de l’espace de travail |
+| `deeptutor book health <book_id>` | Dérive de la KB et santé du livre |
+| `deeptutor book refresh-fingerprints <book_id>` | Rafraîchit les empreintes KB et nettoie les pages obsolètes |
 
 **`deeptutor config` / `plugin` / `provider`**
 
