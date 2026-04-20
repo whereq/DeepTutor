@@ -96,13 +96,20 @@ export interface CancelTurnMessage {
   turn_id: string;
 }
 
+export interface RegenerateMessage {
+  type: "regenerate";
+  session_id: string;
+  overrides?: Record<string, unknown>;
+}
+
 export type ChatMessage =
   | StartTurnMessage
   | SubscribeTurnMessage
   | SubscribeSessionMessage
   | ResumeTurnMessage
   | UnsubscribeMessage
-  | CancelTurnMessage;
+  | CancelTurnMessage
+  | RegenerateMessage;
 
 // ---- Connection manager ----
 

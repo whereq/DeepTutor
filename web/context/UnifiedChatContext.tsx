@@ -125,6 +125,7 @@ type Action =
       attachments?: MessageAttachment[];
       requestSnapshot?: MessageRequestSnapshot;
     }
+  | { type: "POP_LAST_ASSISTANT"; key: string }
   | { type: "STREAM_START"; key: string }
   | { type: "STREAM_EVENT"; key: string; event: StreamEvent }
   | { type: "STREAM_END"; key: string; status?: SessionRuntimeStatus; turnId?: string | null }
@@ -225,6 +226,23 @@ function reducer(state: ProviderState, action: Action): ProviderState {
                 ...(action.requestSnapshot ? { requestSnapshot: action.requestSnapshot } : {}),
               },
             ],
+            updatedAt: Date.now(),
+          },
+        },
+      };
+    }
+    case "POP_LAST_ASSISTANT": {
+      const session = state.sessions[action.key];
+      if (!session || session.messages.length === 0) return state;
+      const last = session.messages[session.messages.length - 1];
+      if (last.role !== "assistant") return state;
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [action.key]: {
+            ...session,
+            messages: session.messages.slice(0, -1),
             updatedAt: Date.now(),
           },
         },
@@ -393,6 +411,7 @@ interface ChatContextValue {
     questionNotebookReferences?: QuestionNotebookReferencePayload,
   ) => void;
   cancelStreamingTurn: () => void;
+  regenerateLastMessage: () => void;
   newSession: () => void;
   loadSession: (sessionId: string) => Promise<void>;
   selectedSessionId: string | null;
@@ -761,6 +780,23 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
     dispatch({ type: "STREAM_END", key, status: "cancelled" });
   }, []);
 
+  const regenerateLastMessage = useCallback(() => {
+    const currentState = stateRef.current;
+    const key = currentState.selectedKey;
+    if (!key) return;
+    const session = currentState.sessions[key];
+    if (!session || !session.sessionId) return;
+    if (session.isStreaming) return;
+    const lastUser = [...session.messages].reverse().find((m) => m.role === "user");
+    if (!lastUser) return;
+    dispatch({ type: "POP_LAST_ASSISTANT", key });
+    dispatch({ type: "STREAM_START", key });
+    sendThroughRunner(key, {
+      type: "regenerate",
+      session_id: session.sessionId,
+    });
+  }, [sendThroughRunner]);
+
   const derivedState = useMemo<ChatState>(() => {
     const current = ensureSelectedSession(state);
     return {
@@ -817,6 +853,7 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
     setLanguage,
     sendMessage,
     cancelStreamingTurn,
+    regenerateLastMessage,
     newSession,
     loadSession,
     selectedSessionId: derivedState.sessionId,

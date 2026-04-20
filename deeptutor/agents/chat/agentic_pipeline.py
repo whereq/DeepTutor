@@ -456,7 +456,49 @@ class AgenticChatPipeline:
                     {"trace_kind": "call_status", "call_state": "complete"},
                 ),
             )
-            return clean_thinking_tags("".join(chunks), self.binding, self.model), trace_meta
+            final_response = clean_thinking_tags("".join(chunks), self.binding, self.model)
+            if not final_response.strip():
+                # The provider returned an empty stream (zero non-empty chunks)
+                # or only whitespace. This typically means: model hit a token
+                # limit, was filtered, or treated the observation as the final
+                # answer. Surface a non-terminal warning so the operator sees
+                # the cause in logs and the UI can hint a Regenerate.
+                prompt_chars = sum(len(str(m.get("content") or "")) for m in messages)
+                logger.warning(
+                    "[%s] responding stage returned empty response "
+                    "(model=%s, chunks=%d, prompt_chars=%d, max_tokens=%d, observation_chars=%d)",
+                    trace_meta.get("call_id"),
+                    self.model,
+                    len(chunks),
+                    prompt_chars,
+                    self._chat_limits.responding,
+                    len(observation or ""),
+                )
+                await stream.error(
+                    self._t(
+                        "notices.empty_response",
+                        default=(
+                            "The model returned an empty response. "
+                            "Try Regenerate or rephrase the question."
+                        ),
+                    ),
+                    source="chat",
+                    stage="responding",
+                    metadata=merge_trace_metadata(
+                        trace_meta,
+                        {
+                            "trace_kind": "warning",
+                            "warning_kind": "empty_response",
+                            "chunks": len(chunks),
+                            "prompt_chars": prompt_chars,
+                            "max_tokens": self._chat_limits.responding,
+                            # Explicitly mark as non-terminal so the runtime
+                            # does not flip the turn to ``failed``.
+                            "turn_terminal": False,
+                        },
+                    ),
+                )
+            return final_response, trace_meta
 
     async def _stage_answer_now(
         self,

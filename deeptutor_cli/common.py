@@ -75,6 +75,41 @@ async def run_turn_and_render(
     return session, turn
 
 
+async def regenerate_and_render(
+    *,
+    app: DeepTutorApp,
+    session_id: str,
+    capability: str = "chat",
+    fmt: str = "rich",
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    try:
+        session, turn = await app.regenerate_last_turn(session_id)
+    except RuntimeError as exc:
+        reason = str(exc)
+        if reason == "regenerate_busy":
+            console.print(
+                "[yellow]Cannot regenerate while another turn is running. "
+                "Wait for it to finish or cancel it first.[/]"
+            )
+        elif reason == "nothing_to_regenerate":
+            console.print("[yellow]Nothing to regenerate yet — send a message first.[/]")
+        else:
+            console.print(f"[red]Regenerate failed:[/] {reason}")
+        return None
+
+    if fmt == "json":
+        async for item in app.stream_turn(turn["id"]):
+            console.print(json.dumps(item, ensure_ascii=False))
+        return session, turn
+
+    await render_turn_stream(app=app, turn_id=turn["id"])
+    console.print(
+        f"[dim]session={session['id']} turn={turn['id']} capability={capability} (regenerated)[/]",
+        highlight=False,
+    )
+    return session, turn
+
+
 async def render_turn_stream(*, app: DeepTutorApp, turn_id: str) -> None:
     content_buf = ""
     current_stage = ""
