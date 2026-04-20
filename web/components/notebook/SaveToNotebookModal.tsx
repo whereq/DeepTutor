@@ -13,7 +13,6 @@ type RecordType =
   | "solve"
   | "question"
   | "research"
-  | "co_writer"
   | "chat";
 
 export interface NotebookSavePayload {

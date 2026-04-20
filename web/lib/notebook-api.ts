@@ -11,7 +11,6 @@ export type NotebookRecordType =
   | "solve"
   | "question"
   | "research"
-  | "co_writer"
   | "chat";
 
 export interface NotebookSummary {

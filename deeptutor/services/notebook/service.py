@@ -25,7 +25,6 @@ class RecordType(str, Enum):
     SOLVE = "solve"
     QUESTION = "question"
     RESEARCH = "research"
-    CO_WRITER = "co_writer"
     CHAT = "chat"
 
 
@@ -377,7 +376,6 @@ class NotebookManager:
             "solve": 0,
             "question": 0,
             "research": 0,
-            "co_writer": 0,
             "chat": 0,
         }
 

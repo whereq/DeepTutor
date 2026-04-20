@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Library } from "lucide-react";
 import { apiUrl } from "@/lib/api";
 
 interface RecentBook {
@@ -68,28 +67,7 @@ export function BookRecent({ collapsed = false, limit = 4 }: BookRecentProps) {
 
   if (books.length === 0) return null;
 
-  if (collapsed) {
-    return (
-      <div className="flex flex-col items-center gap-0.5 pb-0.5 pt-px">
-        {books.map((book) => {
-          const dot = STATUS_DOT[book.status] || "bg-[var(--muted-foreground)]/30";
-          return (
-            <Link
-              key={book.id}
-              href={`/book?book=${encodeURIComponent(book.id)}`}
-              title={book.title || "Untitled book"}
-              className="relative rounded-md p-1.5 text-[var(--muted-foreground)]/70 transition-colors hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
-            >
-              <Library size={12} strokeWidth={1.5} />
-              <span
-                className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full ${dot} ring-1 ring-[var(--secondary)]`}
-              />
-            </Link>
-          );
-        })}
-      </div>
-    );
-  }
+  if (collapsed) return null;
 
   return (
     <div className="ml-5 border-l border-[var(--border)]/30 py-1">

@@ -264,6 +264,17 @@ class PathService:
     def get_co_writer_audio_dir(self) -> Path:
         return self.get_co_writer_dir() / "audio"
 
+    def get_co_writer_docs_dir(self) -> Path:
+        """Root directory holding co-writer documents (one sub-directory per doc)."""
+        return self.get_co_writer_dir() / "documents"
+
+    def get_co_writer_doc_root(self, doc_id: str) -> Path:
+        """Per-document root directory."""
+        return self.get_co_writer_docs_dir() / f"doc_{doc_id}"
+
+    def get_co_writer_doc_manifest(self, doc_id: str) -> Path:
+        return self.get_co_writer_doc_root(doc_id) / "manifest.json"
+
     # ── Book Engine paths ────────────────────────────────────────────────
 
     def get_book_dir(self) -> Path:
