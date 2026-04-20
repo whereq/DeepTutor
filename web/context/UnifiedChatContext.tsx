@@ -126,6 +126,7 @@ type Action =
       requestSnapshot?: MessageRequestSnapshot;
     }
   | { type: "POP_LAST_ASSISTANT"; key: string }
+  | { type: "RESTORE_ASSISTANT"; key: string; message: MessageItem }
   | { type: "STREAM_START"; key: string }
   | { type: "STREAM_EVENT"; key: string; event: StreamEvent }
   | { type: "STREAM_END"; key: string; status?: SessionRuntimeStatus; turnId?: string | null }
@@ -243,6 +244,35 @@ function reducer(state: ProviderState, action: Action): ProviderState {
           [action.key]: {
             ...session,
             messages: session.messages.slice(0, -1),
+            updatedAt: Date.now(),
+          },
+        },
+      };
+    }
+    case "RESTORE_ASSISTANT": {
+      // Revert an optimistic POP_LAST_ASSISTANT when the server rejects a
+      // regenerate request (e.g. ``regenerate_busy``), so the user doesn't
+      // silently lose their last reply.
+      const session = state.sessions[action.key];
+      if (!session) return state;
+      const messages = [...session.messages];
+      // Drop any placeholder STREAM_START assistant bubble before restoring.
+      while (
+        messages.length > 0 &&
+        messages[messages.length - 1].role === "assistant" &&
+        (messages[messages.length - 1].content ?? "") === "" &&
+        ((messages[messages.length - 1].events?.length ?? 0) === 0)
+      ) {
+        messages.pop();
+      }
+      messages.push(action.message);
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [action.key]: {
+            ...session,
+            messages,
             updatedAt: Date.now(),
           },
         },
@@ -435,6 +465,10 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
   >(new Map());
   const draftCounterRef = useRef(0);
   const retryTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  // Tracks in-flight regenerate requests so we can restore the popped
+  // assistant message if the server rejects the request (e.g. ``regenerate_busy``
+  // or ``nothing_to_regenerate``). Keyed by session entry key.
+  const pendingRegenerateRef = useRef<Map<string, MessageItem>>(new Map());
 
   useEffect(() => {
     stateRef.current = state;
@@ -519,6 +553,7 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
           status: (status as SessionRuntimeStatus) || "completed",
           turnId: event.turn_id || null,
         });
+        pendingRegenerateRef.current.delete(effectiveKey);
         const runner = runnersRef.current.get(effectiveKey);
         runner?.client.disconnect();
         runnersRef.current.delete(effectiveKey);
@@ -529,6 +564,17 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
         event.type === "error" &&
         Boolean((event.metadata as { turn_terminal?: boolean } | undefined)?.turn_terminal)
       ) {
+        const reason = String((event.metadata as { reason?: string } | undefined)?.reason || "");
+        // Pre-flight regenerate rejections never mutate server state, so we
+        // roll back the optimistic POP_LAST_ASSISTANT/STREAM_START placeholder
+        // to keep the transcript in sync with the server.
+        if (reason === "regenerate_busy" || reason === "nothing_to_regenerate") {
+          const stash = pendingRegenerateRef.current.get(effectiveKey);
+          if (stash) {
+            dispatch({ type: "RESTORE_ASSISTANT", key: effectiveKey, message: stash });
+          }
+        }
+        pendingRegenerateRef.current.delete(effectiveKey);
         const status = String((event.metadata as { status?: string } | undefined)?.status || "failed");
         dispatch({
           type: "STREAM_END",
@@ -789,6 +835,15 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
     if (session.isStreaming) return;
     const lastUser = [...session.messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
+    // Snapshot the trailing assistant (if any) so we can put it back when the
+    // server rejects the request. We intentionally keep events/attachments so
+    // the restored bubble round-trips identically.
+    const lastMessage = session.messages[session.messages.length - 1];
+    if (lastMessage && lastMessage.role === "assistant") {
+      pendingRegenerateRef.current.set(key, { ...lastMessage });
+    } else {
+      pendingRegenerateRef.current.delete(key);
+    }
     dispatch({ type: "POP_LAST_ASSISTANT", key });
     dispatch({ type: "STREAM_START", key });
     sendThroughRunner(key, {

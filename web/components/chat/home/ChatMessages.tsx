@@ -550,7 +550,7 @@ export const ChatMessageList = memo(function ChatMessageList({
                     {showRegenerate && (
                       <RoughActionButton
                         icon={RefreshCcw}
-                        label="Regenerate"
+                        label={t("Regenerate")}
                         onClick={() => onRegenerateMessage()}
                       />
                     )}
