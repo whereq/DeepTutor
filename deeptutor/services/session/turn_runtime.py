@@ -538,6 +538,7 @@ class TurnRuntimeManager:
             from deeptutor.services.notebook import notebook_manager
             from deeptutor.services.llm.config import get_llm_config
             from deeptutor.services.session.context_builder import ContextBuilder
+            from deeptutor.services.skill import get_skill_service
 
             request_config = dict(payload.get("config", {}) or {})
             followup_question_context = _extract_followup_question_context(request_config)
@@ -589,6 +590,14 @@ class TurnRuntimeManager:
             )
             memory_service = get_memory_service()
             memory_context = memory_service.build_memory_context()
+
+            skill_service = get_skill_service()
+            requested_skills = list(payload.get("skills") or [])
+            if not requested_skills or requested_skills == ["auto"]:
+                resolved_skills = skill_service.auto_select(raw_user_content)
+            else:
+                resolved_skills = [s for s in requested_skills if isinstance(s, str) and s != "auto"]
+            skills_context = skill_service.load_for_context(resolved_skills)
 
             if notebook_references:
                 referenced_records = notebook_manager.get_records_by_references(notebook_references)
@@ -721,6 +730,7 @@ class TurnRuntimeManager:
                 notebook_context=notebook_context,
                 history_context=history_context,
                 memory_context=memory_context,
+                skills_context=skills_context,
                 metadata={
                     "conversation_summary": history_result.conversation_summary,
                     "conversation_context_text": conversation_context_text,
@@ -733,6 +743,7 @@ class TurnRuntimeManager:
                     "question_notebook_references": question_notebook_references,
                     "question_bank_context": question_bank_context,
                     "memory_context": memory_context,
+                    "active_skills": resolved_skills,
                 },
             )
 

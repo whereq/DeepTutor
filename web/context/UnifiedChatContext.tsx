@@ -87,6 +87,7 @@ export interface MessageRequestSnapshot {
   notebookReferences?: NotebookReferencePayload[];
   historyReferences?: HistoryReferencePayload;
   questionNotebookReferences?: QuestionNotebookReferencePayload;
+  skills?: string[];
 }
 
 export interface MessageItem {
@@ -439,6 +440,7 @@ interface ChatContextValue {
     historyReferences?: HistoryReferencePayload,
     options?: SendMessageOptions,
     questionNotebookReferences?: QuestionNotebookReferencePayload,
+    skills?: string[],
   ) => void;
   cancelStreamingTurn: () => void;
   regenerateLastMessage: () => void;
@@ -729,6 +731,7 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
       historyReferences?: HistoryReferencePayload,
       options?: SendMessageOptions,
       questionNotebookReferences?: QuestionNotebookReferencePayload,
+      skills?: string[],
     ) => {
       const msgAttachments = attachments?.map((a) => ({
         type: a.type,
@@ -755,6 +758,7 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
       const shouldSendKnowledgeBases =
         effectiveTools.includes("rag") ||
         (effectiveCapability === "deep_research" && researchSources.includes("kb"));
+      const effectiveSkills = replaySnapshot?.skills ?? skills;
       const requestSnapshot: MessageRequestSnapshot = replaySnapshot ?? {
         content,
         capability: effectiveCapability,
@@ -768,6 +772,7 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
         ...(questionNotebookReferences?.length
           ? { questionNotebookReferences: [...questionNotebookReferences] }
           : {}),
+        ...(effectiveSkills?.length ? { skills: [...effectiveSkills] } : {}),
       };
       if (options?.displayUserMessage !== false) {
         dispatch({
@@ -802,6 +807,7 @@ export function UnifiedChatProvider({ children }: { children: React.ReactNode })
         ...(questionNotebookReferences?.length
           ? { question_notebook_references: questionNotebookReferences }
           : {}),
+        ...(effectiveSkills?.length ? { skills: effectiveSkills } : {}),
         ...(effectiveConfig && Object.keys(effectiveConfig).length > 0
           ? { config: effectiveConfig }
           : {}),

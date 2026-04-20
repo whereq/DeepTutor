@@ -657,7 +657,11 @@ class KnowledgeBaseManager:
         if name not in self.list_knowledge_bases():
             raise ValueError(f"Knowledge base not found: {name}")
 
-        kb_dir = self.get_knowledge_base_path(name)
+        # Resolve the directory directly to stay idempotent: if the on-disk
+        # folder was already removed (e.g. manually rm-rf'd) we still want to
+        # purge the orphaned entry from kb_config.json instead of failing.
+        kb_dir = self.base_dir / name
+        dir_exists = kb_dir.exists()
 
         if not confirm:
             # Ask for confirmation in CLI
@@ -668,8 +672,19 @@ class KnowledgeBaseManager:
                 print("Deletion cancelled.")
                 return False
 
-        # Delete the directory
-        shutil.rmtree(kb_dir)
+        if dir_exists:
+            try:
+                shutil.rmtree(kb_dir)
+            except FileNotFoundError:
+                # Race: someone else deleted it between exists() and rmtree.
+                pass
+            except OSError as e:
+                logger.error(f"Failed to remove KB directory '{kb_dir}': {e}")
+                raise
+        else:
+            logger.warning(
+                f"KB directory '{kb_dir}' missing on disk; cleaning up orphaned config entry."
+            )
 
         # Remove from config
         if name in self.config.get("knowledge_bases", {}):
@@ -677,8 +692,8 @@ class KnowledgeBaseManager:
 
         # Update default if this was the default
         if self.config.get("default") == name:
-            remaining = self.list_knowledge_bases()
-            self.config["default"] = remaining[0] if remaining else None
+            remaining = [n for n in self.config.get("knowledge_bases", {}).keys() if n != name]
+            self.config["default"] = sorted(remaining)[0] if remaining else None
 
         self._save_config()
         return True

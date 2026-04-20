@@ -7,15 +7,67 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, BadRequestError
 
 from deeptutor.logging import get_logger
+from deeptutor.services.llm.capabilities import disable_response_format_at_runtime
 from deeptutor.services.llm.provider_registry import find_by_name, strip_provider_prefix
 
 from .config import get_token_limit_kwargs
 from .utils import extract_response_content
 
 logger = get_logger("LLMExecutors")
+
+
+def _is_unsupported_response_format_error(exc: BaseException) -> bool:
+    """Detect whether a BadRequestError stems from an unsupported ``response_format``.
+
+    Examples seen in the wild:
+    - LM Studio + Gemma: ``"'response_format.type' must be 'json_schema' or 'text'"``
+    - DashScope + various models: ``"'response_format.type' specified ... not valid: 'json_object' is not supported by this model"``
+    """
+    text = str(exc).lower()
+    if "response_format" not in text and "response format" not in text:
+        return False
+    return (
+        "json_object" in text
+        or "json_schema" in text
+        or "not supported" in text
+        or "not valid" in text
+        or "must be" in text
+    )
+
+
+async def _create_with_format_fallback(
+    client: AsyncOpenAI,
+    payload: dict[str, Any],
+    *,
+    binding: str,
+    model: str,
+) -> Any:
+    """Run ``client.chat.completions.create`` with auto-fallback on response_format errors.
+
+    Some local servers (LM Studio + Gemma/Qwen) reject ``response_format``
+    with HTTP 400. On a matching :class:`BadRequestError`, drop the offending
+    field and retry once, then cache the (binding, model) pair so future calls
+    skip ``response_format`` upfront.
+    """
+    try:
+        return await client.chat.completions.create(**payload)
+    except BadRequestError as exc:
+        if "response_format" not in payload or not _is_unsupported_response_format_error(exc):
+            raise
+        logger.warning(
+            "Provider %s rejected response_format for model %s (%s); "
+            "retrying without it and disabling response_format for this binding+model.",
+            binding,
+            model,
+            exc,
+        )
+        disable_response_format_at_runtime(binding, model)
+        retry_payload = dict(payload)
+        retry_payload.pop("response_format", None)
+        return await client.chat.completions.create(**retry_payload)
 
 
 def _build_messages(
@@ -112,7 +164,9 @@ async def sdk_complete(
         payload["reasoning_effort"] = reasoning_effort
     payload.update(kwargs)
 
-    response = await client.chat.completions.create(**payload)
+    response = await _create_with_format_fallback(
+        client, payload, binding=provider_name or "openai", model=resolved_model
+    )
     choices = getattr(response, "choices", None) or []
     if not choices:
         return ""
@@ -174,7 +228,9 @@ async def sdk_stream(
         payload["reasoning_effort"] = reasoning_effort
     payload.update(kwargs)
 
-    stream_response = await client.chat.completions.create(**payload)
+    stream_response = await _create_with_format_fallback(
+        client, payload, binding=provider_name or "openai", model=resolved_model
+    )
     async for chunk in stream_response:
         choices = getattr(chunk, "choices", None) or []
         if not choices:

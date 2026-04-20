@@ -26,6 +26,7 @@ import {
   Star,
   Trash2,
   Upload,
+  Wand2,
   X,
 } from "lucide-react";
 import { apiUrl, wsUrl } from "@/lib/api";
@@ -50,6 +51,14 @@ import {
   type NotebookEntry,
   type NotebookCategory,
 } from "@/lib/notebook-api";
+import {
+  createSkill,
+  deleteSkill,
+  getSkill,
+  listSkills,
+  updateSkill,
+  type SkillInfo,
+} from "@/lib/skills-api";
 
 const MarkdownRenderer = dynamic(() => import("@/components/common/MarkdownRenderer"), {
   ssr: false,
@@ -143,7 +152,7 @@ const kbNeedsReindex = (kb: KnowledgeBase): boolean =>
 const kbIsUploadable = (kb: KnowledgeBase): boolean =>
   resolveKbStatus(kb) === "ready" && !kbNeedsReindex(kb);
 
-type TabKey = "knowledge" | "notebooks" | "questions";
+type TabKey = "knowledge" | "notebooks" | "questions" | "skills";
 
 function KnowledgePageContent() {
   const router = useRouter();
@@ -194,6 +203,128 @@ function KnowledgePageContent() {
   const [qShowCategoryManager, setQShowCategoryManager] = useState(false);
   const [qNewCatName, setQNewCatName] = useState("");
   const [qRenamingCat, setQRenamingCat] = useState<{ id: number; name: string } | null>(null);
+
+  // ── Skills state ──
+  const [skills, setSkills] = useState<SkillInfo[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsError, setSkillsError] = useState<string | null>(null);
+  const [skillEditor, setSkillEditor] = useState<{
+    mode: "create" | "edit";
+    originalName: string | null;
+    name: string;
+    description: string;
+    content: string;
+    saving: boolean;
+    error: string | null;
+  } | null>(null);
+  const [skillDeleting, setSkillDeleting] = useState<string | null>(null);
+
+  const loadSkills = useCallback(async () => {
+    setSkillsLoading(true);
+    setSkillsError(null);
+    try {
+      const items = await listSkills({ force: true });
+      setSkills(items);
+    } catch (err) {
+      setSkillsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSkillsLoading(false);
+    }
+  }, []);
+
+  const openCreateSkill = useCallback(() => {
+    setSkillEditor({
+      mode: "create",
+      originalName: null,
+      name: "",
+      description: "",
+      content:
+        "# My Skill\n\nDescribe how the assistant should behave when this skill is active.\n",
+      saving: false,
+      error: null,
+    });
+  }, []);
+
+  const openEditSkill = useCallback(async (name: string) => {
+    setSkillEditor({
+      mode: "edit",
+      originalName: name,
+      name,
+      description: "",
+      content: "",
+      saving: true,
+      error: null,
+    });
+    try {
+      const detail = await getSkill(name);
+      setSkillEditor({
+        mode: "edit",
+        originalName: name,
+        name: detail.name,
+        description: detail.description,
+        content: detail.content,
+        saving: false,
+        error: null,
+      });
+    } catch (err) {
+      setSkillEditor((prev) =>
+        prev
+          ? { ...prev, saving: false, error: err instanceof Error ? err.message : String(err) }
+          : prev,
+      );
+    }
+  }, []);
+
+  const handleSaveSkill = useCallback(async () => {
+    if (!skillEditor) return;
+    const trimmedName = skillEditor.name.trim();
+    if (!trimmedName) {
+      setSkillEditor({ ...skillEditor, error: "Name is required" });
+      return;
+    }
+    setSkillEditor({ ...skillEditor, saving: true, error: null });
+    try {
+      if (skillEditor.mode === "create") {
+        await createSkill({
+          name: trimmedName,
+          description: skillEditor.description,
+          content: skillEditor.content,
+        });
+      } else if (skillEditor.originalName) {
+        await updateSkill(skillEditor.originalName, {
+          description: skillEditor.description,
+          content: skillEditor.content,
+          rename_to:
+            trimmedName !== skillEditor.originalName ? trimmedName : undefined,
+        });
+      }
+      setSkillEditor(null);
+      await loadSkills();
+    } catch (err) {
+      setSkillEditor((prev) =>
+        prev
+          ? { ...prev, saving: false, error: err instanceof Error ? err.message : String(err) }
+          : prev,
+      );
+    }
+  }, [skillEditor, loadSkills]);
+
+  const handleDeleteSkill = useCallback(async (name: string) => {
+    if (!window.confirm(`Delete skill "${name}"?`)) return;
+    setSkillDeleting(name);
+    try {
+      await deleteSkill(name);
+      await loadSkills();
+    } catch (err) {
+      setSkillsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSkillDeleting(null);
+    }
+  }, [loadSkills]);
+
+  useEffect(() => {
+    if (tab === "skills") void loadSkills();
+  }, [tab, loadSkills]);
 
   // ── Question Notebook handlers ──
   const loadQCategories = useCallback(async () => {
@@ -649,9 +780,34 @@ function KnowledgePageContent() {
 
   const deleteKnowledgeBase = async (kbName: string) => {
     if (!window.confirm(t('Delete knowledge base "{{name}}"?', { name: kbName }))) return;
-    await fetch(apiUrl(`/api/v1/knowledge/${kbName}`), { method: "DELETE" });
-    invalidateKnowledgeCaches();
-    await loadAll();
+    setPageError(null);
+    try {
+      const res = await fetch(
+        apiUrl(`/api/v1/knowledge/${encodeURIComponent(kbName)}`),
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        let detail = `Delete failed (${res.status})`;
+        try {
+          const body = await res.json();
+          if (body?.detail) detail = String(body.detail);
+        } catch {
+          // Response body was not JSON; keep generic message.
+        }
+        throw new Error(detail);
+      }
+      closeProgressSocket(kbName);
+      setProgressMap((prev) => {
+        if (!(kbName in prev)) return prev;
+        const next = { ...prev };
+        delete next[kbName];
+        return next;
+      });
+      invalidateKnowledgeCaches();
+      await loadAll();
+    } catch (err) {
+      setPageError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleCreateNotebook = async () => {
@@ -787,6 +943,7 @@ function KnowledgePageContent() {
               { key: "knowledge", label: t("Knowledge Bases"), icon: Database },
               { key: "notebooks", label: t("Notebooks"), icon: NotebookPen },
               { key: "questions", label: t("Question Bank"), icon: ClipboardList },
+              { key: "skills", label: t("Skills"), icon: Wand2 },
             ].map((item) => (
               <button
                 key={item.key}
@@ -1360,7 +1517,7 @@ function KnowledgePageContent() {
               </div>
             </section>
           </div>
-        ) : (
+        ) : tab === "questions" ? (
           /* ── Questions tab content ── */
           <div className="space-y-0">
             {/* Category manager */}
@@ -1722,6 +1879,187 @@ function KnowledgePageContent() {
                   );
                 })}
               </ul>
+            )}
+          </div>
+        ) : (
+          /* ── Skills tab content ── */
+          <div className="space-y-5">
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Wand2 size={15} className="text-[var(--muted-foreground)]" />
+                  <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
+                    {t("Skills")}
+                  </h2>
+                  <span className="rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] text-[var(--muted-foreground)]">
+                    {skills.length}
+                  </span>
+                </div>
+                <button
+                  onClick={openCreateSkill}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--muted)]/40 px-3 py-1.5 text-[12px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+                >
+                  <Plus size={13} /> {t("New skill")}
+                </button>
+              </div>
+              <p className="mb-4 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
+                {t(
+                  "Skills are short markdown playbooks that shape the assistant's behavior in chat. Pick one from the composer or use Auto.",
+                )}
+              </p>
+
+              {skillsError && (
+                <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                  {skillsError}
+                </div>
+              )}
+
+              {skillsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-4 w-4 animate-spin text-[var(--muted-foreground)]" />
+                </div>
+              ) : skills.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-[var(--border)] py-12 text-center text-[13px] text-[var(--muted-foreground)]">
+                  {t("No skills yet. Create your first one to customize chat.")}
+                </div>
+              ) : (
+                <ul className="divide-y divide-[var(--border)]/50 rounded-lg border border-[var(--border)]">
+                  {skills.map((skill) => (
+                    <li
+                      key={skill.name}
+                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--muted)]/30"
+                    >
+                      <Wand2 size={14} className="shrink-0 text-[var(--muted-foreground)]" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13px] font-medium text-[var(--foreground)]">
+                          {skill.name}
+                        </div>
+                        {skill.description && (
+                          <div className="mt-0.5 truncate text-[12px] text-[var(--muted-foreground)]">
+                            {skill.description}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => void openEditSkill(skill.name)}
+                          className="rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                          title={t("Edit")}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => void handleDeleteSkill(skill.name)}
+                          disabled={skillDeleting === skill.name}
+                          className="rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30"
+                          title={t("Delete")}
+                        >
+                          {skillDeleting === skill.name ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={13} />
+                          )}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {skillEditor && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <Wand2 size={14} className="text-[var(--muted-foreground)]" />
+                      <h3 className="text-[14px] font-semibold text-[var(--foreground)]">
+                        {skillEditor.mode === "create" ? t("New skill") : t("Edit skill")}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setSkillEditor(null)}
+                      className="rounded-md p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+                        {t("Name")}
+                      </label>
+                      <input
+                        value={skillEditor.name}
+                        onChange={(e) =>
+                          setSkillEditor({ ...skillEditor, name: e.target.value })
+                        }
+                        placeholder={t("e.g. teacher")}
+                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+                      />
+                      <p className="mt-1 text-[11px] text-[var(--muted-foreground)]/70">
+                        {t("Lowercase letters, digits, and hyphens only.")}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+                        {t("Description")}
+                      </label>
+                      <input
+                        value={skillEditor.description}
+                        onChange={(e) =>
+                          setSkillEditor({ ...skillEditor, description: e.target.value })
+                        }
+                        placeholder={t("Short summary used by Auto mode")}
+                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+                        {t("Markdown body")}
+                      </label>
+                      <textarea
+                        value={skillEditor.content}
+                        onChange={(e) =>
+                          setSkillEditor({ ...skillEditor, content: e.target.value })
+                        }
+                        rows={16}
+                        spellCheck={false}
+                        className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-[12px] leading-relaxed outline-none transition-colors focus:border-[var(--foreground)]/25"
+                      />
+                      <p className="mt-1 text-[11px] text-[var(--muted-foreground)]/70">
+                        {t("YAML frontmatter is optional and is auto-managed for name and description.")}
+                      </p>
+                    </div>
+
+                    {skillEditor.error && (
+                      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                        {skillEditor.error}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+                    <button
+                      onClick={() => setSkillEditor(null)}
+                      className="rounded-md px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                    >
+                      {t("Cancel")}
+                    </button>
+                    <button
+                      onClick={() => void handleSaveSkill()}
+                      disabled={skillEditor.saving}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-[var(--foreground)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {skillEditor.saving && <Loader2 size={12} className="animate-spin" />}
+                      {t("Save")}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}

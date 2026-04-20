@@ -24,6 +24,7 @@ import {
 import BookChatPanel from "./components/BookChatPanel";
 import BookCreator from "./components/BookCreator";
 import BookHealthBanner from "./components/BookHealthBanner";
+import BookLibrary from "./components/BookLibrary";
 import BookProgressTimeline from "./components/BookProgressTimeline";
 import BookSidebar from "./components/BookSidebar";
 import PageReader from "./components/PageReader";
@@ -376,17 +377,15 @@ function BookPageInner() {
 
   return (
     <div className="flex h-screen w-full">
-      <BookSidebar
-        books={books}
-        loadingBooks={loadingBooks}
-        selectedBookId={selectedBookId}
-        onSelectBook={(id) => void handleSelectBook(id)}
-        onNewBook={handleNewBook}
-        onDeleteBook={(id) => void handleDeleteBook(id)}
-        pages={detail?.pages || []}
-        selectedPageId={selectedPageId}
-        onSelectPage={handleSelectPage}
-      />
+      {view !== "list" && (
+        <BookSidebar
+          book={detail?.book || pendingBook || null}
+          onBackToLibrary={() => void handleSelectBook(null)}
+          pages={detail?.pages || []}
+          selectedPageId={selectedPageId}
+          onSelectPage={handleSelectPage}
+        />
+      )}
 
       <main className="relative flex flex-1 overflow-hidden bg-[var(--background)]">
         {/* Persistent mini progress chip — floats top-right of the workspace
@@ -399,9 +398,13 @@ function BookPageInner() {
         )}
         <div className="flex-1 overflow-hidden">
         {view === "list" && (
-          <div className="flex h-full items-center justify-center text-[var(--muted-foreground)]">
-            Select a book or click <span className="mx-1 font-semibold text-[var(--foreground)]">New book</span> to get started.
-          </div>
+          <BookLibrary
+            books={books}
+            loading={loadingBooks}
+            onNewBook={handleNewBook}
+            onSelectBook={(id) => void handleSelectBook(id)}
+            onDeleteBook={(id) => void handleDeleteBook(id)}
+          />
         )}
 
         {view === "creator" && (

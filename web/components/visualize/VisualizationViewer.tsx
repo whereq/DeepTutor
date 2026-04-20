@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Code2, Copy, Check, ExternalLink } from "lucide-react";
+import { Code2, Copy, Check, ExternalLink, Maximize2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Mermaid } from "@/components/Mermaid";
 import { prepareIframeHtml } from "@/lib/iframe-html";
@@ -151,6 +151,19 @@ function SvgRenderer({ svg }: { svg: string }) {
   );
 }
 
+function renderVisualization(result: VisualizeResult) {
+  if (result.render_type === "svg") {
+    return <SvgRenderer svg={result.code.content} />;
+  }
+  if (result.render_type === "mermaid") {
+    return <Mermaid chart={result.code.content} />;
+  }
+  if (result.render_type === "html") {
+    return <HtmlRenderer html={result.code.content} />;
+  }
+  return <ChartJsRenderer config={result.code.content} />;
+}
+
 export default function VisualizationViewer({
   result,
 }: {
@@ -159,6 +172,25 @@ export default function VisualizationViewer({
   const { t } = useTranslation();
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // HTML iframe already provides its own "Open in new tab" affordance; the
+  // sandboxed iframe also doesn't behave well inside a re-rendered modal.
+  const supportsFullscreen = result.render_type !== "html";
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFullscreen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [fullscreen]);
 
   const handleCopy = async () => {
     try {
@@ -174,21 +206,24 @@ export default function VisualizationViewer({
     <div className="space-y-3">
       {/* Visualization area */}
       <div
-        className={
+        className={`relative ${
           result.render_type === "html"
             ? "overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)]"
             : "overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)] p-4"
-        }
+        }`}
       >
-        {result.render_type === "svg" ? (
-          <SvgRenderer svg={result.code.content} />
-        ) : result.render_type === "mermaid" ? (
-          <Mermaid chart={result.code.content} />
-        ) : result.render_type === "html" ? (
-          <HtmlRenderer html={result.code.content} />
-        ) : (
-          <ChartJsRenderer config={result.code.content} />
+        {supportsFullscreen && (
+          <button
+            type="button"
+            onClick={() => setFullscreen(true)}
+            title={t("Fullscreen")}
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--background)]/90 px-2 py-1 text-[10px] font-medium text-[var(--muted-foreground)] backdrop-blur transition-colors hover:text-[var(--foreground)]"
+          >
+            <Maximize2 size={10} strokeWidth={1.8} />
+            {t("Fullscreen")}
+          </button>
         )}
+        {renderVisualization(result)}
       </div>
 
       {/* Toolbar */}
@@ -239,6 +274,44 @@ export default function VisualizationViewer({
         <p className="text-[11px] text-[var(--muted-foreground)]">
           {t("Review")}: {result.review.review_notes}
         </p>
+      )}
+
+      {/* Fullscreen overlay */}
+      {fullscreen && supportsFullscreen && (
+        <div
+          className="fixed inset-0 z-[120] flex flex-col bg-black/85 p-4 backdrop-blur-sm"
+          onClick={() => setFullscreen(false)}
+        >
+          <div className="mb-2 flex shrink-0 items-center justify-between text-white">
+            <div className="text-xs uppercase tracking-wider opacity-80">
+              {result.render_type === "svg"
+                ? "SVG"
+                : result.render_type === "mermaid"
+                  ? `Mermaid · ${result.analysis.chart_type || "diagram"}`
+                  : `Chart.js · ${result.analysis.chart_type || "chart"}`}
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFullscreen(false);
+              }}
+              title={t("Close")}
+              className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-white/20"
+            >
+              <X size={12} strokeWidth={1.8} />
+              {t("Close")}
+            </button>
+          </div>
+          <div
+            className="flex flex-1 items-center justify-center overflow-auto rounded-xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full max-w-[1600px]">
+              {renderVisualization(result)}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

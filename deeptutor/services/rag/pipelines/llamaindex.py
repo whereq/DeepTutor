@@ -74,11 +74,24 @@ class CustomEmbedding(BaseEmbedding):
     async def _aget_query_embedding(self, query: str) -> List[float]:
         """Get embedding for a query."""
         embeddings = await self._client.embed([query])
+        if not embeddings or embeddings[0] is None:
+            # Surface a clear error so the chat layer can show a meaningful
+            # message instead of crashing later in similarity computation
+            # with ``TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'``.
+            raise ValueError(
+                "Embedding provider returned None for query vector. "
+                "Check the embedding API configuration and connectivity."
+            )
         return embeddings[0]
 
     async def _aget_text_embedding(self, text: str) -> List[float]:
         """Get embedding for a text."""
         embeddings = await self._client.embed([text])
+        if not embeddings or embeddings[0] is None:
+            raise ValueError(
+                "Embedding provider returned None for text vector. "
+                "Check the embedding API configuration and connectivity."
+            )
         return embeddings[0]
 
     async def _aget_text_embeddings(self, texts: List[str]) -> List[List[float]]:
@@ -102,13 +115,27 @@ class CustomEmbedding(BaseEmbedding):
         # Guard against None embeddings that would crash similarity computation
         none_indices = [i for i, vec in enumerate(result) if vec is None]
         if none_indices:
+            # Determine dimension: prefer a sibling vector, fall back to configured dim,
+            # raise if neither is available (otherwise we'd persist zero-length vectors
+            # that crash retrieval later, which is exactly what this guard tries to avoid).
+            dim = next((len(v) for v in result if v is not None), 0)
+            if dim == 0:
+                try:
+                    dim = int(get_embedding_config().dim or 0)
+                except Exception:
+                    dim = 0
+            if dim <= 0:
+                raise ValueError(
+                    f"Embedding provider returned None for all {len(texts)} chunk(s) "
+                    "and no fallback dimension is configured. Check the embedding "
+                    "API configuration and connectivity."
+                )
             self._logger.error(
                 f"Embedding returned None for {len(none_indices)} chunk(s) "
                 f"at indices {none_indices}. These will be replaced with "
-                f"zero vectors to prevent storage corruption."
+                f"{dim}-dim zero vectors to prevent storage corruption. "
+                "Affected chunks will not be retrievable; consider re-indexing."
             )
-            # Determine dimension from the first valid embedding
-            dim = next((len(v) for v in result if v is not None), 0)
             for i in none_indices:
                 result[i] = [0.0] * dim
         self._logger.info(f"Embedding complete: {len(result)} vectors")

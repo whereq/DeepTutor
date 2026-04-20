@@ -14,7 +14,11 @@ from typing import cast
 
 import aiohttp
 
-from .capabilities import get_effective_temperature, supports_response_format
+from .capabilities import (
+    disable_response_format_at_runtime,
+    get_effective_temperature,
+    supports_response_format,
+)
 from .config import get_token_limit_kwargs
 from .exceptions import LLMAPIError, LLMAuthenticationError, LLMConfigError
 from .utils import (
@@ -78,6 +82,25 @@ def _coerce_int(value: object, default: int | None) -> int | None:
 
 # Use lowercase to avoid constant redefinition warning
 _ssl_warning_logged = False
+
+
+def _looks_like_unsupported_response_format(error_text: str) -> bool:
+    """Detect whether a 400 error body indicates ``response_format`` is unsupported.
+
+    Mirrors the heuristic in ``executors._is_unsupported_response_format_error``
+    so the aiohttp-based ``_openai_complete`` / ``_openai_stream`` paths can
+    auto-recover when ``response_format`` is sent to a model that rejects it.
+    """
+    text = (error_text or "").lower()
+    if "response_format" not in text and "response format" not in text:
+        return False
+    return (
+        "json_object" in text
+        or "json_schema" in text
+        or "not supported" in text
+        or "not valid" in text
+        or "must be" in text
+    )
 
 
 def _get_aiohttp_connector() -> aiohttp.TCPConnector | None:
@@ -326,11 +349,51 @@ async def _openai_complete(
                             content = extract_response_content(cast(dict[str, object], message))
                 else:
                     error_text = await resp.text()
-                    raise LLMAPIError(
-                        f"OpenAI API error: {error_text}",
-                        status_code=resp.status,
-                        provider=binding or "openai",
-                    )
+                    # Auto-fallback: if the model rejects response_format, drop it
+                    # and retry once (then cache so future calls skip it upfront).
+                    if (
+                        resp.status == 400
+                        and "response_format" in data
+                        and _looks_like_unsupported_response_format(error_text)
+                    ):
+                        logger.warning(
+                            "Provider %s rejected response_format for model %s "
+                            "(HTTP 400); retrying without it. Body: %s",
+                            binding,
+                            model,
+                            error_text[:200],
+                        )
+                        disable_response_format_at_runtime(binding, model)
+                        retry_data = dict(data)
+                        retry_data.pop("response_format", None)
+                        async with session.post(url, headers=headers, json=retry_data) as retry_resp:
+                            if retry_resp.status == 200:
+                                result = cast(dict[str, object], await retry_resp.json())
+                                choices = result.get("choices")
+                                if isinstance(choices, list) and choices:
+                                    choices_list = cast(list[object], choices)
+                                    first_choice = choices_list[0]
+                                    if isinstance(first_choice, Mapping):
+                                        message = cast(Mapping[str, object], first_choice).get("message")
+                                    else:
+                                        message = None
+                                    if isinstance(message, Mapping):
+                                        content = extract_response_content(
+                                            cast(dict[str, object], message)
+                                        )
+                            else:
+                                retry_text = await retry_resp.text()
+                                raise LLMAPIError(
+                                    f"OpenAI API error: {retry_text}",
+                                    status_code=retry_resp.status,
+                                    provider=binding or "openai",
+                                )
+                    else:
+                        raise LLMAPIError(
+                            f"OpenAI API error: {error_text}",
+                            status_code=resp.status,
+                            provider=binding or "openai",
+                        )
         except aiohttp.ClientError as e:
             # Handle connection errors with more specific messages
             if "forcibly closed" in str(e).lower() or "10054" in str(e):
@@ -428,15 +491,46 @@ async def _openai_stream(
     timeout = aiohttp.ClientTimeout(total=300)
     connector = _get_aiohttp_connector()
     async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env=True) as session:
-        async with session.post(url, headers=headers, json=data) as resp:
-            if resp.status != 200:
+        # Try once; if the server rejects response_format with HTTP 400,
+        # disable it for this (binding, model) pair and retry once before
+        # yielding any chunks. After yielding starts, we cannot retry safely.
+        attempt_data = data
+        for retry_attempt in range(2):
+            resp_cm = session.post(url, headers=headers, json=attempt_data)
+            resp = await resp_cm.__aenter__()
+            try:
+                if resp.status == 200:
+                    break
                 error_text = await resp.text()
+                if (
+                    retry_attempt == 0
+                    and resp.status == 400
+                    and "response_format" in attempt_data
+                    and _looks_like_unsupported_response_format(error_text)
+                ):
+                    logger.warning(
+                        "Provider %s rejected response_format for model %s "
+                        "(HTTP 400); retrying stream without it. Body: %s",
+                        binding,
+                        model,
+                        error_text[:200],
+                    )
+                    disable_response_format_at_runtime(binding, model)
+                    attempt_data = dict(attempt_data)
+                    attempt_data.pop("response_format", None)
+                    await resp_cm.__aexit__(None, None, None)
+                    continue
+                await resp_cm.__aexit__(None, None, None)
                 raise LLMAPIError(
                     f"OpenAI stream error: {error_text}",
                     status_code=resp.status,
                     provider=binding or "openai",
                 )
+            except BaseException:
+                await resp_cm.__aexit__(None, None, None)
+                raise
 
+        try:
             # Track thinking block state for streaming
             in_thinking_block = False
             thinking_buffer = ""
@@ -507,6 +601,8 @@ async def _openai_stream(
                                 yield content
                 except json.JSONDecodeError:
                     continue
+        finally:
+            await resp_cm.__aexit__(None, None, None)
 
 
 async def _anthropic_complete(
