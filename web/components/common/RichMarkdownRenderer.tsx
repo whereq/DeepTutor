@@ -400,7 +400,7 @@ export default function RichMarkdownRenderer({
             {...lineProps}
           >
             <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-[#e5e7eb]">
-              <code {...props}>{raw}</code>
+              <code className="md-code-block__code" {...props}>{raw}</code>
             </pre>
           </div>
         );
