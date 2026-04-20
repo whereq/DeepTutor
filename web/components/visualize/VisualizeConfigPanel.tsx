@@ -29,11 +29,11 @@ export default function VisualizeConfigPanel({
   return (
     <CollapsibleConfigSection
       collapsed={collapsed}
-      summary={summarizeVisualizeConfig(value)}
+      summary={summarizeVisualizeConfig(value, t)}
       onToggleCollapsed={onToggleCollapsed}
       bodyClassName="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 pb-2.5"
     >
-      <Field label="Render Mode" width="w-[120px]">
+      <Field label={t("Render Mode")} width="w-[120px]">
         <select
           value={value.render_mode}
           onChange={(e) =>

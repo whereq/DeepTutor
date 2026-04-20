@@ -25,7 +25,17 @@ class PromptManager:
     }
 
     # Supported modules
-    MODULES = ["research", "solve", "guide", "question", "co_writer", "math_animator"]
+    MODULES = [
+        "research",
+        "solve",
+        "guide",
+        "question",
+        "co_writer",
+        "math_animator",
+        "notebook",
+        "visualize",
+        "chat",
+    ]
 
     # Modules that are not under deeptutor/agents/ directory
     NON_AGENT_MODULES: dict[str, str] = {}

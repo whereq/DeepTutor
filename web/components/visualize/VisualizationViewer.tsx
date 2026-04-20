@@ -7,6 +7,7 @@ import { Mermaid } from "@/components/Mermaid";
 import type { VisualizeResult } from "@/lib/visualize-types";
 
 function ChartJsRenderer({ config }: { config: string }) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<unknown>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +36,7 @@ function ChartJsRenderer({ config }: { config: string }) {
         setError(null);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to render chart");
+          setError(err instanceof Error ? err.message : t("Failed to render chart"));
         }
       }
     }
@@ -49,13 +50,13 @@ function ChartJsRenderer({ config }: { config: string }) {
         chartRef.current = null;
       }
     };
-  }, [config]);
+  }, [config, t]);
 
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30">
         <p className="text-sm font-medium text-red-600 dark:text-red-400">
-          Chart rendering error
+          {t("Chart rendering error")}
         </p>
         <pre className="mt-2 whitespace-pre-wrap text-xs text-red-500">{error}</pre>
       </div>
@@ -70,24 +71,25 @@ function ChartJsRenderer({ config }: { config: string }) {
 }
 
 function SvgRenderer({ svg }: { svg: string }) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
   const sanitizedSvg = useMemo(() => {
     const trimmed = svg.trim();
     if (!trimmed.startsWith("<svg")) {
-      setError("Invalid SVG: does not start with <svg");
+      setError(t("Invalid SVG: does not start with <svg"));
       return "";
     }
     setError(null);
     return trimmed;
-  }, [svg]);
+  }, [svg, t]);
 
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30">
         <p className="text-sm font-medium text-red-600 dark:text-red-400">
-          SVG rendering error
+          {t("SVG rendering error")}
         </p>
         <pre className="mt-2 whitespace-pre-wrap text-xs text-red-500">{error}</pre>
       </div>

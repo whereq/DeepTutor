@@ -57,7 +57,9 @@ interface NotebookReferenceGroup {
   count: number;
 }
 
-function getModeBadgeLabel(capability?: string | null) {
+// Returns the i18n key (and a sensible fallback) for the capability badge
+// shown above the user's message. Callers must run `t(...)` on the result.
+function getModeBadgeLabel(capability?: string | null): string {
   if (!capability || capability === "chat") return "Chat";
   if (capability === "deep_solve") return "Deep Solve";
   if (capability === "deep_question") return "Quiz Generation";
@@ -196,6 +198,7 @@ const AnswerNowRow = memo(function AnswerNowRow({
 AnswerNowRow.displayName = "AnswerNowRow";
 
 function CostFooter({ cost, tokens, calls }: { cost: number; tokens: number; calls: number }) {
+  const { t } = useTranslation();
   const formatCost = (usd: number) => {
     if (usd < 0.01) return `$${usd.toFixed(4)}`;
     return `$${usd.toFixed(2)}`;
@@ -209,9 +212,9 @@ function CostFooter({ cost, tokens, calls }: { cost: number; tokens: number; cal
       <Coins size={10} strokeWidth={1.5} className="shrink-0" />
       <span>{formatCost(cost)}</span>
       <span className="opacity-40">·</span>
-      <span>{formatTokens(tokens)} tokens</span>
+      <span>{formatTokens(tokens)} {t("tokens")}</span>
       <span className="opacity-40">·</span>
-      <span>{calls} calls</span>
+      <span>{calls} {t("calls")}</span>
     </div>
   );
 }
@@ -255,7 +258,7 @@ const UserMessage = memo(function UserMessage({
       <div className="max-w-[75%] space-y-1.5">
         <div className="flex justify-end pr-1">
           <span className="text-[10px] tracking-wide text-[var(--muted-foreground)]">
-            {getModeBadgeLabel(msg.capability)}
+            {t(getModeBadgeLabel(msg.capability))}
           </span>
         </div>
         {msg.attachments?.some((a) => a.type === "image") && (
@@ -500,13 +503,13 @@ export const ChatMessageList = memo(function ChatMessageList({
                   <div className="flex gap-2">
                     <RoughActionButton
                       icon={Copy}
-                      label="Copy"
+                      label={t("Copy")}
                       onClick={() => void onCopyAssistantMessage(msg.content)}
                     />
                     {showRetry && (
                       <RoughActionButton
                         icon={RotateCcw}
-                        label="Retry"
+                        label={t("Retry")}
                         onClick={() => onRetryMessage(pairedUserMessage?.requestSnapshot)}
                       />
                     )}

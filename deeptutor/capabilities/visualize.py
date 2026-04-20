@@ -160,11 +160,11 @@ class VisualizeCapability(BaseCapability):
             format_trace_summary,
             join_chunks,
             labeled_block,
+            load_answer_now_prompts,
             make_skip_notice,
             stream_synthesis,
         )
 
-        is_zh = context.language.lower().startswith("zh")
         original = str(payload.get("original_user_message") or context.user_message).strip()
         partial = str(payload.get("partial_response") or "").strip()
         trace_summary = format_trace_summary(payload.get("events"), language=context.language)
@@ -173,37 +173,14 @@ class VisualizeCapability(BaseCapability):
             context.config_overrides.get("render_mode", "auto") or "auto"
         ).strip().lower()
 
-        if is_zh:
-            system_prompt = (
-                "你是 DeepTutor 的可视化代码生成器。用户已经在等待，"
-                "请直接输出最终可渲染的代码。"
-                "严格输出 JSON：{\"render_type\": \"svg|chartjs|mermaid\", "
-                "\"code\": \"...\"}。"
-                "code 字段是可直接渲染的源代码（SVG 标签 / Chart.js JS 代码 / Mermaid 文本）。"
-            )
-            user_prompt = (
-                f"用户请求：{original}\n\n"
-                f"render_mode：{render_mode}\n\n"
-                f"{labeled_block('Current Draft', partial)}\n\n"
-                f"{labeled_block('Execution Trace', trace_summary)}\n\n"
-                "立即输出符合 schema 的 JSON。"
-            )
-        else:
-            system_prompt = (
-                "You are DeepTutor's visualization code generator. The user "
-                "is waiting, so emit the final renderable code in one shot. "
-                "Output strictly the JSON {\"render_type\": "
-                "\"svg|chartjs|mermaid\", \"code\": \"...\"}, where ``code`` "
-                "is the renderable source (SVG markup, Chart.js JS, or "
-                "Mermaid DSL)."
-            )
-            user_prompt = (
-                f"User request: {original}\n\n"
-                f"render_mode hint: {render_mode}\n\n"
-                f"{labeled_block('Current Draft', partial)}\n\n"
-                f"{labeled_block('Execution Trace', trace_summary)}\n\n"
-                "Emit the JSON now."
-            )
+        prompts = load_answer_now_prompts("visualize", context.language)
+        system_prompt = str(prompts.get("system", "")).strip()
+        user_prompt = str(prompts.get("user_template", "")).format(
+            original=original,
+            render_mode=render_mode,
+            current_draft=labeled_block("Current Draft", partial),
+            execution_trace=labeled_block("Execution Trace", trace_summary),
+        )
 
         trace_meta = build_answer_now_trace_metadata(
             capability=self.name, phase="generating", label="Answer now"
