@@ -154,6 +154,17 @@ def _extract_persist_user_message(config: dict[str, Any] | None) -> bool:
     return bool(raw)
 
 
+def _extract_regenerate_flag(config: dict[str, Any] | None) -> bool:
+    if not isinstance(config, dict):
+        return False
+    raw = config.pop("_regenerate", False)
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"true", "1", "yes"}
+    return bool(raw)
+
+
 def _format_followup_question_context(context: dict[str, Any], language: str = "en") -> str:
     options = context.get("options") or {}
     option_lines = []
@@ -276,6 +287,9 @@ class TurnRuntimeManager:
         raw_config = dict(payload.get("config", {}) or {})
         runtime_only_keys = (
             "_persist_user_message",
+            "_regenerate",
+            "_regenerated_from_message_id",
+            "_superseded_turn_id",
             "followup_question_context",
             "answer_now_context",
         )
@@ -312,18 +326,126 @@ class TurnRuntimeManager:
             capability=capability,
             payload=dict(payload),
         )
+        session_metadata: dict[str, Any] = {
+            "session_id": session["id"],
+            "turn_id": turn["id"],
+        }
+        regenerated_from = runtime_only_config.get("_regenerated_from_message_id")
+        if regenerated_from is not None:
+            session_metadata["regenerated_from_message_id"] = regenerated_from
+        superseded_turn_id = runtime_only_config.get("_superseded_turn_id")
+        if superseded_turn_id:
+            session_metadata["superseded_turn_id"] = str(superseded_turn_id)
+        if runtime_only_config.get("_regenerate"):
+            session_metadata["regenerate"] = True
         await self._persist_and_publish(
             execution,
             StreamEvent(
                 type=StreamEventType.SESSION,
                 source="turn_runtime",
-                metadata={"session_id": session["id"], "turn_id": turn["id"]},
+                metadata=session_metadata,
             ),
         )
         async with self._lock:
             self._executions[turn["id"]] = execution
             execution.task = asyncio.create_task(self._run_turn(execution))
         return session, turn
+
+    async def regenerate_last_turn(
+        self,
+        session_id: str,
+        overrides: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Re-run the prior user message in ``session_id``.
+
+        Deletes the trailing assistant message (if any), then dispatches a new
+        turn with ``_persist_user_message=False`` and ``_regenerate=True`` so
+        the runtime knows not to duplicate the user row or refresh long-term
+        memory a second time. The original user message stays in place.
+        """
+        session_id = str(session_id or "").strip()
+        if not session_id:
+            raise RuntimeError("nothing_to_regenerate")
+
+        session = await self.store.get_session(session_id)
+        if session is None:
+            raise RuntimeError("nothing_to_regenerate")
+
+        active = await self.store.get_active_turn(session_id)
+        if active is not None:
+            raise RuntimeError("regenerate_busy")
+
+        last_user = await self.store.get_last_message(session_id, role="user")
+        if last_user is None:
+            raise RuntimeError("nothing_to_regenerate")
+
+        last_message = await self.store.get_last_message(session_id)
+        previous_turn_id: str | None = None
+        if last_message is not None and last_message.get("role") == "assistant":
+            for event in last_message.get("events") or []:
+                turn_id = str((event or {}).get("turn_id") or "")
+                if turn_id:
+                    previous_turn_id = turn_id
+                    break
+            await self.store.delete_message(int(last_message["id"]))
+
+        preferences = session.get("preferences") or {}
+        overrides = overrides or {}
+
+        capability = str(
+            overrides.get("capability")
+            or last_user.get("capability")
+            or preferences.get("capability")
+            or "chat"
+        )
+        tools = list(
+            overrides.get("tools")
+            if overrides.get("tools") is not None
+            else preferences.get("tools") or []
+        )
+        knowledge_bases = list(
+            overrides.get("knowledge_bases")
+            if overrides.get("knowledge_bases") is not None
+            else preferences.get("knowledge_bases") or []
+        )
+        language = str(
+            overrides.get("language")
+            or preferences.get("language")
+            or "en"
+        )
+
+        config: dict[str, Any] = dict(overrides.get("config") or {})
+        config.update(
+            {
+                "_persist_user_message": False,
+                "_regenerate": True,
+                "_regenerated_from_message_id": int(last_user["id"]),
+            }
+        )
+        if previous_turn_id:
+            config["_superseded_turn_id"] = previous_turn_id
+
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "capability": capability,
+            "content": str(last_user.get("content", "") or ""),
+            "tools": tools,
+            "knowledge_bases": knowledge_bases,
+            "language": language,
+            "attachments": list(last_user.get("attachments") or []),
+            "notebook_references": list(
+                overrides.get("notebook_references")
+                if overrides.get("notebook_references") is not None
+                else preferences.get("notebook_references") or []
+            ),
+            "history_references": list(
+                overrides.get("history_references")
+                if overrides.get("history_references") is not None
+                else preferences.get("history_references") or []
+            ),
+            "config": config,
+        }
+        return await self.start_turn(payload)
 
     async def cancel_turn(self, turn_id: str) -> bool:
         async with self._lock:
@@ -420,6 +542,9 @@ class TurnRuntimeManager:
             request_config = dict(payload.get("config", {}) or {})
             followup_question_context = _extract_followup_question_context(request_config)
             persist_user_message = _extract_persist_user_message(request_config)
+            is_regenerate = _extract_regenerate_flag(request_config)
+            request_config.pop("_regenerated_from_message_id", None)
+            request_config.pop("_superseded_turn_id", None)
             raw_user_content = str(payload.get("content", "") or "")
             notebook_references = payload.get("notebook_references", []) or []
             history_references = payload.get("history_references", []) or []
@@ -629,16 +754,17 @@ class TurnRuntimeManager:
                 events=assistant_events,
             )
             await self.store.update_turn_status(turn_id, "completed")
-            try:
-                await memory_service.refresh_from_turn(
-                    user_message=raw_user_content,
-                    assistant_message=assistant_content,
-                    session_id=session_id,
-                    capability=capability_name or "chat",
-                    language=str(payload.get("language", "en") or "en"),
-                )
-            except Exception:
-                logger.debug("Failed to refresh lightweight memory", exc_info=True)
+            if not is_regenerate:
+                try:
+                    await memory_service.refresh_from_turn(
+                        user_message=raw_user_content,
+                        assistant_message=assistant_content,
+                        session_id=session_id,
+                        capability=capability_name or "chat",
+                        language=str(payload.get("language", "en") or "en"),
+                    )
+                except Exception:
+                    logger.debug("Failed to refresh lightweight memory", exc_info=True)
         except asyncio.CancelledError:
             await self.store.update_turn_status(turn_id, "cancelled", "Turn cancelled")
             await self._persist_and_publish(

@@ -1024,5 +1024,6 @@
   "no paper": "未上传试卷",
   "Incomplete settings": "设置不完整",
   "llm-only": "仅 LLM",
-  "Copy": "复制"
+  "Copy": "复制",
+  "Regenerate": "重新生成"
 }

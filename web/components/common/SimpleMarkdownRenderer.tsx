@@ -262,7 +262,7 @@ export default function SimpleMarkdownRenderer({
             className={`md-code-block ${gap} overflow-hidden rounded-xl border border-[var(--border)] bg-[#292524]`}
           >
             <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-[#D6D3D1]">
-              <code {...props}>{raw}</code>
+              <code className="md-code-block__code" {...props}>{raw}</code>
             </pre>
           </div>
         );

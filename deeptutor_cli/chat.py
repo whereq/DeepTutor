@@ -11,7 +11,7 @@ from rich.panel import Panel
 
 from deeptutor.app import DeepTutorApp, TurnRequest
 
-from .common import console, maybe_run, run_turn_and_render
+from .common import console, maybe_run, regenerate_and_render, run_turn_and_render
 
 
 @dataclass
@@ -78,6 +78,7 @@ async def _chat_repl(state: ChatState) -> None:
             "[bold]DeepTutor CLI[/]\n"
             "Type a message to chat. Commands:\n"
             "  /quit  /session  /new\n"
+            "  /regenerate (alias /retry) — re-run the last user message\n"
             "  /tool on|off <name>\n"
             "  /cap <name>\n"
             "  /kb <name>|none\n"
@@ -99,6 +100,21 @@ async def _chat_repl(state: ChatState) -> None:
         if not user_input:
             continue
         if user_input.startswith("/"):
+            command = user_input.split(maxsplit=1)[0].lower()
+            if command in {"/regenerate", "/retry"}:
+                if not state.session_id:
+                    console.print("[yellow]No active session yet — send a message first.[/]")
+                    continue
+                result = await regenerate_and_render(
+                    app=client,
+                    session_id=state.session_id,
+                    capability=state.capability,
+                    fmt="rich",
+                )
+                if result is not None:
+                    session, _turn = result
+                    state.session_id = str(session["id"])
+                continue
             should_continue = _apply_command(user_input, state)
             if should_continue:
                 continue

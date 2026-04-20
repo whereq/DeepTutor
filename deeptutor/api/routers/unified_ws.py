@@ -3,6 +3,22 @@ Unified WebSocket Endpoint
 ==========================
 
 Single ``/api/v1/ws`` endpoint for turn-based execution and replayable streaming.
+
+Supported client message ``type`` values:
+
+- ``message`` / ``start_turn`` — start a new turn from a payload.
+- ``subscribe_turn`` — stream events of an existing turn (with ``after_seq``).
+- ``subscribe_session`` — stream events of the active turn for a session.
+- ``resume_from`` — resume an in-flight turn after reconnection.
+- ``unsubscribe`` — stop a previously created subscription.
+- ``cancel_turn`` — cancel a running turn.
+- ``regenerate`` — re-run the last user message in the given session as a
+  brand-new turn. Replaces the trailing assistant message (if any) and
+  reuses the session's stored capability/tools/preferences. Optional
+  ``overrides`` field accepts ``capability``, ``tools``, ``knowledge_bases``,
+  ``language``, ``config``, ``notebook_references``, ``history_references``.
+  Errors: ``regenerate_busy`` (another turn is running) and
+  ``nothing_to_regenerate`` (no prior user message).
 """
 
 from __future__ import annotations
@@ -144,6 +160,41 @@ async def unified_websocket(ws: WebSocket) -> None:
                 cancelled = await runtime.cancel_turn(turn_id)
                 if not cancelled:
                     await safe_send({"type": "error", "content": f"Turn not found: {turn_id}"})
+                continue
+
+            if msg_type == "regenerate":
+                session_id = str(msg.get("session_id") or "").strip()
+                if not session_id:
+                    await safe_send({"type": "error", "content": "Missing session_id."})
+                    continue
+                from deeptutor.services.session import get_turn_runtime_manager
+
+                runtime = get_turn_runtime_manager()
+                overrides = msg.get("overrides") if isinstance(msg.get("overrides"), dict) else None
+                try:
+                    _, turn = await runtime.regenerate_last_turn(
+                        session_id,
+                        overrides=overrides,
+                    )
+                except RuntimeError as exc:
+                    await safe_send(
+                        {
+                            "type": "error",
+                            "source": "unified_ws",
+                            "stage": "",
+                            "content": str(exc),
+                            "metadata": {
+                                "turn_terminal": True,
+                                "status": "rejected",
+                                "reason": str(exc),
+                            },
+                            "session_id": session_id,
+                            "turn_id": "",
+                            "seq": 0,
+                        }
+                    )
+                    continue
+                await subscribe_turn(turn["id"], after_seq=0)
                 continue
 
             await safe_send({"type": "error", "content": f"Unknown type: {msg_type}"})

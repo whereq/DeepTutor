@@ -209,6 +209,7 @@ export default function ChatPage() {
     setKBs,
     sendMessage,
     cancelStreamingTurn,
+    regenerateLastMessage,
     newSession,
     loadSession,
   } = useUnifiedChat();
@@ -345,19 +346,6 @@ export default function ChatPage() {
       console.error("Failed to copy assistant message:", error);
     }
   }, []);
-  const replaySnapshot = useCallback(
-    (snapshot?: MessageRequestSnapshot, configOverride?: Record<string, unknown>) => {
-      if (!snapshot || state.isStreaming) return;
-      sendMessage(
-        snapshot.content, snapshot.attachments, configOverride ?? snapshot.config,
-        snapshot.notebookReferences, snapshot.historyReferences,
-        { displayUserMessage: false, persistUserMessage: false, requestSnapshotOverride: snapshot },
-        snapshot.questionNotebookReferences,
-      );
-      shouldAutoScrollRef.current = true;
-    },
-    [sendMessage, shouldAutoScrollRef, state.isStreaming],
-  );
   const handleAnswerNow = useCallback(
     (snapshot?: MessageRequestSnapshot, assistantMsg?: { content: string; events?: StreamEvent[] }) => {
       if (!snapshot || !state.isStreaming) return;
@@ -634,9 +622,9 @@ export default function ChatPage() {
     [researchConfig, sendMessage, shouldAutoScrollRef],
   );
 
-  const handleRetryMessage = useCallback((snapshot?: MessageRequestSnapshot) => {
-    replaySnapshot(snapshot);
-  }, [replaySnapshot]);
+  const handleRegenerateMessage = useCallback(() => {
+    regenerateLastMessage();
+  }, [regenerateLastMessage]);
 
   const handleSetKB = useCallback((kb: string) => { setKBs(kb ? [kb] : []); }, [setKBs]);
   const handleSelectNotebookPicker = useCallback(() => { setShowNotebookPicker(true); }, []);
@@ -724,7 +712,7 @@ export default function ChatPage() {
               language={state.language}
               onAnswerNow={handleAnswerNow}
               onCopyAssistantMessage={copyAssistantMessage}
-              onRetryMessage={handleRetryMessage}
+              onRegenerateMessage={handleRegenerateMessage}
               onConfirmOutline={handleConfirmOutline}
             />
             <div ref={messagesEndRef} className="h-px w-full shrink-0" />

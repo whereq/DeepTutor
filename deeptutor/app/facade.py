@@ -136,6 +136,13 @@ class DeepTutorApp:
     async def cancel_turn(self, turn_id: str) -> bool:
         return await self.runtime.cancel_turn(turn_id)
 
+    async def regenerate_last_turn(
+        self,
+        session_id: str,
+        overrides: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        return await self.runtime.regenerate_last_turn(session_id, overrides=overrides)
+
     async def list_sessions(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         return await self.store.list_sessions(limit=limit, offset=offset)
 

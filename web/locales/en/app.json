@@ -1024,5 +1024,6 @@
   "no paper": "no paper",
   "Incomplete settings": "Incomplete settings",
   "llm-only": "llm-only",
-  "Copy": "Copy"
+  "Copy": "Copy",
+  "Regenerate": "Regenerate"
 }

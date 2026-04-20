@@ -597,6 +597,50 @@ class SQLiteSessionStore:
             attachments,
         )
 
+    def _delete_message_sync(self, message_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM messages WHERE id = ?", (int(message_id),))
+            conn.commit()
+        return cur.rowcount > 0
+
+    async def delete_message(self, message_id: int) -> bool:
+        return await self._run(self._delete_message_sync, message_id)
+
+    def _get_last_message_sync(
+        self, session_id: str, role: str | None = None
+    ) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            if role is None:
+                row = conn.execute(
+                    """
+                    SELECT id, session_id, role, content, capability, events_json, attachments_json, created_at
+                    FROM messages
+                    WHERE session_id = ?
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    (session_id,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT id, session_id, role, content, capability, events_json, attachments_json, created_at
+                    FROM messages
+                    WHERE session_id = ? AND role = ?
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    (session_id, role),
+                ).fetchone()
+        if row is None:
+            return None
+        return self._serialize_message(row)
+
+    async def get_last_message(
+        self, session_id: str, role: str | None = None
+    ) -> dict[str, Any] | None:
+        return await self._run(self._get_last_message_sync, session_id, role)
+
     def _serialize_message(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "id": row["id"],
