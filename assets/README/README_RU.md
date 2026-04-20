@@ -25,6 +25,10 @@
 ---
 ### 📦 Релизы
 
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — лимиты токенов чата по этапам в `agents.yaml` (ответы до 8000 токенов), повторная генерация последнего ответа (CLI / WebSocket / Web UI), исправление падения RAG при `None` в эмбеддингах, совместимость Gemma с `json_object`, читаемость тёмных блоков кода.
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine: мультиагентный компилятор «живых книг» с 14 типами блоков, многодокументный Co-Writer, интерактивные HTML-визуализации, @-упоминания банка вопросов в чате, фаза 2 выноса промптов, переработка боковой панели.
+
 > **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — вкладка Channels на схеме с маскировкой секретов; единый конвейер RAG; укрепление согласованности RAG/KB; вынесенные промпты чата; README на тайском.
 
 > **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — универсальный «Ответить сейчас» во всех возможностях; синхронизация прокрутки Co-Writer; выбор сообщений при сохранении в блокнот; единая панель настроек; кнопка Stop при стриминге; атомарная запись конфигурации TutorBot.
@@ -77,12 +81,12 @@
 <a id="key-features"></a>
 ## ✨ Ключевые возможности
 
-- **Единое чат-пространство** — пять режимов в одной ветке: Chat, Deep Solve, квизы, Deep Research, Math Animator с общим контекстом.
-- **Персональные TutorBot** — не чат-боты: автономные репетиторы со своей памятью, личностью и навыками. [nanobot](https://github.com/HKUDS/nanobot).
-- **AI Co-Writer** — Markdown: переписать, расширить, сократить с KB и вебом.
-- **Guided Learning** — визуальные пошаговые маршруты по вашим материалам.
-- **Центр знаний** — PDF, Markdown, текст для RAG; цветные блокноты.
+- **Единое чат-пространство** — шесть режимов в одной ветке: Chat, Deep Solve, квизы, Deep Research, Math Animator и Visualize с общим контекстом.
+- **AI Co-Writer** — мультидокументный Markdown: переписать, расширить, сократить с KB и вебом.
+- **Book Engine** — структурированные интерактивные «живые книги»: мультиагентный конвейер, 14 типов блоков (квизы, карточки, таймлайны, графы концепций и др.).
+- **Центр знаний** — RAG-базы, цветные блокноты, банк вопросов, пользовательские Skills.
 - **Постоянная память** — сводка прогресса и профиль ученика; общая с TutorBot.
+- **Персональные TutorBot** — не чат-боты: автономные репетиторы со своей памятью, личностью и навыками. [nanobot](https://github.com/HKUDS/nanobot).
 - **Агентно-нативный CLI** — возможности, KB, сессии, TutorBot одной командой; Rich и JSON. [`SKILL.md`](../../SKILL.md).
 
 ---
@@ -239,6 +243,7 @@ OpenAI-совместимые провайдеры (DashScope, SiliconFlow и д
 |:--|:--|:--|
 | Brave | `BRAVE_API_KEY` | Рекомендуется, есть бесплатный уровень |
 | Tavily | `TAVILY_API_KEY` | |
+| Serper | `SERPER_API_KEY` | Результаты Google через Serper |
 | Jina | `JINA_API_KEY` | |
 | SearXNG | — | Самохостинг, без API-ключа |
 | DuckDuckGo | — | Без API-ключа |
@@ -440,7 +445,7 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-chat.png" alt="Чат" width="800">
 </div>
 
-Пять режимов, **единый контекст**.
+Шесть режимов, **единый контекст**.
 
 | Режим | Назначение |
 |:---|:---|
@@ -449,27 +454,29 @@ deeptutor kb create my-kb --doc textbook.pdf
 | **Генерация квизов** | Оценки по KB. |
 | **Deep Research** | Подтемы, параллельные агенты, отчёт с ссылками. |
 | **Math Animator** | Manim. |
+| **Visualize** | SVG, Chart.js, Mermaid или автономный HTML из естественного языка. |
 
 Инструменты **отделены от сценариев**.
 
-### ✍️ Co-Writer — ИИ в редакторе
+### ✍️ Co-Writer — мультидокументное пространство с ИИ
 
 <div align="center">
 <img src="../../assets/figs/dt-cowriter.png" alt="Co-Writer" width="800">
 </div>
 
-**Переписать**, **Расширить**, **Сократить**; отмена/повтор; блокноты.
+Создавайте несколько документов с отдельным хранением — не одноразовый черновик: полноценный Markdown, ИИ как соавтор. **Переписать**, **Расширить**, **Сократить**; отмена/повтор; блокноты.
 
-### 🎓 Guided Learning
+### 📖 Book Engine — интерактивные «живые книги»
 
 <div align="center">
-<img src="../../assets/figs/dt-guide.png" alt="Guided Learning" width="800">
+<img src="../../assets/figs/dt-book-0.png" alt="Библиотека" width="270"><img src="../../assets/figs/dt-book-1.png" alt="Читалка" width="270"><img src="../../assets/figs/dt-book-2.png" alt="Анимация" width="270">
 </div>
 
-1. План (3–5 пунктов).  
-2. Интерактивные страницы.  
-3. Контекстные вопросы.  
-4. Итог.
+Задайте тему и укажите базу знаний — получите структурированную интерактивную книгу: живой документ для чтения, самопроверки и обсуждения в контексте.
+
+Сзади мультиагенты предлагают план, извлекают источники, собирают дерево глав, планируют страницы и компилируют блоки. Вы управляете: проверка плана, порядок глав, чат рядом со страницей.
+
+14 типов блоков — текст, выноска, квиз, карточки, код, рисунок, углубление, анимация, интерактив, таймлайн, граф концепций, раздел, заметка пользователя, заглушка — с отдельными интерактивными компонентами. Линия прогресса в реальном времени.
 
 ### 📚 Управление знаниями
 
@@ -477,8 +484,12 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-knowledge.png" alt="Знания" width="800">
 </div>
 
+Коллекции документов, заметки и учебные персоны.
+
 - **Базы знаний** — PDF, TXT, MD.  
-- **Блокноты** — по сессиям и цветам.
+- **Блокноты** — записи из Chat, Co-Writer, Book или Deep Research, по цветам.
+- **Банк вопросов** — просмотр квизов; закладки и @-упоминания в чате для анализа прошлых результатов.
+- **Skills** — персоны через `SKILL.md`: имя, описание, триггеры, Markdown в системный промпт чата при активации.
 
 ### 🧠 Память
 
@@ -534,6 +545,7 @@ deeptutor run chat "Explain the Fourier transform" -t rag --kb textbook
 deeptutor run deep_solve "Prove that √2 is irrational" -t reason
 deeptutor run deep_question "Linear algebra" --config num_questions=5
 deeptutor run deep_research "Attention mechanisms in transformers"
+deeptutor run visualize "Draw the architecture of a transformer"
 ```
 
 ```bash
@@ -565,7 +577,7 @@ deeptutor session open <id>
 
 | Команда | Описание |
 |:---|:---|
-| `deeptutor run <capability> <message>` | Запуск возможности за один ход (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`) |
+| `deeptutor run <capability> <message>` | Запуск возможности за один ход (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`, `visualize`) |
 | `deeptutor chat` | Интерактивный REPL с `--capability`, `--tool`, `--kb`, `--language` и др. |
 | `deeptutor serve` | Запуск сервера API DeepTutor |
 
@@ -617,6 +629,14 @@ deeptutor session open <id>
 | `deeptutor notebook add-md <id> <path>` | Импорт Markdown |
 | `deeptutor notebook replace-md <id> <rec> <path>` | Заменить запись |
 | `deeptutor notebook remove-record <id> <rec>` | Удалить запись |
+
+**`deeptutor book`**
+
+| Команда | Описание |
+|:---|:---|
+| `deeptutor book list` | Список всех книг в рабочей области |
+| `deeptutor book health <book_id>` | Дрейф KB и состояние книги |
+| `deeptutor book refresh-fingerprints <book_id>` | Обновить отпечатки KB и очистить устаревшие страницы |
 
 **`deeptutor config` / `plugin` / `provider`**
 

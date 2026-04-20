@@ -930,6 +930,8 @@ class AgenticChatPipeline:
         system_parts = [system_prompt]
         if context.memory_context:
             system_parts.append(context.memory_context)
+        if context.skills_context:
+            system_parts.append(context.skills_context)
 
         messages: list[dict[str, Any]] = [{"role": "system", "content": "\n\n".join(system_parts)}]
         for item in context.conversation_history:

@@ -25,6 +25,10 @@
 ---
 ### 📦 版本发布
 
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` 按阶段配置 chat token 上限（8000-token 回复）；CLI / WebSocket / Web UI 重新生成上一条回复；RAG `None` 嵌入崩溃修复；Gemma `json_object` 兼容；暗色代码块可读性修复。
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine 多智能体「活书」编译器（14 种块类型）；多文档 Co-Writer 工作区；交互式 HTML 可视化；题库 @-引用进聊天；提示词外置第二阶段；侧栏重构。
+
 > **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — 基于 Schema 的「频道」标签页与密钥脱敏；RAG 收敛为单一流水线；RAG/知识库一致性加固；聊天提示词外置；以及泰语 README。
 
 > **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — 全能力通用「立即回答」；Co-Writer 滚动同步；保存到笔记本时的消息选择；统一设置面板；流式「停止」按钮；TutorBot 配置原子写入。
@@ -77,12 +81,12 @@
 <a id="key-features"></a>
 ## ✨ 核心亮点
 
-- **统一聊天工作区** — 五种模式，同一条对话线。聊天、深度解题、测验生成、深度研究与数学动画共享上下文：从闲聊到多智能体解题、出题、再深入调研，消息不丢。
-- **个人 TutorBot** — 不是聊天机器人，而是自主导师。每个 TutorBot 拥有独立工作区、记忆、人格与技能；可提醒、可学新能力、随你成长。由 [nanobot](https://github.com/HKUDS/nanobot) 驱动。
-- **AI Co-Writer** — Markdown 编辑器中 AI 是一等协作者。划选文本即可改写、扩写或缩写，可结合知识库与网络；内容可沉淀到笔记本，反哺学习闭环。
-- **引导式学习** — 把资料变成结构化、可视化的学习路径：多步计划、每步交互页面、步步可讨论。
-- **知识中枢** — 上传 PDF、Markdown、纯文本构建 RAG 知识库；用彩色笔记本跨会话整理洞见。文档主动参与每次对话。
+- **统一聊天工作区** — 六种模式，同一条对话线。聊天、深度解题、测验生成、深度研究、数学动画与可视化共享上下文：从闲聊到多智能体解题、可视化概念、出题、再深入调研，消息不丢。
+- **AI Co-Writer** — 多文档 Markdown 工作区，AI 是一等协作者。划选文本即可改写、扩写或缩写，可结合知识库与网络；内容可沉淀到笔记本，反哺学习闭环。
+- **Book Engine** — 把资料变成结构化、交互式的「活书」。多智能体流水线设计大纲、检索相关来源，编译出含 14 种块类型的富页面 —— 测验、闪卡、时间线、概念图、交互演示等。
+- **知识中枢** — 上传 PDF、Markdown、纯文本构建 RAG 知识库；用彩色笔记本跨会话整理洞见；在题库中回顾测验成果；创建自定义 Skill 塑造 DeepTutor 的教学风格。文档主动参与每次对话。
 - **持久记忆** — 持续勾勒你的学习画像：学过什么、如何学习、目标何在。全功能与 TutorBot 共享，越用越准。
+- **个人 TutorBot** — 不是聊天机器人，而是自主导师。每个 TutorBot 拥有独立工作区、记忆、人格与技能；可提醒、可学新能力、随你成长。由 [nanobot](https://github.com/HKUDS/nanobot) 驱动。
 - **智能体原生 CLI** — 能力、知识库、会话、TutorBot 一条命令可达；终端 Rich 输出给人看，JSON 给智能体与流水线。将根目录 [`SKILL.md`](../../SKILL.md) 交给智能体即可自主操作。
 
 ---
@@ -240,6 +244,7 @@ EMBEDDING_DIMENSION=3072
 |:--|:--|:--|
 | Brave | `BRAVE_API_KEY` | 推荐，有免费额度 |
 | Tavily | `TAVILY_API_KEY` | |
+| Serper | `SERPER_API_KEY` | 通过 Serper 获取 Google 搜索结果 |
 | Jina | `JINA_API_KEY` | |
 | SearXNG | — | 自托管，无需 API Key |
 | DuckDuckGo | — | 无需 API Key |
@@ -440,7 +445,7 @@ deeptutor kb create my-kb --doc textbook.pdf     # 构建知识库
 <img src="../../assets/figs/dt-chat.png" alt="聊天工作区" width="800">
 </div>
 
-五种模式共处同一工作区，由**统一上下文管理**串联：历史、知识库与引用跨模式保留，同一主题下可随时切换。
+六种模式共处同一工作区，由**统一上下文管理**串联：历史、知识库与引用跨模式保留，同一主题下可随时切换。
 
 | 模式 | 作用 |
 |:---|:---|
@@ -449,35 +454,33 @@ deeptutor kb create my-kb --doc textbook.pdf     # 构建知识库
 | **测验生成** | 基于知识库出题，内置校验。 |
 | **深度研究** | 主题拆解、并行调研 RAG/网络/论文，输出带引用报告。 |
 | **数学动画** | 基于 Manim 将数学概念可视化为动画与分镜。 |
+| **可视化** | 用自然语言描述生成交互式 SVG 图、Chart.js 图表、Mermaid 图或自包含 HTML 页面。 |
 
 工具与**工作流解耦**：每种模式下你可自选启用哪些工具、用几个、或完全不用；流程负责推理节奏，工具由你编排。
 
-> 从快速聊天起步，难题切到深度解题，自测用测验，再开深度研究深挖 —— 同一条对话线贯穿始终。
+> 从快速聊天起步，难题切到深度解题，可视化一个概念，自测用测验，再开深度研究深挖 —— 同一条对话线贯穿始终。
 
-### ✍️ Co-Writer — 编辑器里的 AI
+### ✍️ Co-Writer — 多文档 AI 写作工作区
 
 <div align="center">
 <img src="../../assets/figs/dt-cowriter.png" alt="Co-Writer" width="800">
 </div>
 
-Co-Writer 把聊天的智能放进写作界面：完整 Markdown 编辑器，AI 是**一等协作者**，而非侧栏挂件。
+Co-Writer 把聊天的智能放进写作界面：创建和管理多份文档，各自独立持久化 —— 不是一次性草稿纸，而是完整的多文档 Markdown 编辑器，AI 是**一等协作者**。
 
 划选文本即可**改写**、**扩写**或**精简**，可选用知识库或网络上下文；支持撤销/重做，作品可存入笔记本，回流学习生态。
 
-### 🎓 引导式学习 — 可视化、分步掌握
+### 📖 Book Engine — 交互式「活书」
 
 <div align="center">
-<img src="../../assets/figs/dt-guide.png" alt="引导式学习" width="800">
+<img src="../../assets/figs/dt-book-0.png" alt="书库" width="270"><img src="../../assets/figs/dt-book-1.png" alt="阅读器" width="270"><img src="../../assets/figs/dt-book-2.png" alt="动画" width="270">
 </div>
 
-将个人材料变成结构化、多步学习路径：给出主题，可选关联笔记本记录，DeepTutor 将：
+给 DeepTutor 一个主题，指向你的知识库，即可产出一本结构化、可交互的书 —— 不是静态导出物，而是你可以阅读、自测、并在上下文中讨论的活文档。
 
-1. **设计学习计划** — 从材料中提炼 3–5 个递进知识点。  
-2. **生成交互页面** — 每点对应富视觉 HTML 页面，含讲解、图示与示例。  
-3. **上下文问答** — 每步旁路聊天，深入探讨。  
-4. **学习小结** — 结束后汇总所学。
+幕后由多智能体流水线驱动：提案大纲、知识库深度检索、章节树合成、页面规划、逐块编译。你始终掌控全局 —— 审阅提案、拖拽调整章节、在任意页面旁聊天。
 
-会话可暂停、恢复或回看任一步。
+页面由 14 种块类型拼装：文本、提示、测验、闪卡、代码、图表、深入解读、动画、交互演示、时间线、概念图、章节、用户笔记与占位符 —— 每种都有专属交互组件。实时进度时间线让你见证编译过程。
 
 ### 📚 知识管理 — 学习基础设施
 
@@ -485,10 +488,12 @@ Co-Writer 把聊天的智能放进写作界面：完整 Markdown 编辑器，AI 
 <img src="../../assets/figs/dt-knowledge.png" alt="知识管理" width="800">
 </div>
 
-在此构建与管理驱动全局的文档集合。
+在此构建与管理驱动全局的文档集合、笔记与教学人设。
 
-- **知识库** — 上传 PDF、TXT、Markdown，形成可检索、RAG 就绪的集合；可增量追加。  
-- **笔记本** — 跨会话整理学习记录；聊天、引导学习、Co-Writer、深度研究的洞见可按色分类保存。
+- **知识库** — 上传 PDF、TXT、Markdown，形成可检索、RAG 就绪的集合；可增量追加。
+- **笔记本** — 跨会话整理学习记录；聊天、Co-Writer、Book、深度研究的洞见可按色分类保存。
+- **题库** — 浏览并回顾所有生成的测验题目；可收藏，并在聊天中 @-引用以回顾历史表现。
+- **Skills** — 通过 `SKILL.md` 创建自定义教学人设：定义名称、描述、可选触发词与 Markdown 正文，激活后注入聊天系统提示 —— 让 DeepTutor 变身苏格拉底导师、同伴学习者、科研助手或你设计的任何角色。
 
 知识库不是冷存储 —— 它主动参与每次对话、研究与学习路径。
 
@@ -554,6 +559,7 @@ deeptutor run chat "Explain the Fourier transform" -t rag --kb textbook
 deeptutor run deep_solve "Prove that √2 is irrational" -t reason
 deeptutor run deep_question "Linear algebra" --config num_questions=5
 deeptutor run deep_research "Attention mechanisms in transformers"
+deeptutor run visualize "Draw the architecture of a transformer"
 ```
 
 **交互 REPL** — 持久会话，运行时切换模式：
@@ -593,7 +599,7 @@ deeptutor session open <id>
 
 | 命令 | 说明 |
 |:---|:---|
-| `deeptutor run <capability> <message>` | 单次执行能力（`chat`、`deep_solve`、`deep_question`、`deep_research`、`math_animator`） |
+| `deeptutor run <capability> <message>` | 单次执行能力（`chat`、`deep_solve`、`deep_question`、`deep_research`、`math_animator`、`visualize`） |
 | `deeptutor chat` | 交互 REPL，可选 `--capability`、`--tool`、`--kb`、`--language` |
 | `deeptutor serve` | 启动 API 服务 |
 
@@ -645,6 +651,14 @@ deeptutor session open <id>
 | `deeptutor notebook add-md <id> <path>` | 导入 Markdown |
 | `deeptutor notebook replace-md <id> <rec> <path>` | 替换记录 |
 | `deeptutor notebook remove-record <id> <rec>` | 删除记录 |
+
+**`deeptutor book`**
+
+| 命令 | 说明 |
+|:---|:---|
+| `deeptutor book list` | 列出工作区中的所有书 |
+| `deeptutor book health <book_id>` | 检查知识库偏移与书的健康状态 |
+| `deeptutor book refresh-fingerprints <book_id>` | 刷新知识库指纹并清理过期页面 |
 
 **`deeptutor config` / `plugin` / `provider`**
 

@@ -65,6 +65,7 @@ export interface StartTurnMessage {
   }[];
   history_references?: string[];
   question_notebook_references?: number[];
+  skills?: string[];
 }
 
 export interface SubscribeTurnMessage {

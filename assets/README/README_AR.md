@@ -25,6 +25,10 @@
 ---
 ### 📦 الإصدارات
 
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — حدود رموز لكل مرحلة في `agents.yaml` (ردود 8000 رمز)، إعادة توليد آخر رد عبر CLI / WebSocket / واجهة الويب، إصلاح تعطل RAG عند تضمينات `None`، توافق Gemma مع `json_object`، وقراءة أفضل لكتل الشيفرة الداكنة.
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine: مُجمّع «كتب حية» متعدد الوكلاء بـ 14 نوع كتل، مساحة عمل Co-Writer متعددة المستندات، تصورات HTML تفاعلية، إشارات @ لبنك الأسئلة في الدردشة، المرحلة الثانية لإخراج المطالبات، وإعادة تصميم الشريط الجانبي.
+
 > **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — تبويب القنوات المستند إلى المخطط مع إخفاء الأسرار؛ دمج RAG في مسار واحد؛ تعزيز اتساق RAG/قواعد المعرفة؛ نقل مطالبات الدردشة خارج الكود؛ وREADME التايلاندية.
 
 > **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — «أجب الآن» شامل لجميع القدرات؛ مزامنة تمرير Co-Writer؛ اختيار الرسائل عند الحفظ في الدفتر؛ لوحة إعدادات موحّدة؛ زر إيقاف أثناء البث؛ كتابة إعدادات TutorBot بشكل ذري.
@@ -77,12 +81,12 @@
 <a id="key-features"></a>
 ## ✨ أبرز الميزات
 
-- **مساحة دردشة موحّدة** — خمسة أوضاع في سلسلة واحدة: دردشة، Deep Solve، اختبارات، Deep Research، Math Animator تتشارك السياق.
-- **TutorBots شخصية** — ليست روبوتات دردشة: مدرّسون مستقلّون بمساحة عمل وذاكرة وشخصية ومهارات. يعمل بـ [nanobot](https://github.com/HKUDS/nanobot).
-- **AI Co-Writer** — محرّر Markdown والذكاء الاصطناعي شريك: إعادة صياغة، توسيع، اختصار مع قاعدة المعرفة والويب.
-- **تعليم موجّه** — تحويل موادك إلى رحلات تعلّم بصرية متدرّجة.
-- **مركز المعرفة** — PDF وMarkdown ونص لقواعد جاهزة لـ RAG؛ دفاتر ملوّنة.
+- **مساحة دردشة موحّدة** — ستة أوضاع في سلسلة واحدة: دردشة، Deep Solve، اختبارات، Deep Research، Math Animator وVisualize تتشارك السياق.
+- **AI Co-Writer** — مساحة Markdown متعددة المستندات: إعادة صياغة، توسيع، اختصار مع قاعدة المعرفة والويب.
+- **Book Engine** — «كتب حية» منظّمة وتفاعلية: خط أنابيب متعدّد الوكلاء، 14 نوع كتل (اختبارات، بطاقات، جداول زمنية، رسوم مفاهيم، إلخ).
+- **مركز المعرفة** — قواعد RAG، دفاتر ملوّنة، بنك أسئلة، Skills مخصّصة لتشكيل أسلوب التدريس.
 - **ذاكرة دائمة** — ملخّص التقدّم وملف المتعلّم؛ مشتركة مع TutorBots.
+- **TutorBots شخصية** — ليست روبوتات دردشة: مدرّسون مستقلّون بمساحة عمل وذاكرة وشخصية ومهارات. يعمل بـ [nanobot](https://github.com/HKUDS/nanobot).
 - **CLI أصلي للوكلاء** — القدرات وقواعد المعرفة والجلسات وTutorBot بأمر واحد؛ Rich وJSON. [`SKILL.md`](../../SKILL.md).
 
 ---
@@ -239,6 +243,7 @@ EMBEDDING_DIMENSION=3072
 |:--|:--|:--|
 | Brave | `BRAVE_API_KEY` | موصى به، يوجد مستوى مجاني |
 | Tavily | `TAVILY_API_KEY` | |
+| Serper | `SERPER_API_KEY` | نتائج Google عبر Serper |
 | Jina | `JINA_API_KEY` | |
 | SearXNG | — | مستضاف ذاتيًا، بلا مفتاح API |
 | DuckDuckGo | — | بلا مفتاح API |
@@ -440,7 +445,7 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-chat.png" alt="الدردشة" width="800">
 </div>
 
-خمسة أوضاع مع **إدارة سياق موحّدة**.
+ستة أوضاع مع **إدارة سياق موحّدة**.
 
 | الوضع | الوظيفة |
 |:---|:---|
@@ -449,27 +454,29 @@ deeptutor kb create my-kb --doc textbook.pdf
 | **توليد اختبارات** | تقييم مرتبط بقاعدة المعرفة. |
 | **Deep Research** | مواضيع فرعية، وكلاء متوازيون، تقرير موثّق. |
 | **Math Animator** | Manim. |
+| **Visualize** | SVG أو Chart.js أو Mermaid أو HTML مستقل من وصف طبيعي. |
 
 الأدوات **منفصلة عن سير العمل** — تختار ما تفعّله.
 
-### ✍️ Co-Writer — الذكاء في المحرّر
+### ✍️ Co-Writer — مساحة كتابة متعددة المستندات مع الذكاء
 
 <div align="center">
 <img src="../../assets/figs/dt-cowriter.png" alt="Co-Writer" width="800">
 </div>
 
-**إعادة صياغة**، **توسيع**، **اختصار**؛ تراجع؛ دفاتر.
+أنشئ عدة مستندات، كلّها محفوظة — ليس مسودّة واحدة: Markdown كامل والذكاء شريك. **إعادة صياغة**، **توسيع**، **اختصار**؛ تراجع؛ دفاتر.
 
-### 🎓 تعليم موجّه
+### 📖 Book Engine — «كتب حية» تفاعلية
 
 <div align="center">
-<img src="../../assets/figs/dt-guide.png" alt="تعليم موجّه" width="800">
+<img src="../../assets/figs/dt-book-0.png" alt="المكتبة" width="270"><img src="../../assets/figs/dt-book-1.png" alt="القارئ" width="270"><img src="../../assets/figs/dt-book-2.png" alt="الرسوم" width="270">
 </div>
 
-1. خطة (3–5 نقاط).  
-2. صفحات تفاعلية.  
-3. أسئلة وأجوبة سياقية.  
-4. ملخّص.
+حدّد موضوعًا ووجّه قاعدة المعرفة: ينتج DeepTutor كتابًا منظّمًا وتفاعليًا — وثيقة حيّة للقراءة والاختبار الذاتي والنقاش في السياق.
+
+خلف الكواليس، خط أنابيب متعدّد الوكلاء يقترح المخطط، يسترجع المصادر، يدمج شجرة الفصول، يخطّط الصفحات ويجمّع الكتل. أنت تتحكّم: مراجعة المقترح، إعادة ترتيب الفصول، دردشة بجانب أي صفحة.
+
+14 نوع كتل — نص، تنبيه، اختبار، بطاقات، شفرة، رسم، تعميق، رسوم متحركة، تفاعلي، خط زمني، رسم مفاهيم، قسم، ملاحظة مستخدم، عنصر نائب — كلّها بمكوّنات تفاعلية. خط زمني للتقدّم لحظيًا.
 
 ### 📚 إدارة المعرفة
 
@@ -477,8 +484,12 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-knowledge.png" alt="المعرفة" width="800">
 </div>
 
+مجموعات مستندات وملاحظات وشخصيات تدريس.
+
 - **قواعد المعرفة** — PDF، TXT، MD.  
-- **دفاتر** — جلسات وألوان.
+- **دفاتر** — من Chat أو Co-Writer أو Book أو Deep Research، بألوان.
+- **بنك الأسئلة** — مراجعة الاختبارات؛ مفضّلات و@-إشارات في الدردشة لتحليل الأداء السابق.
+- **Skills** — شخصيات عبر `SKILL.md`: اسم، وصف، محفّزات اختيارية، Markdown يُحقَن في مطالبة النظام للدردشة عند التفعيل.
 
 ### 🧠 الذاكرة
 
@@ -534,6 +545,7 @@ deeptutor run chat "Explain the Fourier transform" -t rag --kb textbook
 deeptutor run deep_solve "Prove that √2 is irrational" -t reason
 deeptutor run deep_question "Linear algebra" --config num_questions=5
 deeptutor run deep_research "Attention mechanisms in transformers"
+deeptutor run visualize "Draw the architecture of a transformer"
 ```
 
 ```bash
@@ -565,7 +577,7 @@ deeptutor session open <id>
 
 | الأمر | الوصف |
 |:---|:---|
-| `deeptutor run <capability> <message>` | تشغيل قدرة في دور واحد (`chat`، `deep_solve`، `deep_question`، `deep_research`، `math_animator`) |
+| `deeptutor run <capability> <message>` | تشغيل قدرة في دور واحد (`chat`، `deep_solve`، `deep_question`، `deep_research`، `math_animator`، `visualize`) |
 | `deeptutor chat` | REPL تفاعلي مع `--capability` و`--tool` و`--kb` و`--language` وغيرها |
 | `deeptutor serve` | تشغيل خادم API الخاص بـ DeepTutor |
 
@@ -617,6 +629,14 @@ deeptutor session open <id>
 | `deeptutor notebook add-md <id> <path>` | استيراد Markdown |
 | `deeptutor notebook replace-md <id> <rec> <path>` | استبدال سجل |
 | `deeptutor notebook remove-record <id> <rec>` | إزالة سجل |
+
+**`deeptutor book`**
+
+| الأمر | الوصف |
+|:---|:---|
+| `deeptutor book list` | قائمة كل الكتب في مساحة العمل |
+| `deeptutor book health <book_id>` | انحراف قاعدة المعرفة وصحة الكتاب |
+| `deeptutor book refresh-fingerprints <book_id>` | تحديث بصمات KB ومسح الصفحات القديمة |
 
 **`deeptutor config` / `plugin` / `provider`**
 

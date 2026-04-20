@@ -25,6 +25,10 @@
 ---
 ### 📦 リリース
 
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` によるチャット各段階のトークン上限（8000 トークン応答）、CLI / WebSocket / Web UI で最終応答を再生成、RAG の `None` 埋め込みクラッシュ修正、Gemma の `json_object` 互換、暗いコードブロックの可読性。
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine による 14 種ブロックのマルチエージェント「リビングブック」コンパイラ、マルチドキュメント Co-Writer、HTML インタラクティブ可視化、チャットでの Question Bank @メンション、プロンプト外部化フェーズ 2、サイドバー刷新。
+
 > **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Schema 駆動の Channels タブとシークレットマスク、RAG を単一パイプラインへ集約、RAG/KB の整合性強化、チャットプロンプトの外部化、タイ語 README。
 
 > **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — 全ケイパビリティ対応のユニバーサル「今すぐ回答」、Co-Writer のスクロール同期、ノートブック保存時のメッセージ選択、統一設定パネル、ストリーミング Stop ボタン、TutorBot 設定の原子的書き込み。
@@ -77,12 +81,12 @@
 <a id="key-features"></a>
 ## ✨ 主な機能
 
-- **統一チャットワークスペース** — 5 モードを 1 スレッドで。チャット、Deep Solve、クイズ、Deep Research、Math Animator が同じ文脈を共有。
-- **パーソナル TutorBot** — チャットボットではなく自律チューター。独立ワークスペース、記憶、人格、スキル。[nanobot](https://github.com/HKUDS/nanobot) 搭載。
-- **AI Co-Writer** — Markdown で AI が第一級の共同編集者。書き換え・拡張・短縮、KB と Web を参照。
-- **ガイド付き学習** — 資料を段階的・視覚的な学習ジャーニーへ。
-- **ナレッジハブ** — PDF / MD / テキストで RAG 対応 KB、カラー付きノートブックで整理。
+- **統一チャットワークスペース** — 6 モードを 1 スレッドで。チャット、Deep Solve、クイズ、Deep Research、Math Animator、Visualize が同じ文脈を共有。
+- **AI Co-Writer** — 複数ドキュメントの Markdown ワークスペースで AI が第一級の共同編集者。書き換え・拡張・短縮、KB と Web を参照。
+- **Book Engine** — 資料を構造化されたインタラクティブな「リビングブック」へ。マルチエージェントがアウトライン設計とソース取得を行い、14 種のブロック（クイズ、フラッシュカード、タイムライン、概念図など）でページをコンパイル。
+- **ナレッジハブ** — PDF / MD / テキストで RAG 対応 KB、カラー付きノートブック、Question Bank でクイズを再確認、Skill で教え方をカスタム。
 - **永続メモリ** — 学習の要約と学習者プロファイル。全機能と TutorBot で共有。
+- **パーソナル TutorBot** — チャットボットではなく自律チューター。独立ワークスペース、記憶、人格、スキル。[nanobot](https://github.com/HKUDS/nanobot) 搭載。
 - **エージェントネイティブ CLI** — 能力・KB・セッション・TutorBot をコマンド一つで。Rich と JSON。ルートの [`SKILL.md`](../../SKILL.md) をエージェントに渡せば自律操作。
 
 ---
@@ -237,6 +241,7 @@ OpenAI 互換プロバイダ（DashScope、SiliconFlow など）は `custom` ま
 |:--|:--|:--|
 | Brave | `BRAVE_API_KEY` | 推奨、無料枠あり |
 | Tavily | `TAVILY_API_KEY` | |
+| Serper | `SERPER_API_KEY` | Google 検索結果（Serper） |
 | Jina | `JINA_API_KEY` | |
 | SearXNG | — | 自ホスト、API キー不要 |
 | DuckDuckGo | — | API キー不要 |
@@ -438,7 +443,7 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-chat.png" alt="チャット" width="800">
 </div>
 
-**統一コンテキスト**で 5 モードが共存。履歴・KB・参照はモード間で保持。
+**統一コンテキスト**で 6 モードが共存。履歴・KB・参照はモード間で保持。
 
 | モード | 役割 |
 |:---|:---|
@@ -447,27 +452,29 @@ deeptutor kb create my-kb --doc textbook.pdf
 | **クイズ生成** | KB に根ざした評価と検証。 |
 | **Deep Research** | サブトピック分解と並列調査、引用付きレポート。 |
 | **Math Animator** | Manim による可視化。 |
+| **Visualize** | 自然言語から SVG、Chart.js、Mermaid、または単一 HTML ページを生成。 |
 
 ツールは**ワークフローから分離** — モードごとに有効化を選択。
 
-### ✍️ Co-Writer — エディタ内の AI
+### ✍️ Co-Writer — マルチドキュメント AI 執筆ワークスペース
 
 <div align="center">
 <img src="../../assets/figs/dt-cowriter.png" alt="Co-Writer" width="800">
 </div>
 
-フル Markdown エディタで AI が共同編集。**書き換え / 拡張 / 短縮**、KB や Web を参照。ノートブックへ保存可能。
+チャットの知性を執筆面に。複数ドキュメントを作成・管理し、それぞれ独立して永続化 — 使い捨てメモではなく、AI が第一級の共同編集者となるフル Markdown。**書き換え / 拡張 / 短縮**、KB や Web を参照。ノートブックへ保存可能。
 
-### 🎓 ガイド付き学習
+### 📖 Book Engine — インタラクティブな「リビングブック」
 
 <div align="center">
-<img src="../../assets/figs/dt-guide.png" alt="ガイド付き学習" width="800">
+<img src="../../assets/figs/dt-book-0.png" alt="ライブラリ" width="270"><img src="../../assets/figs/dt-book-1.png" alt="リーダー" width="270"><img src="../../assets/figs/dt-book-2.png" alt="アニメーション" width="270">
 </div>
 
-1. **学習計画** — 3〜5 の段階的知識点。  
-2. **インタラクティブページ** — HTML で図解と例。  
-3. **文脈 QA** — 各ステップでチャット。  
-4. **まとめ** — 完了時にサマリ。
+トピックを与え、ナレッジベースを指定すると、構造化されたインタラクティブな本が生成されます — 静的な書き出しではなく、読む・自問する・文脈で議論できる生きた文書です。
+
+背後ではマルチエージェントがアウトライン提案、KB からの深い取得、章ツリーの合成、ページ計画、ブロックごとのコンパイルを担当。あなたは提案の確認、章の並べ替え、各ページ横のチャットで常にコントロールできます。
+
+14 種のブロック — テキスト、コールアウト、クイズ、フラッシュカード、コード、図、ディープダイブ、アニメーション、インタラクティブ、タイムライン、概念グラフ、セクション、ユーザーノート、プレースホルダー — それぞれ専用のインタラクティブコンポーネントで描画されます。リアルタイムの進行タイムラインでコンパイルの進みを確認できます。
 
 ### 📚 ナレッジ管理
 
@@ -475,8 +482,12 @@ deeptutor kb create my-kb --doc textbook.pdf
 <img src="../../assets/figs/dt-knowledge.png" alt="ナレッジ" width="800">
 </div>
 
+ドキュメント集合、メモ、教え方のペルソナをここで管理します。
+
 - **ナレッジベース** — PDF / TXT / MD、増分追加。  
-- **ノートブック** — セッション横断で色分け整理。
+- **ノートブック** — チャット、Co-Writer、Book、Deep Research からの洞察を色分けで整理。
+- **Question Bank** — 生成したクイズを閲覧・再訪。ブックマークし、チャットで @ メンションして過去の成績を参照。
+- **Skills** — `SKILL.md` で独自の教え方を定義。名前、説明、任意のトリガー、Markdown 本文を有効化時にチャットのシステムプロンプトへ注入 — ソクラテス式チューターや学習仲間など、好きな役割に。
 
 ### 🧠 メモリ
 
@@ -532,6 +543,7 @@ deeptutor run chat "Explain the Fourier transform" -t rag --kb textbook
 deeptutor run deep_solve "Prove that √2 is irrational" -t reason
 deeptutor run deep_question "Linear algebra" --config num_questions=5
 deeptutor run deep_research "Attention mechanisms in transformers"
+deeptutor run visualize "Draw the architecture of a transformer"
 ```
 
 ```bash
@@ -563,7 +575,7 @@ deeptutor session open <id>
 
 | コマンド | 説明 |
 |:---|:---|
-| `deeptutor run <capability> <message>` | 単発で能力を実行（`chat`、`deep_solve`、`deep_question`、`deep_research`、`math_animator`） |
+| `deeptutor run <capability> <message>` | 単発で能力を実行（`chat`、`deep_solve`、`deep_question`、`deep_research`、`math_animator`、`visualize`） |
 | `deeptutor chat` | 対話 REPL（`--capability`、`--tool`、`--kb`、`--language` など） |
 | `deeptutor serve` | DeepTutor API サーバを起動 |
 
@@ -615,6 +627,14 @@ deeptutor session open <id>
 | `deeptutor notebook add-md <id> <path>` | Markdown をインポート |
 | `deeptutor notebook replace-md <id> <rec> <path>` | レコードを置換 |
 | `deeptutor notebook remove-record <id> <rec>` | レコード削除 |
+
+**`deeptutor book`**
+
+| コマンド | 説明 |
+|:---|:---|
+| `deeptutor book list` | ワークスペース内のすべての本を一覧 |
+| `deeptutor book health <book_id>` | KB のずれと本の健全性を確認 |
+| `deeptutor book refresh-fingerprints <book_id>` | KB フィンガープリントを更新し古いページをクリア |
 
 **`deeptutor config` / `plugin` / `provider`**
 

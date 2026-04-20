@@ -26,6 +26,7 @@ class TurnRequest:
     notebook_references: list[dict[str, Any]] = field(default_factory=list)
     history_references: list[str] = field(default_factory=list)
     attachments: list[dict[str, Any]] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -39,6 +40,7 @@ class TurnRequest:
             "notebook_references": list(self.notebook_references),
             "history_references": list(self.history_references),
             "attachments": list(self.attachments),
+            "skills": list(self.skills),
         }
 
 

@@ -16,7 +16,7 @@
 [![Feishu](https://img.shields.io/badge/Feishu-Group-00D4AA?style=flat-square&logo=feishu&logoColor=white)](./Communication.md)
 [![WeChat](https://img.shields.io/badge/WeChat-Group-07C160?style=flat-square&logo=wechat&logoColor=white)](https://github.com/HKUDS/DeepTutor/issues/78)
 
-[Features](#-key-features) · [Get Started](#-get-started) · [Explore](#-explore-deeptutor) · [TutorBot](#-tutorbot--persistent-autonomous-ai-tutors) · [CLI](#%EF%B8%8F-deeptutor-cli--agent-native-interface) · [Community](#-community--ecosystem)
+[Features](#-key-features) · [Get Started](#-get-started) · [Explore](#-explore-deeptutor) · [TutorBot](#-tutorbot--persistent-autonomous-ai-tutors) · [CLI](#%EF%B8%8F-deeptutor-cli--agent-native-interface) · [Roadmap](#%EF%B8%8F-roadmap) · [Community](#-community--ecosystem)
 
 [🇨🇳 中文](assets/README/README_CN.md) · [🇯🇵 日本語](assets/README/README_JA.md) · [🇪🇸 Español](assets/README/README_ES.md) · [🇫🇷 Français](assets/README/README_FR.md) · [🇸🇦 العربية](assets/README/README_AR.md) · [🇷🇺 Русский](assets/README/README_RU.md) · [🇮🇳 हिन्दी](assets/README/README_HI.md) · [🇵🇹 Português](assets/README/README_PT.md) · [🇹🇭 ภาษาไทย](assets/README/README_TH.md)
 
@@ -82,12 +82,12 @@
 
 ## ✨ Key Features
 
-- **Unified Chat Workspace** — Five modes, one thread. Chat, Deep Solve, Quiz Generation, Deep Research, and Math Animator share the same context — start a conversation, escalate to multi-agent problem solving, generate quizzes, then deep-dive into research, all without losing a single message.
-- **Personal TutorBots** — Not chatbots — autonomous tutors. Each TutorBot lives in its own workspace with its own memory, personality, and skill set. They set reminders, learn new abilities, and evolve as you grow. Powered by [nanobot](https://github.com/HKUDS/nanobot).
-- **AI Co-Writer** — A Markdown editor where AI is a first-class collaborator. Select text, rewrite, expand, or summarize — drawing from your knowledge base and the web. Every piece feeds back into your learning ecosystem.
-- **Guided Learning** — Turn your materials into structured, visual learning journeys. DeepTutor designs multi-step plans, generates interactive pages for each knowledge point, and lets you discuss alongside each step.
-- **Knowledge Hub** — Upload PDFs, Markdown, and text files to build RAG-ready knowledge bases. Organize insights across sessions in color-coded notebooks. Your documents don't just sit there — they actively power every conversation.
+- **Unified Chat Workspace** — Six modes, one thread. Chat, Deep Solve, Quiz Generation, Deep Research, Math Animator, and Visualize share the same context — start a conversation, escalate to multi-agent problem solving, generate quizzes, visualize concepts, then deep-dive into research, all without losing a single message.
+- **AI Co-Writer** — A multi-document Markdown workspace where AI is a first-class collaborator. Select text, rewrite, expand, or summarize — drawing from your knowledge base and the web. Every piece feeds back into your learning ecosystem.
+- **Book Engine** — Turn your materials into structured, interactive "living books". A multi-agent pipeline designs outlines, retrieves relevant sources, and compiles rich pages with 14 block types — quizzes, flash cards, timelines, concept graphs, interactive demos, and more.
+- **Knowledge Hub** — Upload PDFs, Markdown, and text files to build RAG-ready knowledge bases. Organize insights in color-coded notebooks, revisit quiz questions in the Question Bank, and create custom Skills that shape how DeepTutor teaches you. Your documents don't just sit there — they actively power every conversation.
 - **Persistent Memory** — DeepTutor builds a living profile of you: what you've studied, how you learn, and where you're heading. Shared across all features and TutorBots, it gets sharper with every interaction.
+- **Personal TutorBots** — Not chatbots — autonomous tutors. Each TutorBot lives in its own workspace with its own memory, personality, and skill set. They set reminders, learn new abilities, and evolve as you grow. Powered by [nanobot](https://github.com/HKUDS/nanobot).
 - **Agent-Native CLI** — Every capability, knowledge base, session, and TutorBot is one command away. Rich terminal output for humans, structured JSON for AI agents and pipelines. Hand DeepTutor a [`SKILL.md`](SKILL.md) and your agents can operate it autonomously.
 
 ---
@@ -243,6 +243,7 @@ OpenAI-compatible providers (DashScope, SiliconFlow, etc.) work via the `custom`
 |:--|:--|:--|
 | Brave | `BRAVE_API_KEY` | Recommended, free tier available |
 | Tavily | `TAVILY_API_KEY` | |
+| Serper | `SERPER_API_KEY` | Google Search results via Serper |
 | Jina | `JINA_API_KEY` | |
 | SearXNG | — | Self-hosted, no API key needed |
 | DuckDuckGo | — | No API key needed |
@@ -443,7 +444,7 @@ deeptutor kb create my-kb --doc textbook.pdf     # Build a knowledge base
 <img src="assets/figs/dt-chat.png" alt="Chat Workspace" width="800">
 </div>
 
-Five distinct modes coexist in a single workspace, bound by a **unified context management system**. Conversation history, knowledge bases, and references persist across modes — switch between them freely within the same topic, whenever the moment calls for it.
+Six distinct modes coexist in a single workspace, bound by a **unified context management system**. Conversation history, knowledge bases, and references persist across modes — switch between them freely within the same topic, whenever the moment calls for it.
 
 | Mode | What It Does |
 |:---|:---|
@@ -452,35 +453,33 @@ Five distinct modes coexist in a single workspace, bound by a **unified context 
 | **Quiz Generation** | Generate assessments grounded in your knowledge base, with built-in validation. |
 | **Deep Research** | Decompose a topic into subtopics, dispatch parallel research agents across RAG, web, and academic papers, and produce a fully cited report. |
 | **Math Animator** | Turn mathematical concepts into visual animations and storyboards powered by Manim. |
+| **Visualize** | Generate interactive SVG diagrams, Chart.js charts, Mermaid graphs, or self-contained HTML pages from natural language descriptions. |
 
 Tools are **decoupled from workflows** — in every mode, you decide which tools to enable, how many to use, or whether to use any at all. The workflow orchestrates the reasoning; the tools are yours to compose.
 
-> Start with a quick chat question, escalate to Deep Solve when it gets hard, generate quiz questions to test yourself, then launch a Deep Research to go deeper — all in one continuous thread.
+> Start with a quick chat question, escalate to Deep Solve when it gets hard, visualize a concept, generate quiz questions to test yourself, then launch a Deep Research to go deeper — all in one continuous thread.
 
-### ✍️ Co-Writer — AI Inside Your Editor
+### ✍️ Co-Writer — Multi-Document AI Writing Workspace
 
 <div align="center">
 <img src="assets/figs/dt-cowriter.png" alt="Co-Writer" width="800">
 </div>
 
-Co-Writer brings the intelligence of Chat directly into a writing surface. It is a full-featured Markdown editor where AI is a first-class collaborator — not a sidebar, not an afterthought.
+Co-Writer brings the intelligence of Chat directly into a writing surface. Create and manage multiple documents, each persisted in its own workspace — not a single throwaway scratchpad, but a full-featured multi-document Markdown editor where AI is a first-class collaborator.
 
 Select any text and choose **Rewrite**, **Expand**, or **Shorten** — optionally drawing context from your knowledge base or the web. The editing flow is non-destructive with full undo/redo, and every piece you write can be saved straight to your notebooks, feeding back into your learning ecosystem.
 
-### 🎓 Guided Learning — Visual, Step-by-Step Mastery
+### 📖 Book Engine — Interactive "Living Books"
 
 <div align="center">
-<img src="assets/figs/dt-guide.png" alt="Guided Learning" width="800">
+<img src="assets/figs/dt-book-0.png" alt="Book Library" width="270"><img src="assets/figs/dt-book-1.png" alt="Book Reader" width="270"><img src="assets/figs/dt-book-2.png" alt="Book Animation" width="270">
 </div>
 
-Guided Learning turns your personal materials into structured, multi-step learning journeys. Provide a topic, optionally link notebook records, and DeepTutor will:
+Give DeepTutor a topic, point it at your knowledge base, and it produces a structured, interactive book — not a static export, but a living document you can read, quiz yourself on, and discuss in context.
 
-1. **Design a learning plan** — Identify 3–5 progressive knowledge points from your materials.
-2. **Generate interactive pages** — Each point becomes a rich visual HTML page with explanations, diagrams, and examples.
-3. **Enable contextual Q&A** — Chat alongside each step for deeper exploration.
-4. **Summarize your progress** — Upon completion, receive a learning summary of everything you've covered.
+Behind the scenes, a multi-agent pipeline handles the heavy lifting: proposing an outline, retrieving relevant sources from your knowledge base, synthesizing a chapter tree, planning each page, and compiling every block. You stay in control — review the proposal, reorder chapters, and chat alongside any page.
 
-Sessions are persistent — pause, resume, or revisit any step at any time.
+Pages are assembled from 14 block types — text, callout, quiz, flash cards, code, figure, deep dive, animation, interactive demo, timeline, concept graph, section, user note, and placeholder — each rendered with its own interactive component. A real-time progress timeline lets you watch compilation unfold as the book takes shape.
 
 ### 📚 Knowledge Management — Your Learning Infrastructure
 
@@ -488,10 +487,12 @@ Sessions are persistent — pause, resume, or revisit any step at any time.
 <img src="assets/figs/dt-knowledge.png" alt="Knowledge Management" width="800">
 </div>
 
-Knowledge is where you build and manage the document collections that power everything else in DeepTutor.
+Knowledge is where you build and manage the document collections, notes, and teaching personas that power everything else in DeepTutor.
 
 - **Knowledge Bases** — Upload PDF, TXT, or Markdown files to create searchable, RAG-ready collections. Add documents incrementally as your library grows.
-- **Notebooks** — Organize learning records across sessions. Save insights from Chat, Guided Learning, Co-Writer, or Deep Research into categorized, color-coded notebooks.
+- **Notebooks** — Organize learning records across sessions. Save insights from Chat, Co-Writer, Book, or Deep Research into categorized, color-coded notebooks.
+- **Question Bank** — Browse and revisit all generated quiz questions. Bookmark entries and @-mention them directly in chat to reason over past performance.
+- **Skills** — Create custom teaching personas via `SKILL.md` files. Each skill defines a name, description, optional triggers, and a Markdown body that is injected into the chat system prompt when active — turning DeepTutor into a Socratic tutor, a peer study partner, a research assistant, or any role you design.
 
 Your knowledge base is not passive storage — it actively participates in every conversation, every research session, and every learning path you create.
 
@@ -555,6 +556,7 @@ deeptutor run chat "Explain the Fourier transform" -t rag --kb textbook
 deeptutor run deep_solve "Prove that √2 is irrational" -t reason
 deeptutor run deep_question "Linear algebra" --config num_questions=5
 deeptutor run deep_research "Attention mechanisms in transformers"
+deeptutor run visualize "Draw the architecture of a transformer"
 ```
 
 **Interactive REPL** — A persistent chat session with live mode switching:
@@ -594,7 +596,7 @@ deeptutor session open <id>                         # Resume in REPL
 
 | Command | Description |
 |:---|:---|
-| `deeptutor run <capability> <message>` | Run any capability in a single turn (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`) |
+| `deeptutor run <capability> <message>` | Run any capability in a single turn (`chat`, `deep_solve`, `deep_question`, `deep_research`, `math_animator`, `visualize`) |
 | `deeptutor chat` | Interactive REPL with optional `--capability`, `--tool`, `--kb`, `--language` |
 | `deeptutor serve` | Start the DeepTutor API server |
 
@@ -646,6 +648,14 @@ deeptutor session open <id>                         # Resume in REPL
 | `deeptutor notebook add-md <id> <path>` | Import markdown as record |
 | `deeptutor notebook replace-md <id> <rec> <path>` | Replace a markdown record |
 | `deeptutor notebook remove-record <id> <rec>` | Remove a record |
+
+**`deeptutor book`**
+
+| Command | Description |
+|:---|:---|
+| `deeptutor book list` | List all books in the workspace |
+| `deeptutor book health <book_id>` | Check KB drift and book health |
+| `deeptutor book refresh-fingerprints <book_id>` | Refresh KB fingerprints and clear stale pages |
 
 **`deeptutor config` / `plugin` / `provider`**
 
