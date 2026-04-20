@@ -26,6 +26,8 @@
 
 ### 📦 Releases
 
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine multi-agent "living book" compiler with 14 block types, multi-document Co-Writer workspace, interactive HTML visualizations, Question Bank @-mention in chat, prompt externalization phase 2, and sidebar overhaul.
+
 > **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Schema-driven Channels tab with secret masking, RAG collapsed to single pipeline, RAG/KB consistency hardening, externalized chat prompts, and Thai README.
 
 > **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — Universal "Answer now" across all capabilities, Co-Writer scroll sync, Save-to-Notebook message selection, unified settings panel, streaming Stop button, and TutorBot atomic config writes.
@@ -424,17 +426,6 @@ deeptutor kb create my-kb --doc textbook.pdf     # Build a knowledge base
 ```
 
 > See [DeepTutor CLI](#%EF%B8%8F-deeptutor-cli--agent-native-interface) for the full feature guide and command reference.
-
-### What's Next?
-
-Once DeepTutor is running, here are some things to try first:
-
-1. **Upload a document** — Go to the Knowledge page and create a knowledge base from a PDF or Markdown file.
-2. **Start a conversation** — Open Chat, select your knowledge base, and ask a question.
-3. **Try Deep Solve** — Switch to Deep Solve mode for a step-by-step, multi-agent solution with citations.
-4. **Create a TutorBot** — Build a persistent AI tutor with its own personality and memory.
-
-Explore all features in the [Explore DeepTutor](#-explore-deeptutor) section below.
 
 ---
 
