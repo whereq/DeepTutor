@@ -22,13 +22,13 @@ import {
 import { useTranslation } from "react-i18next";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
-import AtMentionPopup from "@/components/chat/AtMentionPopup";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { DeepQuestionFormConfig } from "@/lib/quiz-types";
 import type { MathAnimatorFormConfig } from "@/lib/math-animator-types";
 import type { VisualizeFormConfig } from "@/lib/visualize-types";
 import type { DeepResearchFormConfig, ResearchSource } from "@/lib/research-types";
 import { ReferenceChips } from "./ChatMessages";
+import { ComposerInput, type ComposerInputHandle } from "./ComposerInput";
 
 const QuizConfigPanel = dynamic(() => import("@/components/quiz/QuizConfigPanel"), {
   ssr: false,
@@ -75,15 +75,6 @@ interface ResearchSourceDef {
   name: ResearchSource;
   label: string;
   icon: LucideIcon;
-}
-
-function shouldOpenAtPopup(value: string, cursorPos: number): boolean {
-  const prefix = value.slice(0, cursorPos);
-  return /(^|\s)@[^\s]*$/.test(prefix);
-}
-
-function stripTrailingAtMention(value: string): string {
-  return value.replace(/(^|\s)@[^\s]*$/, "$1").replace(/\s+$/, "");
 }
 
 export default memo(function ChatComposer({
@@ -240,9 +231,9 @@ export default memo(function ChatComposer({
   const { t } = useTranslation();
   const CapIcon = activeCap.icon;
 
-  const [input, setInput] = useState("");
-  const [showAtPopup, setShowAtPopup] = useState(false);
+  const [hasContent, setHasContent] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputHandleRef = useRef<ComposerInputHandle>(null);
 
   const activeCapabilityKey = activeCap.value || "chat";
 
@@ -250,70 +241,36 @@ export default memo(function ChatComposer({
     if (!hasMessages) textareaRef.current?.focus();
   }, [hasMessages]);
 
-  useLayoutEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "28px";
-    const next = Math.max(el.scrollHeight, 28);
-    const bounded = Math.min(next, 200);
-    el.style.height = `${bounded}px`;
-    el.style.overflowY = next > 200 ? "auto" : "hidden";
-  }, [input, activeCapabilityKey]);
-
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    const cursorPos = e.target.selectionStart ?? value.length;
-    setInput(value);
-    setShowAtPopup(shouldOpenAtPopup(value, cursorPos));
+  // Functional-update form keeps `handleInputChange` identity stable across
+  // every keystroke (no `hasContent` in deps), so the memoized ComposerInput
+  // doesn't get re-rendered just because we observed a content-empty toggle.
+  const handleInputChange = useCallback((val: string) => {
+    const next = !!val.trim();
+    setHasContent((prev) => (prev === next ? prev : next));
   }, []);
 
-  const handleTextareaClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement>) => {
-    const target = e.currentTarget;
-    setShowAtPopup(shouldOpenAtPopup(target.value, target.selectionStart ?? target.value.length));
-  }, []);
-
-  const doSend = useCallback(() => {
-    const content = input.trim();
+  const doSend = useCallback((content: string) => {
     onSend(content);
-    setInput("");
-    setShowAtPopup(false);
-  }, [input, onSend]);
+    setHasContent(false);
+    inputHandleRef.current?.clear();
+  }, [onSend]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      doSend();
-    } else if (e.key === "Escape") {
-      setShowAtPopup(false);
-    }
-  }, [doSend]);
-
-  const handleSelectNotebook = useCallback(() => {
-    setInput((prev) => stripTrailingAtMention(prev));
-    setShowAtPopup(false);
-    onSelectNotebookPicker();
-  }, [onSelectNotebookPicker]);
-
-  const handleSelectHistory = useCallback(() => {
-    setInput((prev) => stripTrailingAtMention(prev));
-    setShowAtPopup(false);
-    onSelectHistoryPicker();
-  }, [onSelectHistoryPicker]);
-
-  const handleSelectQuestionBank = useCallback(() => {
-    setInput((prev) => stripTrailingAtMention(prev));
-    setShowAtPopup(false);
-    onSelectQuestionBankPicker();
-  }, [onSelectQuestionBankPicker]);
+  const hasReferences =
+    !!attachments.length ||
+    !!selectedNotebookRecords.length ||
+    !!selectedHistorySessions.length ||
+    !!selectedQuestionEntries.length;
 
   const canSend =
-    (!!input.trim() ||
-      !!attachments.length ||
-      !!selectedNotebookRecords.length ||
-      !!selectedHistorySessions.length ||
-      !!selectedQuestionEntries.length) &&
+    (hasContent || hasReferences) &&
     !isStreaming &&
     !(isResearchMode && Object.keys(researchValidationErrors).length > 0);
+
+  const handleManualSend = useCallback(() => {
+    if (!canSend) return;
+    const content = inputHandleRef.current?.getValue() || "";
+    doSend(content);
+  }, [canSend, doSend]);
 
   return (
     <div
@@ -361,13 +318,6 @@ export default memo(function ChatComposer({
       )}
 
       <div className="relative">
-        <AtMentionPopup
-          open={showAtPopup}
-          onSelectNotebook={handleSelectNotebook}
-          onSelectHistory={handleSelectHistory}
-          onSelectQuestionBank={handleSelectQuestionBank}
-        />
-
         <div
           className={`relative rounded-2xl border bg-[var(--card)] shadow-[0_1px_8px_rgba(0,0,0,0.03)] transition-colors ${
             dragging
@@ -389,35 +339,32 @@ export default memo(function ChatComposer({
             </div>
           )}
 
-          <div className="px-4 pt-3.5 pb-2">
-            <ReferenceChips
-              historySessions={selectedHistorySessions}
-              notebookGroups={notebookReferenceGroups}
-              questionEntries={selectedQuestionEntries}
-              onRemoveHistory={onRemoveHistory}
-              onRemoveNotebook={onRemoveNotebook}
-              onRemoveQuestion={onRemoveQuestion}
-            />
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onClick={handleTextareaClick}
-              onPaste={onPaste}
-              rows={1}
-              suppressHydrationWarning
-              placeholder={
-                isMathAnimatorMode
-                  ? t("Describe the math animation or storyboard you want...")
-                  : isVisualizeMode
-                    ? t("Describe the chart or diagram you want to visualize...")
-                    : t("How can I help you today?")
-              }
-              className="w-full resize-none overflow-hidden bg-transparent text-[15px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
-              style={{ transition: "height 0.15s ease-out", minHeight: 28 }}
-            />
-          </div>
+          {hasReferences && (
+            <div className="px-4 pt-3.5 [&>div]:mb-0">
+              <ReferenceChips
+                historySessions={selectedHistorySessions}
+                notebookGroups={notebookReferenceGroups}
+                questionEntries={selectedQuestionEntries}
+                onRemoveHistory={onRemoveHistory}
+                onRemoveNotebook={onRemoveNotebook}
+                onRemoveQuestion={onRemoveQuestion}
+              />
+            </div>
+          )}
+          <ComposerInput
+            ref={inputHandleRef}
+            textareaRef={textareaRef}
+            activeCapabilityKey={activeCapabilityKey}
+            isMathAnimatorMode={isMathAnimatorMode}
+            isVisualizeMode={isVisualizeMode}
+            canSendEmpty={hasReferences}
+            onSend={doSend}
+            onInputChange={handleInputChange}
+            onPaste={onPaste}
+            onSelectNotebookPicker={onSelectNotebookPicker}
+            onSelectHistoryPicker={onSelectHistoryPicker}
+            onSelectQuestionBankPicker={onSelectQuestionBankPicker}
+          />
 
           {!!attachments.length && (
             <div className="flex flex-wrap gap-2 px-4 pb-2">
@@ -756,7 +703,7 @@ export default memo(function ChatComposer({
                 ) : (
                   <button
                     type="button"
-                    onClick={doSend}
+                    onClick={handleManualSend}
                     disabled={!canSend}
                     className="rounded-full bg-[var(--primary)] p-[7px] text-white shadow-[0_4px_12px_rgba(195,90,44,0.15)] transition-[transform,opacity,box-shadow] hover:shadow-[0_6px_16px_rgba(195,90,44,0.22)] disabled:opacity-25 disabled:shadow-none"
                     aria-label={t("Send")}

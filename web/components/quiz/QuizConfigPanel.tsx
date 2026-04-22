@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -23,7 +23,7 @@ interface QuizConfigPanelProps {
   onToggleCollapsed: () => void;
 }
 
-export default function QuizConfigPanel({
+export default memo(function QuizConfigPanel({
   value,
   onChange,
   uploadedPdf,
@@ -204,5 +204,5 @@ export default function QuizConfigPanel({
       )}
     </CollapsibleConfigSection>
   );
-}
+});
 

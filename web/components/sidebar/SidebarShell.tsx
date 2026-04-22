@@ -9,6 +9,7 @@ import {
   BookOpen,
   Bot,
   Brain,
+  Github,
   Library,
   MessageSquare,
   PanelLeftClose,
@@ -23,6 +24,7 @@ import SessionList from "@/components/SessionList";
 import { TutorBotRecent } from "@/components/sidebar/TutorBotRecent";
 import { BookRecent } from "@/components/sidebar/BookRecent";
 import { CoWriterRecent } from "@/components/sidebar/CoWriterRecent";
+import { VersionBadge } from "@/components/sidebar/VersionBadge";
 import type { SessionSummary } from "@/lib/session-api";
 
 interface NavEntry {
@@ -42,6 +44,7 @@ const PRIMARY_NAV: NavEntry[] = [
 
 const SECONDARY_NAV: NavEntry[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 const DEFAULT_SESSION_VIEWPORT_CLASS_NAME = "max-h-[112px]";
+const GITHUB_REPO_URL = "https://github.com/HKUDS/DeepTutor";
 
 interface SidebarShellProps {
   sessions?: SessionSummary[];
@@ -172,6 +175,17 @@ export function SidebarShell({
             );
           })}
           {footerSlot}
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            title="GitHub"
+            aria-label="GitHub"
+            className="mt-1 flex h-9 w-9 items-center justify-center rounded-xl text-[var(--muted-foreground)]/70 transition-colors hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
+          >
+            <Github size={15} strokeWidth={1.6} />
+          </a>
+          <VersionBadge collapsed />
         </div>
       </aside>
     );
@@ -279,6 +293,19 @@ export function SidebarShell({
           );
         })}
         {footerSlot}
+        <div className="mt-0.5 flex items-center gap-0.5">
+          <VersionBadge />
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            title="GitHub"
+            aria-label="GitHub"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--muted-foreground)]/55 transition-colors hover:bg-[var(--background)]/50 hover:text-[var(--muted-foreground)]"
+          >
+            <Github size={13} strokeWidth={1.7} />
+          </a>
+        </div>
       </div>
     </aside>
   );

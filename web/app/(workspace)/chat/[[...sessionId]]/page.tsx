@@ -666,6 +666,18 @@ export default function ChatPage() {
   const handleRemoveQuestion = useCallback((entryId: number) => {
     setSelectedQuestionEntries((prev) => prev.filter((entry) => entry.id !== entryId));
   }, []);
+  const handleToggleSkill = useCallback((name: string) => {
+    setSkillsAutoMode(false);
+    setSelectedSkills((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+    );
+  }, []);
+
+  const handleSetSkillsAuto = useCallback((auto: boolean) => {
+    setSkillsAutoMode(auto);
+    if (auto) setSelectedSkills([]);
+  }, []);
+
   const handleTogglePanelCollapsed = useCallback(() => { setPanelCollapsed((prev) => !prev); }, []);
   const handleCloseNotebookPicker = useCallback(() => { setShowNotebookPicker(false); }, []);
   const handleApplyNotebookRecords = useCallback((records: SelectedRecord[]) => { setSelectedNotebookRecords(records); }, []);
@@ -800,16 +812,8 @@ export default function ChatPage() {
           onSelectHistoryPicker={handleSelectHistoryPicker}
           onSelectQuestionBankPicker={handleSelectQuestionBankPicker}
           onToggleTool={toggleTool}
-          onToggleSkill={(name) => {
-            setSkillsAutoMode(false);
-            setSelectedSkills((prev) =>
-              prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-            );
-          }}
-          onSetSkillsAuto={(auto) => {
-            setSkillsAutoMode(auto);
-            if (auto) setSelectedSkills([]);
-          }}
+          onToggleSkill={handleToggleSkill}
+          onSetSkillsAuto={handleSetSkillsAuto}
           onToggleResearchSource={toggleResearchSource}
           onSend={handleSend}
           onRemoveAttachment={removeAttachment}

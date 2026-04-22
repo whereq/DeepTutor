@@ -14,29 +14,12 @@ from __future__ import annotations
 from typing import Any
 
 from deeptutor.agents.base_agent import BaseAgent
+from deeptutor.core.context import Attachment
 from deeptutor.core.trace import build_trace_metadata, new_call_id
 
 from ..memory.scratchpad import PlanStep, Scratchpad
 from ..tool_runtime import SolveToolRuntime
 from ..utils.json_utils import extract_json_from_text
-
-
-def _build_multimodal_messages(
-    system_prompt: str,
-    user_prompt: str,
-    image_url: str,
-) -> list[dict[str, Any]]:
-    """Build OpenAI-compatible multimodal messages with an image."""
-    return [
-        {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_prompt},
-                {"type": "image_url", "image_url": {"url": image_url}},
-            ],
-        },
-    ]
 
 
 class SolverAgent(BaseAgent):
@@ -123,9 +106,7 @@ class SolverAgent(BaseAgent):
         }
 
         if image_url:
-            llm_kwargs["messages"] = _build_multimodal_messages(
-                system_prompt, user_prompt, image_url,
-            )
+            llm_kwargs["attachments"] = [Attachment(type="image", url=image_url)]
 
         chunks: list[str] = []
         async for chunk in self.stream_llm(**llm_kwargs):

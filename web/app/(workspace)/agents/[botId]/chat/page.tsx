@@ -5,7 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Bot, Loader2, Send } from "lucide-react";
 import { apiUrl, wsUrl } from "@/lib/api";
+import { firstParam } from "@/lib/route-params";
 import AssistantResponse from "@/components/common/AssistantResponse";
+import { SimpleComposerInput } from "@/components/chat/home/SimpleComposerInput";
 
 interface BotInfo {
   bot_id: string;
@@ -20,13 +22,13 @@ interface ChatMsg {
 }
 
 export default function BotChatPage() {
-  const { botId } = useParams<{ botId: string }>();
+  const params = useParams<{ botId?: string | string[] }>();
+  const botId = firstParam(params?.botId);
   const router = useRouter();
   const { t } = useTranslation();
 
   const [bot, setBot] = useState<BotInfo | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [thinking, setThinking] = useState<string[]>([]);
   const thinkingRef = useRef<string[]>([]);
@@ -42,6 +44,9 @@ export default function BotChatPage() {
   }, []);
 
   useEffect(() => {
+    if (!botId) {
+      return;
+    }
     fetch(apiUrl(`/api/v1/tutorbot/${botId}`))
       .then((r) => (r.ok ? r.json() : null))
       .then(setBot)
@@ -59,6 +64,9 @@ export default function BotChatPage() {
   }, [botId]);
 
   useEffect(() => {
+    if (!botId) {
+      return;
+    }
     const ws = new WebSocket(wsUrl(`/api/v1/tutorbot/${botId}/ws`));
     wsRef.current = ws;
 
@@ -101,27 +109,23 @@ export default function BotChatPage() {
     };
   }, [botId, scrollToBottom]);
 
-  const send = useCallback(() => {
-    const text = input.trim();
-    if (!text || streaming || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+  const handleSend = useCallback((content: string) => {
+    if (!botId || streaming || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
-    setMessages((msgs) => [...msgs, { role: "user", content: text }]);
-    setInput("");
+    setMessages((msgs) => [...msgs, { role: "user", content }]);
     setStreaming(true);
     setThinking([]);
-    wsRef.current.send(JSON.stringify({ content: text }));
+    wsRef.current.send(JSON.stringify({ content }));
     scrollToBottom();
-  }, [input, streaming, scrollToBottom]);
+  }, [botId, streaming, scrollToBottom]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        send();
-      }
-    },
-    [send],
-  );
+  const handleManualSend = useCallback(() => {
+    const content = inputRef.current?.value.trim();
+    if (content) {
+      handleSend(content);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }, [handleSend]);
 
   return (
     <div className="flex h-full flex-col">
@@ -207,25 +211,21 @@ export default function BotChatPage() {
       {/* Input */}
       <div className="border-t border-[var(--border)] px-5 py-3">
         <div className="mx-auto flex max-w-[720px] items-end gap-2">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t("Type a message...")}
-            rows={1}
+          <SimpleComposerInput
+            textareaRef={inputRef}
+            onSend={handleSend}
             disabled={streaming}
-            className="flex-1 resize-none rounded-xl border border-[var(--border)] bg-transparent px-4 py-2.5 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] disabled:opacity-50 placeholder:text-[var(--muted-foreground)]/40"
           />
           <button
-            onClick={send}
-            disabled={streaming || !input.trim()}
+            onClick={handleManualSend}
+            disabled={streaming}
             className="flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-30"
           >
             <Send className="h-4 w-4" />
           </button>
         </div>
       </div>
+
     </div>
   );
 }

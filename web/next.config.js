@@ -1,6 +1,31 @@
 /** @type {import('next').NextConfig} */
 
+// Resolve the build-time application version. Priority:
+//   1. Explicit APP_VERSION env (set by CI from the release tag)
+//   2. `git describe --tags` when building from a checkout (local dev)
+//   3. Empty string → frontend treats it as "unknown" and shows the
+//      latest GitHub release as a neutral fallback.
+const APP_VERSION = (() => {
+  if (process.env.APP_VERSION) return process.env.APP_VERSION;
+  try {
+    const { execSync } = require("child_process");
+    return execSync("git describe --tags --always --dirty=-dev", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return "";
+  }
+})();
+
 const nextConfig = {
+  // Expose the build-time version to the browser so the sidebar badge
+  // can compare it against GitHub's latest release.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: APP_VERSION,
+  },
+
   // Standalone output: self-contained server.js + minimal node_modules
   // This eliminates the need to copy the full node_modules into Docker production images
   output: "standalone",

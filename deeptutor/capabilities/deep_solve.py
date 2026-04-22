@@ -18,6 +18,20 @@ from deeptutor.core.stream_bus import StreamBus
 from deeptutor.core.trace import derive_trace_metadata, merge_trace_metadata
 
 
+def _first_image_url(attachments: list[Any]) -> str | None:
+    """Extract a data-URI or URL from the first image attachment, if any."""
+    for att in attachments or []:
+        if getattr(att, "type", "") != "image":
+            continue
+        if getattr(att, "url", ""):
+            return att.url
+        b64 = getattr(att, "base64", "")
+        if b64:
+            mime = getattr(att, "mime_type", "") or "image/png"
+            return f"data:{mime};base64,{b64}"
+    return None
+
+
 class DeepSolveCapability(BaseCapability):
     manifest = CapabilityManifest(
         name="deep_solve",
@@ -266,8 +280,11 @@ class DeepSolveCapability(BaseCapability):
 
         solver._content_callback = _content_sink
 
+        image_url = _first_image_url(context.attachments)
+
         result = await solver.solve(
             question=context.user_message,
+            image_url=image_url,
             verbose=False,
             detailed=detailed,
             conversation_context=str(
