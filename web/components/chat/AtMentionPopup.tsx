@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 interface AtMentionPopupProps {
@@ -9,7 +10,7 @@ interface AtMentionPopupProps {
   onSelectQuestionBank: () => void;
 }
 
-export default function AtMentionPopup({
+export default memo(function AtMentionPopup({
   open,
   onSelectNotebook,
   onSelectHistory,
@@ -41,4 +42,4 @@ export default function AtMentionPopup({
       </button>
     </div>
   );
-}
+});

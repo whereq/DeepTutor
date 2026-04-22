@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   DeepResearchFormConfig,
@@ -69,7 +70,7 @@ function NumberSlider({
   );
 }
 
-export default function ResearchConfigPanel({
+export default memo(function ResearchConfigPanel({
   value,
   errors: _errors,
   collapsed,
@@ -142,4 +143,4 @@ export default function ResearchConfigPanel({
       )}
     </CollapsibleConfigSection>
   );
-}
+});
