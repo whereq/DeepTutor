@@ -22,12 +22,12 @@ export interface ComposerInputHandle {
   getValue: () => string;
 }
 
-function shouldOpenAtPopup(value: string, cursorPos: number): boolean {
+export function shouldOpenAtPopup(value: string, cursorPos: number): boolean {
   const prefix = value.slice(0, cursorPos);
   return /(^|\s)@[^\s]*$/.test(prefix);
 }
 
-function stripTrailingAtMention(value: string): string {
+export function stripTrailingAtMention(value: string): string {
   return value.replace(/(^|\s)@[^\s]*$/, "$1").replace(/\s+$/, "");
 }
 
