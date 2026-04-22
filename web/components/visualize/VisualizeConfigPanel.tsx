@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   summarizeVisualizeConfig,
@@ -18,7 +19,7 @@ interface VisualizeConfigPanelProps {
   onToggleCollapsed: () => void;
 }
 
-export default function VisualizeConfigPanel({
+export default memo(function VisualizeConfigPanel({
   value,
   onChange,
   collapsed,
@@ -50,4 +51,4 @@ export default function VisualizeConfigPanel({
       </Field>
     </CollapsibleConfigSection>
   );
-}
+});

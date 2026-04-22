@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   summarizeMathAnimatorConfig,
@@ -18,7 +19,7 @@ interface MathAnimatorConfigPanelProps {
   onToggleCollapsed: () => void;
 }
 
-export default function MathAnimatorConfigPanel({
+export default memo(function MathAnimatorConfigPanel({
   value,
   onChange,
   collapsed,
@@ -71,5 +72,5 @@ export default function MathAnimatorConfigPanel({
       </Field>
     </CollapsibleConfigSection>
   );
-}
+});
 
