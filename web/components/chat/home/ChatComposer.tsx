@@ -77,7 +77,6 @@ interface ResearchSourceDef {
   icon: LucideIcon;
 }
 
-
 export default memo(function ChatComposer({
   composerRef,
   capMenuRef,
@@ -242,12 +241,13 @@ export default memo(function ChatComposer({
     if (!hasMessages) textareaRef.current?.focus();
   }, [hasMessages]);
 
+  // Functional-update form keeps `handleInputChange` identity stable across
+  // every keystroke (no `hasContent` in deps), so the memoized ComposerInput
+  // doesn't get re-rendered just because we observed a content-empty toggle.
   const handleInputChange = useCallback((val: string) => {
-    const nextHasContent = !!val.trim();
-    if (nextHasContent !== hasContent) {
-      setHasContent(nextHasContent);
-    }
-  }, [hasContent]);
+    const next = !!val.trim();
+    setHasContent((prev) => (prev === next ? prev : next));
+  }, []);
 
   const doSend = useCallback((content: string) => {
     onSend(content);
@@ -255,23 +255,22 @@ export default memo(function ChatComposer({
     inputHandleRef.current?.clear();
   }, [onSend]);
 
-  const handleManualSend = useCallback(() => {
-    const content = inputHandleRef.current?.getValue() || "";
-    if (!!content.trim() || attachments.length || selectedNotebookRecords.length || selectedHistorySessions.length || selectedQuestionEntries.length) {
-      doSend(content);
-    }
-  }, [doSend, attachments.length, selectedNotebookRecords.length, selectedHistorySessions.length, selectedQuestionEntries.length]);
+  const hasReferences =
+    !!attachments.length ||
+    !!selectedNotebookRecords.length ||
+    !!selectedHistorySessions.length ||
+    !!selectedQuestionEntries.length;
 
   const canSend =
-    (hasContent ||
-      !!attachments.length ||
-      !!selectedNotebookRecords.length ||
-      !!selectedHistorySessions.length ||
-      !!selectedQuestionEntries.length) &&
+    (hasContent || hasReferences) &&
     !isStreaming &&
     !(isResearchMode && Object.keys(researchValidationErrors).length > 0);
 
-
+  const handleManualSend = useCallback(() => {
+    if (!canSend) return;
+    const content = inputHandleRef.current?.getValue() || "";
+    doSend(content);
+  }, [canSend, doSend]);
 
   return (
     <div
@@ -340,8 +339,8 @@ export default memo(function ChatComposer({
             </div>
           )}
 
-          <div className="pt-0.5">
-            <div className="px-4 pt-3">
+          {hasReferences && (
+            <div className="px-4 pt-3.5 [&>div]:mb-0">
               <ReferenceChips
                 historySessions={selectedHistorySessions}
                 notebookGroups={notebookReferenceGroups}
@@ -351,21 +350,21 @@ export default memo(function ChatComposer({
                 onRemoveQuestion={onRemoveQuestion}
               />
             </div>
-            <ComposerInput
-              ref={inputHandleRef}
-              textareaRef={textareaRef}
-              activeCapabilityKey={activeCapabilityKey}
-              isMathAnimatorMode={isMathAnimatorMode}
-              isVisualizeMode={isVisualizeMode}
-              onSend={doSend}
-              onInputChange={handleInputChange}
-              onPaste={onPaste}
-              onSelectNotebookPicker={onSelectNotebookPicker}
-              onSelectHistoryPicker={onSelectHistoryPicker}
-              onSelectQuestionBankPicker={onSelectQuestionBankPicker}
-            />
-          </div>
-
+          )}
+          <ComposerInput
+            ref={inputHandleRef}
+            textareaRef={textareaRef}
+            activeCapabilityKey={activeCapabilityKey}
+            isMathAnimatorMode={isMathAnimatorMode}
+            isVisualizeMode={isVisualizeMode}
+            canSendEmpty={hasReferences}
+            onSend={doSend}
+            onInputChange={handleInputChange}
+            onPaste={onPaste}
+            onSelectNotebookPicker={onSelectNotebookPicker}
+            onSelectHistoryPicker={onSelectHistoryPicker}
+            onSelectQuestionBankPicker={onSelectQuestionBankPicker}
+          />
 
           {!!attachments.length && (
             <div className="flex flex-wrap gap-2 px-4 pb-2">

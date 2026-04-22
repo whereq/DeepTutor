@@ -26,6 +26,8 @@
 
 ### 📦 Releases
 
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — User-authored Skills system (CRUD + chat integration), chat input performance overhaul with state colocation, `response_format` auto-fallback for incompatible providers, LAN remote access fix, sidebar version badge, Deep Solve image attachments, TutorBot WebSocket auto-start, Book Library UI, and visualization fullscreen mode.
+
 > **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — Per-stage chat token limits in `agents.yaml` (8000-token responses), Regenerate last response across CLI / WebSocket / Web UI, RAG `None`-embedding crash fix, Gemma `json_object` compatibility, and dark code-block readability.
 
 > **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine multi-agent "living book" compiler with 14 block types, multi-document Co-Writer workspace, interactive HTML visualizations, Question Bank @-mention in chat, prompt externalization phase 2, and sidebar overhaul.
@@ -70,6 +72,8 @@
 </details>
 
 ### 📰 News
+
+> **[2026.4.19]** 🎉 We've reached 20k stars after 111 days! Thank you for the incredible support — we're committed to continuous iteration toward truly personalized, intelligent tutoring for everyone.
 
 > **[2026.4.4]** Long time no see! ✨ DeepTutor v1.0.0 is finally here — an agent-native evolution featuring a ground-up architecture rewrite, TutorBot, and flexible mode switching under the Apache-2.0 license. A new chapter begins, and our story continues! 
 

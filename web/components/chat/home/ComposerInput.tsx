@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, memo, useCallback, useImperativeHandle, useLayoutEffect, useState, type RefObject } from "react";
+import { forwardRef, memo, useCallback, useImperativeHandle, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import AtMentionPopup from "@/components/chat/AtMentionPopup";
 
@@ -9,6 +9,10 @@ interface ComposerInputProps {
   activeCapabilityKey: string;
   isMathAnimatorMode: boolean;
   isVisualizeMode: boolean;
+  // When true, parent has attachments/references queued and will accept a
+  // send even if the text body is empty. Without this, Enter would silently
+  // do nothing for an attachment-only message.
+  canSendEmpty: boolean;
   onSend: (content: string) => void;
   onInputChange: (content: string) => void;
   onPaste: (e: React.ClipboardEvent) => void;
@@ -36,6 +40,7 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
   activeCapabilityKey,
   isMathAnimatorMode,
   isVisualizeMode,
+  canSendEmpty,
   onSend,
   onInputChange,
   onPaste,
@@ -47,14 +52,25 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
   const [input, setInput] = useState("");
   const [showAtPopup, setShowAtPopup] = useState(false);
 
+  // Latest text mirrored into a ref by the change handlers (never updated
+  // during render). The select-* handlers and the imperative handle read
+  // from this ref so their identities stay stable across keystrokes,
+  // letting `memo` on AtMentionPopup actually skip re-renders when
+  // `showAtPopup` doesn't change.
+  const inputRef = useRef("");
+  // Helper that always updates state and ref together so they can't drift.
+  const setInputBoth = useCallback((value: string) => {
+    inputRef.current = value;
+    setInput(value);
+  }, []);
+
   useImperativeHandle(ref, () => ({
     clear: () => {
-      setInput("");
+      setInputBoth("");
       onInputChange("");
     },
-    getValue: () => input,
-  }));
-
+    getValue: () => inputRef.current,
+  }), [setInputBoth, onInputChange]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -69,10 +85,10 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     const cursorPos = e.target.selectionStart ?? value.length;
-    setInput(value);
+    setInputBoth(value);
     onInputChange(value);
     setShowAtPopup(shouldOpenAtPopup(value, cursorPos));
-  }, [onInputChange]);
+  }, [setInputBoth, onInputChange]);
 
   const handleTextareaClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
@@ -80,13 +96,16 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
   }, []);
 
   const doSend = useCallback(() => {
-    const content = input.trim();
-    if (!content) return;
+    const content = inputRef.current.trim();
+    // Allow sending when text is empty but the parent has attachments or
+    // references queued (canSendEmpty). This matches the send-button's
+    // own enablement logic in ChatComposer (`canSend`).
+    if (!content && !canSendEmpty) return;
     onSend(content);
-    setInput("");
+    setInputBoth("");
     onInputChange("");
     setShowAtPopup(false);
-  }, [input, onSend, onInputChange]);
+  }, [canSendEmpty, onSend, setInputBoth, onInputChange]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -98,28 +117,28 @@ export const ComposerInput = memo(forwardRef<ComposerInputHandle, ComposerInputP
   }, [doSend]);
 
   const handleSelectNotebook = useCallback(() => {
-    const next = stripTrailingAtMention(input);
-    setInput(next);
+    const next = stripTrailingAtMention(inputRef.current);
+    setInputBoth(next);
     onInputChange(next);
     setShowAtPopup(false);
     onSelectNotebookPicker();
-  }, [input, onInputChange, onSelectNotebookPicker]);
+  }, [setInputBoth, onInputChange, onSelectNotebookPicker]);
 
   const handleSelectHistory = useCallback(() => {
-    const next = stripTrailingAtMention(input);
-    setInput(next);
+    const next = stripTrailingAtMention(inputRef.current);
+    setInputBoth(next);
     onInputChange(next);
     setShowAtPopup(false);
     onSelectHistoryPicker();
-  }, [input, onInputChange, onSelectHistoryPicker]);
+  }, [setInputBoth, onInputChange, onSelectHistoryPicker]);
 
   const handleSelectQuestionBank = useCallback(() => {
-    const next = stripTrailingAtMention(input);
-    setInput(next);
+    const next = stripTrailingAtMention(inputRef.current);
+    setInputBoth(next);
     onInputChange(next);
     setShowAtPopup(false);
     onSelectQuestionBankPicker();
-  }, [input, onInputChange, onSelectQuestionBankPicker]);
+  }, [setInputBoth, onInputChange, onSelectQuestionBankPicker]);
 
   return (
     <div className="px-4 pt-3.5 pb-2">

@@ -170,6 +170,8 @@
   "Base URL": "Base URL",
   "Use .env": "使用 .env",
   "API Key": "API Key",
+  "Show API key": "显示 API Key",
+  "Hide API key": "隐藏 API Key",
   "optional for local providers": "本地服务可选",
   "Not required": "不需要",
   "Base URL is required for testing": "测试需要 Base URL",
@@ -1025,5 +1027,8 @@
   "Incomplete settings": "设置不完整",
   "llm-only": "仅 LLM",
   "Copy": "复制",
-  "Regenerate": "重新生成"
+  "Regenerate": "重新生成",
+  "Latest release": "最新版本",
+  "Up to date": "已是最新",
+  "Update available": "有新版本"
 }

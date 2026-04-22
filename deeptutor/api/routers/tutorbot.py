@@ -4,6 +4,7 @@ TutorBot management API.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -19,6 +20,24 @@ from deeptutor.services.tutorbot.manager import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# Per-bot async locks used to dedupe concurrent WebSocket-driven auto-starts.
+# `manager.start_bot` already short-circuits when the bot is already running,
+# but that check is not async-safe: two coroutines that both observe a stopped
+# bot will each run the full start sequence. Serializing on a per-bot lock
+# avoids the duplicated work and noisy logs.
+_start_locks: dict[str, asyncio.Lock] = {}
+_start_locks_mutex = asyncio.Lock()
+
+
+async def _get_start_lock(bot_id: str) -> asyncio.Lock:
+    async with _start_locks_mutex:
+        lock = _start_locks.get(bot_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            _start_locks[bot_id] = lock
+        return lock
 
 
 class CreateBotRequest(BaseModel):
@@ -327,13 +346,18 @@ async def get_bot_history(bot_id: str, limit: int = 100):
 
 @router.websocket("/{bot_id}/ws")
 async def bot_chat_ws(ws: WebSocket, bot_id: str):
-    import asyncio
+    # `disconnected` is the single source of truth for "client is gone".
+    # Both task loops watch it so they can exit cooperatively without
+    # raising exceptions back into manager code (which has broad
+    # `except Exception:` handlers that would swallow them).
+    disconnected = asyncio.Event()
 
     async def _safe_send(payload: dict) -> bool:
         try:
             await ws.send_json(payload)
             return True
         except (WebSocketDisconnect, RuntimeError):
+            disconnected.set()
             return False
 
     mgr = get_tutorbot_manager()
@@ -344,24 +368,32 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
     if not instance or not instance.running:
         config = mgr.load_bot_config(bot_id)
         if config is None:
-            await ws.send_json({"type": "error", "content": "Bot not found"})
+            await _safe_send({"type": "error", "content": "Bot not found"})
             await ws.close(code=4004, reason="Bot not found")
             return
-        try:
-            instance = await mgr.start_bot(bot_id, config)
-        except Exception:
-            logger.exception("Failed to auto-start bot '%s' for websocket", bot_id)
-            await ws.send_json({"type": "error", "content": "Failed to start bot"})
-            await ws.close(code=1011, reason="Failed to start bot")
-            return
+        # Serialize concurrent starts of the same bot so only one
+        # WebSocket connection actually triggers `start_bot`; the rest
+        # observe the now-running instance and reuse it.
+        lock = await _get_start_lock(bot_id)
+        async with lock:
+            instance = mgr.get_bot(bot_id)
+            if not instance or not instance.running:
+                try:
+                    instance = await mgr.start_bot(bot_id, config)
+                except Exception:
+                    logger.exception("Failed to auto-start bot '%s' for websocket", bot_id)
+                    await _safe_send({"type": "error", "content": "Failed to start bot"})
+                    await ws.close(code=1011, reason="Failed to start bot")
+                    return
 
     logger.info("WebSocket connected for bot '%s'", bot_id)
 
     async def _handle_user_messages():
-        while True:
+        while not disconnected.is_set():
             try:
                 raw = await ws.receive_text()
             except WebSocketDisconnect:
+                disconnected.set()
                 break
             try:
                 data = json.loads(raw)
@@ -375,8 +407,13 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
                 continue
 
             async def on_progress(text: str) -> None:
-                if not await _safe_send({"type": "thinking", "content": text}):
-                    raise WebSocketDisconnect()
+                # Best-effort: never raise. If the client is gone, just stop
+                # forwarding progress; the surrounding loop will notice the
+                # `disconnected` event and exit. Raising here would leak
+                # WebSocketDisconnect into `mgr.send_message`, which catches
+                # `Exception` broadly and would swallow the disconnect signal,
+                # leaving the bot to finish an expensive turn for nobody.
+                await _safe_send({"type": "thinking", "content": text})
 
             try:
                 response = await mgr.send_message(
@@ -391,6 +428,7 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
                 if not await _safe_send({"type": "error", "content": str(exc)}):
                     break
             except WebSocketDisconnect:
+                disconnected.set()
                 break
             except Exception:
                 logger.exception("Error processing message for bot '%s'", bot_id)
@@ -398,11 +436,20 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
                     break
 
     async def _handle_notifications():
-        while True:
-            content = await instance.notify_queue.get()
-            try:
-                await ws.send_json({"type": "proactive", "content": content})
-            except Exception:
+        # Race the queue read against the disconnect signal so this loop
+        # cooperates with client disconnects detected by the other task.
+        while not disconnected.is_set():
+            get_task = asyncio.create_task(instance.notify_queue.get())
+            wait_task = asyncio.create_task(disconnected.wait())
+            done, pending = await asyncio.wait(
+                {get_task, wait_task}, return_when=asyncio.FIRST_COMPLETED,
+            )
+            for t in pending:
+                t.cancel()
+            if get_task not in done:
+                break
+            content = get_task.result()
+            if not await _safe_send({"type": "proactive", "content": content}):
                 break
 
     user_task = asyncio.create_task(_handle_user_messages())
@@ -411,12 +458,14 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
         done, pending = await asyncio.wait(
             [user_task, notify_task], return_when=asyncio.FIRST_COMPLETED,
         )
+        disconnected.set()
         for t in pending:
             t.cancel()
         for t in done:
             if t.exception() and not isinstance(t.exception(), WebSocketDisconnect):
                 logger.exception("WebSocket task error for bot '%s'", bot_id, exc_info=t.exception())
     except Exception:
+        disconnected.set()
         user_task.cancel()
         notify_task.cancel()
     logger.info("WebSocket closed for bot '%s'", bot_id)

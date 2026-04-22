@@ -166,18 +166,25 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
                     response.raise_for_status()
                     data = response.json()
                 break
-            except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.PoolTimeout, httpx.ConnectError) as exc:
+            except httpx.TransportError as exc:
+                # httpx.TransportError covers all transient transport-layer
+                # failures: ConnectError, ReadError, WriteError, ConnectTimeout,
+                # ReadTimeout, WriteTimeout, PoolTimeout, RemoteProtocolError, etc.
+                # Retrying any of these with backoff is safe and obviates the
+                # need to keep extending an explicit allow-list.
                 last_exc = exc
                 if attempt < self._MAX_RETRIES:
                     wait = self._RETRY_BACKOFF * (2 ** attempt)
                     logger.warning(
-                        f"Embedding request timeout (attempt {attempt + 1}/{1 + self._MAX_RETRIES}), "
+                        f"Embedding request transport error ({type(exc).__name__}: {exc}) "
+                        f"on attempt {attempt + 1}/{1 + self._MAX_RETRIES}, "
                         f"retrying in {wait:.1f}s..."
                     )
                     await asyncio.sleep(wait)
                 else:
                     logger.error(
-                        f"Embedding request failed after {1 + self._MAX_RETRIES} attempts: {exc}"
+                        f"Embedding request failed after {1 + self._MAX_RETRIES} attempts "
+                        f"({type(exc).__name__}: {exc})"
                     )
                     raise
         else:

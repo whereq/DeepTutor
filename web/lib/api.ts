@@ -17,6 +17,23 @@ export const API_BASE_URL =
     );
   })();
 
+// Hostnames that always refer to the local machine. When the build-time base
+// URL points to one of these, but the page is opened from a non-local origin,
+// we rewrite the hostname so requests reach the actual server.
+const LOOPBACK_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "::1",
+  "[::1]",
+]);
+
+let warnedAboutHostSwap = false;
+
+function isLoopbackHost(host: string): boolean {
+  return LOOPBACK_HOSTS.has(host.toLowerCase());
+}
+
 /**
  * Resolve the effective API base URL at runtime.
  *
@@ -26,19 +43,27 @@ export const API_BASE_URL =
  * its *own* loopback address instead of the server.  We detect this situation
  * and swap the hostname for window.location.hostname so the request reaches
  * the actual server regardless of which machine opened the page.
+ *
+ * The full path/search is preserved (so deployments behind a reverse proxy
+ * like `http://localhost:8001/api` continue to work after the rewrite).
  */
-function resolveBase(): string {
+export function resolveBase(): string {
   const base = API_BASE_URL;
   if (typeof window === "undefined") return base;
   try {
     const url = new URL(base);
-    const isLoopback = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-    const clientIsRemote =
-      window.location.hostname !== "localhost" &&
-      window.location.hostname !== "127.0.0.1";
-    if (isLoopback && clientIsRemote) {
-      url.hostname = window.location.hostname;
-      return url.origin;
+    const clientHost = window.location.hostname;
+    if (isLoopbackHost(url.hostname) && !isLoopbackHost(clientHost)) {
+      url.hostname = clientHost;
+      if (!warnedAboutHostSwap) {
+        warnedAboutHostSwap = true;
+        console.warn(
+          `[api] NEXT_PUBLIC_API_BASE points to "${base}" but the page is served from "${clientHost}"; ` +
+            `routing API/WebSocket calls to "${url.toString()}" instead.`,
+        );
+      }
+      // Use href (full URL) instead of origin so we keep any path/search.
+      return url.toString().replace(/\/+$/, "");
     }
   } catch {
     // base is not a valid absolute URL – return as-is

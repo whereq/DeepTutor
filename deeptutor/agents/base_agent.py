@@ -564,11 +564,22 @@ class BaseAgent(ABC):
                 self.logger.debug(f"response_format not supported for {binding}/{model}, skipping")
 
         # Inject image attachments into messages when provided
-        if messages and attachments:
+        if attachments:
+            if not messages:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
             mm_result = prepare_multimodal_messages(
                 messages, attachments, binding=self.binding, model=model
             )
             messages = mm_result.messages
+            if mm_result.images_stripped:
+                self.logger.info(
+                    "Images stripped for %s/%s – model does not support vision",
+                    self.binding,
+                    model,
+                )
 
         # Log input
         stage_label = stage or self.agent_name

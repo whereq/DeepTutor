@@ -433,6 +433,7 @@ class AgenticChatPipeline:
                 system_prompt=self._responding_system_prompt(enabled_tools),
                 user_content=user_prompt,
             )
+            messages, _ = self._prepare_messages_with_attachments(messages, context)
 
             chunks: list[str] = []
             async for chunk in self._stream_messages(
@@ -582,6 +583,7 @@ class AgenticChatPipeline:
             system_prompt=self._acting_system_prompt(enabled_tools, context),
             user_content=self._acting_user_prompt(context, thinking_text),
         )
+        messages, _ = self._prepare_messages_with_attachments(messages, context)
         tool_traces: list[ToolTrace] = []
         client = self._build_openai_client()
         trace_meta = build_trace_metadata(

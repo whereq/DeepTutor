@@ -170,6 +170,8 @@
   "Base URL": "Base URL",
   "Use .env": "Use .env",
   "API Key": "API Key",
+  "Show API key": "Show API key",
+  "Hide API key": "Hide API key",
   "optional for local providers": "optional for local providers",
   "Not required": "Not required",
   "Base URL is required for testing": "Base URL is required for testing",
@@ -1025,5 +1027,8 @@
   "Incomplete settings": "Incomplete settings",
   "llm-only": "llm-only",
   "Copy": "Copy",
-  "Regenerate": "Regenerate"
+  "Regenerate": "Regenerate",
+  "Latest release": "Latest release",
+  "Up to date": "Up to date",
+  "Update available": "Update available"
 }

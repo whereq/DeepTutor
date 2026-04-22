@@ -14,6 +14,7 @@ import logging
 from typing import Any
 
 from deeptutor.agents.base_agent import BaseAgent
+from deeptutor.core.context import Attachment
 from deeptutor.core.trace import build_trace_metadata, derive_trace_metadata, new_call_id
 from deeptutor.utils.json_parser import parse_json_response
 
@@ -26,24 +27,6 @@ logger = logging.getLogger(__name__)
 _MAX_CHARS_PER_RETRIEVAL = 2000
 _MAX_AGGREGATE_INPUT_CHARS = 6000
 _NUM_QUERIES = 3
-
-
-def _build_multimodal_messages(
-    system_prompt: str,
-    user_prompt: str,
-    image_url: str,
-) -> list[dict[str, Any]]:
-    """Build OpenAI-compatible multimodal messages with an image."""
-    return [
-        {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_prompt},
-                {"type": "image_url", "image_url": {"url": image_url}},
-            ],
-        },
-    ]
 
 
 class PlannerAgent(BaseAgent):
@@ -132,9 +115,7 @@ class PlannerAgent(BaseAgent):
         }
 
         if image_url:
-            llm_kwargs["messages"] = _build_multimodal_messages(
-                system_prompt, user_prompt, image_url,
-            )
+            llm_kwargs["attachments"] = [Attachment(type="image", url=image_url)]
 
         chunks: list[str] = []
         async for chunk in self.stream_llm(**llm_kwargs):
