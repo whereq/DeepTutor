@@ -1030,5 +1030,6 @@
   "Regenerate": "重新生成",
   "Latest release": "最新版本",
   "Up to date": "已是最新",
-  "Update available": "有新版本"
+  "Update available": "有新版本",
+  "Development build": "开发构建"
 }
