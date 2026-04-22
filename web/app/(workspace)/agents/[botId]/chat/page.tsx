@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Bot, Loader2, Send } from "lucide-react";
 import { apiUrl, wsUrl } from "@/lib/api";
+import { firstParam } from "@/lib/route-params";
 import AssistantResponse from "@/components/common/AssistantResponse";
 import { SimpleComposerInput } from "@/components/chat/home/SimpleComposerInput";
 
@@ -21,7 +22,8 @@ interface ChatMsg {
 }
 
 export default function BotChatPage() {
-  const { botId } = useParams<{ botId: string }>();
+  const params = useParams<{ botId?: string | string[] }>();
+  const botId = firstParam(params?.botId);
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -42,6 +44,9 @@ export default function BotChatPage() {
   }, []);
 
   useEffect(() => {
+    if (!botId) {
+      return;
+    }
     fetch(apiUrl(`/api/v1/tutorbot/${botId}`))
       .then((r) => (r.ok ? r.json() : null))
       .then(setBot)
@@ -59,6 +64,9 @@ export default function BotChatPage() {
   }, [botId]);
 
   useEffect(() => {
+    if (!botId) {
+      return;
+    }
     const ws = new WebSocket(wsUrl(`/api/v1/tutorbot/${botId}/ws`));
     wsRef.current = ws;
 
@@ -102,14 +110,14 @@ export default function BotChatPage() {
   }, [botId, scrollToBottom]);
 
   const handleSend = useCallback((content: string) => {
-    if (streaming || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!botId || streaming || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
     setMessages((msgs) => [...msgs, { role: "user", content }]);
     setStreaming(true);
     setThinking([]);
     wsRef.current.send(JSON.stringify({ content }));
     scrollToBottom();
-  }, [streaming, scrollToBottom]);
+  }, [botId, streaming, scrollToBottom]);
 
   const handleManualSend = useCallback(() => {
     const content = inputRef.current?.value.trim();
