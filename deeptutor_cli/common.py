@@ -47,9 +47,7 @@ def parse_notebook_references(items: list[str]) -> list[dict[str, Any]]:
         if not resolved_notebook_id:
             raise ValueError(f"Invalid notebook reference `{item}`.")
         record_ids = [
-            record_id.strip()
-            for record_id in record_part.split(",")
-            if record_id.strip()
+            record_id.strip() for record_id in record_part.split(",") if record_id.strip()
         ]
         refs.append({"notebook_id": resolved_notebook_id, "record_ids": record_ids})
     return refs

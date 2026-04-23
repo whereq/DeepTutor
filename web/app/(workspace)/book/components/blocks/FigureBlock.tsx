@@ -3,7 +3,10 @@
 import VisualizationViewer from "@/components/visualize/VisualizationViewer";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import type { Block } from "@/lib/book-types";
-import type { VisualizeRenderType, VisualizeResult } from "@/lib/visualize-types";
+import type {
+  VisualizeRenderType,
+  VisualizeResult,
+} from "@/lib/visualize-types";
 
 export interface FigureBlockProps {
   block: Block;
@@ -15,8 +18,14 @@ const FIGURE_RENDER_TYPES: ReadonlySet<VisualizeRenderType> = new Set([
   "mermaid",
 ]);
 
-function coerceRenderType(value: unknown, language: string): VisualizeRenderType {
-  if (typeof value === "string" && (FIGURE_RENDER_TYPES as Set<string>).has(value)) {
+function coerceRenderType(
+  value: unknown,
+  language: string,
+): VisualizeRenderType {
+  if (
+    typeof value === "string" &&
+    (FIGURE_RENDER_TYPES as Set<string>).has(value)
+  ) {
     return value as VisualizeRenderType;
   }
   if (language === "javascript" || language === "js") return "chartjs";
@@ -26,8 +35,9 @@ function coerceRenderType(value: unknown, language: string): VisualizeRenderType
 
 export default function FigureBlock({ block }: FigureBlockProps) {
   const code =
-    (block.payload?.code as { language?: string; content?: string } | undefined) ||
-    {};
+    (block.payload?.code as
+      | { language?: string; content?: string }
+      | undefined) || {};
   const language = String(code.language || "svg");
   const content = String(code.content || "");
   const description = block.payload?.description

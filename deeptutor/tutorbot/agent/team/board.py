@@ -112,45 +112,61 @@ def add_task(team_dir: Path, task: Task) -> str:
 
 
 def task_rows(tasks: list[Task]) -> list[dict[str, str]]:
-    return [{
-        "id": t.id,
-        "title": t.title,
-        "owner": t.owner or "—",
-        "status": t.status,
-        "depends": ", ".join(t.depends_on) or "—",
-    } for t in tasks]
+    return [
+        {
+            "id": t.id,
+            "title": t.title,
+            "owner": t.owner or "—",
+            "status": t.status,
+            "depends": ", ".join(t.depends_on) or "—",
+        }
+        for t in tasks
+    ]
 
 
 def member_rows(tasks: list[Task], members: list[Teammate]) -> list[dict[str, str]]:
-    current_by_owner = {t.owner: t for t in tasks if t.owner and t.status in {"planning", "awaiting_approval", "in_progress"}}
+    current_by_owner = {
+        t.owner: t
+        for t in tasks
+        if t.owner and t.status in {"planning", "awaiting_approval", "in_progress"}
+    }
     rows = []
     for m in members:
         current = current_by_owner.get(m.name)
-        rows.append({
-            "name": m.name,
-            "role": m.role,
-            "status": m.status,
-            "task": f"{current.id}: {current.title}" if current else "—",
-        })
+        rows.append(
+            {
+                "name": m.name,
+                "role": m.role,
+                "status": m.status,
+                "task": f"{current.id}: {current.title}" if current else "—",
+            }
+        )
     return rows
 
 
 def approval_rows(tasks: list[Task]) -> list[dict[str, str]]:
-    return [{
-        "id": t.id,
-        "title": t.title,
-        "owner": t.owner or "—",
-        "plan": (t.plan or "").strip() or "No plan submitted.",
-    } for t in tasks if t.status == "awaiting_approval"]
+    return [
+        {
+            "id": t.id,
+            "title": t.title,
+            "owner": t.owner or "—",
+            "plan": (t.plan or "").strip() or "No plan submitted.",
+        }
+        for t in tasks
+        if t.status == "awaiting_approval"
+    ]
 
 
 def render_text(tasks: list[Task], members: list[Teammate]) -> str:
     if not tasks:
         return "No team tasks."
-    member_text = "\n".join(
-        f"- {row['name']}: {row['role']} ({row['status']}) [{row['task']}]"
-        for row in member_rows(tasks, members)
-    ) or "- none"
+    member_text = (
+        "\n".join(
+            f"- {row['name']}: {row['role']} ({row['status']}) [{row['task']}]"
+            for row in member_rows(tasks, members)
+        )
+        or "- none"
+    )
     task_text = "\n".join(
         f"| {row['id']} | {row['title']} | {row['owner']} | {row['status']} | {row['depends']} |"
         for row in task_rows(tasks)

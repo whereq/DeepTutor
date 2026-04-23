@@ -1,4 +1,9 @@
-export type ResearchMode = "" | "notes" | "report" | "comparison" | "learning_path";
+export type ResearchMode =
+  | ""
+  | "notes"
+  | "report"
+  | "comparison"
+  | "learning_path";
 export type ResearchDepth = "" | "quick" | "standard" | "deep" | "manual";
 export type ResearchSource = "kb" | "web" | "papers";
 
@@ -42,7 +47,10 @@ export function normalizeResearchConfig(
         ? raw.mode
         : empty.mode,
     depth:
-      raw?.depth === "quick" || raw?.depth === "standard" || raw?.depth === "deep" || raw?.depth === "manual"
+      raw?.depth === "quick" ||
+      raw?.depth === "standard" ||
+      raw?.depth === "deep" ||
+      raw?.depth === "manual"
         ? raw.depth
         : empty.depth,
     sources: Array.isArray(raw?.sources)
@@ -85,8 +93,10 @@ export function buildResearchWSConfig(
   };
 
   if (cfg.depth === "manual") {
-    if (cfg.manual_subtopics != null) result.manual_subtopics = cfg.manual_subtopics;
-    if (cfg.manual_max_iterations != null) result.manual_max_iterations = cfg.manual_max_iterations;
+    if (cfg.manual_subtopics != null)
+      result.manual_subtopics = cfg.manual_subtopics;
+    if (cfg.manual_max_iterations != null)
+      result.manual_max_iterations = cfg.manual_max_iterations;
   }
 
   const outline = confirmedOutline ?? cfg.confirmed_outline;
@@ -118,8 +128,11 @@ export function summarizeResearchConfig(
   const validation = validateResearchConfig(cfg);
   const tr = translate ?? ((s: string) => s);
   if (!validation.valid) return tr("Incomplete settings");
-  const sourceSummary = cfg.sources.length ? cfg.sources.join("+") : tr("llm-only");
-  const modeLabel = RESEARCH_MODE_LABELS[cfg.mode] ?? cfg.mode.replace("_", " ");
+  const sourceSummary = cfg.sources.length
+    ? cfg.sources.join("+")
+    : tr("llm-only");
+  const modeLabel =
+    RESEARCH_MODE_LABELS[cfg.mode] ?? cfg.mode.replace("_", " ");
   const depthLabel = RESEARCH_DEPTH_LABELS[cfg.depth] ?? cfg.depth;
   return [tr(modeLabel), tr(depthLabel), sourceSummary].join(" · ");
 }

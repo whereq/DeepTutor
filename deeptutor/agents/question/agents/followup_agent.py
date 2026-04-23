@@ -81,11 +81,7 @@ class FollowupAgent(BaseAgent):
 
         correctness = question_context.get("is_correct")
         correctness_text = (
-            "correct"
-            if correctness is True
-            else "incorrect"
-            if correctness is False
-            else "unknown"
+            "correct" if correctness is True else "incorrect" if correctness is False else "unknown"
         )
 
         lines = [

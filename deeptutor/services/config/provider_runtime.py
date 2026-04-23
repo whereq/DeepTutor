@@ -21,7 +21,15 @@ from .env_store import EnvStore, get_env_store
 from .loader import load_config_with_main
 from .model_catalog import ModelCatalogService, get_model_catalog_service
 
-SUPPORTED_SEARCH_PROVIDERS = {"brave", "tavily", "jina", "searxng", "duckduckgo", "perplexity", "serper"}
+SUPPORTED_SEARCH_PROVIDERS = {
+    "brave",
+    "tavily",
+    "jina",
+    "searxng",
+    "duckduckgo",
+    "perplexity",
+    "serper",
+}
 DEPRECATED_SEARCH_PROVIDERS = {"exa", "baidu", "openrouter"}
 
 SEARCH_ENV_FALLBACK = {
@@ -43,6 +51,7 @@ EMBEDDING_PROVIDER_ALIASES = {
     "openai_compatible": "custom",
 }
 
+
 @dataclass(frozen=True)
 class EmbeddingProviderSpec:
     """Single embedding-provider metadata entry."""
@@ -57,52 +66,71 @@ class EmbeddingProviderSpec:
     default_model: str = ""
     default_dim: int = 0
 
+
 EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
     "openai": EmbeddingProviderSpec(
         label="OpenAI",
         default_api_base="https://api.openai.com/v1",
         keywords=("openai", "text-embedding", "ada-002", "embedding-3"),
-        is_local=False, api_key_envs=("OPENAI_API_KEY",),
-        default_model="text-embedding-3-large", default_dim=3072,
+        is_local=False,
+        api_key_envs=("OPENAI_API_KEY",),
+        default_model="text-embedding-3-large",
+        default_dim=3072,
     ),
     "azure_openai": EmbeddingProviderSpec(
-        label="Azure OpenAI", mode="direct",
+        label="Azure OpenAI",
+        mode="direct",
         default_api_base="",
         keywords=("azure", "aoai"),
-        is_local=False, api_key_envs=("AZURE_OPENAI_API_KEY", "AZURE_API_KEY"),
+        is_local=False,
+        api_key_envs=("AZURE_OPENAI_API_KEY", "AZURE_API_KEY"),
     ),
     "cohere": EmbeddingProviderSpec(
-        label="Cohere", adapter="cohere",
+        label="Cohere",
+        adapter="cohere",
         default_api_base="https://api.cohere.ai",
         keywords=("cohere", "embed-v4", "embed-english", "embed-multilingual"),
-        is_local=False, api_key_envs=("COHERE_API_KEY",),
-        default_model="embed-v4.0", default_dim=1024,
+        is_local=False,
+        api_key_envs=("COHERE_API_KEY",),
+        default_model="embed-v4.0",
+        default_dim=1024,
     ),
     "jina": EmbeddingProviderSpec(
-        label="Jina", adapter="jina",
+        label="Jina",
+        adapter="jina",
         default_api_base="https://api.jina.ai/v1",
         keywords=("jina", "jina-embeddings"),
-        is_local=False, api_key_envs=("JINA_API_KEY",),
-        default_model="jina-embeddings-v3", default_dim=1024,
+        is_local=False,
+        api_key_envs=("JINA_API_KEY",),
+        default_model="jina-embeddings-v3",
+        default_dim=1024,
     ),
     "ollama": EmbeddingProviderSpec(
-        label="Ollama", adapter="ollama", mode="local",
+        label="Ollama",
+        adapter="ollama",
+        mode="local",
         default_api_base="http://localhost:11434",
         keywords=("ollama", "nomic-embed", "mxbai", "snowflake-arctic", "all-minilm"),
-        is_local=True, api_key_envs=(),
-        default_model="nomic-embed-text", default_dim=768,
+        is_local=True,
+        api_key_envs=(),
+        default_model="nomic-embed-text",
+        default_dim=768,
     ),
     "vllm": EmbeddingProviderSpec(
-        label="vLLM / LM Studio", mode="local",
+        label="vLLM / LM Studio",
+        mode="local",
         default_api_base="http://localhost:8000/v1",
         keywords=("vllm", "lmstudio"),
-        is_local=True, api_key_envs=("HOSTED_VLLM_API_KEY",),
+        is_local=True,
+        api_key_envs=("HOSTED_VLLM_API_KEY",),
     ),
     "custom": EmbeddingProviderSpec(
-        label="OpenAI Compatible", mode="direct",
+        label="OpenAI Compatible",
+        mode="direct",
         default_api_base="",
         keywords=(),
-        is_local=False, api_key_envs=("OPENAI_API_KEY",),
+        is_local=False,
+        api_key_envs=("OPENAI_API_KEY",),
     ),
 }
 
@@ -150,6 +178,7 @@ class ResolvedEmbeddingConfig:
     api_version: str | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
     dimension: int = 3072
+    send_dimensions: bool | None = None
     request_timeout: int = 60
     batch_size: int = 10
     batch_delay: float = 0.0
@@ -320,8 +349,8 @@ def resolve_llm_runtime_config(
 
     active_api_key = _as_str((profile or {}).get("api_key")) or summary.llm.get("api_key", "")
     active_api_base = _as_str((profile or {}).get("base_url")) or summary.llm.get("host", "")
-    active_api_version = (
-        _as_str((profile or {}).get("api_version")) or summary.llm.get("api_version", "")
+    active_api_version = _as_str((profile or {}).get("api_version")) or summary.llm.get(
+        "api_version", ""
     )
     active_extra_headers = _to_headers((profile or {}).get("extra_headers"))
     reasoning_effort = _as_str((model or {}).get("reasoning_effort")) or None
@@ -374,7 +403,9 @@ def _canonical_embedding_provider_name(name: str | None) -> str | None:
     return None
 
 
-def _collect_embedding_provider_pool(catalog: dict[str, Any]) -> dict[str, NormalizedProviderConfig]:
+def _collect_embedding_provider_pool(
+    catalog: dict[str, Any],
+) -> dict[str, NormalizedProviderConfig]:
     providers: dict[str, NormalizedProviderConfig] = {}
     embedding_profiles = catalog.get("services", {}).get("embedding", {}).get("profiles", [])
     for profile in embedding_profiles:
@@ -397,6 +428,26 @@ def _resolve_embedding_dimension(value: Any, default: int = 3072) -> int:
         return max(1, parsed)
     except (TypeError, ValueError):
         return default
+
+
+def _coerce_optional_bool(value: Any) -> bool | None:
+    """Parse a tri-state bool from catalog/env values.
+
+    Returns ``True``/``False`` for explicit values and ``None`` for missing,
+    empty, or unrecognised inputs (which means "use the default behaviour").
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if not text:
+        return None
+    if text in {"true", "1", "yes", "on"}:
+        return True
+    if text in {"false", "0", "no", "off"}:
+        return False
+    return None
 
 
 def _resolve_embedding_provider(
@@ -460,9 +511,13 @@ def resolve_embedding_runtime_config(
     summary = env.as_summary()
     env_values = env.load()
 
-    resolved_model = _as_str((model or {}).get("model")) or summary.embedding.get("model", "").strip()
+    resolved_model = (
+        _as_str((model or {}).get("model")) or summary.embedding.get("model", "").strip()
+    )
     if not resolved_model:
-        raise ValueError("No active embedding model is configured. Please set it in Settings > Catalog.")
+        raise ValueError(
+            "No active embedding model is configured. Please set it in Settings > Catalog."
+        )
 
     binding_hint_raw = _as_str((profile or {}).get("binding"))
     if not binding_hint_raw and "EMBEDDING_BINDING" in env_values:
@@ -471,13 +526,17 @@ def resolve_embedding_runtime_config(
 
     active_api_key = _as_str((profile or {}).get("api_key")) or summary.embedding.get("api_key", "")
     active_api_base = _as_str((profile or {}).get("base_url")) or summary.embedding.get("host", "")
-    active_api_version = (
-        _as_str((profile or {}).get("api_version")) or summary.embedding.get("api_version", "")
+    active_api_version = _as_str((profile or {}).get("api_version")) or summary.embedding.get(
+        "api_version", ""
     )
     active_extra_headers = _to_headers((profile or {}).get("extra_headers"))
     dimension = _resolve_embedding_dimension(
         (model or {}).get("dimension") or summary.embedding.get("dimension") or 3072
     )
+    # Catalog wins over env. ``None`` means "fall back to adapter heuristic".
+    send_dimensions = _coerce_optional_bool((model or {}).get("send_dimensions"))
+    if send_dimensions is None:
+        send_dimensions = _coerce_optional_bool(summary.embedding.get("send_dimensions"))
 
     provider_pool = _collect_embedding_provider_pool(loaded)
     provider_name = _resolve_embedding_provider(
@@ -514,6 +573,7 @@ def resolve_embedding_runtime_config(
         api_version=api_version or None,
         extra_headers=extra_headers,
         dimension=dimension,
+        send_dimensions=send_dimensions,
         request_timeout=60,
         batch_size=10,
         batch_delay=0.0,

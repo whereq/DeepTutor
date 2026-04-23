@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import logging
 
-from pydantic import BaseModel, Field, field_validator
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
 
 from deeptutor.services.session import get_sqlite_session_store
 
@@ -124,7 +124,9 @@ async def record_quiz_results(session_id: str, payload: QuizResultsRequest):
             [item.model_dump() for item in payload.answers],
         )
     except Exception:
-        logger.warning("Failed to upsert notebook entries for session %s", session_id, exc_info=True)
+        logger.warning(
+            "Failed to upsert notebook entries for session %s", session_id, exc_info=True
+        )
     return {
         "recorded": True,
         "session_id": session_id,

@@ -62,9 +62,7 @@ class AgentCoordinator:
             {"web_search": True, "rag": True, "code_execution": True},
         )
         self.tool_flags = (
-            tool_flags_override
-            if isinstance(tool_flags_override, dict)
-            else default_tool_flags
+            tool_flags_override if isinstance(tool_flags_override, dict) else default_tool_flags
         )
         self._current_batch_dir: Path | None = None
 
@@ -191,9 +189,7 @@ class AgentCoordinator:
             )
 
             if not batch_templates:
-                self.logger.warning(
-                    "Template generation returned an empty batch; stopping early."
-                )
+                self.logger.warning("Template generation returned an empty batch; stopping early.")
                 break
 
         await self._send_ws_update(
@@ -352,9 +348,7 @@ class AgentCoordinator:
         max_questions: int,
         paper_mode: str,
     ) -> tuple[list[QuestionTemplate], dict[str, Any]]:
-        await self._send_ws_update(
-            "progress", {"stage": "parsing", "status": "running"}
-        )
+        await self._send_ws_update("progress", {"stage": "parsing", "status": "running"})
 
         paper_path = Path(exam_paper_path)
         output_base = (
@@ -386,9 +380,7 @@ class AgentCoordinator:
 
         json_files = list(working_dir.glob("*_questions.json"))
         if not json_files:
-            extract_success = extract_questions_from_paper(
-                str(working_dir), output_dir=None
-            )
+            extract_success = extract_questions_from_paper(str(working_dir), output_dir=None)
             if not extract_success:
                 raise RuntimeError("Failed to extract questions from parsed exam")
             json_files = list(working_dir.glob("*_questions.json"))
@@ -461,11 +453,7 @@ class AgentCoordinator:
 
     def _create_batch_dir(self, prefix: str) -> Path:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base = (
-            Path(self.output_dir)
-            if self.output_dir
-            else get_path_service().get_question_dir()
-        )
+        base = Path(self.output_dir) if self.output_dir else get_path_service().get_question_dir()
         batch_dir = base / f"{prefix}_{timestamp}"
         batch_dir.mkdir(parents=True, exist_ok=True)
         return batch_dir

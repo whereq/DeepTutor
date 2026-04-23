@@ -236,7 +236,10 @@ export function reduceBookEvent(
       const queries = asNumber(meta.queries);
       const coverage = meta.coverage as Record<string, unknown> | undefined;
       const chunkCount = coverage
-        ? Object.values(coverage).reduce<number>((acc, v) => acc + asNumber(v), 0)
+        ? Object.values(coverage).reduce<number>(
+            (acc, v) => acc + asNumber(v),
+            0,
+          )
         : 0;
       next = startStage(next, "exploration");
       next = completeStage(next, "exploration");

@@ -32,13 +32,7 @@ def _coerce_anchors(sources: list[dict] | None) -> list[SourceAnchor]:
     for src in sources[:6]:
         if not isinstance(src, dict):
             continue
-        ref = (
-            src.get("id")
-            or src.get("doc_id")
-            or src.get("path")
-            or src.get("source")
-            or ""
-        )
+        ref = src.get("id") or src.get("doc_id") or src.get("path") or src.get("source") or ""
         snippet = src.get("text") or src.get("snippet") or src.get("content") or ""
         anchors.append(
             SourceAnchor(

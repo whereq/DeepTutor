@@ -180,6 +180,7 @@ class Logger:
         if log_dir is None:
             # Lazy import to avoid circular import
             from deeptutor.services.path_service import get_path_service
+
             path_svc = get_path_service()
             log_dir_path = path_svc.get_logs_dir()
         else:

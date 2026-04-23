@@ -43,7 +43,7 @@ class FigureGenerator(BlockGenerator):
         focus_clause = f" focusing on {focus}" if focus else ""
         user_input = (
             f"Create a {variant} figure for the chapter "
-            f"\"{chapter_title}\"{focus_clause}. The figure should help a "
+            f'"{chapter_title}"{focus_clause}. The figure should help a '
             "learner build intuition about the core relationships covered above."
         )
 

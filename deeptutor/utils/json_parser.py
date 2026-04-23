@@ -14,10 +14,14 @@ import logging
 import re
 from typing import Any
 
+_repair_json_fn: Any = None
+
 try:
-    from json_repair import repair_json
+    from json_repair import repair_json as _repair_json_import
 except ImportError:
-    repair_json = None
+    pass
+else:
+    _repair_json_fn = _repair_json_import
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +30,7 @@ _UNSET = object()
 
 def parse_json_response(
     response: str,
-    logger_instance: logging.Logger | None = None,
+    logger_instance: Any = None,
     fallback: Any = _UNSET,
 ) -> Any:
     """
@@ -78,14 +82,14 @@ def parse_json_response(
         log.debug(f"Direct JSON parse failed: {parse_error}")
 
     # Strategy 2: Try json-repair if available
-    if repair_json is None:
+    if _repair_json_fn is None:
         log.warning("json-repair library not installed, cannot repair malformed JSON")
         log.debug(f"Response: {extracted_response[:200]}")
         return fallback
 
     try:
         log.debug("Attempting JSON repair")
-        repaired = repair_json(extracted_response)
+        repaired = _repair_json_fn(extracted_response)
         result = json.loads(repaired)
         log.info("Successfully repaired malformed JSON")
         return result

@@ -71,7 +71,13 @@ export function useChatAutoScroll({
         pendingRafRef.current = 0;
       }
     };
-  }, [isStreaming, lastEventCount, lastMessageContent, messageCount, scrollToBottom]);
+  }, [
+    isStreaming,
+    lastEventCount,
+    lastMessageContent,
+    messageCount,
+    scrollToBottom,
+  ]);
 
   useEffect(() => {
     if (!hasMessages || !shouldAutoScrollRef.current) return;

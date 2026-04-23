@@ -13,11 +13,10 @@ recurring failures – useful for maintenance dashboards.
 
 from __future__ import annotations
 
-import hashlib
-import re
 from dataclasses import dataclass, field
-from datetime import datetime
+import hashlib
 from pathlib import Path
+import re
 
 from deeptutor.knowledge import KnowledgeBaseManager
 from deeptutor.logging import get_logger
@@ -62,7 +61,7 @@ def fingerprint_kb(kb_name: str, manager: KnowledgeBaseManager | None = None) ->
             parts.append(token)
     if not parts:
         return ""
-    digest = hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
     return digest
 
 
@@ -128,14 +127,10 @@ def detect_kb_drift(
     # Only flag *new* KBs that were actually selected for this book — we do
     # not care about KBs the user added to their workspace but never linked
     # to the book.
-    new_kbs = [
-        k for k in current if k not in stored and k in book.knowledge_bases
-    ]
+    new_kbs = [k for k in current if k not in stored and k in book.knowledge_bases]
     removed_kbs = [k for k in stored if k not in current and k in book.knowledge_bases]
     changed_kbs = [
-        k
-        for k, v in current.items()
-        if k in stored and stored[k] and v and stored[k] != v
+        k for k, v in current.items() if k in stored and stored[k] and v and stored[k] != v
     ]
 
     has_drift = bool(new_kbs or removed_kbs or changed_kbs)
@@ -171,7 +166,8 @@ def refresh_book_fingerprints(
     book.stale_page_ids = []
     store.save_book(book)
     store.append_log(
-        book_id, f"refreshed kb fingerprints ({len(book.kb_fingerprints)} kbs)",
+        book_id,
+        f"refreshed kb fingerprints ({len(book.kb_fingerprints)} kbs)",
         op="kb_health",
     )
     return book
@@ -231,9 +227,7 @@ def mark_drift_on_book(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-_LOG_LINE = re.compile(
-    r"^- `(?P<ts>[^`]+)` \*\*(?P<op>[^*]+)\*\* — (?P<msg>.+)$"
-)
+_LOG_LINE = re.compile(r"^- `(?P<ts>[^`]+)` \*\*(?P<op>[^*]+)\*\* — (?P<msg>.+)$")
 
 
 @dataclass
@@ -258,9 +252,7 @@ class LogHealthReport:
         }
 
 
-def scan_log_health(
-    book_id: str, storage: BookStorage | None = None
-) -> LogHealthReport:
+def scan_log_health(book_id: str, storage: BookStorage | None = None) -> LogHealthReport:
     store = storage or get_book_storage()
     log_path: Path = store.path_service.get_book_log_file(book_id)
     report = LogHealthReport(book_id=book_id)
@@ -291,12 +283,10 @@ def scan_log_health(
         logger.warning(f"Could not read log {log_path}: {exc}")
         return report
 
-    repeated = [
-        {"signature": k, "count": v}
-        for k, v in counter.items()
-        if v >= 3
+    repeated: list[dict[str, str | int]] = [
+        {"signature": k, "count": v} for k, v in counter.items() if v >= 3
     ]
-    repeated.sort(key=lambda r: r["count"], reverse=True)
+    repeated.sort(key=lambda r: r["count"] if isinstance(r["count"], int) else 0, reverse=True)
     report.repeated_failures = repeated[:10]
     return report
 

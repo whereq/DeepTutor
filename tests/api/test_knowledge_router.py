@@ -12,7 +12,9 @@ except Exception:  # pragma: no cover - optional dependency in lightweight envs
     FastAPI = None
     TestClient = None
 
-pytestmark = pytest.mark.skipif(FastAPI is None or TestClient is None, reason="fastapi not installed")
+pytestmark = pytest.mark.skipif(
+    FastAPI is None or TestClient is None, reason="fastapi not installed"
+)
 
 if FastAPI is not None and TestClient is not None:
     knowledge_router_module = importlib.import_module("deeptutor.api.routers.knowledge")
@@ -97,7 +99,12 @@ def test_create_kb_does_not_require_llm_precheck(monkeypatch, tmp_path: Path) ->
     manager = _FakeKBManager(tmp_path / "knowledge_bases")
     monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
     monkeypatch.setattr(knowledge_router_module, "KnowledgeBaseInitializer", _FakeInitializer)
-    monkeypatch.setattr(knowledge_router_module, "get_llm_config", lambda: (_ for _ in ()).throw(RuntimeError("should not be called")), raising=False)
+    monkeypatch.setattr(
+        knowledge_router_module,
+        "get_llm_config",
+        lambda: (_ for _ in ()).throw(RuntimeError("should not be called")),
+        raising=False,
+    )
 
     async def _noop_init_task(*_args, **_kwargs):
         return None

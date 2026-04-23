@@ -3,13 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import {
-  FileText,
-  Loader2,
-  PenLine,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { FileText, Loader2, PenLine, Plus, Trash2 } from "lucide-react";
 import {
   createCoWriterDocument,
   deleteCoWriterDocument,
@@ -116,7 +110,11 @@ export default function CoWriterHomePage() {
           disabled={creating}
           className="inline-flex items-center gap-1.5 rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
         >
-          {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+          {creating ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Plus size={14} />
+          )}
           {t("New draft")}
         </button>
         <button
@@ -219,7 +217,8 @@ export default function CoWriterHomePage() {
                           {doc.title || t("Untitled draft")}
                         </div>
                         <div className="text-[10px] text-[var(--muted-foreground)]/70">
-                          {t("Updated")} {relativeTime(doc.updated_at)} {t("ago")}
+                          {t("Updated")} {relativeTime(doc.updated_at)}{" "}
+                          {t("ago")}
                         </div>
                       </div>
                     </div>

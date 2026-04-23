@@ -24,14 +24,18 @@ interface ResearchConfigPanelProps {
 
 // Note: `label` values are i18n keys resolved via `t(...)` at render time so
 // the dropdown options match the active UI language.
-const MODE_OPTIONS: Array<{ value: Exclude<ResearchMode, "">; label: string }> = [
-  { value: "notes", label: "Study Notes" },
-  { value: "report", label: "Report" },
-  { value: "comparison", label: "Comparison" },
-  { value: "learning_path", label: "Learning Path" },
-];
+const MODE_OPTIONS: Array<{ value: Exclude<ResearchMode, "">; label: string }> =
+  [
+    { value: "notes", label: "Study Notes" },
+    { value: "report", label: "Report" },
+    { value: "comparison", label: "Comparison" },
+    { value: "learning_path", label: "Learning Path" },
+  ];
 
-const DEPTH_OPTIONS: Array<{ value: Exclude<ResearchDepth, "">; label: string }> = [
+const DEPTH_OPTIONS: Array<{
+  value: Exclude<ResearchDepth, "">;
+  label: string;
+}> = [
   { value: "quick", label: "Quick" },
   { value: "standard", label: "Standard" },
   { value: "deep", label: "Deep" },
@@ -53,7 +57,9 @@ function NumberSlider({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="shrink-0 text-[10px] text-[var(--muted-foreground)]/60">{label}</span>
+      <span className="shrink-0 text-[10px] text-[var(--muted-foreground)]/60">
+        {label}
+      </span>
       <input
         type="range"
         min={min}
@@ -84,7 +90,8 @@ export default memo(function ResearchConfigPanel({
   ) => onChange({ ...value, [key]: next });
 
   const rawSummary = summarizeResearchConfig(value, t);
-  const summary = rawSummary === t("Incomplete settings") ? undefined : rawSummary;
+  const summary =
+    rawSummary === t("Incomplete settings") ? undefined : rawSummary;
 
   return (
     <CollapsibleConfigSection

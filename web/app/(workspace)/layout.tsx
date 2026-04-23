@@ -10,7 +10,9 @@ export default function WorkspaceLayout({
     <UnifiedChatProvider>
       <div className="flex h-screen overflow-hidden">
         <WorkspaceSidebar />
-        <main className="flex-1 overflow-hidden bg-[var(--background)]">{children}</main>
+        <main className="flex-1 overflow-hidden bg-[var(--background)]">
+          {children}
+        </main>
       </div>
     </UnifiedChatProvider>
   );

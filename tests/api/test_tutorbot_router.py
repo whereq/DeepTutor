@@ -25,6 +25,7 @@ pytestmark = pytest.mark.skipif(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_fake_manager(existing: dict | None = None):
     """Return a (manager, saved) pair.
 
@@ -95,6 +96,7 @@ def _make_client(monkeypatch, existing: dict | None = None):
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestCreateBotPreservesExistingConfig:
     """Regression tests for the config-wipe bug (issue #331 / PR #332).
 
@@ -111,9 +113,7 @@ class TestCreateBotPreservesExistingConfig:
                 "allow_from": ["999"],
             }
         }
-        client, saved = _make_client(
-            monkeypatch, existing={"channels": existing_channels}
-        )
+        client, saved = _make_client(monkeypatch, existing={"channels": existing_channels})
 
         resp = client.post("/api/v1/tutorbot", json={"bot_id": "my-bot"})
 
@@ -127,9 +127,7 @@ class TestCreateBotPreservesExistingConfig:
         existing_channels = {"telegram": {"enabled": True, "token": "old"}}
         new_channels = {"slack": {"enabled": True, "token": "new-slack-token"}}
 
-        client, saved = _make_client(
-            monkeypatch, existing={"channels": existing_channels}
-        )
+        client, saved = _make_client(monkeypatch, existing={"channels": existing_channels})
 
         resp = client.post(
             "/api/v1/tutorbot",
@@ -241,9 +239,7 @@ class TestCreateBotExplicitClearSemantics:
         because a form input was unset) does NOT clobber the existing value —
         only an explicit empty string does that.
         """
-        client, saved = _make_client(
-            monkeypatch, existing={"description": "Disk Desc"}
-        )
+        client, saved = _make_client(monkeypatch, existing={"description": "Disk Desc"})
 
         resp = client.post(
             "/api/v1/tutorbot",
@@ -319,7 +315,9 @@ class TestPatchBotStoppedAndRunning:
                     channels={"telegram": {"enabled": False, "token": ""}},
                 )
 
-            def save_bot_config(self, bot_id: str, config: BotConfig, *, auto_start: bool = True) -> None:
+            def save_bot_config(
+                self, bot_id: str, config: BotConfig, *, auto_start: bool = True
+            ) -> None:
                 saved_cfg.append(config)
 
         tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
@@ -359,7 +357,9 @@ class TestPatchBotStoppedAndRunning:
                 return {
                     "bot_id": "b",
                     "name": self.config.name,
-                    "channels": [] if not (include_secrets or mask_secrets) else self.config.channels,
+                    "channels": []
+                    if not (include_secrets or mask_secrets)
+                    else self.config.channels,
                     "running": True,
                     "last_reload_error": self.last_reload_error,
                 }
@@ -370,7 +370,9 @@ class TestPatchBotStoppedAndRunning:
             def get_bot(self, bot_id: str):
                 return inst if bot_id == "b" else None
 
-            def save_bot_config(self, bot_id: str, config: BotConfig, *, auto_start: bool = True) -> None:
+            def save_bot_config(
+                self, bot_id: str, config: BotConfig, *, auto_start: bool = True
+            ) -> None:
                 pass
 
             async def reload_channels(self, bot_id: str) -> None:
@@ -383,7 +385,9 @@ class TestPatchBotStoppedAndRunning:
         app.include_router(tutorbot_router_mod.router, prefix="/api/v1/tutorbot")
         client = TestClient(app)
 
-        resp = client.patch("/api/v1/tutorbot/b", json={"channels": {"telegram": {"enabled": False}}})
+        resp = client.patch(
+            "/api/v1/tutorbot/b", json={"channels": {"telegram": {"enabled": False}}}
+        )
         assert resp.status_code == 200
         assert reloaded == [True]
 
@@ -400,7 +404,9 @@ class TestPatchBotStoppedAndRunning:
             def load_bot_config(self, bot_id: str) -> BotConfig | None:
                 return BotConfig(name="b")
 
-            def save_bot_config(self, bot_id: str, config: BotConfig, *, auto_start: bool = True) -> None:
+            def save_bot_config(
+                self, bot_id: str, config: BotConfig, *, auto_start: bool = True
+            ) -> None:
                 saved_cfg.append(config)
 
         tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
@@ -441,7 +447,9 @@ class TestPatchBotStoppedAndRunning:
             def get_bot(self, bot_id: str):
                 return FakeInst()
 
-            def save_bot_config(self, bot_id: str, config: BotConfig, *, auto_start: bool = True) -> None:
+            def save_bot_config(
+                self, bot_id: str, config: BotConfig, *, auto_start: bool = True
+            ) -> None:
                 pass
 
             async def reload_channels(self, bot_id: str) -> None:

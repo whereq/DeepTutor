@@ -5,7 +5,6 @@ Inherits from unified BaseAgent.
 
 from datetime import datetime
 import json
-from pathlib import Path
 from typing import Any, Literal
 import uuid
 
@@ -171,9 +170,7 @@ class EditAgent(BaseAgent):
             "system",
             "You are an expert editor and writing assistant.\n\nAvailable reference tools:\n{available_tools}",
         )
-        system_prompt = system_template.format(
-            available_tools=self._build_available_tools_text()
-        )
+        system_prompt = system_template.format(available_tools=self._build_available_tools_text())
 
         action_verbs = {"rewrite": "Rewrite", "shorten": "Shorten", "expand": "Expand"}
         action_verb = action_verbs.get(action, "Rewrite")

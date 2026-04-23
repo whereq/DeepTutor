@@ -9,7 +9,6 @@ to provide the planner with relevant knowledge context.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import Any
 
@@ -161,9 +160,7 @@ class PlannerAgent(BaseAgent):
     ) -> list[str]:
         """Use a lightweight LLM call to derive multiple search queries from
         the user question."""
-        prompt_template = (
-            self.get_prompt("generate_queries") if self.has_prompts() else None
-        )
+        prompt_template = self.get_prompt("generate_queries") if self.has_prompts() else None
         if not prompt_template:
             prompt_template = (
                 "Generate {num_queries} concise and diverse knowledge-base "
@@ -175,7 +172,8 @@ class PlannerAgent(BaseAgent):
             )
 
         user_prompt = prompt_template.format(
-            question=question, num_queries=num_queries,
+            question=question,
+            num_queries=num_queries,
         )
         try:
             parts: list[str] = []
@@ -215,6 +213,7 @@ class PlannerAgent(BaseAgent):
         trace_root: str = "plan",
     ) -> list[dict[str, Any]]:
         """Execute retrieval tool calls for all queries in parallel."""
+
         async def _single_search(query: str, index: int) -> dict[str, Any]:
             trace_meta = build_trace_metadata(
                 call_id=new_call_id(f"{trace_root}-retrieve"),
@@ -297,7 +296,8 @@ class PlannerAgent(BaseAgent):
         )
         logger.info(
             "Parallel retrieval: %d/%d returned content",
-            sum(1 for r in results if r.get("answer")), len(results),
+            sum(1 for r in results if r.get("answer")),
+            len(results),
         )
         return list(results)
 
@@ -317,7 +317,7 @@ class PlannerAgent(BaseAgent):
                 continue
             clipped = answer[:_MAX_CHARS_PER_RETRIEVAL]
             if total_chars + len(clipped) > _MAX_AGGREGATE_INPUT_CHARS:
-                clipped = clipped[:max(0, _MAX_AGGREGATE_INPUT_CHARS - total_chars)]
+                clipped = clipped[: max(0, _MAX_AGGREGATE_INPUT_CHARS - total_chars)]
             if clipped:
                 sections.append(f"=== Source: {item.get('query', '?')} ===\n{clipped}")
                 total_chars += len(clipped)
@@ -327,9 +327,7 @@ class PlannerAgent(BaseAgent):
 
         raw_text = "\n\n".join(sections)
 
-        prompt_template = (
-            self.get_prompt("aggregate_context") if self.has_prompts() else None
-        )
+        prompt_template = self.get_prompt("aggregate_context") if self.has_prompts() else None
         if not prompt_template:
             prompt_template = (
                 "Below are several passages retrieved from a knowledge base. "
@@ -383,8 +381,8 @@ class PlannerAgent(BaseAgent):
             "describing WHAT to establish, not HOW. Do not specify tools. "
             "Simple questions need only 1 step; complex ones may need 3-6 steps. "
             "If retrieved knowledge is provided, use it to make a more informed plan. "
-            "Output strict JSON: {\"analysis\": \"...\", \"steps\": [{\"id\": \"S1\", "
-            "\"goal\": \"...\"}]}"
+            'Output strict JSON: {"analysis": "...", "steps": [{"id": "S1", '
+            '"goal": "..."}]}'
         )
 
     def _build_user_prompt(

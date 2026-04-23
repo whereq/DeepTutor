@@ -29,8 +29,7 @@ const STATUS_STYLES: Record<
   },
   spine_ready: {
     label: "Outline",
-    className:
-      "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300",
+    className: "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300",
     dot: "bg-sky-500",
   },
   compiling: {
@@ -263,8 +262,7 @@ export default function BookLibrary({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map((book) => {
               const isPendingDelete = pendingDeleteId === book.id;
-              const status =
-                STATUS_STYLES[book.status] || STATUS_STYLES.draft;
+              const status = STATUS_STYLES[book.status] || STATUS_STYLES.draft;
               const palette = paletteFor(book.id);
               const coverStyle: CSSProperties = { background: palette.base };
               const glowStyle: CSSProperties = {

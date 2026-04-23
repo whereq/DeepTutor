@@ -48,7 +48,7 @@ def render_mermaid(graph: ConceptGraph) -> str:
     ``(["..."])`` to stand out visually.
     """
     if not graph.nodes:
-        return "graph TD\n  empty[\"(no concepts yet)\"]"
+        return 'graph TD\n  empty["(no concepts yet)"]'
 
     chapter_mode = any(n.chapter_id for n in graph.nodes)
 
@@ -89,9 +89,7 @@ class ConceptGraphGenerator(BlockGenerator):
     ) -> tuple[dict[str, Any], list[SourceAnchor], dict[str, Any]]:
         raw = ctx.extra.get("concept_graph") or ctx.block.params.get("concept_graph")
         if raw is None:
-            raise GenerationFailure(
-                "concept_graph payload missing from BlockContext.extra"
-            )
+            raise GenerationFailure("concept_graph payload missing from BlockContext.extra")
         if isinstance(raw, ConceptGraph):
             graph = raw
         elif isinstance(raw, dict):
@@ -100,9 +98,7 @@ class ConceptGraphGenerator(BlockGenerator):
             except Exception as exc:
                 raise GenerationFailure(f"invalid concept_graph payload: {exc}") from exc
         else:
-            raise GenerationFailure(
-                f"unexpected concept_graph payload type: {type(raw).__name__}"
-            )
+            raise GenerationFailure(f"unexpected concept_graph payload type: {type(raw).__name__}")
 
         chapters_index = ctx.extra.get("chapter_index") or []
         if not isinstance(chapters_index, list):

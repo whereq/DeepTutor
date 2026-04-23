@@ -33,6 +33,7 @@ def create_deeptutor_provider() -> LLMProvider:
 
     if backend == "anthropic":
         from deeptutor.tutorbot.providers.anthropic_provider import AnthropicProvider
+
         return AnthropicProvider(
             api_key=api_key,
             api_base=api_base,
@@ -41,6 +42,7 @@ def create_deeptutor_provider() -> LLMProvider:
         )
 
     from deeptutor.tutorbot.providers.openai_compat_provider import OpenAICompatProvider
+
     return OpenAICompatProvider(
         api_key=api_key,
         api_base=api_base,

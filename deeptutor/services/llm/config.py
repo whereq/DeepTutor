@@ -42,6 +42,7 @@ class LLMConfigUpdate(TypedDict, total=False):
     requests_per_minute: int
     traffic_controller: "TrafficController" | None
 
+
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = get_env_store().path.parent

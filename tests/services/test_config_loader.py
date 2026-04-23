@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from deeptutor.services.config.loader import PROJECT_ROOT, load_config_with_main, resolve_config_path
+from deeptutor.services.config.loader import (
+    PROJECT_ROOT,
+    load_config_with_main,
+    resolve_config_path,
+)
 
 
 def test_resolve_config_path_returns_existing_config(tmp_path: Path) -> None:

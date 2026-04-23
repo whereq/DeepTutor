@@ -7,11 +7,7 @@ import { apiUrl } from "@/lib/api";
 // (NotebookRecordPicker) live in this system. They are distinct from the
 // "Question Notebook" categories below which only track quiz entries.
 
-export type NotebookRecordType =
-  | "solve"
-  | "question"
-  | "research"
-  | "chat";
+export type NotebookRecordType = "solve" | "question" | "research" | "chat";
 
 export interface NotebookSummary {
   id: string;
@@ -80,7 +76,12 @@ export async function createNotebook(payload: {
 
 export async function updateNotebook(
   notebookId: string,
-  payload: { name?: string; description?: string; color?: string; icon?: string },
+  payload: {
+    name?: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  },
 ): Promise<NotebookSummary> {
   const response = await fetch(apiUrl(`/api/v1/notebook/${notebookId}`), {
     method: "PUT",
@@ -153,17 +154,22 @@ async function expectJson<T>(response: Response): Promise<T> {
 
 // ── Entries ──────────────────────────────────────────────────────
 
-export async function listNotebookEntries(filter: {
-  category_id?: number;
-  bookmarked?: boolean;
-  is_correct?: boolean;
-  limit?: number;
-  offset?: number;
-} = {}): Promise<NotebookEntryListResponse> {
+export async function listNotebookEntries(
+  filter: {
+    category_id?: number;
+    bookmarked?: boolean;
+    is_correct?: boolean;
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<NotebookEntryListResponse> {
   const params = new URLSearchParams();
-  if (filter.category_id !== undefined) params.set("category_id", String(filter.category_id));
-  if (filter.bookmarked !== undefined) params.set("bookmarked", String(filter.bookmarked));
-  if (filter.is_correct !== undefined) params.set("is_correct", String(filter.is_correct));
+  if (filter.category_id !== undefined)
+    params.set("category_id", String(filter.category_id));
+  if (filter.bookmarked !== undefined)
+    params.set("bookmarked", String(filter.bookmarked));
+  if (filter.is_correct !== undefined)
+    params.set("is_correct", String(filter.is_correct));
   if (filter.limit !== undefined) params.set("limit", String(filter.limit));
   if (filter.offset !== undefined) params.set("offset", String(filter.offset));
   const query = params.toString();
@@ -174,10 +180,15 @@ export async function listNotebookEntries(filter: {
   return expectJson<NotebookEntryListResponse>(response);
 }
 
-export async function getNotebookEntry(entryId: number): Promise<NotebookEntry> {
-  const response = await fetch(apiUrl(`/api/v1/question-notebook/entries/${entryId}`), {
-    cache: "no-store",
-  });
+export async function getNotebookEntry(
+  entryId: number,
+): Promise<NotebookEntry> {
+  const response = await fetch(
+    apiUrl(`/api/v1/question-notebook/entries/${entryId}`),
+    {
+      cache: "no-store",
+    },
+  );
   return expectJson<NotebookEntry>(response);
 }
 
@@ -185,7 +196,10 @@ export async function lookupNotebookEntry(
   sessionId: string,
   questionId: string,
 ): Promise<NotebookEntry | null> {
-  const params = new URLSearchParams({ session_id: sessionId, question_id: questionId });
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    question_id: questionId,
+  });
   const response = await fetch(
     apiUrl(`/api/v1/question-notebook/entries/lookup/by-question?${params}`),
   );
@@ -197,11 +211,14 @@ export async function updateNotebookEntry(
   entryId: number,
   updates: { bookmarked?: boolean; followup_session_id?: string },
 ): Promise<void> {
-  const response = await fetch(apiUrl(`/api/v1/question-notebook/entries/${entryId}`), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(updates),
-  });
+  const response = await fetch(
+    apiUrl(`/api/v1/question-notebook/entries/${entryId}`),
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    },
+  );
   await expectJson<{ updated: boolean }>(response);
 }
 
@@ -217,29 +234,38 @@ export async function upsertNotebookEntry(data: {
   user_answer?: string;
   is_correct?: boolean;
 }): Promise<NotebookEntry> {
-  const response = await fetch(apiUrl("/api/v1/question-notebook/entries/upsert"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...data,
-      options: data.options || {},
-      explanation: data.explanation || "",
-      difficulty: data.difficulty || "",
-    }),
-  });
+  const response = await fetch(
+    apiUrl("/api/v1/question-notebook/entries/upsert"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...data,
+        options: data.options || {},
+        explanation: data.explanation || "",
+        difficulty: data.difficulty || "",
+      }),
+    },
+  );
   return expectJson<NotebookEntry>(response);
 }
 
 export async function deleteNotebookEntry(entryId: number): Promise<void> {
-  const response = await fetch(apiUrl(`/api/v1/question-notebook/entries/${entryId}`), {
-    method: "DELETE",
-  });
+  const response = await fetch(
+    apiUrl(`/api/v1/question-notebook/entries/${entryId}`),
+    {
+      method: "DELETE",
+    },
+  );
   await expectJson<{ deleted: boolean }>(response);
 }
 
 // ── Entry ↔ Category ────────────────────────────────────────────
 
-export async function addEntryToCategory(entryId: number, categoryId: number): Promise<void> {
+export async function addEntryToCategory(
+  entryId: number,
+  categoryId: number,
+): Promise<void> {
   const response = await fetch(
     apiUrl(`/api/v1/question-notebook/entries/${entryId}/categories`),
     {
@@ -256,7 +282,9 @@ export async function removeEntryFromCategory(
   categoryId: number,
 ): Promise<void> {
   const response = await fetch(
-    apiUrl(`/api/v1/question-notebook/entries/${entryId}/categories/${categoryId}`),
+    apiUrl(
+      `/api/v1/question-notebook/entries/${entryId}/categories/${categoryId}`,
+    ),
     { method: "DELETE" },
   );
   await expectJson<{ removed: boolean }>(response);
@@ -280,18 +308,27 @@ export async function createCategory(name: string): Promise<NotebookCategory> {
   return expectJson<NotebookCategory>(response);
 }
 
-export async function renameCategory(categoryId: number, name: string): Promise<void> {
-  const response = await fetch(apiUrl(`/api/v1/question-notebook/categories/${categoryId}`), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
+export async function renameCategory(
+  categoryId: number,
+  name: string,
+): Promise<void> {
+  const response = await fetch(
+    apiUrl(`/api/v1/question-notebook/categories/${categoryId}`),
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    },
+  );
   await expectJson<{ updated: boolean }>(response);
 }
 
 export async function deleteCategory(categoryId: number): Promise<void> {
-  const response = await fetch(apiUrl(`/api/v1/question-notebook/categories/${categoryId}`), {
-    method: "DELETE",
-  });
+  const response = await fetch(
+    apiUrl(`/api/v1/question-notebook/categories/${categoryId}`),
+    {
+      method: "DELETE",
+    },
+  );
   await expectJson<{ deleted: boolean }>(response);
 }

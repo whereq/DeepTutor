@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import os
-import uuid
 from collections.abc import AsyncGenerator
+import os
 from typing import Any
+import uuid
 
 from openai import AsyncOpenAI, BadRequestError
 
@@ -58,11 +58,8 @@ async def _create_with_format_fallback(
         if "response_format" not in payload or not _is_unsupported_response_format_error(exc):
             raise
         logger.warning(
-            "Provider %s rejected response_format for model %s (%s); "
-            "retrying without it and disabling response_format for this binding+model.",
-            binding,
-            model,
-            exc,
+            f"Provider {binding} rejected response_format for model {model} ({exc}); "
+            "retrying without it and disabling response_format for this binding+model."
         )
         disable_response_format_at_runtime(binding, model)
         retry_payload = dict(payload)
@@ -74,8 +71,8 @@ def _build_messages(
     *,
     prompt: str,
     system_prompt: str,
-    messages: list[dict[str, object]] | None,
-) -> list[dict[str, object]]:
+    messages: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
     if messages:
         return messages
     return [
@@ -113,6 +110,20 @@ def _resolve_model_and_base(
     return resolved_model, effective_base, effective_key
 
 
+def _coerce_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 async def sdk_complete(
     *,
     prompt: str,
@@ -121,16 +132,19 @@ async def sdk_complete(
     model: str,
     api_key: str | None,
     base_url: str | None,
-    messages: list[dict[str, object]] | None = None,
+    messages: list[dict[str, Any]] | None = None,
     api_version: str | None = None,
     extra_headers: dict[str, str] | None = None,
     reasoning_effort: str | None = None,
-    **kwargs: object,
+    **kwargs: Any,
 ) -> str:
     """Non-streaming completion using the openai SDK."""
     _setup_provider_env(provider_name, api_key, base_url)
     resolved_model, effective_base, effective_key = _resolve_model_and_base(
-        provider_name, model, api_key, base_url,
+        provider_name,
+        model,
+        api_key,
+        base_url,
     )
 
     default_headers: dict[str, str] = {"x-session-affinity": uuid.uuid4().hex}
@@ -144,8 +158,8 @@ async def sdk_complete(
         max_retries=0,
     )
 
-    max_tokens_val = int(kwargs.pop("max_tokens", 4096))
-    temperature_val = float(kwargs.pop("temperature", 0.7))
+    max_tokens_val = _coerce_int(kwargs.pop("max_tokens", 4096), 4096)
+    temperature_val = _coerce_float(kwargs.pop("temperature", 0.7), 0.7)
 
     payload: dict[str, Any] = {
         "model": resolved_model,
@@ -184,16 +198,19 @@ async def sdk_stream(
     model: str,
     api_key: str | None,
     base_url: str | None,
-    messages: list[dict[str, object]] | None = None,
+    messages: list[dict[str, Any]] | None = None,
     api_version: str | None = None,
     extra_headers: dict[str, str] | None = None,
     reasoning_effort: str | None = None,
-    **kwargs: object,
+    **kwargs: Any,
 ) -> AsyncGenerator[str, None]:
     """Streaming completion using the openai SDK."""
     _setup_provider_env(provider_name, api_key, base_url)
     resolved_model, effective_base, effective_key = _resolve_model_and_base(
-        provider_name, model, api_key, base_url,
+        provider_name,
+        model,
+        api_key,
+        base_url,
     )
 
     default_headers: dict[str, str] = {"x-session-affinity": uuid.uuid4().hex}
@@ -207,8 +224,8 @@ async def sdk_stream(
         max_retries=0,
     )
 
-    max_tokens_val = int(kwargs.pop("max_tokens", 4096))
-    temperature_val = float(kwargs.pop("temperature", 0.7))
+    max_tokens_val = _coerce_int(kwargs.pop("max_tokens", 4096), 4096)
+    temperature_val = _coerce_float(kwargs.pop("temperature", 0.7), 0.7)
 
     payload: dict[str, Any] = {
         "model": resolved_model,
@@ -241,7 +258,9 @@ async def sdk_stream(
             delta = choice.get("delta")
         if delta is None:
             continue
-        raw_content = getattr(delta, "content", None) if not isinstance(delta, dict) else delta.get("content")
+        raw_content = (
+            getattr(delta, "content", None) if not isinstance(delta, dict) else delta.get("content")
+        )
         if raw_content is None:
             continue
         content = extract_response_content(delta)

@@ -157,7 +157,9 @@ class MathAnimatorPipeline:
         if self.enable_visual_review and self.visual_review_agent is not None:
             review_service = VisualReviewService(turn_id, progress_callback=on_render_progress)
 
-            async def _review_callback(current_code: str, render_result: RenderResult) -> VisualReviewResult:
+            async def _review_callback(
+                current_code: str, render_result: RenderResult
+            ) -> VisualReviewResult:
                 attachments = await review_service.build_attachments(render_result)
                 return await self.visual_review_agent.process(
                     user_input=user_input,

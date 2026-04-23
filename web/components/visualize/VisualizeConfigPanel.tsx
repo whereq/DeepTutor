@@ -38,7 +38,10 @@ export default memo(function VisualizeConfigPanel({
         <select
           value={value.render_mode}
           onChange={(e) =>
-            onChange({ ...value, render_mode: e.target.value as VisualizeFormConfig["render_mode"] })
+            onChange({
+              ...value,
+              render_mode: e.target.value as VisualizeFormConfig["render_mode"],
+            })
           }
           className={`${INPUT_CLS} w-full`}
         >

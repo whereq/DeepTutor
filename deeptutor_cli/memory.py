@@ -4,12 +4,15 @@ CLI memory commands for the two-file public memory system (SUMMARY/PROFILE).
 
 from __future__ import annotations
 
-import typer
+from typing import cast
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+import typer
 
 from deeptutor.services.memory import get_memory_service
+from deeptutor.services.memory.service import MemoryFile
 
 console = Console()
 
@@ -18,7 +21,8 @@ def register(app: typer.Typer) -> None:
     @app.command("show")
     def memory_show(
         file: str = typer.Argument(
-            "all", help="File to show: summary, profile, or all.",
+            "all",
+            help="File to show: summary, profile, or all.",
         ),
     ) -> None:
         """Display memory file content."""
@@ -34,7 +38,7 @@ def register(app: typer.Typer) -> None:
                 else:
                     console.print(f"[dim]{label}.md: (empty)[/]")
         elif file in ("summary", "profile"):
-            content = svc.read_file(file)
+            content = svc.read_file(cast(MemoryFile, file))
             if content:
                 console.print(Panel(Markdown(content), title=f"[bold]{file.upper()}.md[/]"))
             else:
@@ -45,7 +49,8 @@ def register(app: typer.Typer) -> None:
     @app.command("clear")
     def memory_clear(
         file: str = typer.Argument(
-            "all", help="File to clear: summary, profile, or all.",
+            "all",
+            help="File to clear: summary, profile, or all.",
         ),
         force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation."),
     ) -> None:
@@ -64,5 +69,5 @@ def register(app: typer.Typer) -> None:
             svc.clear_memory()
             console.print("[green]Cleared all memory files.[/]")
         else:
-            svc.clear_file(file)
+            svc.clear_file(cast(MemoryFile, file))
             console.print(f"[green]Cleared {file.upper()}.md.[/]")

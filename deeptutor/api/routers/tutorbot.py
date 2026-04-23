@@ -74,6 +74,7 @@ class SoulUpdateRequest(BaseModel):
 
 # ── Soul template library (must be before /{bot_id} routes) ───
 
+
 @router.get("/souls")
 async def list_souls():
     return get_tutorbot_manager().list_souls()
@@ -111,6 +112,7 @@ async def delete_soul(soul_id: str):
 
 
 # ── Bot management (static paths before /{bot_id} parameterized routes) ──
+
 
 @router.get("")
 async def list_bots():
@@ -315,6 +317,7 @@ async def update_bot(bot_id: str, payload: UpdateBotRequest):
 
 # ── Workspace file endpoints ──────────────────────────────────
 
+
 @router.get("/{bot_id}/files")
 async def list_bot_files(bot_id: str):
     return get_tutorbot_manager().read_all_bot_files(bot_id)
@@ -337,6 +340,7 @@ async def write_bot_file(bot_id: str, filename: str, payload: FileUpdateRequest)
 
 
 # ── Chat history & WebSocket ──────────────────────────────────
+
 
 @router.get("/{bot_id}/history")
 async def get_bot_history(bot_id: str, limit: int = 100):
@@ -417,7 +421,9 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
 
             try:
                 response = await mgr.send_message(
-                    bot_id, content, chat_id=data.get("chat_id", "web"),
+                    bot_id,
+                    content,
+                    chat_id=data.get("chat_id", "web"),
                     on_progress=on_progress,
                 )
                 if not await _safe_send({"type": "content", "content": response}):
@@ -442,7 +448,8 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
             get_task = asyncio.create_task(instance.notify_queue.get())
             wait_task = asyncio.create_task(disconnected.wait())
             done, pending = await asyncio.wait(
-                {get_task, wait_task}, return_when=asyncio.FIRST_COMPLETED,
+                {get_task, wait_task},
+                return_when=asyncio.FIRST_COMPLETED,
             )
             for t in pending:
                 t.cancel()
@@ -456,14 +463,17 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
     notify_task = asyncio.create_task(_handle_notifications())
     try:
         done, pending = await asyncio.wait(
-            [user_task, notify_task], return_when=asyncio.FIRST_COMPLETED,
+            [user_task, notify_task],
+            return_when=asyncio.FIRST_COMPLETED,
         )
         disconnected.set()
         for t in pending:
             t.cancel()
         for t in done:
             if t.exception() and not isinstance(t.exception(), WebSocketDisconnect):
-                logger.exception("WebSocket task error for bot '%s'", bot_id, exc_info=t.exception())
+                logger.exception(
+                    "WebSocket task error for bot '%s'", bot_id, exc_info=t.exception()
+                )
     except Exception:
         disconnected.set()
         user_task.cancel()

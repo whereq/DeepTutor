@@ -98,7 +98,7 @@ class WriterAgent(BaseAgent):
         full_answer = self._ensure_references(response.strip(), scratchpad)
 
         if on_content_chunk is not None:
-            suffix = full_answer[len(response.strip()):]
+            suffix = full_answer[len(response.strip()) :]
             if suffix:
                 await on_content_chunk(suffix)
 
@@ -130,7 +130,10 @@ class WriterAgent(BaseAgent):
         """
         if scratchpad.plan is None:
             return await self.process(
-                question, scratchpad, language, preference,
+                question,
+                scratchpad,
+                language,
+                preference,
                 on_content_chunk=on_content_chunk,
             )
 
@@ -140,7 +143,9 @@ class WriterAgent(BaseAgent):
             if step.status in ("completed", "in_progress"):
                 entries = scratchpad.get_entries_for_step(step.id)
                 # Only include steps with actual tool observations
-                evidence_entries = [e for e in entries if e.action not in ("done", "replan") and e.observation]
+                evidence_entries = [
+                    e for e in entries if e.action not in ("done", "replan") and e.observation
+                ]
                 if evidence_entries:
                     steps_with_evidence.append((step, evidence_entries))
 
@@ -302,10 +307,7 @@ class WriterAgent(BaseAgent):
         """Format raw observations from a step into a single evidence block."""
         parts = [f"### Step {step.id}: {step.goal}"]
         for e in entries:
-            block = (
-                f"**Action**: {e.action}({e.action_input})\n"
-                f"**Observation**:\n{e.observation}"
-            )
+            block = f"**Action**: {e.action}({e.action_input})\n**Observation**:\n{e.observation}"
             parts.append(block)
         return "\n\n".join(parts)
 
@@ -318,7 +320,7 @@ class WriterAgent(BaseAgent):
         """Append a References section if the LLM omitted one."""
         if not answer:
             return answer
-        has_refs = ("## References" in answer or "## 参考文献" in answer)
+        has_refs = "## References" in answer or "## 参考文献" in answer
         if has_refs:
             return answer
         refs = scratchpad.format_sources_markdown()

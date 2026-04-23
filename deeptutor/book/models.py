@@ -14,13 +14,12 @@ Pydantic models that describe the persistent state of a Book:
 
 from __future__ import annotations
 
-import time
-import uuid
 from enum import Enum
+import time
 from typing import Any
+import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Enums
@@ -28,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class BookStatus(str, Enum):
-    DRAFT = "draft"            # ideation only, no spine yet
+    DRAFT = "draft"  # ideation only, no spine yet
     SPINE_READY = "spine_ready"  # spine confirmed, compilation pending
     COMPILING = "compiling"
     READY = "ready"
@@ -41,7 +40,7 @@ class PageStatus(str, Enum):
     PLANNING = "planning"
     GENERATING = "generating"
     READY = "ready"
-    PARTIAL = "partial"   # some blocks ok, some failed
+    PARTIAL = "partial"  # some blocks ok, some failed
     ERROR = "error"
 
 
@@ -69,19 +68,19 @@ class BlockType(str, Enum):
     # Phase 3
     DEEP_DIVE = "deep_dive"
     # Phase 4 (BookEngine v2)
-    SECTION = "section"            # long-form chapter section (multi-subsection)
+    SECTION = "section"  # long-form chapter section (multi-subsection)
     CONCEPT_GRAPH = "concept_graph"  # rendered overview / TOC graph
 
 
 class ContentType(str, Enum):
     """Hint that drives Page Planner template selection."""
 
-    THEORY = "theory"        # text + figure + quiz + flash_cards
+    THEORY = "theory"  # text + figure + quiz + flash_cards
     DERIVATION = "derivation"  # text + animation + code + quiz
-    HISTORY = "history"      # text + timeline + figure + quiz
-    PRACTICE = "practice"    # quiz + code + text(explanation)
-    CONCEPT = "concept"      # text + figure + flash_cards + quiz
-    OVERVIEW = "overview"    # auto-generated TOC / concept-graph chapter
+    HISTORY = "history"  # text + timeline + figure + quiz
+    PRACTICE = "practice"  # quiz + code + text(explanation)
+    CONCEPT = "concept"  # text + figure + flash_cards + quiz
+    OVERVIEW = "overview"  # auto-generated TOC / concept-graph chapter
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -179,9 +178,9 @@ class SourceAnchor(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    kind: str = ""          # 'kb' | 'notebook' | 'chat' | 'web' | 'manual'
-    ref: str = ""           # KB doc id, notebook record id, message id…
-    snippet: str = ""       # short preview (≤300 chars)
+    kind: str = ""  # 'kb' | 'notebook' | 'chat' | 'web' | 'manual'
+    ref: str = ""  # KB doc id, notebook record id, message id…
+    snippet: str = ""  # short preview (≤300 chars)
 
 
 class Chapter(BaseModel):
@@ -210,11 +209,11 @@ class ConceptNode(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    id: str = ""             # short slug, e.g. "fourier_basis"
-    label: str = ""          # human-readable concept name
-    chapter_id: str = ""     # chapter that primarily covers this concept
-    description: str = ""    # 1-sentence description (optional)
-    weight: float = 1.0      # importance / centrality hint
+    id: str = ""  # short slug, e.g. "fourier_basis"
+    label: str = ""  # human-readable concept name
+    chapter_id: str = ""  # chapter that primarily covers this concept
+    description: str = ""  # 1-sentence description (optional)
+    weight: float = 1.0  # importance / centrality hint
 
 
 class ConceptEdge(BaseModel):
@@ -222,8 +221,8 @@ class ConceptEdge(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    src: str = ""             # ConceptNode.id
-    dst: str = ""             # ConceptNode.id
+    src: str = ""  # ConceptNode.id
+    dst: str = ""  # ConceptNode.id
     relation: str = "depends_on"  # 'depends_on' | 'extends' | 'related'
     rationale: str = ""
 
@@ -281,12 +280,12 @@ class SourceChunk(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     chunk_id: str = ""
-    kb_name: str = ""           # empty for non-KB sources (chat / notebook…)
-    source: str = ""            # 'kb' | 'notebook' | 'chat' | 'questions' | 'web'
-    ref: str = ""               # doc id / record id / message id …
+    kb_name: str = ""  # empty for non-KB sources (chat / notebook…)
+    source: str = ""  # 'kb' | 'notebook' | 'chat' | 'questions' | 'web'
+    ref: str = ""  # doc id / record id / message id …
     text: str = ""
     score: float = 0.0
-    query: str = ""             # the query that surfaced this chunk
+    query: str = ""  # the query that surfaced this chunk
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -305,7 +304,7 @@ class ExplorationReport(BaseModel):
     book_id: str = ""
     queries: list[str] = Field(default_factory=list)
     chunks: list[SourceChunk] = Field(default_factory=list)
-    summary: str = ""              # short LLM summary of recurring themes
+    summary: str = ""  # short LLM summary of recurring themes
     coverage: dict[str, int] = Field(default_factory=dict)  # source → chunk count
     candidate_concepts: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
@@ -369,7 +368,7 @@ class Page(BaseModel):
     order: int = 0
     blocks: list[Block] = Field(default_factory=list)
     links: list[PageLink] = Field(default_factory=list)
-    parent_page_id: str = ""   # for deep_dive sub-pages
+    parent_page_id: str = ""  # for deep_dive sub-pages
     error: str = ""
     created_at: float = Field(default_factory=_now)
     updated_at: float = Field(default_factory=_now)

@@ -28,7 +28,10 @@ import AssistantResponse from "@/components/common/AssistantResponse";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import ProcessLogs from "@/components/common/ProcessLogs";
 import ResearchConfigPanel from "@/components/research/ResearchConfigPanel";
-import { extractBase64FromDataUrl, readFileAsDataUrl } from "@/lib/file-attachments";
+import {
+  extractBase64FromDataUrl,
+  readFileAsDataUrl,
+} from "@/lib/file-attachments";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
 import type { StreamEvent } from "@/lib/unified-ws";
 import {
@@ -71,7 +74,11 @@ const TOOL_LABELS: Record<string, string> = {
   paper_search: "Arxiv Search",
 };
 
-const RESEARCH_SOURCE_OPTIONS: Array<{ name: ResearchSource; label: string; icon: LucideIcon }> = [
+const RESEARCH_SOURCE_OPTIONS: Array<{
+  name: ResearchSource;
+  label: string;
+  icon: LucideIcon;
+}> = [
   { name: "kb", label: "Knowledge Base", icon: Database },
   { name: "web", label: "Web", icon: Globe },
   { name: "papers", label: "Papers", icon: FileSearch },
@@ -242,34 +249,87 @@ function TracePanel({ events }: { events: StreamEvent[] }) {
     <div className="space-y-2">
       {Array.from(grouped.entries()).map(([stage, stageEvents]) => {
         const renderable = stageEvents.filter((e) =>
-          ["thinking", "progress", "tool_call", "tool_result", "error"].includes(e.type),
+          [
+            "thinking",
+            "progress",
+            "tool_call",
+            "tool_result",
+            "error",
+          ].includes(e.type),
         );
         if (!renderable.length) return null;
         return (
-          <details key={stage} className="group overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+          <details
+            key={stage}
+            className="group overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]"
+          >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[13px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/50">
-              <span>{stage === "session" ? t("Details") : titleCase(stage)}</span>
-              <ChevronDown size={13} className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180" />
+              <span>
+                {stage === "session" ? t("Details") : titleCase(stage)}
+              </span>
+              <ChevronDown
+                size={13}
+                className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180"
+              />
             </summary>
             <div className="border-t border-[var(--border)] px-3 py-2.5 space-y-1.5">
               {renderable.map((ev, i) => {
-                if (ev.type === "thinking") return <p key={`${stage}-t-${i}`} className="text-[12px] italic leading-relaxed text-[var(--muted-foreground)]">{ev.content}</p>;
-                if (ev.type === "progress") {
-                  const cur = Number(ev.metadata?.current ?? 0), tot = Number(ev.metadata?.total ?? 0);
+                if (ev.type === "thinking")
                   return (
-                    <div key={`${stage}-p-${i}`} className="rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-[12px] text-[var(--muted-foreground)]">
+                    <p
+                      key={`${stage}-t-${i}`}
+                      className="text-[12px] italic leading-relaxed text-[var(--muted-foreground)]"
+                    >
+                      {ev.content}
+                    </p>
+                  );
+                if (ev.type === "progress") {
+                  const cur = Number(ev.metadata?.current ?? 0),
+                    tot = Number(ev.metadata?.total ?? 0);
+                  return (
+                    <div
+                      key={`${stage}-p-${i}`}
+                      className="rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-[12px] text-[var(--muted-foreground)]"
+                    >
                       <div>{ev.content}</div>
-                      {tot > 0 && <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--border)]"><div className="h-full rounded-full bg-[var(--primary)] transition-all duration-300" style={{ width: `${Math.min(100, (cur / tot) * 100)}%` }} /></div>}
+                      {tot > 0 && (
+                        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--border)]">
+                          <div
+                            className="h-full rounded-full bg-[var(--primary)] transition-all duration-300"
+                            style={{
+                              width: `${Math.min(100, (cur / tot) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 }
-                if (ev.type === "tool_call" || ev.type === "tool_result") return (
-                  <div key={`${stage}-tc-${i}`} className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5">
-                    <div className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">{ev.type === "tool_call" ? t("Tool call") : t("Tool result")}</div>
-                    <div className="mt-0.5 text-[12px] text-[var(--foreground)]">{ev.content || String(ev.metadata?.tool ?? "")}</div>
-                  </div>
-                );
-                if (ev.type === "error") return <div key={`${stage}-e-${i}`} className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{ev.content}</div>;
+                if (ev.type === "tool_call" || ev.type === "tool_result")
+                  return (
+                    <div
+                      key={`${stage}-tc-${i}`}
+                      className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5"
+                    >
+                      <div className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
+                        {ev.type === "tool_call"
+                          ? t("Tool call")
+                          : t("Tool result")}
+                      </div>
+                      <div className="mt-0.5 text-[12px] text-[var(--foreground)]">
+                        {ev.content || String(ev.metadata?.tool ?? "")}
+                      </div>
+                    </div>
+                  );
+                if (ev.type === "error")
+                  return (
+                    <div
+                      key={`${stage}-e-${i}`}
+                      className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+                    >
+                      {ev.content}
+                    </div>
+                  );
                 return null;
               })}
             </div>
@@ -284,7 +344,13 @@ function TracePanel({ events }: { events: StreamEvent[] }) {
 /*  ToolExecutor                                                       */
 /* ------------------------------------------------------------------ */
 
-function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases: KnowledgeBase[] }) {
+function ToolExecutor({
+  tool,
+  knowledgeBases,
+}: {
+  tool: ToolInfo;
+  knowledgeBases: KnowledgeBase[];
+}) {
   const { t } = useTranslation();
   const params = tool.parameters ?? [];
   const [values, setValues] = useState<Record<string, string>>({});
@@ -301,9 +367,15 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
     setProcessLogs([]);
   }, [tool.name]);
 
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
-  const setParam = (name: string, val: string) => setValues((p) => ({ ...p, [name]: val }));
+  const setParam = (name: string, val: string) =>
+    setValues((p) => ({ ...p, [name]: val }));
 
   const queryParam = params.find((p) => QUERY_PARAM_NAMES.has(p.name));
   const otherParams = params.filter((p) => !QUERY_PARAM_NAMES.has(p.name));
@@ -327,12 +399,15 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
         else coerced[p.name] = raw;
       }
 
-      const res = await fetch(apiUrl(`/api/v1/plugins/tools/${tool.name}/execute-stream`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ params: coerced }),
-        signal: controller.signal,
-      });
+      const res = await fetch(
+        apiUrl(`/api/v1/plugins/tools/${tool.name}/execute-stream`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ params: coerced }),
+          signal: controller.signal,
+        },
+      );
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -361,7 +436,11 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
 
           const eventType = eventMatch[1].trim();
           let payload: Record<string, unknown>;
-          try { payload = JSON.parse(dataMatch[1]); } catch { continue; }
+          try {
+            payload = JSON.parse(dataMatch[1]);
+          } catch {
+            continue;
+          }
 
           if (eventType === "log") {
             const line = (payload.line as string) ?? "";
@@ -397,7 +476,12 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
         >
           <option value="">{t("Select knowledge base...")}</option>
-          {knowledgeBases.map((kb) => <option key={kb.name} value={kb.name}>{kb.name}{kb.is_default ? ` (${t("default")})` : ""}</option>)}
+          {knowledgeBases.map((kb) => (
+            <option key={kb.name} value={kb.name}>
+              {kb.name}
+              {kb.is_default ? ` (${t("default")})` : ""}
+            </option>
+          ))}
         </select>
       );
     }
@@ -410,7 +494,11 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
         >
           <option value="">{t("Select...")}</option>
-          {p.enum.map((v) => <option key={v} value={v}>{v}</option>)}
+          {p.enum.map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
         </select>
       );
     }
@@ -431,14 +519,20 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
       {/* Config params (non-query) */}
       {otherParams.length > 0 && (
         <div>
-          <h4 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{t("Parameters")}</h4>
+          <h4 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+            {t("Parameters")}
+          </h4>
           <div className="grid gap-3 md:grid-cols-2">
             {otherParams.map((p) => (
               <div key={`${tool.name}-${p.name}`}>
                 <label className="mb-1 block text-[12px] font-medium text-[var(--foreground)]">
                   {p.name}
-                  {p.required !== false && <span className="ml-0.5 text-[var(--primary)]">*</span>}
-                  <span className="ml-1.5 text-[10px] font-normal uppercase text-[var(--muted-foreground)]">{p.type}</span>
+                  {p.required !== false && (
+                    <span className="ml-0.5 text-[var(--primary)]">*</span>
+                  )}
+                  <span className="ml-1.5 text-[10px] font-normal uppercase text-[var(--muted-foreground)]">
+                    {p.type}
+                  </span>
                 </label>
                 {renderParam(p)}
               </div>
@@ -467,7 +561,9 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
               type="text"
               value={values[queryParam.name] ?? ""}
               onChange={(e) => setParam(queryParam.name, e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !executing) execute(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !executing) execute();
+              }}
               placeholder={queryParam.description || t("Enter your query...")}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/40 placeholder:text-[var(--muted-foreground)]"
             />
@@ -481,7 +577,11 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
         disabled={executing}
         className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity disabled:opacity-50"
       >
-        {executing ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+        {executing ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : (
+          <Play size={14} />
+        )}
         {executing ? t("Running...") : t("Execute")}
       </button>
 
@@ -520,13 +620,25 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
             <details className="group rounded-lg border border-[var(--border)] bg-[var(--card)]">
               <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[13px] font-medium text-[var(--foreground)]">
                 {t("Sources")} ({result.sources.length})
-                <ChevronDown size={13} className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180" />
+                <ChevronDown
+                  size={13}
+                  className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180"
+                />
               </summary>
               <div className="border-t border-[var(--border)] px-3 py-2.5 space-y-1.5">
                 {result.sources.map((s, i) => (
-                  <div key={`src-${i}`} className="rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-[12px]">
-                    <div className="font-medium text-[var(--foreground)]">{s.title || s.query || s.type || t("Source")}</div>
-                    {s.url && <div className="mt-0.5 break-all text-[11px] text-[var(--muted-foreground)]">{s.url}</div>}
+                  <div
+                    key={`src-${i}`}
+                    className="rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-[12px]"
+                  >
+                    <div className="font-medium text-[var(--foreground)]">
+                      {s.title || s.query || s.type || t("Source")}
+                    </div>
+                    {s.url && (
+                      <div className="mt-0.5 break-all text-[11px] text-[var(--muted-foreground)]">
+                        {s.url}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -542,11 +654,16 @@ function ToolExecutor({ tool, knowledgeBases }: { tool: ToolInfo; knowledgeBases
 /*  CapabilityResultPanel                                              */
 /* ------------------------------------------------------------------ */
 
-function CapabilityResultPanel({ result }: { result: CapabilityExecResult | null | undefined }) {
+function CapabilityResultPanel({
+  result,
+}: {
+  result: CapabilityExecResult | null | undefined;
+}) {
   const { t } = useTranslation();
   if (!result) return null;
 
-  const response = typeof result.data.response === "string" ? result.data.response : "";
+  const response =
+    typeof result.data.response === "string" ? result.data.response : "";
   const extraData = Object.fromEntries(
     Object.entries(result.data).filter(([key]) => key !== "response"),
   );
@@ -589,7 +706,10 @@ function CapabilityResultPanel({ result }: { result: CapabilityExecResult | null
         <details className="group rounded-lg border border-[var(--border)] bg-[var(--card)]">
           <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[13px] font-medium text-[var(--foreground)]">
             {t("Metadata")}
-            <ChevronDown size={13} className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180" />
+            <ChevronDown
+              size={13}
+              className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180"
+            />
           </summary>
           <div className="border-t border-[var(--border)] px-3 py-2.5">
             <pre className="overflow-x-auto whitespace-pre-wrap break-all text-[12px] text-[var(--muted-foreground)]">
@@ -625,9 +745,16 @@ function DeepQuestionTester({
   const [uploadedPdf, setUploadedPdf] = useState<File | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
-  const updateLastAssistant = (updater: (msg: TesterMessage) => TesterMessage) => {
+  const updateLastAssistant = (
+    updater: (msg: TesterMessage) => TesterMessage,
+  ) => {
     setMessages((prev) => {
       const msgs = [...prev];
       const last = msgs[msgs.length - 1];
@@ -676,13 +803,22 @@ function DeepQuestionTester({
     setMessages((prev) => [
       ...prev,
       { role: "user", content: userContent },
-      { role: "assistant", content: "", events: [], processLogs: [], result: null, error: null },
+      {
+        role: "assistant",
+        content: "",
+        events: [],
+        processLogs: [],
+        result: null,
+        error: null,
+      },
     ]);
     setStreaming(true);
 
     try {
       const attachments =
-        config.mode === "mimic" && uploadedPdf ? [await fileToAttachment(uploadedPdf)] : [];
+        config.mode === "mimic" && uploadedPdf
+          ? [await fileToAttachment(uploadedPdf)]
+          : [];
 
       const requestConfig =
         config.mode === "custom"
@@ -691,7 +827,8 @@ function DeepQuestionTester({
               topic: config.topic.trim(),
               num_questions: config.num_questions,
               difficulty: config.difficulty === "auto" ? "" : config.difficulty,
-              question_type: config.question_type === "auto" ? "" : config.question_type,
+              question_type:
+                config.question_type === "auto" ? "" : config.question_type,
               preference: config.preference.trim(),
             }
           : {
@@ -701,14 +838,19 @@ function DeepQuestionTester({
             };
 
       const res = await fetch(
-        apiUrl(`/api/v1/plugins/capabilities/${capability.name}/execute-stream`),
+        apiUrl(
+          `/api/v1/plugins/capabilities/${capability.name}/execute-stream`,
+        ),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             content: userContent,
             tools: enabledTools,
-            knowledge_bases: enabledTools.includes("rag") && knowledgeBase ? [knowledgeBase] : [],
+            knowledge_bases:
+              enabledTools.includes("rag") && knowledgeBase
+                ? [knowledgeBase]
+                : [],
             language: i18n.language,
             config: requestConfig,
             attachments,
@@ -764,7 +906,10 @@ function DeepQuestionTester({
             if (event.type === "session" || event.type === "done") continue;
             updateLastAssistant((last) => ({
               ...last,
-              content: event.type === "content" ? `${last.content}${event.content}` : last.content,
+              content:
+                event.type === "content"
+                  ? `${last.content}${event.content}`
+                  : last.content,
               events: [...(last.events || []), event],
             }));
             continue;
@@ -775,8 +920,11 @@ function DeepQuestionTester({
               ...last,
               result: {
                 success: Boolean(payload.success),
-                data: ((payload.data as Record<string, unknown>) ?? {}),
-                elapsedMs: typeof payload.elapsed_ms === "number" ? payload.elapsed_ms : undefined,
+                data: (payload.data as Record<string, unknown>) ?? {},
+                elapsedMs:
+                  typeof payload.elapsed_ms === "number"
+                    ? payload.elapsed_ms
+                    : undefined,
               },
             }));
             continue;
@@ -851,7 +999,12 @@ function DeepQuestionTester({
                   min={1}
                   max={50}
                   value={config.num_questions}
-                  onChange={(e) => updateConfig("num_questions", Math.max(1, Number(e.target.value) || 1))}
+                  onChange={(e) =>
+                    updateConfig(
+                      "num_questions",
+                      Math.max(1, Number(e.target.value) || 1),
+                    )
+                  }
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
                 />
               </div>
@@ -876,7 +1029,9 @@ function DeepQuestionTester({
                 </label>
                 <select
                   value={config.question_type}
-                  onChange={(e) => updateConfig("question_type", e.target.value)}
+                  onChange={(e) =>
+                    updateConfig("question_type", e.target.value)
+                  }
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
                 >
                   <option value="auto">{t("Auto")}</option>
@@ -907,7 +1062,9 @@ function DeepQuestionTester({
               </label>
               <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--border)] bg-[var(--card)] px-4 py-6 text-[13px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]">
                 <Upload size={16} />
-                <span>{uploadedPdf ? uploadedPdf.name : t("Click to upload PDF")}</span>
+                <span>
+                  {uploadedPdf ? uploadedPdf.name : t("Click to upload PDF")}
+                </span>
                 <input
                   type="file"
                   accept=".pdf,application/pdf"
@@ -928,7 +1085,10 @@ function DeepQuestionTester({
                 {t("Pre-parsed Directory")}
               </label>
               <div className="relative">
-                <FileText size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                <FileText
+                  size={14}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                />
                 <input
                   type="text"
                   value={config.paper_path}
@@ -950,7 +1110,12 @@ function DeepQuestionTester({
                 min={1}
                 max={100}
                 value={config.max_questions}
-                onChange={(e) => updateConfig("max_questions", Math.max(1, Number(e.target.value) || 1))}
+                onChange={(e) =>
+                  updateConfig(
+                    "max_questions",
+                    Math.max(1, Number(e.target.value) || 1),
+                  )
+                }
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
               />
             </div>
@@ -964,7 +1129,9 @@ function DeepQuestionTester({
             {msg.role === "user" ? t("You") : t("Assistant")}
           </div>
           {msg.role === "user" ? (
-            <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">{msg.content}</div>
+            <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">
+              {msg.content}
+            </div>
           ) : (
             <div className="space-y-2">
               <TracePanel events={msg.events || []} />
@@ -994,7 +1161,11 @@ function DeepQuestionTester({
           disabled={!canRun || streaming}
           className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {streaming ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+          {streaming ? (
+            <Loader2 size={13} className="animate-spin" />
+          ) : (
+            <Play size={13} />
+          )}
           {streaming ? t("Running...") : t("Generate")}
         </button>
       </div>
@@ -1022,9 +1193,16 @@ function DeepResearchTester({
   const validation = useMemo(() => validateResearchConfig(config), [config]);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
-  const updateLastAssistant = (updater: (msg: TesterMessage) => TesterMessage) => {
+  const updateLastAssistant = (
+    updater: (msg: TesterMessage) => TesterMessage,
+  ) => {
     setMessages((prev) => {
       const msgs = [...prev];
       const last = msgs[msgs.length - 1];
@@ -1045,20 +1223,32 @@ function DeepResearchTester({
     setMessages((prev) => [
       ...prev,
       { role: "user", content },
-      { role: "assistant", content: "", events: [], processLogs: [], result: null, error: null },
+      {
+        role: "assistant",
+        content: "",
+        events: [],
+        processLogs: [],
+        result: null,
+        error: null,
+      },
     ]);
     setStreaming(true);
 
     try {
       const res = await fetch(
-        apiUrl(`/api/v1/plugins/capabilities/${capability.name}/execute-stream`),
+        apiUrl(
+          `/api/v1/plugins/capabilities/${capability.name}/execute-stream`,
+        ),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             content,
             tools: enabledTools,
-            knowledge_bases: config.sources.includes("kb") && knowledgeBase ? [knowledgeBase] : [],
+            knowledge_bases:
+              config.sources.includes("kb") && knowledgeBase
+                ? [knowledgeBase]
+                : [],
             language: i18n.language,
             config: buildResearchWSConfig(config),
           }),
@@ -1113,7 +1303,10 @@ function DeepResearchTester({
             if (event.type === "session" || event.type === "done") continue;
             updateLastAssistant((last) => ({
               ...last,
-              content: event.type === "content" ? `${last.content}${event.content}` : last.content,
+              content:
+                event.type === "content"
+                  ? `${last.content}${event.content}`
+                  : last.content,
               events: [...(last.events || []), event],
             }));
             continue;
@@ -1124,8 +1317,11 @@ function DeepResearchTester({
               ...last,
               result: {
                 success: Boolean(payload.success),
-                data: ((payload.data as Record<string, unknown>) ?? {}),
-                elapsedMs: typeof payload.elapsed_ms === "number" ? payload.elapsed_ms : undefined,
+                data: (payload.data as Record<string, unknown>) ?? {},
+                elapsedMs:
+                  typeof payload.elapsed_ms === "number"
+                    ? payload.elapsed_ms
+                    : undefined,
               },
             }));
             continue;
@@ -1169,7 +1365,9 @@ function DeepResearchTester({
         onToggleCollapsed={() => {}}
       />
       <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-3">
-        <div className="mb-2 text-[12px] font-medium text-[var(--foreground)]">{t("Sources")}</div>
+        <div className="mb-2 text-[12px] font-medium text-[var(--foreground)]">
+          {t("Sources")}
+        </div>
         <div className="flex flex-wrap gap-2">
           {RESEARCH_SOURCE_OPTIONS.map((source) => {
             const active = config.sources.includes(source.name);
@@ -1201,7 +1399,12 @@ function DeepResearchTester({
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              run();
+            }
+          }}
           rows={3}
           placeholder={t("Describe the research topic...")}
           className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
@@ -1212,7 +1415,11 @@ function DeepResearchTester({
             disabled={!input.trim() || streaming || !validation.valid}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {streaming ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+            {streaming ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Play size={13} />
+            )}
             {streaming ? t("Running...") : t("Run Research")}
           </button>
         </div>
@@ -1224,7 +1431,9 @@ function DeepResearchTester({
             {msg.role === "user" ? t("You") : t("Assistant")}
           </div>
           {msg.role === "user" ? (
-            <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">{msg.content}</div>
+            <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">
+              {msg.content}
+            </div>
           ) : (
             <div className="space-y-2">
               <TracePanel events={msg.events || []} />
@@ -1270,9 +1479,16 @@ function CapabilityTester({
   const [streaming, setStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
-  const updateLastAssistant = (updater: (msg: TesterMessage) => TesterMessage) => {
+  const updateLastAssistant = (
+    updater: (msg: TesterMessage) => TesterMessage,
+  ) => {
     setMessages((prev) => {
       const msgs = [...prev];
       const last = msgs[msgs.length - 1];
@@ -1293,21 +1509,33 @@ function CapabilityTester({
     setMessages((prev) => [
       ...prev,
       { role: "user", content },
-      { role: "assistant", content: "", events: [], processLogs: [], result: null, error: null },
+      {
+        role: "assistant",
+        content: "",
+        events: [],
+        processLogs: [],
+        result: null,
+        error: null,
+      },
     ]);
     setInput("");
     setStreaming(true);
 
     try {
       const res = await fetch(
-        apiUrl(`/api/v1/plugins/capabilities/${capability.name}/execute-stream`),
+        apiUrl(
+          `/api/v1/plugins/capabilities/${capability.name}/execute-stream`,
+        ),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             content,
             tools: enabledTools,
-            knowledge_bases: enabledTools.includes("rag") && knowledgeBase ? [knowledgeBase] : [],
+            knowledge_bases:
+              enabledTools.includes("rag") && knowledgeBase
+                ? [knowledgeBase]
+                : [],
             language: i18n.language,
           }),
           signal: controller.signal,
@@ -1361,7 +1589,10 @@ function CapabilityTester({
             if (event.type === "session" || event.type === "done") continue;
             updateLastAssistant((last) => ({
               ...last,
-              content: event.type === "content" ? `${last.content}${event.content}` : last.content,
+              content:
+                event.type === "content"
+                  ? `${last.content}${event.content}`
+                  : last.content,
               events: [...(last.events || []), event],
             }));
             continue;
@@ -1372,8 +1603,11 @@ function CapabilityTester({
               ...last,
               result: {
                 success: Boolean(payload.success),
-                data: ((payload.data as Record<string, unknown>) ?? {}),
-                elapsedMs: typeof payload.elapsed_ms === "number" ? payload.elapsed_ms : undefined,
+                data: (payload.data as Record<string, unknown>) ?? {},
+                elapsedMs:
+                  typeof payload.elapsed_ms === "number"
+                    ? payload.elapsed_ms
+                    : undefined,
               },
             }));
             continue;
@@ -1406,7 +1640,9 @@ function CapabilityTester({
             {msg.role === "user" ? t("You") : t("Assistant")}
           </div>
           {msg.role === "user" ? (
-            <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">{msg.content}</div>
+            <div className="rounded-lg bg-[var(--muted)] px-3 py-2 text-[13px] text-[var(--foreground)]">
+              {msg.content}
+            </div>
           ) : (
             <div className="space-y-2">
               <TracePanel events={msg.events || []} />
@@ -1433,7 +1669,12 @@ function CapabilityTester({
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
           rows={2}
           placeholder={`${t("Try")} ${t(getCapabilityLabel(capability.name))}...`}
           className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
@@ -1444,7 +1685,11 @@ function CapabilityTester({
             disabled={!input.trim() || streaming}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {streaming ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+            {streaming ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Play size={13} />
+            )}
             {streaming ? t("Running...") : t("Send")}
           </button>
         </div>
@@ -1462,7 +1707,8 @@ export default function PlaygroundPage() {
   const [tools, setToolsList] = useState<ToolInfo[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityInfo[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [capabilityConfigs, setCapabilityConfigs] = useState<CapabilityPlaygroundConfigMap>({});
+  const [capabilityConfigs, setCapabilityConfigs] =
+    useState<CapabilityPlaygroundConfigMap>({});
   const [activeKind, setActiveKind] = useState<"tool" | "capability">("tool");
   const [activeName, setActiveName] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -1479,10 +1725,12 @@ export default function PlaygroundPage() {
         const visibleTools = (data.tools || []).filter(
           (tool: ToolInfo) => !FRONTEND_HIDDEN_TOOLS.has(tool.name),
         );
-        const visibleCapabilities = (data.capabilities || []).map((cap: CapabilityInfo) => ({
-          ...cap,
-          tools_used: filterFrontendTools(cap.tools_used ?? []),
-        }));
+        const visibleCapabilities = (data.capabilities || []).map(
+          (cap: CapabilityInfo) => ({
+            ...cap,
+            tools_used: filterFrontendTools(cap.tools_used ?? []),
+          }),
+        );
 
         setToolsList(visibleTools);
         setCapabilities(visibleCapabilities);
@@ -1518,7 +1766,10 @@ export default function PlaygroundPage() {
     [activeCapability, capabilityConfigs],
   );
   const activeDeepQuestionConfig = useMemo(
-    () => normalizeDeepQuestionConfig((activeCapabilityConfig?.config as Record<string, unknown> | undefined)),
+    () =>
+      normalizeDeepQuestionConfig(
+        activeCapabilityConfig?.config as Record<string, unknown> | undefined,
+      ),
     [activeCapabilityConfig?.config],
   );
   const activeDeepResearchConfig = useMemo(
@@ -1532,11 +1783,17 @@ export default function PlaygroundPage() {
     () =>
       activeKind === "tool"
         ? tools.map((t) => ({ name: t.name, description: t.description }))
-        : capabilityCatalog.map((c) => ({ name: c.name, description: c.description })),
+        : capabilityCatalog.map((c) => ({
+            name: c.name,
+            description: c.description,
+          })),
     [activeKind, capabilityCatalog, tools],
   );
 
-  const persistCapabilityConfig = (capabilityName: string, next: CapabilityPlaygroundConfig) => {
+  const persistCapabilityConfig = (
+    capabilityName: string,
+    next: CapabilityPlaygroundConfig,
+  ) => {
     setCapabilityConfigs((prev) =>
       saveCapabilityPlaygroundConfig(prev, capabilityName, next),
     );
@@ -1559,7 +1816,8 @@ export default function PlaygroundPage() {
     persistCapabilityConfig(activeCapability.name, {
       enabledTools: allowedTools.filter((name) => enabledSet.has(name)),
       knowledgeBase:
-        activeCapabilityConfig.knowledgeBase || (enabledSet.has("rag") ? defaultKb : ""),
+        activeCapabilityConfig.knowledgeBase ||
+        (enabledSet.has("rag") ? defaultKb : ""),
       config: activeCapabilityConfig.config,
     });
   };
@@ -1595,9 +1853,13 @@ export default function PlaygroundPage() {
     <div className="min-h-screen bg-[var(--background)]">
       <div className="mx-auto max-w-5xl px-6 py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">{t("Playground")}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
+            {t("Playground")}
+          </h1>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-            {t("Explore the building blocks of DeepTutor: reusable tools and higher-level capabilities.")}
+            {t(
+              "Explore the building blocks of DeepTutor: reusable tools and higher-level capabilities.",
+            )}
           </p>
         </div>
 
@@ -1610,13 +1872,20 @@ export default function PlaygroundPage() {
             {/* Tab bar */}
             <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--muted)] p-0.5">
               <button
-                onClick={() => { setActiveKind("tool"); if (tools.length) setActiveName(tools[0].name); }}
+                onClick={() => {
+                  setActiveKind("tool");
+                  if (tools.length) setActiveName(tools[0].name);
+                }}
                 className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-all ${activeKind === "tool" ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}
               >
                 {t("Tools")}
               </button>
               <button
-                onClick={() => { setActiveKind("capability"); if (capabilityCatalog.length) setActiveName(capabilityCatalog[0].name); }}
+                onClick={() => {
+                  setActiveKind("capability");
+                  if (capabilityCatalog.length)
+                    setActiveName(capabilityCatalog[0].name);
+                }}
                 className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-all ${activeKind === "capability" ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}
               >
                 {t("Capabilities")}
@@ -1628,14 +1897,21 @@ export default function PlaygroundPage() {
               {/* Left: Item list */}
               <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
                 <div className="mb-3 flex items-center gap-1.5">
-                  {activeKind === "tool" ? <Terminal className="h-3.5 w-3.5 text-[var(--muted-foreground)]" /> : <Sparkles className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />}
+                  {activeKind === "tool" ? (
+                    <Terminal className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
+                  )}
                   <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
                     {activeKind === "tool" ? t("Tools") : t("Capabilities")}
                   </h2>
                 </div>
                 <div className="space-y-1">
                   {listItems.map((item) => {
-                    const Icon = activeKind === "tool" ? getToolIcon(item.name) : getCapIcon(item.name);
+                    const Icon =
+                      activeKind === "tool"
+                        ? getToolIcon(item.name)
+                        : getCapIcon(item.name);
                     return (
                       <button
                         key={item.name}
@@ -1649,10 +1925,14 @@ export default function PlaygroundPage() {
                         <div className="flex items-center gap-1.5">
                           <Icon size={13} strokeWidth={1.7} />
                           <span className="text-[13px] font-medium">
-                            {activeKind === "tool" ? t(getToolLabel(item.name)) : t(getCapabilityLabel(item.name))}
+                            {activeKind === "tool"
+                              ? t(getToolLabel(item.name))
+                              : t(getCapabilityLabel(item.name))}
                           </span>
                         </div>
-                        <div className={`mt-0.5 line-clamp-2 text-[11px] leading-relaxed ${activeName === item.name ? "text-[var(--primary-foreground)]/70" : "text-[var(--muted-foreground)]"}`}>
+                        <div
+                          className={`mt-0.5 line-clamp-2 text-[11px] leading-relaxed ${activeName === item.name ? "text-[var(--primary-foreground)]/70" : "text-[var(--muted-foreground)]"}`}
+                        >
                           {item.description}
                         </div>
                       </button>
@@ -1663,127 +1943,181 @@ export default function PlaygroundPage() {
 
               {/* Right: Detail panel */}
               <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
-                {activeKind === "tool" && activeTool ? (() => {
-                  const ToolIcon = getToolIcon(activeTool.name);
-                  return (
-                    <div className="space-y-6">
-                      <div>
-                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-                          <ToolIcon size={13} strokeWidth={1.7} />
-                          {t("Tool")}
-                        </div>
-                        <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)]">{t(getToolLabel(activeTool.name))}</h2>
-                        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-[var(--muted-foreground)]">
-                          {activeTool.description}
-                        </p>
-                      </div>
-
-                      <div className="border-t border-[var(--border)] pt-6">
-                        <ToolExecutor tool={activeTool} knowledgeBases={knowledgeBases} />
-                      </div>
-                    </div>
-                  );
-                })() : activeCapability ? (() => {
-                  const CapIcon = getCapIcon(activeCapability.name);
-                  return (
-                    <div className="space-y-6">
-                      <div>
-                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
-                          <CapIcon size={13} strokeWidth={1.7} />
-                          {t("Capability")}
-                        </div>
-                        <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)]">{t(getCapabilityLabel(activeCapability.name))}</h2>
-                        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-[var(--muted-foreground)]">
-                          {activeCapability.description}
-                        </p>
-                      </div>
-
-                      <div>
-                        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{t("Enable Tools")}</h3>
-                        {!!activeCapability.tools_used?.length ? (
-                          <div className="mt-2.5 flex flex-wrap gap-1.5">
-                            {activeCapability.tools_used.map((tool) => {
-                              const TIcon = getToolIcon(tool);
-                              const enabled = activeCapabilityConfig?.enabledTools.includes(tool) ?? true;
-                              return (
-                                <button
-                                  key={`${activeCapability.name}-${tool}`}
-                                  onClick={() => toggleCapabilityTool(tool)}
-                                  className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                                    enabled
-                                      ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
-                                      : "border-[var(--border)] bg-[var(--background)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                                  }`}
-                                >
-                                  <TIcon size={11} strokeWidth={1.7} />
-                                  {t(getToolLabel(tool))}
-                                </button>
-                              );
-                            })}
+                {activeKind === "tool" && activeTool
+                  ? (() => {
+                      const ToolIcon = getToolIcon(activeTool.name);
+                      return (
+                        <div className="space-y-6">
+                          <div>
+                            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                              <ToolIcon size={13} strokeWidth={1.7} />
+                              {t("Tool")}
+                            </div>
+                            <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)]">
+                              {t(getToolLabel(activeTool.name))}
+                            </h2>
+                            <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-[var(--muted-foreground)]">
+                              {activeTool.description}
+                            </p>
                           </div>
-                        ) : (
-                          <p className="mt-2 text-[12px] text-[var(--muted-foreground)]">
-                            {t("This capability runs without optional tools.")}
-                          </p>
-                        )}
-                      </div>
 
-                      {activeCapabilityConfig?.enabledTools.includes("rag") && (
-                        <div>
-                          <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{t("Knowledge Base")}</h3>
-                          <div className="mt-2.5 max-w-sm">
-                            <select
-                              value={activeCapabilityConfig.knowledgeBase}
-                              onChange={(e) => setCapabilityKnowledgeBase(e.target.value)}
-                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
-                            >
-                              <option value="">{t("Select knowledge base...")}</option>
-                              {knowledgeBases.map((kb) => (
-                                <option key={kb.name} value={kb.name}>
-                                  {kb.name}
-                                  {kb.is_default ? ` (${t("default")})` : ""}
-                                </option>
-                              ))}
-                            </select>
+                          <div className="border-t border-[var(--border)] pt-6">
+                            <ToolExecutor
+                              tool={activeTool}
+                              knowledgeBases={knowledgeBases}
+                            />
                           </div>
                         </div>
-                      )}
+                      );
+                    })()
+                  : activeCapability
+                    ? (() => {
+                        const CapIcon = getCapIcon(activeCapability.name);
+                        return (
+                          <div className="space-y-6">
+                            <div>
+                              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                                <CapIcon size={13} strokeWidth={1.7} />
+                                {t("Capability")}
+                              </div>
+                              <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)]">
+                                {t(getCapabilityLabel(activeCapability.name))}
+                              </h2>
+                              <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-[var(--muted-foreground)]">
+                                {activeCapability.description}
+                              </p>
+                            </div>
 
-                      <div className="border-t border-[var(--border)] pt-6">
-                        <div className="mb-3">
-                          <h3 className="text-[14px] font-semibold text-[var(--foreground)]">{t("Try this capability")}</h3>
-                          <p className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">{t("Run a focused conversation here without leaving the playground.")}</p>
-                        </div>
-                        {activeCapability.name === "deep_question" ? (
-                          <DeepQuestionTester
-                            key={activeCapability.name}
-                            capability={activeCapability}
-                            enabledTools={activeCapabilityConfig?.enabledTools ?? activeCapability.tools_used ?? []}
-                            knowledgeBase={activeCapabilityConfig?.knowledgeBase ?? ""}
-                            config={activeDeepQuestionConfig}
-                            onConfigChange={setDeepQuestionConfig}
-                          />
-                        ) : activeCapability.name === "deep_research" ? (
-                          <DeepResearchTester
-                            key={activeCapability.name}
-                            capability={activeCapability}
-                            enabledTools={activeCapabilityConfig?.enabledTools ?? activeCapability.tools_used ?? []}
-                            knowledgeBase={activeCapabilityConfig?.knowledgeBase ?? ""}
-                            config={activeDeepResearchConfig}
-                            onConfigChange={setDeepResearchConfig}
-                          />
-                        ) : (
-                          <CapabilityTester
-                            key={activeCapability.name}
-                            capability={activeCapability}
-                            enabledTools={activeCapabilityConfig?.enabledTools ?? activeCapability.tools_used ?? []}
-                            knowledgeBase={activeCapabilityConfig?.knowledgeBase ?? ""}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })() : null}
+                            <div>
+                              <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                                {t("Enable Tools")}
+                              </h3>
+                              {!!activeCapability.tools_used?.length ? (
+                                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                  {activeCapability.tools_used.map((tool) => {
+                                    const TIcon = getToolIcon(tool);
+                                    const enabled =
+                                      activeCapabilityConfig?.enabledTools.includes(
+                                        tool,
+                                      ) ?? true;
+                                    return (
+                                      <button
+                                        key={`${activeCapability.name}-${tool}`}
+                                        onClick={() =>
+                                          toggleCapabilityTool(tool)
+                                        }
+                                        className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                                          enabled
+                                            ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                                            : "border-[var(--border)] bg-[var(--background)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                                        }`}
+                                      >
+                                        <TIcon size={11} strokeWidth={1.7} />
+                                        {t(getToolLabel(tool))}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="mt-2 text-[12px] text-[var(--muted-foreground)]">
+                                  {t(
+                                    "This capability runs without optional tools.",
+                                  )}
+                                </p>
+                              )}
+                            </div>
+
+                            {activeCapabilityConfig?.enabledTools.includes(
+                              "rag",
+                            ) && (
+                              <div>
+                                <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                                  {t("Knowledge Base")}
+                                </h3>
+                                <div className="mt-2.5 max-w-sm">
+                                  <select
+                                    value={activeCapabilityConfig.knowledgeBase}
+                                    onChange={(e) =>
+                                      setCapabilityKnowledgeBase(e.target.value)
+                                    }
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]/40"
+                                  >
+                                    <option value="">
+                                      {t("Select knowledge base...")}
+                                    </option>
+                                    {knowledgeBases.map((kb) => (
+                                      <option key={kb.name} value={kb.name}>
+                                        {kb.name}
+                                        {kb.is_default
+                                          ? ` (${t("default")})`
+                                          : ""}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="border-t border-[var(--border)] pt-6">
+                              <div className="mb-3">
+                                <h3 className="text-[14px] font-semibold text-[var(--foreground)]">
+                                  {t("Try this capability")}
+                                </h3>
+                                <p className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">
+                                  {t(
+                                    "Run a focused conversation here without leaving the playground.",
+                                  )}
+                                </p>
+                              </div>
+                              {activeCapability.name === "deep_question" ? (
+                                <DeepQuestionTester
+                                  key={activeCapability.name}
+                                  capability={activeCapability}
+                                  enabledTools={
+                                    activeCapabilityConfig?.enabledTools ??
+                                    activeCapability.tools_used ??
+                                    []
+                                  }
+                                  knowledgeBase={
+                                    activeCapabilityConfig?.knowledgeBase ?? ""
+                                  }
+                                  config={activeDeepQuestionConfig}
+                                  onConfigChange={setDeepQuestionConfig}
+                                />
+                              ) : activeCapability.name === "deep_research" ? (
+                                <DeepResearchTester
+                                  key={activeCapability.name}
+                                  capability={activeCapability}
+                                  enabledTools={
+                                    activeCapabilityConfig?.enabledTools ??
+                                    activeCapability.tools_used ??
+                                    []
+                                  }
+                                  knowledgeBase={
+                                    activeCapabilityConfig?.knowledgeBase ?? ""
+                                  }
+                                  config={activeDeepResearchConfig}
+                                  onConfigChange={setDeepResearchConfig}
+                                />
+                              ) : (
+                                <CapabilityTester
+                                  key={activeCapability.name}
+                                  capability={activeCapability}
+                                  enabledTools={
+                                    activeCapabilityConfig?.enabledTools ??
+                                    activeCapability.tools_used ??
+                                    []
+                                  }
+                                  knowledgeBase={
+                                    activeCapabilityConfig?.knowledgeBase ?? ""
+                                  }
+                                />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()
+                    : null}
               </section>
             </div>
           </div>

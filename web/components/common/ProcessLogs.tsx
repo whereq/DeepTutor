@@ -55,7 +55,9 @@ export default function ProcessLogs({
           )}
         </span>
         <div className="flex items-center gap-2">
-          {executing && <Loader2 size={12} className="animate-spin text-[var(--primary)]" />}
+          {executing && (
+            <Loader2 size={12} className="animate-spin text-[var(--primary)]" />
+          )}
           <ChevronDown
             size={13}
             className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180"
@@ -68,7 +70,9 @@ export default function ProcessLogs({
           onScroll={(e) => {
             const container = e.currentTarget;
             const distanceFromBottom =
-              container.scrollHeight - container.scrollTop - container.clientHeight;
+              container.scrollHeight -
+              container.scrollTop -
+              container.clientHeight;
             stickToBottomRef.current = distanceFromBottom <= 24;
           }}
           className="max-h-[220px] overflow-y-auto px-3 py-2.5 font-mono text-[11px] leading-[1.7] text-[var(--muted-foreground)]"
@@ -82,7 +86,9 @@ export default function ProcessLogs({
             </div>
           ))}
           {executing && logs.length === 0 && (
-            <div className="text-[var(--muted-foreground)]/60">{emptyMessage}</div>
+            <div className="text-[var(--muted-foreground)]/60">
+              {emptyMessage}
+            </div>
           )}
         </div>
       </div>

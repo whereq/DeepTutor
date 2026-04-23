@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 import re
 import subprocess
 import sys
 import threading
-from pathlib import Path
 from typing import Awaitable, Callable
 
 from deeptutor.services.path_service import get_path_service
 
-from .models import RenderResult, RenderedArtifact
+from .models import RenderedArtifact, RenderResult
 from .utils import slugify_filename, trim_error_message
 
 YON_IMAGE_PATTERN = re.compile(
@@ -50,9 +50,7 @@ class ManimRenderService:
             path.mkdir(parents=True, exist_ok=True)
 
     async def render(self, *, code: str, output_mode: str, quality: str) -> RenderResult:
-        await self._emit_progress(
-            f"Preparing {output_mode} render workspace (quality={quality})."
-        )
+        await self._emit_progress(f"Preparing {output_mode} render workspace (quality={quality}).")
         source_name = "scene.py" if output_mode == "video" else "scene_image.py"
         source_path = self.source_dir / source_name
         source_path.write_text(code, encoding="utf-8")
@@ -73,7 +71,9 @@ class ManimRenderService:
     async def _render_video(self, *, code_path: Path, quality: str) -> RenderedArtifact:
         scene_name = self._extract_scene_name(code_path.read_text(encoding="utf-8"))
         await self._emit_progress(f"Launching Manim scene `{scene_name}`.")
-        await self._run_manim(code_path=code_path, scene_name=scene_name, quality=quality, save_last_frame=False)
+        await self._run_manim(
+            code_path=code_path, scene_name=scene_name, quality=quality, save_last_frame=False
+        )
         video_file = self._find_rendered_file(".mp4")
         target_name = slugify_filename(f"{self.turn_id}-{scene_name}.mp4", f"{self.turn_id}.mp4")
         artifact_path = self.artifacts_dir / target_name
@@ -194,7 +194,9 @@ class ManimRenderService:
         if return_code != 0:
             raise ManimRenderError(
                 trim_error_message(
-                    "\n".join(part for part in ["\n".join(stdout_lines), "\n".join(stderr_lines)] if part)
+                    "\n".join(
+                        part for part in ["\n".join(stdout_lines), "\n".join(stderr_lines)] if part
+                    )
                 )
             )
 

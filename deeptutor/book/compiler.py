@@ -21,8 +21,8 @@ re-generation requests.
 from __future__ import annotations
 
 import asyncio
-import time
 from dataclasses import dataclass
+import time
 
 from deeptutor.logging import get_logger
 
@@ -268,9 +268,7 @@ class BookCompiler:
             block.payload.pop("bridge_text", None)
             return
 
-        previous_summary = (
-            f"{previous_block.type.value} block on {chapter.title}"
-        )
+        previous_summary = f"{previous_block.type.value} block on {chapter.title}"
         try:
             text = await generate_bridge_text(
                 chapter_title=chapter.title,

@@ -15,8 +15,12 @@ import {
 export default function WorkspaceSidebar() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { newSession, selectedSessionId, sessionStatuses, sidebarRefreshToken } =
-    useUnifiedChat();
+  const {
+    newSession,
+    selectedSessionId,
+    sessionStatuses,
+    sidebarRefreshToken,
+  } = useUnifiedChat();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const hasLoadedSessionsRef = useRef(false);
@@ -73,22 +77,31 @@ export default function WorkspaceSidebar() {
     [router],
   );
 
-  const handleRenameSession = useCallback(async (sessionId: string, title: string) => {
-    const updated = await updateSessionTitle(sessionId, title);
-    setSessions((prev) =>
-      prev.map((session) =>
-        session.session_id === sessionId
-          ? { ...session, title: updated.title, updated_at: updated.updated_at }
-          : session,
-      ),
-    );
-  }, []);
+  const handleRenameSession = useCallback(
+    async (sessionId: string, title: string) => {
+      const updated = await updateSessionTitle(sessionId, title);
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.session_id === sessionId
+            ? {
+                ...session,
+                title: updated.title,
+                updated_at: updated.updated_at,
+              }
+            : session,
+        ),
+      );
+    },
+    [],
+  );
 
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       if (!window.confirm(t("Delete this chat history?"))) return;
       await deleteSession(sessionId);
-      setSessions((prev) => prev.filter((session) => session.session_id !== sessionId));
+      setSessions((prev) =>
+        prev.filter((session) => session.session_id !== sessionId),
+      );
       if (selectedSessionId === sessionId) {
         newSession();
         router.push("/chat");

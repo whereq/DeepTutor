@@ -51,22 +51,31 @@ export default function UtilitySidebar() {
     [router, setActiveSessionId],
   );
 
-  const handleRenameSession = useCallback(async (sessionId: string, title: string) => {
-    const updated = await updateSessionTitle(sessionId, title);
-    setSessions((prev) =>
-      prev.map((session) =>
-        session.session_id === sessionId
-          ? { ...session, title: updated.title, updated_at: updated.updated_at }
-          : session,
-      ),
-    );
-  }, []);
+  const handleRenameSession = useCallback(
+    async (sessionId: string, title: string) => {
+      const updated = await updateSessionTitle(sessionId, title);
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.session_id === sessionId
+            ? {
+                ...session,
+                title: updated.title,
+                updated_at: updated.updated_at,
+              }
+            : session,
+        ),
+      );
+    },
+    [],
+  );
 
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       if (!window.confirm(t("Delete this chat history?"))) return;
       await deleteSession(sessionId);
-      setSessions((prev) => prev.filter((session) => session.session_id !== sessionId));
+      setSessions((prev) =>
+        prev.filter((session) => session.session_id !== sessionId),
+      );
       if (activeSessionId === sessionId) {
         setActiveSessionId(null);
       }

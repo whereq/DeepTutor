@@ -22,6 +22,7 @@ def _patch_event_bus():
     with patch("deeptutor.runtime.orchestrator.get_event_bus", return_value=mock_bus):
         yield
     from deeptutor.events.event_bus import EventBus
+
     EventBus.reset()
 
 

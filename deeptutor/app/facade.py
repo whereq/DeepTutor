@@ -111,7 +111,9 @@ class DeepTutorApp:
             )
         return CapabilityAvailability(name=resolved, available=True)
 
-    async def start_turn(self, request: TurnRequest | dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    async def start_turn(
+        self, request: TurnRequest | dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         if isinstance(request, dict):
             request = TurnRequest(**request)
         resolved_capability = self.resolve_capability(request.capability)
@@ -184,13 +186,17 @@ class DeepTutorApp:
     def add_record(self, **kwargs: Any) -> dict[str, Any]:
         return self.notebooks.add_record(**kwargs)
 
-    def update_record(self, notebook_id: str, record_id: str, **kwargs: Any) -> dict[str, Any] | None:
+    def update_record(
+        self, notebook_id: str, record_id: str, **kwargs: Any
+    ) -> dict[str, Any] | None:
         return self.notebooks.update_record(notebook_id, record_id, **kwargs)
 
     def remove_record(self, notebook_id: str, record_id: str) -> bool:
         return self.notebooks.remove_record(notebook_id, record_id)
 
-    def get_records_by_references(self, notebook_references: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def get_records_by_references(
+        self, notebook_references: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return self.notebooks.get_records_by_references(notebook_references)
 
 

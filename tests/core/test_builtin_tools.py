@@ -9,8 +9,8 @@ from typing import Any
 
 import pytest
 
-from deeptutor.runtime.registry.tool_registry import ToolRegistry
 from deeptutor.core.tool_protocol import BaseTool, ToolDefinition, ToolParameter, ToolResult
+from deeptutor.runtime.registry.tool_registry import ToolRegistry
 from deeptutor.tools.builtin import (
     BrainstormTool,
     CodeExecutionTool,
@@ -22,7 +22,9 @@ from deeptutor.tools.builtin import (
 )
 
 
-def _install_module(monkeypatch: pytest.MonkeyPatch, fullname: str, **attrs: Any) -> types.ModuleType:
+def _install_module(
+    monkeypatch: pytest.MonkeyPatch, fullname: str, **attrs: Any
+) -> types.ModuleType:
     """Install a fake module (and missing parent packages) into sys.modules."""
     parts = fullname.split(".")
     for idx in range(1, len(parts)):
@@ -137,7 +139,9 @@ async def test_code_execution_tool_uses_direct_code_path(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
-async def test_code_execution_tool_generates_code_from_intent(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_code_execution_tool_generates_code_from_intent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     executed: dict[str, Any] = {}
 
     async def fake_run_code(**kwargs: Any) -> dict[str, Any]:

@@ -39,7 +39,10 @@ export default function RichCodeBlock({
           className="overflow-x-auto p-4 text-sm leading-[1.7] text-[#e5e7eb]"
           style={{ margin: 0, fontFamily: MONOSPACE }}
         >
-          <code className="md-code-block__code" style={{ fontFamily: MONOSPACE }}>
+          <code
+            className="md-code-block__code"
+            style={{ fontFamily: MONOSPACE }}
+          >
             {raw}
           </code>
         </pre>

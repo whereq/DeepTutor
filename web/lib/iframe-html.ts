@@ -76,7 +76,10 @@ export function injectKaTeX(html: string): string {
  */
 export function sanitizeIframeHtml(html: string): string {
   return html
-    .replace(/\s(href|src|formaction)\s*=\s*(['"])\s*javascript:[\s\S]*?\2/gi, "")
+    .replace(
+      /\s(href|src|formaction)\s*=\s*(['"])\s*javascript:[\s\S]*?\2/gi,
+      "",
+    )
     .replace(/\starget\s*=\s*(['"])_(top|parent)\1/gi, ' target="_self"');
 }
 

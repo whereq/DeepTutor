@@ -22,7 +22,10 @@ export interface BookProgressTimelineProps {
   className?: string;
 }
 
-const STAGE_ICONS: Record<StageId, React.ComponentType<{ className?: string }>> = {
+const STAGE_ICONS: Record<
+  StageId,
+  React.ComponentType<{ className?: string }>
+> = {
   ideation: Lightbulb,
   exploration: Search,
   synthesis: Network,
@@ -71,13 +74,7 @@ function stageProgressFraction(progress: BookProgress): number {
   return Math.min(1, value / ordered.length);
 }
 
-function StageIcon({
-  id,
-  state,
-}: {
-  id: StageId;
-  state: StageView["state"];
-}) {
+function StageIcon({ id, state }: { id: StageId; state: StageView["state"] }) {
   const cls = "h-3.5 w-3.5";
   if (state === "running") return <Loader2 className={`${cls} animate-spin`} />;
   if (state === "completed") return <Check className={cls} />;

@@ -12,14 +12,14 @@ import json
 from pathlib import Path
 from typing import Optional
 
-import typer
 from rich.console import Console
 from rich.table import Table
+import typer
 
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.services.path_service import get_path_service
-from deeptutor.services.rag.file_routing import FileTypeRouter
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
+from deeptutor.services.rag.file_routing import FileTypeRouter
 
 console = Console()
 
@@ -79,13 +79,17 @@ def register(app: typer.Typer) -> None:
                 info = mgr.get_info(name)
                 stats = info.get("statistics", {})
                 metadata = info.get("metadata", {})
-                items.append({
-                    "name": name,
-                    "status": info.get("status", "unknown"),
-                    "documents": stats.get("raw_documents", 0),
-                    "rag_provider": metadata.get("rag_provider", stats.get("rag_provider", DEFAULT_PROVIDER)),
-                    "is_default": bool(info.get("is_default")),
-                })
+                items.append(
+                    {
+                        "name": name,
+                        "status": info.get("status", "unknown"),
+                        "documents": stats.get("raw_documents", 0),
+                        "rag_provider": metadata.get(
+                            "rag_provider", stats.get("rag_provider", DEFAULT_PROVIDER)
+                        ),
+                        "is_default": bool(info.get("is_default")),
+                    }
+                )
             console.print_json(json.dumps(items, ensure_ascii=False, default=str))
             return
 

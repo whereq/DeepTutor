@@ -12,6 +12,7 @@ from deeptutor.tutorbot.config.schema import ChannelsConfig
 
 def _logger():
     from loguru import logger as _log
+
     return _log
 
 
@@ -117,15 +118,15 @@ class ChannelManager:
 
         while True:
             try:
-                msg = await asyncio.wait_for(
-                    self.bus.consume_outbound(),
-                    timeout=1.0
-                )
+                msg = await asyncio.wait_for(self.bus.consume_outbound(), timeout=1.0)
 
                 if msg.metadata.get("_progress"):
                     if msg.metadata.get("_tool_hint") and not self.channels_config.send_tool_hints:
                         continue
-                    if not msg.metadata.get("_tool_hint") and not self.channels_config.send_progress:
+                    if (
+                        not msg.metadata.get("_tool_hint")
+                        and not self.channels_config.send_progress
+                    ):
                         continue
 
                 channel = self.channels.get(msg.channel)

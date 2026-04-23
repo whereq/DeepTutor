@@ -7,13 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from deeptutor.services.session.context_builder import (
-    ContextBuildResult,
     ContextBuilder,
+    ContextBuildResult,
     build_history_text,
     count_tokens,
     format_messages_as_transcript,
 )
-
 
 # ---------------------------------------------------------------------------
 # count_tokens
@@ -261,15 +260,19 @@ class TestContextBuilderBuild:
     @pytest.mark.asyncio
     async def test_within_budget_no_summarize(self) -> None:
         store = AsyncMock()
-        store.get_session = AsyncMock(return_value={
-            "id": "s1",
-            "compressed_summary": "",
-            "summary_up_to_msg_id": 0,
-        })
-        store.get_messages_for_context = AsyncMock(return_value=[
-            {"id": 1, "role": "user", "content": "Hi"},
-            {"id": 2, "role": "assistant", "content": "Hello!"},
-        ])
+        store.get_session = AsyncMock(
+            return_value={
+                "id": "s1",
+                "compressed_summary": "",
+                "summary_up_to_msg_id": 0,
+            }
+        )
+        store.get_messages_for_context = AsyncMock(
+            return_value=[
+                {"id": 1, "role": "user", "content": "Hi"},
+                {"id": 2, "role": "assistant", "content": "Hello!"},
+            ]
+        )
 
         builder = ContextBuilder(store=store)
         cfg = MagicMock()

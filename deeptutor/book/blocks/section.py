@@ -65,9 +65,7 @@ class SectionGenerator(BlockGenerator):
         params = ctx.block.params
         chapter_title = params.get("chapter_title", ctx.chapter.title)
         chapter_summary = params.get("chapter_summary", ctx.chapter.summary)
-        objectives: list[str] = (
-            params.get("objectives") or ctx.chapter.learning_objectives or []
-        )
+        objectives: list[str] = params.get("objectives") or ctx.chapter.learning_objectives or []
         focus_topic: str = str(params.get("focus") or chapter_title)
         section_role: str = str(params.get("role") or "core")
         target_words: int = int(params.get("target_words") or 1800)
@@ -91,9 +89,7 @@ class SectionGenerator(BlockGenerator):
             rag_context=rag.text,
         )
         if not outline.get("subsections"):
-            raise GenerationFailure(
-                "SectionArchitect produced no subsections in outline pass."
-            )
+            raise GenerationFailure("SectionArchitect produced no subsections in outline pass.")
 
         # ── Pass 2: fill subsections in parallel ─────────────────────
         relevant_chunks: list[SourceChunk] = []
@@ -124,8 +120,7 @@ class SectionGenerator(BlockGenerator):
                     "role": sub.get("role") or "core",
                     "focus": sub.get("focus") or "",
                     "body": body or "",
-                    "target_words": sub.get("target_words")
-                    or _DEFAULT_SUBSECTION_WORDS,
+                    "target_words": sub.get("target_words") or _DEFAULT_SUBSECTION_WORDS,
                 }
             )
 
@@ -182,9 +177,7 @@ class SectionGenerator(BlockGenerator):
         none_label = _none_label(ctx.language)
         obj_block = "\n".join(f"- {o}" for o in objectives) or none_label
         rag_section = (
-            f"\n[Relevant source evidence]\n{_clip(rag_context, 1800)}\n"
-            if rag_context
-            else ""
+            f"\n[Relevant source evidence]\n{_clip(rag_context, 1800)}\n" if rag_context else ""
         )
         user_prompt = get_book_prompt(prompts, "outline_user").format(
             chapter_title=chapter_title,
@@ -270,11 +263,7 @@ class SectionGenerator(BlockGenerator):
         slice_chunks: list[SourceChunk] = []
         for ch in chunks:
             text = (ch.text or "").lower()
-            tokens_match = sum(
-                1
-                for tok in haystack.split()
-                if len(tok) > 3 and tok in text
-            )
+            tokens_match = sum(1 for tok in haystack.split() if len(tok) > 3 and tok in text)
             if tokens_match:
                 slice_chunks.append(ch)
             if len(slice_chunks) >= 3:
@@ -284,16 +273,12 @@ class SectionGenerator(BlockGenerator):
 
         evidence_block = ""
         if slice_chunks:
-            evidence_block = "\n".join(
-                f"- {_clip(c.text or '', 320)}" for c in slice_chunks
-            )
+            evidence_block = "\n".join(f"- {_clip(c.text or '', 320)}" for c in slice_chunks)
 
         prompts = load_book_prompts("section", ctx.language)
         none_label = _none_label(ctx.language)
         same_as_heading = "(同标题)" if ctx.language == "zh" else "(same as heading)"
-        evidence_section = (
-            f"\nReference evidence:\n{evidence_block}\n" if evidence_block else ""
-        )
+        evidence_section = f"\nReference evidence:\n{evidence_block}\n" if evidence_block else ""
         user_prompt = get_book_prompt(prompts, "subsection_user").format(
             chapter_title=chapter_title,
             section_focus=section_focus,

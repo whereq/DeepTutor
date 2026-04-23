@@ -96,9 +96,7 @@ class CustomEmbedding(BaseEmbedding):
 
     async def _aget_text_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Get embeddings for multiple texts."""
-        return await self._client.embed(
-            texts, progress_callback=self._progress_callback
-        )
+        return await self._client.embed(texts, progress_callback=self._progress_callback)
 
     def _get_query_embedding(self, query: str) -> List[float]:
         """Sync version - called by LlamaIndex sync API."""
@@ -185,9 +183,7 @@ class LlamaIndexPipeline:
             result = await client.embed(["connectivity test"])
             if not result or not result[0]:
                 raise RuntimeError("Embedding API returned empty result")
-            self.logger.info(
-                f"Embedding API OK (returned {len(result[0])}-dim vector)"
-            )
+            self.logger.info(f"Embedding API OK (returned {len(result[0])}-dim vector)")
         except Exception as e:
             self.logger.error(f"Embedding API connectivity check failed: {e}")
             raise RuntimeError(
@@ -390,14 +386,16 @@ class LlamaIndexPipeline:
             for i, node in enumerate(nodes):
                 context_parts.append(node.node.text)
                 meta = node.node.metadata or {}
-                sources.append({
-                    "title": meta.get("file_name", meta.get("title", f"Document {i + 1}")),
-                    "content": node.node.text[:200],
-                    "source": meta.get("file_path", meta.get("file_name", "")),
-                    "page": meta.get("page_label", meta.get("page", "")),
-                    "chunk_id": node.node.node_id or str(i),
-                    "score": round(node.score, 4) if node.score is not None else "",
-                })
+                sources.append(
+                    {
+                        "title": meta.get("file_name", meta.get("title", f"Document {i + 1}")),
+                        "content": node.node.text[:200],
+                        "source": meta.get("file_path", meta.get("file_name", "")),
+                        "page": meta.get("page_label", meta.get("page", "")),
+                        "chunk_id": node.node.node_id or str(i),
+                        "score": round(node.score, 4) if node.score is not None else "",
+                    }
+                )
 
             content = "\n\n".join(context_parts) if context_parts else ""
 

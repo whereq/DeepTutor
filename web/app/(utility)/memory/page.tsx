@@ -2,14 +2,25 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brain, Eraser, Loader2, RefreshCw, Save, BookOpen, User } from "lucide-react";
+import {
+  Brain,
+  Eraser,
+  Loader2,
+  RefreshCw,
+  Save,
+  BookOpen,
+  User,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppShell } from "@/context/AppShellContext";
 import { apiUrl } from "@/lib/api";
 
-const MarkdownRenderer = dynamic(() => import("@/components/common/MarkdownRenderer"), {
-  ssr: false,
-});
+const MarkdownRenderer = dynamic(
+  () => import("@/components/common/MarkdownRenderer"),
+  {
+    ssr: false,
+  },
+);
 
 type MemoryFile = "summary" | "profile";
 
@@ -20,20 +31,28 @@ interface MemoryData {
   profile_updated_at: string | null;
 }
 
-const TABS: { key: MemoryFile; label: string; icon: typeof Brain; hint: string; placeholder: string }[] = [
+const TABS: {
+  key: MemoryFile;
+  label: string;
+  icon: typeof Brain;
+  hint: string;
+  placeholder: string;
+}[] = [
   {
     key: "summary",
     label: "Summary",
     icon: BookOpen,
     hint: "Running summary of the learning journey. Auto-updated after conversations.",
-    placeholder: "## Current Focus\n- ...\n\n## Accomplishments\n- ...\n\n## Open Questions\n- ...",
+    placeholder:
+      "## Current Focus\n- ...\n\n## Accomplishments\n- ...\n\n## Open Questions\n- ...",
   },
   {
     key: "profile",
     label: "Profile",
     icon: User,
     hint: "User identity, preferences, and knowledge levels. Auto-updated after conversations.",
-    placeholder: "## Identity\n- ...\n\n## Learning Style\n- ...\n\n## Knowledge Level\n- ...\n\n## Preferences\n- ...",
+    placeholder:
+      "## Identity\n- ...\n\n## Learning Style\n- ...\n\n## Knowledge Level\n- ...\n\n## Preferences\n- ...",
   },
 ];
 
@@ -61,14 +80,19 @@ export default function MemoryPage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<MemoryFile>("summary");
   const [activeView, setActiveView] = useState<"edit" | "preview">("edit");
-  const [editors, setEditors] = useState<Record<MemoryFile, string>>({ summary: "", profile: "" });
+  const [editors, setEditors] = useState<Record<MemoryFile, string>>({
+    summary: "",
+    profile: "",
+  });
   const [toast, setToast] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const tab = TABS.find((t) => t.key === activeTab)!;
   const editorValue = editors[activeTab];
   const hasChanges = editorValue !== data[activeTab];
-  const updatedAt = data[`${activeTab}_updated_at` as keyof MemoryData] as string | null;
+  const updatedAt = data[`${activeTab}_updated_at` as keyof MemoryData] as
+    | string
+    | null;
 
   useEffect(() => {
     if (!toast) return;
@@ -88,7 +112,9 @@ export default function MemoryPage() {
     }
   }, []);
 
-  useEffect(() => { void loadMemory(); }, [loadMemory]);
+  useEffect(() => {
+    void loadMemory();
+  }, [loadMemory]);
 
   const saveMemory = useCallback(async () => {
     setSaving(true);
@@ -113,7 +139,10 @@ export default function MemoryPage() {
       const res = await fetch(apiUrl("/api/v1/memory/refresh"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: activeSessionId || undefined, language }),
+        body: JSON.stringify({
+          session_id: activeSessionId || undefined,
+          language,
+        }),
       });
       const d: MemoryData = await res.json();
       setData(d);
@@ -155,7 +184,6 @@ export default function MemoryPage() {
   return (
     <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto max-w-[960px] px-6 py-8">
-
         {/* Header */}
         <div className="mb-6 flex items-start justify-between">
           <div>
@@ -163,7 +191,9 @@ export default function MemoryPage() {
               {t("Memory")}
             </h1>
             {toast ? (
-              <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">{toast}</p>
+              <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">
+                {toast}
+              </p>
             ) : (
               <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
                 {hasChanges ? "Unsaved changes" : "All changes saved"}
@@ -176,7 +206,11 @@ export default function MemoryPage() {
               disabled={saving}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
             >
-              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              {saving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Save className="h-3 w-3" />
+              )}
               Save
             </button>
             <button
@@ -184,7 +218,11 @@ export default function MemoryPage() {
               disabled={refreshing}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
             >
-              {refreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              {refreshing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
               Refresh
             </button>
             <button
@@ -192,7 +230,11 @@ export default function MemoryPage() {
               disabled={clearing}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
             >
-              {clearing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eraser className="h-3 w-3" />}
+              {clearing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Eraser className="h-3 w-3" />
+              )}
               Clear
             </button>
           </div>
@@ -222,7 +264,9 @@ export default function MemoryPage() {
 
         {/* Meta & View toggle */}
         <div className="mb-6 flex items-center justify-between">
-          <p className="max-w-lg text-[12px] text-[var(--muted-foreground)]">{tab.hint}</p>
+          <p className="max-w-lg text-[12px] text-[var(--muted-foreground)]">
+            {tab.hint}
+          </p>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               {(["edit", "preview"] as const).map((v) => (
@@ -255,7 +299,9 @@ export default function MemoryPage() {
             <textarea
               ref={textareaRef}
               value={editorValue}
-              onChange={(e) => setEditors((prev) => ({ ...prev, [activeTab]: e.target.value }))}
+              onChange={(e) =>
+                setEditors((prev) => ({ ...prev, [activeTab]: e.target.value }))
+              }
               onKeyDown={handleKeyDown}
               spellCheck={false}
               className="min-h-[480px] w-full resize-none rounded-xl border border-[var(--border)] bg-transparent px-5 py-4 font-mono text-[13px] leading-7 text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
@@ -267,14 +313,20 @@ export default function MemoryPage() {
           </div>
         ) : editorValue.trim() ? (
           <div className="rounded-xl border border-[var(--border)] px-6 py-5">
-            <MarkdownRenderer content={editorValue} variant="prose" className="text-[14px] leading-relaxed" />
+            <MarkdownRenderer
+              content={editorValue}
+              variant="prose"
+              className="text-[14px] leading-relaxed"
+            />
           </div>
         ) : (
           <div className="flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-center">
             <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
               <Brain size={18} />
             </div>
-            <p className="text-[14px] font-medium text-[var(--foreground)]">No {tab.label.toLowerCase()} yet</p>
+            <p className="text-[14px] font-medium text-[var(--foreground)]">
+              No {tab.label.toLowerCase()} yet
+            </p>
             <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
               {t("Refresh from a session or write directly in the editor.")}
             </p>

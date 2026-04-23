@@ -3,9 +3,9 @@
 Minimal validator for nanobot skill folders.
 """
 
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 from typing import Optional
 
 try:

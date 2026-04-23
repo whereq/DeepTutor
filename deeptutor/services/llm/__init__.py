@@ -62,7 +62,6 @@ from .capabilities import (
     supports_vision,
     system_in_messages,
 )
-from .multimodal import MultimodalResult, prepare_multimodal_messages
 from .client import LLMClient, get_llm_client, reset_llm_client
 from .config import (
     LLMConfig,
@@ -93,6 +92,7 @@ from .factory import (
     get_provider_presets,
     stream,
 )
+from .multimodal import MultimodalResult, prepare_multimodal_messages
 from .utils import (
     build_auth_headers,
     build_chat_url,

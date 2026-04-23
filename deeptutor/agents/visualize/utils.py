@@ -82,12 +82,7 @@ def is_valid_html_document(html: str) -> bool:
     if not html:
         return False
     lowered = html.lower()
-    return (
-        "<html" in lowered
-        or "<!doctype" in lowered
-        or "<body" in lowered
-        or "<div" in lowered
-    )
+    return "<html" in lowered or "<!doctype" in lowered or "<body" in lowered or "<div" in lowered
 
 
 def build_fallback_html(*, title: str, summary: str = "", note: str = "") -> str:
@@ -103,9 +98,7 @@ def build_fallback_html(*, title: str, summary: str = "", note: str = "") -> str
     safe_note = (note or "").replace("\n", "<br>")
 
     note_block = (
-        f'<div class="note"><strong>Note:</strong><br>{safe_note}</div>'
-        if safe_note
-        else ""
+        f'<div class="note"><strong>Note:</strong><br>{safe_note}</div>' if safe_note else ""
     )
 
     return f"""<!DOCTYPE html>

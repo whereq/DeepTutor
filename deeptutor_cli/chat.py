@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 import json
 from typing import Any
 
-import typer
 from rich.panel import Panel
+import typer
 
 from deeptutor.app import DeepTutorApp, TurnRequest
 

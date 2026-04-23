@@ -12,12 +12,11 @@ from pathlib import Path
 import shutil
 from typing import Optional
 
-from deeptutor.logging import get_logger
-from deeptutor.services.rag.file_routing import FileTypeRouter
-from deeptutor.services.rag.factory import DEFAULT_PROVIDER
-from deeptutor.services.rag.service import RAGService
-
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
+from deeptutor.logging import get_logger
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER
+from deeptutor.services.rag.file_routing import FileTypeRouter
+from deeptutor.services.rag.service import RAGService
 
 logger = get_logger("KnowledgeInit")
 
@@ -140,8 +139,7 @@ class KnowledgeBaseInitializer:
     async def process_documents(
         self,
     ) -> bool:
-        """Process documents with llamaindex provider.
-        """
+        """Process documents with llamaindex provider."""
         provider = DEFAULT_PROVIDER
 
         self.progress_tracker.update(

@@ -34,4 +34,3 @@ def parse_target_duration_seconds(text: str) -> float | None:
     if not candidates:
         return None
     return max(candidates)
-

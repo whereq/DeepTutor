@@ -42,10 +42,10 @@ type ParentSelection<TChild extends string | number> =
   | { mode: "all" }
   | { mode: "subset"; ids: Set<TChild> };
 
-type ParentMap<TParent extends string | number, TChild extends string | number> = Map<
-  TParent,
-  ParentSelection<TChild>
->;
+type ParentMap<
+  TParent extends string | number,
+  TChild extends string | number,
+> = Map<TParent, ParentSelection<TChild>>;
 
 export interface BookCreatorProps {
   onCreate: (payload: {
@@ -86,7 +86,9 @@ export default function BookCreator({
   const [notebookSelection, setNotebookSelection] = useState<
     ParentMap<string, string>
   >(new Map());
-  const [notebookExpanded, setNotebookExpanded] = useState<Set<string>>(new Set());
+  const [notebookExpanded, setNotebookExpanded] = useState<Set<string>>(
+    new Set(),
+  );
   const [notebookRecords, setNotebookRecords] = useState<
     Record<string, NotebookRecordItem[]>
   >({});
@@ -100,7 +102,9 @@ export default function BookCreator({
   const [questionSelection, setQuestionSelection] = useState<
     ParentMap<number, number>
   >(new Map());
-  const [questionExpanded, setQuestionExpanded] = useState<Set<number>>(new Set());
+  const [questionExpanded, setQuestionExpanded] = useState<Set<number>>(
+    new Set(),
+  );
   const [questionEntries, setQuestionEntries] = useState<
     Record<number, NotebookEntry[]>
   >({});
@@ -284,7 +288,8 @@ export default function BookCreator({
   const handleCreate = async () => {
     if (!intent.trim()) return;
 
-    const notebook_refs: Array<{ notebook_id: string; record_ids: string[] }> = [];
+    const notebook_refs: Array<{ notebook_id: string; record_ids: string[] }> =
+      [];
     notebookSelection.forEach((sel, id) => {
       notebook_refs.push({
         notebook_id: id,
@@ -299,7 +304,10 @@ export default function BookCreator({
       else sel.ids.forEach((eid) => question_entries.push(eid));
     });
 
-    const chat_selections: Array<{ session_id: string; message_ids: number[] }> = [];
+    const chat_selections: Array<{
+      session_id: string;
+      message_ids: number[];
+    }> = [];
     chatSelection.forEach((sel, sid) => {
       chat_selections.push({
         session_id: sid,
@@ -329,7 +337,12 @@ export default function BookCreator({
   }> = [
     { key: "knowledge", label: "KB", icon: Database, count: selectedKbs.size },
     { key: "notebooks", label: "Notebooks", icon: NotebookPen, count: nbCount },
-    { key: "questions", label: "Questions", icon: ClipboardList, count: qCount },
+    {
+      key: "questions",
+      label: "Questions",
+      icon: ClipboardList,
+      count: qCount,
+    },
     { key: "chats", label: "Chats", icon: MessagesSquare, count: chatCount },
   ];
 
@@ -364,10 +377,12 @@ export default function BookCreator({
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5 p-6">
       <div className="space-y-1.5">
-        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Create a new book</h1>
+        <h1 className="text-2xl font-semibold text-[var(--foreground)]">
+          Create a new book
+        </h1>
         <p className="text-sm text-[var(--muted-foreground)]">
-          Describe what you want to learn, then pick the knowledge sources to fuse
-          into a structured, interactive book.
+          Describe what you want to learn, then pick the knowledge sources to
+          fuse into a structured, interactive book.
         </p>
       </div>
 
@@ -422,256 +437,258 @@ export default function BookCreator({
 
         {!formCollapsed && (
           <div className="space-y-4 px-5 pb-5">
-        <label className="block">
-          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-            Learning intent
-          </span>
-          <textarea
-            value={intent}
-            onChange={(e) => setIntent(e.target.value)}
-            rows={5}
-            placeholder="e.g. Build intuition for transformer attention with derivations and exercises."
-            className="mt-1.5 w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)]/50"
-          />
-        </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                Learning intent
+              </span>
+              <textarea
+                value={intent}
+                onChange={(e) => setIntent(e.target.value)}
+                rows={5}
+                placeholder="e.g. Build intuition for transformer attention with derivations and exercises."
+                className="mt-1.5 w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)]/50"
+              />
+            </label>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-              Knowledge sources
-              {totalSelected > 0 && (
-                <span className="ml-2 rounded-full bg-[var(--primary)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--primary)]">
-                  {totalSelected} selected
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                  Knowledge sources
+                  {totalSelected > 0 && (
+                    <span className="ml-2 rounded-full bg-[var(--primary)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--primary)]">
+                      {totalSelected} selected
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                if (tab === "knowledge") void refreshKbs();
-                else if (tab === "notebooks") void refreshNotebooks();
-                else if (tab === "questions") void refreshCategories();
-                else void refreshSessions();
-              }}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-            >
-              <RefreshCw className="h-3 w-3" />
-              Refresh
-            </button>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (tab === "knowledge") void refreshKbs();
+                    else if (tab === "notebooks") void refreshNotebooks();
+                    else if (tab === "questions") void refreshCategories();
+                    else void refreshSessions();
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Refresh
+                </button>
+              </div>
 
-          <div className="inline-flex w-full rounded-lg border border-[var(--border)] bg-[var(--muted)] p-0.5">
-            {tabConfig.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setTab(item.key)}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-all ${
-                  tab === item.key
-                    ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
-                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                }`}
-              >
-                <item.icon size={13} />
-                {item.label}
-                {item.count > 0 && (
-                  <span
-                    className={`ml-0.5 rounded-full px-1.5 text-[10px] font-semibold ${
+              <div className="inline-flex w-full rounded-lg border border-[var(--border)] bg-[var(--muted)] p-0.5">
+                {tabConfig.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setTab(item.key)}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] font-medium transition-all ${
                       tab === item.key
-                        ? "bg-[var(--primary)]/15 text-[var(--primary)]"
-                        : "bg-[var(--border)]/70 text-[var(--muted-foreground)]"
+                        ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
+                        : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                     }`}
                   >
-                    {item.count}
-                  </span>
+                    <item.icon size={13} />
+                    {item.label}
+                    {item.count > 0 && (
+                      <span
+                        className={`ml-0.5 rounded-full px-1.5 text-[10px] font-semibold ${
+                          tab === item.key
+                            ? "bg-[var(--primary)]/15 text-[var(--primary)]"
+                            : "bg-[var(--border)]/70 text-[var(--muted-foreground)]"
+                        }`}
+                      >
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="max-h-72 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--background)] p-1.5">
+                {tab === "knowledge" && (
+                  <FlatList
+                    loading={kbsLoading}
+                    emptyHint="No knowledge bases yet. Create one in the Knowledge page first."
+                    items={kbs.map((kb) => ({
+                      key: kb.name,
+                      primary: kb.name,
+                      secondary: kb.is_default ? "default" : kb.status || "",
+                      checked: selectedKbs.has(kb.name),
+                      onToggle: () => toggleKb(kb.name),
+                    }))}
+                  />
                 )}
+
+                {tab === "notebooks" && (
+                  <TreeList
+                    loading={notebooksLoading}
+                    emptyHint="No notebooks yet. Save chat outputs into a notebook first."
+                    parents={notebooks.map((nb) => {
+                      const records = notebookRecords[nb.id];
+                      return {
+                        id: nb.id,
+                        title: nb.name,
+                        subtitle: parentSubtitle(
+                          notebookSelection.get(nb.id),
+                          records?.length ?? nb.record_count ?? 0,
+                          "record",
+                        ),
+                        expanded: notebookExpanded.has(nb.id),
+                        childrenLoading: !!notebookRecordsLoading[nb.id],
+                        children: (records ?? []).map((rec) => ({
+                          id: rec.id,
+                          title: rec.title || "(untitled)",
+                          subtitle: rec.summary || "",
+                        })),
+                        selection: notebookSelection.get(nb.id),
+                      };
+                    })}
+                    onToggleParent={(id) =>
+                      setNotebookSelection((prev) => toggleParent(prev, id))
+                    }
+                    onToggleChild={(parentId, childId, knownChildren) =>
+                      setNotebookSelection((prev) =>
+                        toggleChild(prev, parentId, childId, knownChildren),
+                      )
+                    }
+                    onToggleExpand={(id) => {
+                      setNotebookExpanded((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id);
+                        else {
+                          next.add(id);
+                          void ensureNotebookRecords(id);
+                        }
+                        return next;
+                      });
+                    }}
+                  />
+                )}
+
+                {tab === "questions" && (
+                  <TreeList<number, number>
+                    loading={categoriesLoading}
+                    emptyHint="No quiz categories yet. Bookmark questions into a category first."
+                    parents={categories.map((cat) => {
+                      const entries = questionEntries[cat.id];
+                      return {
+                        id: cat.id,
+                        title: cat.name,
+                        subtitle: parentSubtitle(
+                          questionSelection.get(cat.id),
+                          entries?.length ?? cat.entry_count ?? 0,
+                          "entry",
+                          "entries",
+                        ),
+                        expanded: questionExpanded.has(cat.id),
+                        childrenLoading: !!questionEntriesLoading[cat.id],
+                        children: (entries ?? []).map((e) => ({
+                          id: e.id,
+                          title: e.question || "(no question)",
+                          subtitle: `${e.is_correct ? "✓" : "✗"} ${
+                            e.user_answer
+                              ? `your: ${e.user_answer}`
+                              : "no attempt"
+                          } · correct: ${e.correct_answer}`,
+                        })),
+                        selection: questionSelection.get(cat.id),
+                      };
+                    })}
+                    onToggleParent={(id) =>
+                      setQuestionSelection((prev) => toggleParent(prev, id))
+                    }
+                    onToggleChild={(parentId, childId, knownChildren) =>
+                      setQuestionSelection((prev) =>
+                        toggleChild(prev, parentId, childId, knownChildren),
+                      )
+                    }
+                    onToggleExpand={(id) => {
+                      setQuestionExpanded((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id);
+                        else {
+                          next.add(id);
+                          void ensureQuestionEntries(id);
+                        }
+                        return next;
+                      });
+                    }}
+                  />
+                )}
+
+                {tab === "chats" && (
+                  <TreeList<string, number>
+                    loading={sessionsLoading}
+                    emptyHint="No chat sessions yet."
+                    parents={sessions.map((s) => {
+                      const msgs = chatMessages[s.session_id];
+                      return {
+                        id: s.session_id,
+                        title: s.title || "(untitled chat)",
+                        subtitle: parentSubtitle(
+                          chatSelection.get(s.session_id),
+                          msgs?.length ?? s.message_count ?? 0,
+                          "message",
+                        ),
+                        expanded: chatExpanded.has(s.session_id),
+                        childrenLoading: !!chatMessagesLoading[s.session_id],
+                        children: (msgs ?? []).map((m) => ({
+                          id: m.id,
+                          title: `${m.role}${m.capability ? ` · ${m.capability}` : ""}`,
+                          subtitle: clip(m.content, 140),
+                        })),
+                        selection: chatSelection.get(s.session_id),
+                      };
+                    })}
+                    onToggleParent={(id) =>
+                      setChatSelection((prev) => toggleParent(prev, id))
+                    }
+                    onToggleChild={(parentId, childId, knownChildren) =>
+                      setChatSelection((prev) =>
+                        toggleChild(prev, parentId, childId, knownChildren),
+                      )
+                    }
+                    onToggleExpand={(id) => {
+                      setChatExpanded((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id);
+                        else {
+                          next.add(id);
+                          void ensureChatMessages(id);
+                        }
+                        return next;
+                      });
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-xs text-[var(--muted-foreground)]">
+                Language{" "}
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="ml-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-1.5 py-0.5 text-xs text-[var(--foreground)]"
+                >
+                  <option value="en">English</option>
+                  <option value="zh">中文</option>
+                </select>
+              </label>
+              <button
+                onClick={handleCreate}
+                disabled={loading || !intent.trim()}
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90 disabled:opacity-50"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                Generate proposal
               </button>
-            ))}
-          </div>
-
-          <div className="max-h-72 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--background)] p-1.5">
-            {tab === "knowledge" && (
-              <FlatList
-                loading={kbsLoading}
-                emptyHint="No knowledge bases yet. Create one in the Knowledge page first."
-                items={kbs.map((kb) => ({
-                  key: kb.name,
-                  primary: kb.name,
-                  secondary: kb.is_default ? "default" : kb.status || "",
-                  checked: selectedKbs.has(kb.name),
-                  onToggle: () => toggleKb(kb.name),
-                }))}
-              />
-            )}
-
-            {tab === "notebooks" && (
-              <TreeList
-                loading={notebooksLoading}
-                emptyHint="No notebooks yet. Save chat outputs into a notebook first."
-                parents={notebooks.map((nb) => {
-                  const records = notebookRecords[nb.id];
-                  return {
-                    id: nb.id,
-                    title: nb.name,
-                    subtitle: parentSubtitle(
-                      notebookSelection.get(nb.id),
-                      records?.length ?? nb.record_count ?? 0,
-                      "record",
-                    ),
-                    expanded: notebookExpanded.has(nb.id),
-                    childrenLoading: !!notebookRecordsLoading[nb.id],
-                    children: (records ?? []).map((rec) => ({
-                      id: rec.id,
-                      title: rec.title || "(untitled)",
-                      subtitle: rec.summary || "",
-                    })),
-                    selection: notebookSelection.get(nb.id),
-                  };
-                })}
-                onToggleParent={(id) =>
-                  setNotebookSelection((prev) => toggleParent(prev, id))
-                }
-                onToggleChild={(parentId, childId, knownChildren) =>
-                  setNotebookSelection((prev) =>
-                    toggleChild(prev, parentId, childId, knownChildren),
-                  )
-                }
-                onToggleExpand={(id) => {
-                  setNotebookExpanded((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(id)) next.delete(id);
-                    else {
-                      next.add(id);
-                      void ensureNotebookRecords(id);
-                    }
-                    return next;
-                  });
-                }}
-              />
-            )}
-
-            {tab === "questions" && (
-              <TreeList<number, number>
-                loading={categoriesLoading}
-                emptyHint="No quiz categories yet. Bookmark questions into a category first."
-                parents={categories.map((cat) => {
-                  const entries = questionEntries[cat.id];
-                  return {
-                    id: cat.id,
-                    title: cat.name,
-                    subtitle: parentSubtitle(
-                      questionSelection.get(cat.id),
-                      entries?.length ?? cat.entry_count ?? 0,
-                      "entry",
-                      "entries",
-                    ),
-                    expanded: questionExpanded.has(cat.id),
-                    childrenLoading: !!questionEntriesLoading[cat.id],
-                    children: (entries ?? []).map((e) => ({
-                      id: e.id,
-                      title: e.question || "(no question)",
-                      subtitle: `${e.is_correct ? "✓" : "✗"} ${
-                        e.user_answer ? `your: ${e.user_answer}` : "no attempt"
-                      } · correct: ${e.correct_answer}`,
-                    })),
-                    selection: questionSelection.get(cat.id),
-                  };
-                })}
-                onToggleParent={(id) =>
-                  setQuestionSelection((prev) => toggleParent(prev, id))
-                }
-                onToggleChild={(parentId, childId, knownChildren) =>
-                  setQuestionSelection((prev) =>
-                    toggleChild(prev, parentId, childId, knownChildren),
-                  )
-                }
-                onToggleExpand={(id) => {
-                  setQuestionExpanded((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(id)) next.delete(id);
-                    else {
-                      next.add(id);
-                      void ensureQuestionEntries(id);
-                    }
-                    return next;
-                  });
-                }}
-              />
-            )}
-
-            {tab === "chats" && (
-              <TreeList<string, number>
-                loading={sessionsLoading}
-                emptyHint="No chat sessions yet."
-                parents={sessions.map((s) => {
-                  const msgs = chatMessages[s.session_id];
-                  return {
-                    id: s.session_id,
-                    title: s.title || "(untitled chat)",
-                    subtitle: parentSubtitle(
-                      chatSelection.get(s.session_id),
-                      msgs?.length ?? s.message_count ?? 0,
-                      "message",
-                    ),
-                    expanded: chatExpanded.has(s.session_id),
-                    childrenLoading: !!chatMessagesLoading[s.session_id],
-                    children: (msgs ?? []).map((m) => ({
-                      id: m.id,
-                      title: `${m.role}${m.capability ? ` · ${m.capability}` : ""}`,
-                      subtitle: clip(m.content, 140),
-                    })),
-                    selection: chatSelection.get(s.session_id),
-                  };
-                })}
-                onToggleParent={(id) =>
-                  setChatSelection((prev) => toggleParent(prev, id))
-                }
-                onToggleChild={(parentId, childId, knownChildren) =>
-                  setChatSelection((prev) =>
-                    toggleChild(prev, parentId, childId, knownChildren),
-                  )
-                }
-                onToggleExpand={(id) => {
-                  setChatExpanded((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(id)) next.delete(id);
-                    else {
-                      next.add(id);
-                      void ensureChatMessages(id);
-                    }
-                    return next;
-                  });
-                }}
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-xs text-[var(--muted-foreground)]">
-            Language{" "}
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="ml-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-1.5 py-0.5 text-xs text-[var(--foreground)]"
-            >
-              <option value="en">English</option>
-              <option value="zh">中文</option>
-            </select>
-          </label>
-          <button
-            onClick={handleCreate}
-            disabled={loading || !intent.trim()}
-            className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            Generate proposal
-          </button>
-        </div>
+            </div>
           </div>
         )}
       </div>
@@ -731,16 +748,14 @@ function parentSubtitle<C extends string | number>(
   if (sel.mode === "all") {
     return total > 0 ? `All ${fmt(total)}` : "All";
   }
-  return total > 0 ? `${sel.ids.size} of ${fmt(total)}` : `${sel.ids.size} selected`;
+  return total > 0
+    ? `${sel.ids.size} of ${fmt(total)}`
+    : `${sel.ids.size} selected`;
 }
 
 // ─── checkbox icon ─────────────────────────────────────────────────────
 
-function CheckBox({
-  state,
-}: {
-  state: "off" | "on" | "indeterminate";
-}) {
+function CheckBox({ state }: { state: "off" | "on" | "indeterminate" }) {
   if (state === "off") {
     return (
       <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-[var(--border)] bg-[var(--background)]" />
@@ -941,7 +956,8 @@ function TreeList<
                 ) : (
                   <ul className="max-h-56 space-y-0.5 overflow-y-auto pr-0.5">
                     {p.children.map((c) => {
-                      const checked = !!sel && (sel.mode === "all" || sel.ids.has(c.id));
+                      const checked =
+                        !!sel && (sel.mode === "all" || sel.ids.has(c.id));
                       const knownChildren = p.children.map((x) => x.id);
                       return (
                         <li key={String(c.id)}>
@@ -1000,7 +1016,9 @@ function ProposalForm({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="block sm:col-span-2">
-        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Title</span>
+        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+          Title
+        </span>
         <input
           value={proposal.title}
           onChange={(e) => update({ title: e.target.value })}
@@ -1008,7 +1026,9 @@ function ProposalForm({
         />
       </label>
       <label className="block sm:col-span-2">
-        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Description</span>
+        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+          Description
+        </span>
         <textarea
           value={proposal.description}
           onChange={(e) => update({ description: e.target.value })}
@@ -1017,7 +1037,9 @@ function ProposalForm({
         />
       </label>
       <label className="block">
-        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Scope</span>
+        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+          Scope
+        </span>
         <input
           value={proposal.scope}
           onChange={(e) => update({ scope: e.target.value })}
@@ -1025,7 +1047,9 @@ function ProposalForm({
         />
       </label>
       <label className="block">
-        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Target level</span>
+        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+          Target level
+        </span>
         <input
           value={proposal.target_level}
           onChange={(e) => update({ target_level: e.target.value })}
@@ -1033,7 +1057,9 @@ function ProposalForm({
         />
       </label>
       <label className="block">
-        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">Estimated chapters</span>
+        <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+          Estimated chapters
+        </span>
         <input
           type="number"
           min={2}
@@ -1052,7 +1078,8 @@ function ProposalForm({
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {selectedKbs.length === 0 ? (
             <span className="text-xs italic text-[var(--muted-foreground)]">
-              No knowledge bases selected. The book will rely on general knowledge.
+              No knowledge bases selected. The book will rely on general
+              knowledge.
             </span>
           ) : (
             selectedKbs.map((kb) => (

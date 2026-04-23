@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, RefreshCcw, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Loader2,
+  RefreshCcw,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import type { Block, BlockType, Page } from "@/lib/book-types";
 import BlockRenderer from "./blocks/BlockRenderer";
 import PageOutlineNav from "./PageOutlineNav";

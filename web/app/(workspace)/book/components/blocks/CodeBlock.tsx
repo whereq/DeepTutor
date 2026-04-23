@@ -16,7 +16,9 @@ export default function CodeBlock({ block }: CodeBlockProps) {
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
       <MarkdownRenderer content={fenced} variant="default" />
       {explanation && (
-        <p className="mt-2 text-xs text-[var(--muted-foreground)]">{explanation}</p>
+        <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+          {explanation}
+        </p>
       )}
     </div>
   );

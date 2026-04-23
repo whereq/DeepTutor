@@ -74,9 +74,7 @@ export function useNotebookSelection() {
             type: String(rec.type),
           }),
         );
-        setNotebookRecordsMap((prev) =>
-          new Map(prev).set(notebookId, records),
-        );
+        setNotebookRecordsMap((prev) => new Map(prev).set(notebookId, records));
       } catch (err) {
         console.error("Failed to fetch notebook records:", err);
       } finally {

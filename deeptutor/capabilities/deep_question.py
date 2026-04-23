@@ -47,9 +47,7 @@ class DeepQuestionCapability(BaseCapability):
         output_dir = get_path_service().get_task_workspace("deep_question", turn_id)
 
         overrides = context.config_overrides
-        followup_question_context = (
-            context.metadata.get("question_followup_context", {}) or {}
-        )
+        followup_question_context = context.metadata.get("question_followup_context", {}) or {}
         if isinstance(followup_question_context, dict) and followup_question_context.get(
             "question"
         ):
@@ -89,13 +87,9 @@ class DeepQuestionCapability(BaseCapability):
         difficulty = str(overrides.get("difficulty", "") or "")
         question_type = str(overrides.get("question_type", "") or "")
         preference = str(overrides.get("preference", "") or "")
-        history_context = str(
-            context.metadata.get("conversation_context_text", "") or ""
-        ).strip()
+        history_context = str(context.metadata.get("conversation_context_text", "") or "").strip()
         enabled_tools = set(
-            self.manifest.tools_used
-            if context.enabled_tools is None
-            else context.enabled_tools
+            self.manifest.tools_used if context.enabled_tools is None else context.enabled_tools
         )
         tool_flags_override = {
             "rag": "rag" in enabled_tools,
@@ -128,9 +122,7 @@ class DeepQuestionCapability(BaseCapability):
                 stage = "generation" if update_type == "question_update" else "ideation"
             message = self._format_bridge_message(update_type, update)
             metadata = {
-                key: value
-                for key, value in update.items()
-                if key not in {"type", "message"}
+                key: value for key, value in update.items() if key not in {"type", "message"}
             }
             if "question_id" in update:
                 metadata.setdefault("trace_id", str(update.get("question_id")))
@@ -165,11 +157,15 @@ class DeepQuestionCapability(BaseCapability):
                 return
         else:
             if not topic:
-                await stream.error("Topic is required for custom question generation.", source=self.name)
+                await stream.error(
+                    "Topic is required for custom question generation.", source=self.name
+                )
                 return
 
             async with stream.stage("ideation", source=self.name):
-                await stream.thinking("Generating question templates...", source=self.name, stage="ideation")
+                await stream.thinking(
+                    "Generating question templates...", source=self.name, stage="ideation"
+                )
 
             result = await coordinator.generate_from_topic(
                 user_topic=topic,
@@ -208,7 +204,6 @@ class DeepQuestionCapability(BaseCapability):
         with ``qa_pair`` items) so the existing ``QuizViewer`` renders it
         without changes.
         """
-        import json
 
         from deeptutor.capabilities._answer_now import (
             build_answer_now_trace_metadata,
@@ -272,7 +267,7 @@ class DeepQuestionCapability(BaseCapability):
         results = [
             {
                 "qa_pair": {
-                    "question_id": q.get("question_id") or f"q_{idx+1}",
+                    "question_id": q.get("question_id") or f"q_{idx + 1}",
                     "question": q.get("question", ""),
                     "question_type": q.get("question_type", "written"),
                     "options": q.get("options") or {},
@@ -322,7 +317,7 @@ class DeepQuestionCapability(BaseCapability):
             if "\n" in text:
                 text = text.split("\n", 1)[1]
             if text.endswith("```"):
-                text = text[: -3]
+                text = text[:-3]
             text = text.strip()
         try:
             parsed = json.loads(text)
@@ -349,6 +344,7 @@ class DeepQuestionCapability(BaseCapability):
     @staticmethod
     def _collect_cost_summary(module_name: str) -> dict[str, Any] | None:
         from deeptutor.agents.base_agent import BaseAgent
+
         stats = BaseAgent._shared_stats.get(module_name)
         if not stats or not stats.calls:
             return None
@@ -447,13 +443,17 @@ class DeepQuestionCapability(BaseCapability):
             count = update.get("count", 0)
             batch = update.get("batch", "")
             templates = update.get("templates", [])
-            prefix = f"Templates ready (batch {batch}): {count}" if batch else f"Templates ready: {count}"
+            prefix = (
+                f"Templates ready (batch {batch}): {count}"
+                if batch
+                else f"Templates ready: {count}"
+            )
             lines = [prefix]
             for t in templates:
                 if isinstance(t, dict):
                     lines.append(
-                        f"  [{t.get('question_id','')}] {t.get('concentration','')[:80]} "
-                        f"({t.get('question_type','')}/{t.get('difficulty','')})"
+                        f"  [{t.get('question_id', '')}] {t.get('concentration', '')[:80]} "
+                        f"({t.get('question_type', '')}/{t.get('difficulty', '')})"
                     )
             return "\n".join(lines)
 

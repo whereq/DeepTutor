@@ -74,20 +74,43 @@ _PHASE1_TYPES = {
 _TEMPLATES_V2: dict[ContentType, list[tuple[BlockType, dict[str, Any]]]] = {
     ContentType.THEORY: [
         (BlockType.SECTION, {"role": "introduction", "target_words": 1200}),
-        (BlockType.FIGURE, {"variant": "diagram", "transition_in": "Visualising the core structure"}),
+        (
+            BlockType.FIGURE,
+            {"variant": "diagram", "transition_in": "Visualising the core structure"},
+        ),
         (BlockType.SECTION, {"role": "deep_dive", "target_words": 1600}),
         (BlockType.CALLOUT, {"variant": "key_idea", "transition_in": "A key idea to remember"}),
-        (BlockType.CODE, {"language": "python", "intent": "example", "transition_in": "A concrete example in code"}),
+        (
+            BlockType.CODE,
+            {
+                "language": "python",
+                "intent": "example",
+                "transition_in": "A concrete example in code",
+            },
+        ),
         (BlockType.SECTION, {"role": "synthesis", "target_words": 800}),
         (BlockType.QUIZ, {"num_questions": 3, "transition_in": "Check your understanding"}),
         (BlockType.FLASH_CARDS, {"count": 5, "transition_in": "Quick mental hooks"}),
     ],
     ContentType.DERIVATION: [
         (BlockType.SECTION, {"role": "setup", "target_words": 1400}),
-        (BlockType.ANIMATION, {"focus": "core derivation", "transition_in": "Step through the derivation visually"}),
+        (
+            BlockType.ANIMATION,
+            {"focus": "core derivation", "transition_in": "Step through the derivation visually"},
+        ),
         (BlockType.SECTION, {"role": "formal_proof", "target_words": 1200}),
-        (BlockType.CODE, {"language": "python", "intent": "verify", "transition_in": "Verify the result numerically"}),
-        (BlockType.CALLOUT, {"variant": "insight", "transition_in": "What this result really means"}),
+        (
+            BlockType.CODE,
+            {
+                "language": "python",
+                "intent": "verify",
+                "transition_in": "Verify the result numerically",
+            },
+        ),
+        (
+            BlockType.CALLOUT,
+            {"variant": "insight", "transition_in": "What this result really means"},
+        ),
         (BlockType.SECTION, {"role": "interpretation", "target_words": 1000}),
         (BlockType.QUIZ, {"num_questions": 2, "transition_in": "Test your derivation skills"}),
     ],
@@ -103,11 +126,23 @@ _TEMPLATES_V2: dict[ContentType, list[tuple[BlockType, dict[str, Any]]]] = {
     ContentType.PRACTICE: [
         (BlockType.SECTION, {"role": "brief", "target_words": 1000}),
         (BlockType.QUIZ, {"num_questions": 3, "difficulty": "easy", "transition_in": "Warm up"}),
-        (BlockType.CODE, {"language": "python", "intent": "scaffold", "transition_in": "Try it yourself"}),
+        (
+            BlockType.CODE,
+            {"language": "python", "intent": "scaffold", "transition_in": "Try it yourself"},
+        ),
         (BlockType.SECTION, {"role": "walkthrough", "target_words": 1200}),
-        (BlockType.INTERACTIVE, {"interaction": "guided exercise", "transition_in": "Practise interactively"}),
-        (BlockType.QUIZ, {"num_questions": 3, "difficulty": "hard", "transition_in": "Now push further"}),
-        (BlockType.CALLOUT, {"variant": "common_pitfall", "transition_in": "Watch out for these traps"}),
+        (
+            BlockType.INTERACTIVE,
+            {"interaction": "guided exercise", "transition_in": "Practise interactively"},
+        ),
+        (
+            BlockType.QUIZ,
+            {"num_questions": 3, "difficulty": "hard", "transition_in": "Now push further"},
+        ),
+        (
+            BlockType.CALLOUT,
+            {"variant": "common_pitfall", "transition_in": "Watch out for these traps"},
+        ),
     ],
     ContentType.CONCEPT: [
         (BlockType.SECTION, {"role": "definition", "target_words": 1400}),
@@ -158,9 +193,7 @@ def _static_plan(
     *,
     phase: int,
 ) -> list[Block]:
-    template = _TEMPLATES_V2.get(chapter.content_type) or _TEMPLATES_V2[
-        ContentType.THEORY
-    ]
+    template = _TEMPLATES_V2.get(chapter.content_type) or _TEMPLATES_V2[ContentType.THEORY]
     return [_build_block(bt, dict(params), chapter) for bt, params in template]
 
 
@@ -192,9 +225,7 @@ def _architect_prompts(language: str) -> tuple[str, str]:
     """
     bundle = load_book_prompts("page_planner", language)
     catalog = get_book_prompt(bundle, "block_catalog")
-    system_prompt = get_book_prompt(bundle, "architect_system").replace(
-        "{block_catalog}", catalog
-    )
+    system_prompt = get_book_prompt(bundle, "architect_system").replace("{block_catalog}", catalog)
     user_template = get_book_prompt(bundle, "architect_user")
     return system_prompt, user_template
 
@@ -207,9 +238,7 @@ def _architect_user_prompt(
     user_template: str,
 ) -> str:
     none_label = "(无)" if language == "zh" else "(none)"
-    objs = (
-        "\n".join(f"- {o}" for o in chapter.learning_objectives) or none_label
-    )
+    objs = "\n".join(f"- {o}" for o in chapter.learning_objectives) or none_label
     return user_template.format(
         chapter_title=chapter.title,
         chapter_summary=chapter.summary or none_label,

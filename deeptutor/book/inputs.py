@@ -58,9 +58,7 @@ class IdeationContext:
             sections.append("[Notebook Context]\n(no notebook records selected)")
 
         if self.question_notebook_text.strip():
-            sections.append(
-                f"[Question Notebook]\n{self.question_notebook_text.strip()}"
-            )
+            sections.append(f"[Question Notebook]\n{self.question_notebook_text.strip()}")
         elif self.question_entry_count == 0:
             sections.append("[Question Notebook]\n(no quiz entries selected)")
 
@@ -71,8 +69,7 @@ class IdeationContext:
 
         if self.knowledge_bases:
             sections.append(
-                "[Knowledge Sources]\n"
-                + "\n".join(f"- {name}" for name in self.knowledge_bases)
+                "[Knowledge Sources]\n" + "\n".join(f"- {name}" for name in self.knowledge_bases)
             )
         else:
             sections.append("[Knowledge Sources]\n(no knowledge bases attached)")
@@ -123,9 +120,7 @@ async def _resolve_chat_selections(
         candidates: list[dict[str, Any]]
         if wanted_ids:
             candidates = [
-                m
-                for m in messages
-                if isinstance(m, dict) and int(m.get("id") or -1) in wanted_ids
+                m for m in messages if isinstance(m, dict) and int(m.get("id") or -1) in wanted_ids
             ]
         else:
             candidates = list(messages[-limit_per_session:])
@@ -327,26 +322,18 @@ async def build_book_inputs(
 
     intent = (user_intent or "").strip()
     refs = _normalize_notebook_refs(notebook_refs)
-    kb_list = [
-        kb.strip()
-        for kb in (knowledge_bases or [])
-        if isinstance(kb, str) and kb.strip()
-    ]
+    kb_list = [kb.strip() for kb in (knowledge_bases or []) if isinstance(kb, str) and kb.strip()]
     cat_ids = [int(c) for c in (question_categories or []) if c is not None]
     entry_ids = [int(e) for e in (question_entries or []) if e is not None]
     sels = _normalize_chat_selections(chat_selections, chat_session_id)
 
-    chat_messages = await _resolve_chat_selections(
-        sels, limit_per_session=chat_history_limit
-    )
+    chat_messages = await _resolve_chat_selections(sels, limit_per_session=chat_history_limit)
     chat_history_text = _format_chat_history(chat_messages)
 
     notebook_context, record_count = await _resolve_notebook_context(
         intent, refs, language=language
     )
-    question_text, question_count = await _resolve_question_notebook(
-        cat_ids, entry_ids
-    )
+    question_text, question_count = await _resolve_question_notebook(cat_ids, entry_ids)
 
     book_inputs = BookInputs(
         user_intent=intent,

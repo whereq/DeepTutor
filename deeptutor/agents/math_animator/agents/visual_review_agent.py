@@ -63,7 +63,9 @@ class VisualReviewAgent(BaseAgent):
             user_input=user_input.strip(),
             output_mode=output_mode,
             reviewed_frames=len(attachments),
-            render_json=json.dumps(render_result.model_dump(exclude={"visual_review"}), ensure_ascii=False, indent=2),
+            render_json=json.dumps(
+                render_result.model_dump(exclude={"visual_review"}), ensure_ascii=False, indent=2
+            ),
             current_code=current_code,
         )
         messages = [

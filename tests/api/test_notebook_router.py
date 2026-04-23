@@ -10,9 +10,7 @@ pytest.importorskip("fastapi")
 
 FastAPI = pytest.importorskip("fastapi").FastAPI
 TestClient = pytest.importorskip("fastapi.testclient").TestClient
-notebook_router = importlib.import_module(
-    "deeptutor.api.routers.question_notebook"
-).router
+notebook_router = importlib.import_module("deeptutor.api.routers.question_notebook").router
 sessions_router = importlib.import_module("deeptutor.api.routers.sessions").router
 
 from deeptutor.services.session.sqlite_store import SQLiteSessionStore
@@ -112,9 +110,18 @@ def test_quiz_results_upserts_on_retry(store: SQLiteSessionStore) -> None:
 
 def test_bookmark_toggle(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session())
-    asyncio.run(store.upsert_notebook_entries(session["id"], [{
-        "question_id": "q1", "question": "Q?", "is_correct": False,
-    }]))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session["id"],
+            [
+                {
+                    "question_id": "q1",
+                    "question": "Q?",
+                    "is_correct": False,
+                }
+            ],
+        )
+    )
     eid = asyncio.run(store.list_notebook_entries())["items"][0]["id"]
 
     with TestClient(_build_app(store)) as client:
@@ -134,9 +141,18 @@ def test_bookmark_toggle(store: SQLiteSessionStore) -> None:
 
 def test_delete_entry(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session())
-    asyncio.run(store.upsert_notebook_entries(session["id"], [{
-        "question_id": "q1", "question": "Q?", "is_correct": False,
-    }]))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session["id"],
+            [
+                {
+                    "question_id": "q1",
+                    "question": "Q?",
+                    "is_correct": False,
+                }
+            ],
+        )
+    )
     eid = asyncio.run(store.list_notebook_entries())["items"][0]["id"]
 
     with TestClient(_build_app(store)) as client:
@@ -146,9 +162,18 @@ def test_delete_entry(store: SQLiteSessionStore) -> None:
 
 def test_category_crud_and_association(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session())
-    asyncio.run(store.upsert_notebook_entries(session["id"], [{
-        "question_id": "q1", "question": "Q?", "is_correct": False,
-    }]))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session["id"],
+            [
+                {
+                    "question_id": "q1",
+                    "question": "Q?",
+                    "is_correct": False,
+                }
+            ],
+        )
+    )
     eid = asyncio.run(store.list_notebook_entries())["items"][0]["id"]
 
     with TestClient(_build_app(store)) as client:
@@ -187,9 +212,18 @@ def test_category_crud_and_association(store: SQLiteSessionStore) -> None:
 
 def test_lookup_entry_by_question(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session())
-    asyncio.run(store.upsert_notebook_entries(session["id"], [{
-        "question_id": "q1", "question": "Q?", "is_correct": False,
-    }]))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session["id"],
+            [
+                {
+                    "question_id": "q1",
+                    "question": "Q?",
+                    "is_correct": False,
+                }
+            ],
+        )
+    )
 
     with TestClient(_build_app(store)) as client:
         resp = client.get(

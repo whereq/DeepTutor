@@ -77,7 +77,10 @@ export function summarizeMathAnimatorConfig(
 ): string {
   const output = titleCase(cfg.output_mode);
   const quality = titleCase(cfg.quality);
-  return [translate ? translate(output) : output, translate ? translate(quality) : quality].join(" · ");
+  return [
+    translate ? translate(output) : output,
+    translate ? translate(quality) : quality,
+  ].join(" · ");
 }
 
 export function extractMathAnimatorResult(
@@ -88,10 +91,10 @@ export function extractMathAnimatorResult(
     ? resultMetadata.artifacts.filter((item): item is MathAnimatorArtifact => {
         return Boolean(
           item &&
-            typeof item === "object" &&
-            "type" in item &&
-            "url" in item &&
-            "filename" in item,
+          typeof item === "object" &&
+          "type" in item &&
+          "url" in item &&
+          "filename" in item,
         );
       })
     : [];
@@ -100,7 +103,8 @@ export function extractMathAnimatorResult(
       ? (resultMetadata.code as Record<string, unknown>)
       : {};
   const hasOutputMode =
-    resultMetadata.output_mode === "image" || resultMetadata.output_mode === "video";
+    resultMetadata.output_mode === "image" ||
+    resultMetadata.output_mode === "video";
   const timings =
     resultMetadata.timings && typeof resultMetadata.timings === "object"
       ? (resultMetadata.timings as Record<string, number>)

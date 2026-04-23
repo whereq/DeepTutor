@@ -27,7 +27,8 @@ export interface QuizBlockProps {
 }
 
 export default function QuizBlock({ block, onAttempt }: QuizBlockProps) {
-  const questions = (block.payload?.questions as QuizQuestion[] | undefined) || [];
+  const questions =
+    (block.payload?.questions as QuizQuestion[] | undefined) || [];
   if (questions.length === 0) {
     return (
       <div className="text-sm text-[var(--muted-foreground)]">
@@ -149,7 +150,10 @@ function QuizQuestionCard({
         </button>
         {revealed && correct && (
           <span className="text-xs text-[var(--muted-foreground)]">
-            Answer: <span className="font-mono text-[var(--foreground)]">{correct}</span>
+            Answer:{" "}
+            <span className="font-mono text-[var(--foreground)]">
+              {correct}
+            </span>
           </span>
         )}
       </div>

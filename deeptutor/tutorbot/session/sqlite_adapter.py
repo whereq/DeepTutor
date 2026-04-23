@@ -8,7 +8,6 @@ for TutorBot and DeepTutor in a single database.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -126,7 +125,8 @@ class SQLiteSessionAdapter:
         existing = await self.store.get_session(session_id)
         if existing is None:
             await self.store.create_session(
-                title=f"TutorBot: {session.key}", session_id=session_id,
+                title=f"TutorBot: {session.key}",
+                session_id=session_id,
             )
 
         existing_msgs = await self.store.get_messages(session_id)

@@ -47,10 +47,7 @@ test("apiUrl composes correctly after rewrite, without losing the base path", ()
 
 test("wsUrl converts http to ws and respects rewritten host", () => {
   setWindow("10.0.0.5");
-  assert.equal(
-    wsUrl("/api/v1/ws"),
-    "ws://10.0.0.5:8001/api/api/v1/ws",
-  );
+  assert.equal(wsUrl("/api/v1/ws"), "ws://10.0.0.5:8001/api/api/v1/ws");
 });
 
 test("wsUrl keeps original loopback when client is also loopback", () => {

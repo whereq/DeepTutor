@@ -74,12 +74,15 @@ async def test_deep_solve_strips_rag_when_no_knowledge_base() -> None:
         language="en",
     )
 
-    with patch(
-        "deeptutor.agents.solve.main_solver.MainSolver",
-        new=_FakeSolver,
-    ), patch(
-        "deeptutor.services.llm.config.get_llm_config",
-        return_value=_fake_llm_config(),
+    with (
+        patch(
+            "deeptutor.agents.solve.main_solver.MainSolver",
+            new=_FakeSolver,
+        ),
+        patch(
+            "deeptutor.services.llm.config.get_llm_config",
+            return_value=_fake_llm_config(),
+        ),
     ):
         events = await _drain(bus, capability.run(context, bus))
 
@@ -91,7 +94,8 @@ async def test_deep_solve_strips_rag_when_no_knowledge_base() -> None:
 
     # And a warning progress event should have been emitted
     warnings = [
-        e for e in events
+        e
+        for e in events
         if e.type == StreamEventType.PROGRESS
         and (e.metadata or {}).get("reason") == "rag_without_kb"
     ]
@@ -127,12 +131,15 @@ async def test_deep_solve_keeps_rag_when_knowledge_base_attached() -> None:
         language="en",
     )
 
-    with patch(
-        "deeptutor.agents.solve.main_solver.MainSolver",
-        new=_FakeSolver,
-    ), patch(
-        "deeptutor.services.llm.config.get_llm_config",
-        return_value=_fake_llm_config(),
+    with (
+        patch(
+            "deeptutor.agents.solve.main_solver.MainSolver",
+            new=_FakeSolver,
+        ),
+        patch(
+            "deeptutor.services.llm.config.get_llm_config",
+            return_value=_fake_llm_config(),
+        ),
     ):
         await _drain(bus, capability.run(context, bus))
 
@@ -171,16 +178,20 @@ async def test_deep_research_drops_kb_source_when_no_knowledge_base() -> None:
         language="en",
     )
 
-    with patch.object(
-        DeepResearchCapability,
-        "_generate_outline_preview",
-        new=_fake_outline,
-    ), patch(
-        "deeptutor.services.llm.config.get_llm_config",
-        return_value=_fake_llm_config(),
-    ), patch(
-        "deeptutor.services.config.load_config_with_main",
-        return_value={},
+    with (
+        patch.object(
+            DeepResearchCapability,
+            "_generate_outline_preview",
+            new=_fake_outline,
+        ),
+        patch(
+            "deeptutor.services.llm.config.get_llm_config",
+            return_value=_fake_llm_config(),
+        ),
+        patch(
+            "deeptutor.services.config.load_config_with_main",
+            return_value={},
+        ),
     ):
         events = await _drain(bus, capability.run(context, bus))
 
@@ -193,7 +204,8 @@ async def test_deep_research_drops_kb_source_when_no_knowledge_base() -> None:
 
     # A warning progress event must be present
     warnings = [
-        e for e in events
+        e
+        for e in events
         if e.type == StreamEventType.PROGRESS
         and (e.metadata or {}).get("reason") == "kb_without_kb_name"
     ]
@@ -219,12 +231,15 @@ async def test_deep_research_errors_when_only_kb_source_and_no_knowledge_base() 
         language="en",
     )
 
-    with patch(
-        "deeptutor.services.llm.config.get_llm_config",
-        return_value=_fake_llm_config(),
-    ), patch(
-        "deeptutor.services.config.load_config_with_main",
-        return_value={},
+    with (
+        patch(
+            "deeptutor.services.llm.config.get_llm_config",
+            return_value=_fake_llm_config(),
+        ),
+        patch(
+            "deeptutor.services.config.load_config_with_main",
+            return_value={},
+        ),
     ):
         events = await _drain(bus, capability.run(context, bus))
 

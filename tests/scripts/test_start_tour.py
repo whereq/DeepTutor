@@ -79,6 +79,7 @@ def test_stream_text_kwargs_use_best_effort_decoding() -> None:
 # _resolve_python tests (issue #289 — Python 3.14+ compatibility)
 # ---------------------------------------------------------------------------
 
+
 def _get_resolve_python():
     """Import _resolve_python without triggering full module load."""
     start_tour = _load_start_tour_module()

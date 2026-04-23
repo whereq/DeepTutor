@@ -27,7 +27,11 @@ function detectMathContent(content: string): boolean {
   if (/(^|[^\\])\$\$[\s\S]+?\$\$/.test(content)) return true;
   if (/\\\(|\\\[/.test(content)) return true;
   // Single-dollar inline math containing LaTeX commands (\cmd) or math operators ({}_^)
-  if (/(?:^|[^$\\])\$(?!\$|\s)(?:[^$\n]*(?:\\[a-zA-Z]+|[{}_^]))[^$\n]*\$(?!\$)/m.test(content))
+  if (
+    /(?:^|[^$\\])\$(?!\$|\s)(?:[^$\n]*(?:\\[a-zA-Z]+|[{}_^]))[^$\n]*\$(?!\$)/m.test(
+      content,
+    )
+  )
     return true;
   return false;
 }
@@ -70,7 +74,13 @@ export default function MarkdownRenderer({
       resolvedAllowHtml);
 
   if (!shouldUseRich) {
-    return <SimpleMarkdownRenderer content={content} className={className} variant={variant} />;
+    return (
+      <SimpleMarkdownRenderer
+        content={content}
+        className={className}
+        variant={variant}
+      />
+    );
   }
 
   return (

@@ -42,7 +42,7 @@ class InteractiveGenerator(BlockGenerator):
         focus_clause = f" focusing on {focus}" if focus else ""
         user_input = (
             f"Build an {interaction} HTML page for the chapter "
-            f"\"{chapter_title}\"{focus_clause}. The page should let the learner "
+            f'"{chapter_title}"{focus_clause}. The page should let the learner '
             "manipulate state, drag/click controls, or step through a guided "
             "demo to internalise the concept."
         )

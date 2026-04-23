@@ -49,9 +49,7 @@ export const bookApi = {
       { method: "DELETE" },
     ),
   getSpine: (book_id: string) =>
-    request<{ spine: Spine }>(
-      `/books/${encodeURIComponent(book_id)}/spine`,
-    ),
+    request<{ spine: Spine }>(`/books/${encodeURIComponent(book_id)}/spine`),
   getPage: (book_id: string, page_id: string) =>
     request<{ page: Page }>(
       `/books/${encodeURIComponent(book_id)}/pages/${encodeURIComponent(page_id)}`,
@@ -201,8 +199,7 @@ export const bookApi = {
 
 // ── WebSocket helper ─────────────────────────────────────────────────
 
-export type BookWsEvent =
-  | { type: string; [key: string]: unknown };
+export type BookWsEvent = { type: string; [key: string]: unknown };
 
 export function openBookSocket(
   onEvent: (event: BookWsEvent) => void,

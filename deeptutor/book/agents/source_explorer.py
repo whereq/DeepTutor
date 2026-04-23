@@ -208,8 +208,7 @@ class SourceExplorer(BaseAgent):
         if inputs.chat_history:
             recent = inputs.chat_history[-4:]
             extra_context_lines.append(
-                "- Recent chat highlights: "
-                + " | ".join(_clip(m.content, 120) for m in recent)
+                "- Recent chat highlights: " + " | ".join(_clip(m.content, 120) for m in recent)
             )
         if inputs.question_categories or inputs.question_entries:
             extra_context_lines.append(
@@ -300,12 +299,7 @@ class SourceExplorer(BaseAgent):
                     or src.get("source")
                     or f"{kb}#{idx}"
                 )
-                text = (
-                    src.get("text")
-                    or src.get("snippet")
-                    or src.get("content")
-                    or ""
-                )
+                text = src.get("text") or src.get("snippet") or src.get("content") or ""
                 score = src.get("score") or src.get("similarity") or 0.0
                 try:
                     score_f = float(score)

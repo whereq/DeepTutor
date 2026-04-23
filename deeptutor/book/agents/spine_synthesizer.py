@@ -60,9 +60,7 @@ def _clip(text: str, limit: int) -> str:
 
 
 def _slug(text: str) -> str:
-    cleaned = "".join(
-        ch.lower() if ch.isalnum() else "_" for ch in (text or "").strip()
-    )
+    cleaned = "".join(ch.lower() if ch.isalnum() else "_" for ch in (text or "").strip())
     while "__" in cleaned:
         cleaned = cleaned.replace("__", "_")
     return cleaned.strip("_")[:48] or "concept"
@@ -317,7 +315,9 @@ class SpineSynthesizer(BaseAgent):
         # The user-facing graph should map 1-to-1 with chapters so the
         # Overview concept map reads like a mind map of the book.
         chapter_map = _build_chapter_map(
-            chapters, raw_graph, book_title=proposal.title,
+            chapters,
+            raw_graph,
+            book_title=proposal.title,
         )
 
         return Spine(
@@ -410,9 +410,7 @@ class SpineSynthesizer(BaseAgent):
             objectives_raw = item.get("learning_objectives") or []
             if not isinstance(objectives_raw, list):
                 objectives_raw = []
-            objectives = [
-                _clip(str(o), 200) for o in objectives_raw if str(o or "").strip()
-            ][:6]
+            objectives = [_clip(str(o), 200) for o in objectives_raw if str(o or "").strip()][:6]
 
             anchors_raw = item.get("source_anchors") or []
             anchors: list[SourceAnchor] = []
@@ -520,8 +518,8 @@ def _build_chapter_map(
     """
 
     # ── Node per chapter ──────────────────────────────────────────────
-    slug_of: dict[str, str] = {}          # chapter.id → slug
-    title_to_slug: dict[str, str] = {}    # chapter.title.lower() → slug
+    slug_of: dict[str, str] = {}  # chapter.id → slug
+    title_to_slug: dict[str, str] = {}  # chapter.title.lower() → slug
     concept_to_slug: dict[str, str] = {}  # concept_id → owning chapter slug
     nodes: list[ConceptNode] = []
 
@@ -565,8 +563,7 @@ def _build_chapter_map(
             continue
         seen_edges.add(pair)
         edges.append(
-            ConceptEdge(src=src_slug, dst=dst_slug, relation="depends_on",
-                        rationale=edge.rationale)
+            ConceptEdge(src=src_slug, dst=dst_slug, relation="depends_on", rationale=edge.rationale)
         )
 
     # ── Edges: explicit prerequisite titles ───────────────────────────
@@ -583,8 +580,7 @@ def _build_chapter_map(
                 continue
             seen_edges.add(pair)
             edges.append(
-                ConceptEdge(src=src_slug, dst=dst_slug, relation="depends_on",
-                            rationale="")
+                ConceptEdge(src=src_slug, dst=dst_slug, relation="depends_on", rationale="")
             )
 
     # ── Virtual root for disconnected graphs ──────────────────────────
@@ -595,14 +591,14 @@ def _build_chapter_map(
         if root_slug in {n.id for n in nodes}:
             root_slug = f"{root_slug}_root"
         root_node = ConceptNode(
-            id=root_slug, label=book_title, description="", weight=1.0,
+            id=root_slug,
+            label=book_title,
+            description="",
+            weight=1.0,
         )
         nodes.insert(0, root_node)
         for rn in roots:
-            edges.append(
-                ConceptEdge(src=root_slug, dst=rn.id, relation="related",
-                            rationale="")
-            )
+            edges.append(ConceptEdge(src=root_slug, dst=rn.id, relation="related", rationale=""))
 
     return ConceptGraph(nodes=nodes, edges=edges)
 
@@ -712,9 +708,7 @@ def _topological_sort(chapters: list[Chapter], graph: ConceptGraph) -> list[Chap
     return [chapters[i] for i in ordered]
 
 
-def _ensure_full_coverage(
-    chapters: list[Chapter], graph: ConceptGraph
-) -> ConceptGraph:
+def _ensure_full_coverage(chapters: list[Chapter], graph: ConceptGraph) -> ConceptGraph:
     """Attach uncovered concept nodes to the most relevant chapter (Jaccard)."""
     if not graph.nodes or not chapters:
         return graph
@@ -725,13 +719,10 @@ def _ensure_full_coverage(
             covered.add(nid)
 
     def _tokenize(text: str) -> set[str]:
-        return {
-            t for t in (text or "").lower().replace("_", " ").split() if len(t) > 1
-        }
+        return {t for t in (text or "").lower().replace("_", " ").split() if len(t) > 1}
 
     chapter_tokens = [
-        _tokenize(f"{ch.title} {ch.summary} {' '.join(ch.learning_objectives)}")
-        for ch in chapters
+        _tokenize(f"{ch.title} {ch.summary} {' '.join(ch.learning_objectives)}") for ch in chapters
     ]
 
     for node in graph.nodes:

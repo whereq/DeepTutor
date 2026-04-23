@@ -112,7 +112,9 @@ export default function NotebookSelector({
                     )}
                     <span
                       className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: notebook.color || "var(--primary)" }}
+                      style={{
+                        backgroundColor: notebook.color || "var(--primary)",
+                      }}
                     />
                     <span className="flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">
                       {notebook.name}

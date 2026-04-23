@@ -19,7 +19,9 @@ from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.stream_bus import StreamBus
 
 
-def _install_module(monkeypatch: pytest.MonkeyPatch, fullname: str, **attrs: Any) -> types.ModuleType:
+def _install_module(
+    monkeypatch: pytest.MonkeyPatch, fullname: str, **attrs: Any
+) -> types.ModuleType:
     parts = fullname.split(".")
     for idx in range(1, len(parts)):
         pkg_name = ".".join(parts[:idx])
@@ -104,7 +106,10 @@ async def test_chat_capability_streams_content_and_geogebra_context(
 
     assert any(event.type == StreamEventType.TOOL_CALL for event in events)
     assert any(event.type == StreamEventType.SOURCES for event in events)
-    assert any(event.type == StreamEventType.CONTENT and "assistant output" in event.content for event in events)
+    assert any(
+        event.type == StreamEventType.CONTENT and "assistant output" in event.content
+        for event in events
+    )
     assert "GGB commands" in captured["process"]["message"]
 
 
@@ -165,8 +170,14 @@ async def test_deep_solve_capability_bridges_solver_output(
     assert captured["solver_init"]["enabled_tools"] == expected_tools
     assert captured["solver_init"]["kb_name"] == expected_kb
     assert captured["solver_init"]["disable_planner_retrieve"] is expected_disable
-    assert any(event.type == StreamEventType.PROGRESS and event.content == "solver-progress" for event in events)
-    assert any(event.type == StreamEventType.CONTENT and "final solution" in event.content for event in events)
+    assert any(
+        event.type == StreamEventType.PROGRESS and event.content == "solver-progress"
+        for event in events
+    )
+    assert any(
+        event.type == StreamEventType.CONTENT and "final solution" in event.content
+        for event in events
+    )
     result_event = next(event for event in events if event.type == StreamEventType.RESULT)
     assert result_event.metadata["response"] == "final solution"
 
@@ -298,7 +309,9 @@ async def test_deep_question_capability_uses_user_message_as_topic(
     events = await _collect_events(lambda bus: capability.run(context, bus))
 
     assert captured["topic_call"]["user_topic"] == "linear algebra fundamentals"
-    assert any(event.type == StreamEventType.PROGRESS and event.stage == "ideation" for event in events)
+    assert any(
+        event.type == StreamEventType.PROGRESS and event.stage == "ideation" for event in events
+    )
     result_event = next(event for event in events if event.type == StreamEventType.RESULT)
     assert "Question 1" in result_event.metadata["response"]
 
@@ -381,12 +394,9 @@ async def test_deep_question_capability_uses_single_call_followup_agent(
 
     assert captured["process"]["user_message"] == "Why was my answer wrong?"
     assert (
-        captured["process"]["history_context"]
-        == "User previously asked for a simpler explanation."
+        captured["process"]["history_context"] == "User previously asked for a simpler explanation."
     )
-    assert (
-        captured["process"]["question_context"]["question_id"] == "q_3"
-    )
+    assert captured["process"]["question_context"]["question_id"] == "q_3"
     assert any(
         event.type == StreamEventType.CONTENT
         and "key distinction between density and coverage" in event.content

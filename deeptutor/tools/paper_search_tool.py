@@ -6,8 +6,8 @@ tool usage in chat / playground flows.
 """
 
 import asyncio
-import logging
 from datetime import datetime
+import logging
 import re
 
 import arxiv
@@ -87,7 +87,9 @@ class ArxivSearchTool:
                 timeout=_REQUEST_TIMEOUT_S,
             )
         except asyncio.TimeoutError:
-            logger.warning("arXiv search timed out after %ss for query: %s", _REQUEST_TIMEOUT_S, query)
+            logger.warning(
+                "arXiv search timed out after %ss for query: %s", _REQUEST_TIMEOUT_S, query
+            )
             return []
         except arxiv.HTTPError as exc:
             logger.warning("arXiv HTTP error (status %s) for query: %s", exc.status, query)

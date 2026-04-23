@@ -6,7 +6,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
-
 ResearchMode = Literal["notes", "report", "comparison", "learning_path"]
 ResearchDepth = Literal["quick", "standard", "deep", "manual"]
 ResearchSource = Literal["kb", "web", "papers"]
@@ -50,7 +49,9 @@ class DeepResearchRequestConfig(BaseModel):
         return value
 
 
-def validate_research_request_config(raw_config: dict[str, Any] | None) -> DeepResearchRequestConfig:
+def validate_research_request_config(
+    raw_config: dict[str, Any] | None,
+) -> DeepResearchRequestConfig:
     if not isinstance(raw_config, dict):
         raise ValueError("Deep research requires an explicit config object.")
     try:
@@ -155,9 +156,7 @@ def build_research_runtime_config(
         else {}
     )
     research_root = (
-        capabilities.get("research", {})
-        if isinstance(capabilities.get("research"), dict)
-        else {}
+        capabilities.get("research", {}) if isinstance(capabilities.get("research"), dict) else {}
     )
     researching_root = (
         research_root.get("researching", {})
@@ -180,17 +179,18 @@ def build_research_runtime_config(
     runtime_config["researching"] = {
         **{
             key: researching_root[key]
-            for key in ("note_agent_mode", "tool_timeout", "tool_max_retries", "paper_search_years_limit")
+            for key in (
+                "note_agent_mode",
+                "tool_timeout",
+                "tool_max_retries",
+                "paper_search_years_limit",
+            )
             if key in researching_root
         },
         **policy["researching"],
     }
     runtime_config["reporting"] = {
-        **{
-            key: reporting_root[key]
-            for key in ()
-            if key in reporting_root
-        },
+        **{key: reporting_root[key] for key in () if key in reporting_root},
         **policy["reporting"],
     }
     runtime_config["queue"] = policy["queue"]

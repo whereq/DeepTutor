@@ -29,7 +29,9 @@ function ChartJsRenderer({ config }: { config: string }) {
         }
 
         // eslint-disable-next-line no-new-func
-        const parsedConfig = new Function(`"use strict"; return (${config});`)();
+        const parsedConfig = new Function(
+          `"use strict"; return (${config});`,
+        )();
 
         if (cancelled) return;
 
@@ -37,7 +39,9 @@ function ChartJsRenderer({ config }: { config: string }) {
         setError(null);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : t("Failed to render chart"));
+          setError(
+            err instanceof Error ? err.message : t("Failed to render chart"),
+          );
         }
       }
     }
@@ -59,7 +63,9 @@ function ChartJsRenderer({ config }: { config: string }) {
         <p className="text-sm font-medium text-red-600 dark:text-red-400">
           {t("Chart rendering error")}
         </p>
-        <pre className="mt-2 whitespace-pre-wrap text-xs text-red-500">{error}</pre>
+        <pre className="mt-2 whitespace-pre-wrap text-xs text-red-500">
+          {error}
+        </pre>
       </div>
     );
   }
@@ -137,7 +143,9 @@ function SvgRenderer({ svg }: { svg: string }) {
         <p className="text-sm font-medium text-red-600 dark:text-red-400">
           {t("SVG rendering error")}
         </p>
-        <pre className="mt-2 whitespace-pre-wrap text-xs text-red-500">{error}</pre>
+        <pre className="mt-2 whitespace-pre-wrap text-xs text-red-500">
+          {error}
+        </pre>
       </div>
     );
   }
@@ -242,7 +250,11 @@ export default function VisualizationViewer({
           onClick={handleCopy}
           className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
         >
-          {copied ? <Check size={12} strokeWidth={1.8} /> : <Copy size={12} strokeWidth={1.8} />}
+          {copied ? (
+            <Check size={12} strokeWidth={1.8} />
+          ) : (
+            <Copy size={12} strokeWidth={1.8} />
+          )}
           {copied ? t("Copied") : t("Copy code")}
         </button>
 

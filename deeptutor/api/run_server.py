@@ -24,6 +24,7 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(line_buffering=True)
 
+
 def main() -> None:
     # Get project root directory
     project_root = Path(__file__).parent.parent.parent

@@ -16,10 +16,7 @@ _GUIDELINE_HEADER = {
         "**Autonomously decide which tool to use** based on the current sub-goal "
         "and the evidence gathered so far. Consider all available options:"
     ),
-    "zh": (
-        "**根据当前子目标和已收集的证据，自主决定使用哪个工具**。"
-        "请综合考虑所有可用选项："
-    ),
+    "zh": ("**根据当前子目标和已收集的证据，自主决定使用哪个工具**。请综合考虑所有可用选项："),
 }
 
 _PHASE_LABELS = {
@@ -114,20 +111,14 @@ class ToolPromptComposer:
         ]
         for name, hint in hints:
             if hint.when_to_use or hint.input_format:
-                table_lines.append(
-                    f"| `{name}` | {hint.when_to_use} | {hint.input_format} |"
-                )
+                table_lines.append(f"| `{name}` | {hint.when_to_use} | {hint.input_format} |")
         for control in control_actions or []:
             table_lines.append(
                 f"| `{control['name']}` | {control['when_to_use']} | {control['input_format']} |"
             )
         parts.append("\n".join(table_lines))
 
-        guidelines = [
-            f"  - `{name}` {hint.guideline}"
-            for name, hint in hints
-            if hint.guideline
-        ]
+        guidelines = [f"  - `{name}` {hint.guideline}" for name, hint in hints if hint.guideline]
         if guidelines:
             header = _GUIDELINE_HEADER.get(self.language, _GUIDELINE_HEADER["en"])
             parts.append(f"{header}\n" + "\n".join(guidelines))
@@ -145,9 +136,7 @@ class ToolPromptComposer:
                 for alias in hint.aliases:
                     description = alias.description or hint.short_description
                     input_format = alias.input_format or hint.input_format or "Natural language"
-                    lines.append(
-                        f"- {alias.name}: {description} | Query format: {input_format}"
-                    )
+                    lines.append(f"- {alias.name}: {description} | Query format: {input_format}")
                 continue
             if hint.short_description:
                 lines.append(
@@ -156,9 +145,7 @@ class ToolPromptComposer:
         return "\n".join(lines)
 
     def format_phased(self, hints: list[ToolHintEntry]) -> str:
-        grouped: OrderedDict[str, list[str]] = OrderedDict(
-            (phase, []) for phase in _PHASE_ORDER
-        )
+        grouped: OrderedDict[str, list[str]] = OrderedDict((phase, []) for phase in _PHASE_ORDER)
         for name, hint in hints:
             phase = hint.phase or "other"
             grouped.setdefault(phase, [])

@@ -35,10 +35,10 @@ class BraveProvider(BaseSearchProvider):
             "X-Subscription-Token": self.api_key,
         }
         params = {"q": query, "count": max(1, min(int(max_results), 10))}
-        request_kwargs: dict[str, Any] = {"headers": headers, "params": params, "timeout": timeout}
+        request_kwargs: dict[str, Any] = {"headers": headers, "params": params}
         if self.proxy:
             request_kwargs["proxies"] = {"http": self.proxy, "https": self.proxy}
-        resp = requests.get(self.BASE_URL, **request_kwargs)
+        resp = requests.get(self.BASE_URL, timeout=timeout, **request_kwargs)
         if resp.status_code != 200:
             raise Exception(f"Brave API error: {resp.status_code} - {resp.text}")
         payload = resp.json()
@@ -78,4 +78,3 @@ class BraveProvider(BaseSearchProvider):
             search_results=search_results,
             metadata={"finish_reason": "stop"},
         )
-

@@ -10,7 +10,9 @@ export const API_BASE_URL =
       console.error(
         "Please configure NEXT_PUBLIC_API_BASE in your environment and restart the application.",
       );
-      console.error("Run python scripts/start_tour.py to rebuild your local setup if needed.");
+      console.error(
+        "Run python scripts/start_tour.py to rebuild your local setup if needed.",
+      );
     }
     throw new Error(
       "NEXT_PUBLIC_API_BASE is not configured. Please set it in your environment and restart.",
@@ -95,7 +97,9 @@ export function apiUrl(path: string): string {
 export function wsUrl(path: string): string {
   // Security Hardening: Convert http to ws and https to wss.
   // In production environments (where API_BASE_URL starts with https), this ensures secure websockets.
-  const base = resolveBase().replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+  const base = resolveBase()
+    .replace(/^http:/, "ws:")
+    .replace(/^https:/, "wss:");
 
   // Remove leading slash if present to avoid double slashes
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;

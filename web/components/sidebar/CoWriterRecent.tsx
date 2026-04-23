@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listCoWriterDocuments, type CoWriterDocumentSummary } from "@/lib/co-writer-api";
+import {
+  listCoWriterDocuments,
+  type CoWriterDocumentSummary,
+} from "@/lib/co-writer-api";
 import { subscribeCoWriterChanges } from "@/lib/co-writer-events";
 
 function relativeTime(seconds: number): string {
@@ -23,7 +26,10 @@ interface CoWriterRecentProps {
   limit?: number;
 }
 
-export function CoWriterRecent({ collapsed = false, limit = 4 }: CoWriterRecentProps) {
+export function CoWriterRecent({
+  collapsed = false,
+  limit = 4,
+}: CoWriterRecentProps) {
   const [docs, setDocs] = useState<CoWriterDocumentSummary[]>([]);
   const pathname = usePathname();
   const limitRef = useRef(limit);

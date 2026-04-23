@@ -89,7 +89,9 @@ export default function BlockRenderer({
           <AlertTriangle className="h-4 w-4" />
           {block.type} block failed
         </div>
-        <div className="text-xs opacity-80">{block.error || "Unknown error"}</div>
+        <div className="text-xs opacity-80">
+          {block.error || "Unknown error"}
+        </div>
         {onRegenerate && (
           <button
             onClick={() => onRegenerate(block)}
@@ -160,8 +162,7 @@ export default function BlockRenderer({
       body = <PlaceholderBlock block={block} />;
   }
 
-  const hasActions =
-    !!onRegenerate || !!onDelete || !!onMove || !!onChangeType;
+  const hasActions = !!onRegenerate || !!onDelete || !!onMove || !!onChangeType;
 
   const bridgeText = String(
     (block.payload as Record<string, unknown> | undefined)?.bridge_text ?? "",
