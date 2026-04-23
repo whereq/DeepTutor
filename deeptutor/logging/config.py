@@ -33,7 +33,7 @@ class LoggingConfig:
 def get_default_log_dir() -> Path:
     """Get the default log directory."""
     from deeptutor.services.path_service import get_path_service
-    
+
     path_service = get_path_service()
     return path_service.get_logs_dir()
 
@@ -61,7 +61,11 @@ def load_logging_config() -> LoggingConfig:
         LoggingConfig instance with loaded or default values.
     """
     try:
-        from deeptutor.services.config import PROJECT_ROOT, get_path_from_config, load_config_with_main
+        from deeptutor.services.config import (
+            PROJECT_ROOT,
+            get_path_from_config,
+            load_config_with_main,
+        )
 
         config = load_config_with_main("main.yaml", PROJECT_ROOT)
 

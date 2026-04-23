@@ -1,6 +1,12 @@
 "use client";
 
-import { memo, useCallback, useLayoutEffect, useState, type RefObject } from "react";
+import {
+  memo,
+  useCallback,
+  useLayoutEffect,
+  useState,
+  type RefObject,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 interface SimpleComposerInputProps {
@@ -25,20 +31,26 @@ export const SimpleComposerInput = memo(function SimpleComposerInput({
     el.style.height = `${Math.min(next, 200)}px`;
   }, [input, textareaRef]);
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-  }, []);
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setInput(e.target.value);
+    },
+    [],
+  );
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      const content = input.trim();
-      if (content && !disabled) {
-        onSend(content);
-        setInput("");
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const content = input.trim();
+        if (content && !disabled) {
+          onSend(content);
+          setInput("");
+        }
       }
-    }
-  }, [input, onSend, disabled]);
+    },
+    [input, onSend, disabled],
+  );
 
   return (
     <textarea

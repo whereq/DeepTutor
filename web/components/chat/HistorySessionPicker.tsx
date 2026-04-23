@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, History as HistoryIcon, Loader2, MessageSquare, Search, X } from "lucide-react";
+import {
+  Check,
+  History as HistoryIcon,
+  Loader2,
+  MessageSquare,
+  Search,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { listSessions, type SessionSummary } from "@/lib/session-api";
 
@@ -81,7 +88,9 @@ export default function HistorySessionPicker({
 
   const handleApply = () => {
     const selected = sessions
-      .filter((session) => selectedIds.includes(session.session_id || session.id))
+      .filter((session) =>
+        selectedIds.includes(session.session_id || session.id),
+      )
       .map((session) => ({
         sessionId: session.session_id || session.id,
         title: session.title || "Untitled session",
@@ -105,7 +114,9 @@ export default function HistorySessionPicker({
               {t("Select History Sessions")}
             </h2>
             <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
-              {t("Choose one or more past conversations to analyze before this turn.")}
+              {t(
+                "Choose one or more past conversations to analyze before this turn.",
+              )}
             </p>
           </div>
           <button
@@ -185,7 +196,7 @@ export default function HistorySessionPicker({
                         ) : null}
                         <div className="mt-2 flex items-center gap-3 text-[11px] text-[var(--muted-foreground)]/85">
                           <span>
-                            {(session.message_count ?? 0)} {t("messages")}
+                            {session.message_count ?? 0} {t("messages")}
                           </span>
                           {timestamp && <span>{timestamp}</span>}
                         </div>

@@ -221,9 +221,7 @@ async def confirm_proposal(req: ConfirmProposalRequest) -> dict[str, Any]:
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Invalid proposal: {exc}")
     try:
-        book, spine = await engine.confirm_proposal(
-            book_id=req.book_id, edited_proposal=edited
-        )
+        book, spine = await engine.confirm_proposal(book_id=req.book_id, edited_proposal=edited)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -264,9 +262,7 @@ async def compile_page(req: CompilePageRequest) -> dict[str, Any]:
     """Drive the compiler for the page the user just opened (current-page priority)."""
     engine = get_book_engine()
     try:
-        page = await engine.compile_page(
-            book_id=req.book_id, page_id=req.page_id, force=req.force
-        )
+        page = await engine.compile_page(book_id=req.book_id, page_id=req.page_id, force=req.force)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -331,9 +327,7 @@ async def insert_block(req: InsertBlockRequest) -> dict[str, Any]:
 @router.post("/books/delete-block")
 async def delete_block(req: DeleteBlockRequest) -> dict[str, Any]:
     engine = get_book_engine()
-    ok = await engine.delete_block(
-        book_id=req.book_id, page_id=req.page_id, block_id=req.block_id
-    )
+    ok = await engine.delete_block(book_id=req.book_id, page_id=req.page_id, block_id=req.block_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Block not found")
     return {"ok": True}
@@ -487,9 +481,12 @@ async def book_websocket(ws: WebSocket) -> None:
                     continue
                 await send(_serialize_event(event))
                 if event.type == StreamEventType.STAGE_END and event.stage in {
-                    "ideation", "spine", "compilation"
+                    "ideation",
+                    "spine",
+                    "compilation",
                 }:
                     pass  # keep streaming – multiple stages per task
+
         return asyncio.create_task(_forward())
 
     try:
@@ -522,9 +519,7 @@ async def book_websocket(ws: WebSocket) -> None:
                         question_categories=[
                             int(c) for c in (data.get("question_categories") or [])
                         ],
-                        question_entries=[
-                            int(e) for e in (data.get("question_entries") or [])
-                        ],
+                        question_entries=[int(e) for e in (data.get("question_entries") or [])],
                         language=str(data.get("language") or "en"),
                         stream=bus,
                     )
@@ -600,9 +595,7 @@ async def book_websocket(ws: WebSocket) -> None:
                     )
 
                 else:
-                    await send(
-                        {"type": "error", "content": f"Unknown message type: {msg_type}"}
-                    )
+                    await send({"type": "error", "content": f"Unknown message type: {msg_type}"})
 
             except Exception as exc:
                 logger.error(f"book ws action {msg_type} failed: {exc}", exc_info=True)

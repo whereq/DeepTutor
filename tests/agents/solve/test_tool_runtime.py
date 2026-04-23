@@ -28,7 +28,9 @@ class _FakeTool:
         self._aliases = aliases or []
 
     def get_definition(self) -> ToolDefinition:
-        return ToolDefinition(name=self.name, description=f"{self.name} tool", parameters=self._parameters)
+        return ToolDefinition(
+            name=self.name, description=f"{self.name} tool", parameters=self._parameters
+        )
 
     def get_prompt_hints(self, language: str = "en") -> ToolPromptHints:  # noqa: ARG002
         return ToolPromptHints(
@@ -114,7 +116,9 @@ async def test_solve_tool_runtime_passes_event_sink_to_registry() -> None:
     registry = _FakeCoreRegistry({"rag": rag_tool})
     runtime = SolveToolRuntime(["rag"], language="en", core_registry=registry)
 
-    async def _sink(_event_type: str, _message: str = "", _metadata: dict[str, Any] | None = None) -> None:
+    async def _sink(
+        _event_type: str, _message: str = "", _metadata: dict[str, Any] | None = None
+    ) -> None:
         return None
 
     await runtime.execute("rag", "definition", kb_name="algebra", event_sink=_sink)
@@ -165,7 +169,9 @@ async def test_solve_tool_runtime_rag_with_empty_kb_name_returns_graceful_skip()
 
 
 @pytest.mark.asyncio
-async def test_planner_agent_skips_retrieval_when_rag_not_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_planner_agent_skips_retrieval_when_rag_not_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     web_tool = _FakeTool("web_search", [ToolParameter(name="query", type="string")])
     registry = _FakeCoreRegistry({"web_search": web_tool})
     runtime = SolveToolRuntime(["web_search"], language="en", core_registry=registry)

@@ -86,7 +86,8 @@ function shortLabel(block: Block, fallback: string): string {
   if (focus) return focus;
   const role = typeof params.role === "string" ? params.role.trim() : "";
   if (role) return `${fallback} · ${role}`;
-  const variant = typeof params.variant === "string" ? params.variant.trim() : "";
+  const variant =
+    typeof params.variant === "string" ? params.variant.trim() : "";
   if (variant) return `${fallback} · ${variant}`;
   return fallback;
 }

@@ -11,9 +11,11 @@ from typing import Any
 
 from deeptutor.services.llm import (
     clean_thinking_tags,
-    complete as llm_complete,
     get_llm_config,
     get_token_limit_kwargs,
+)
+from deeptutor.services.llm import (
+    complete as llm_complete,
 )
 
 from ._language import language_directive

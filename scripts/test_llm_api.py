@@ -13,11 +13,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import sys
 from pathlib import Path
+import sys
 
-import httpx
 from dotenv import load_dotenv
+import httpx
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -44,7 +44,9 @@ def _mask_key(key: str) -> str:
     return f"{key[:6]}...{key[-4:]}"
 
 
-async def run_factory_test(prompt: str, system_prompt: str, max_tokens: int, temperature: float) -> None:
+async def run_factory_test(
+    prompt: str, system_prompt: str, max_tokens: int, temperature: float
+) -> None:
     cfg = get_llm_config()
     print(f"[FactoryTest] model={cfg.model}")
     print("[FactoryTest] Calling factory.complete(...)")
@@ -60,7 +62,9 @@ async def run_factory_test(prompt: str, system_prompt: str, max_tokens: int, tem
     print(text[:1000] if text else "(empty)")
 
 
-async def run_direct_test(prompt: str, system_prompt: str, max_tokens: int, temperature: float) -> None:
+async def run_direct_test(
+    prompt: str, system_prompt: str, max_tokens: int, temperature: float
+) -> None:
     cfg = get_llm_config()
     url = f"{(cfg.base_url or '').rstrip('/')}/chat/completions"
     headers = {

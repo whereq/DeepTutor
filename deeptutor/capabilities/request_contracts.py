@@ -128,7 +128,9 @@ CAPABILITY_REQUEST_SCHEMAS: dict[str, dict[str, Any]] = {
 }
 
 
-def validate_capability_config(capability: str, raw_config: dict[str, Any] | None) -> dict[str, Any]:
+def validate_capability_config(
+    capability: str, raw_config: dict[str, Any] | None
+) -> dict[str, Any]:
     validator = CAPABILITY_CONFIG_VALIDATORS.get(capability)
     if validator is None:
         return _clean_public_config(raw_config)

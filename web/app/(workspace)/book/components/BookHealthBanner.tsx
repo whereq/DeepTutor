@@ -101,7 +101,9 @@ export default function BookHealthBanner({
         <div className="flex-1 space-y-1.5">
           {hasDrift && (
             <div>
-              <strong>Your knowledge bases changed since this book was generated.</strong>{" "}
+              <strong>
+                Your knowledge bases changed since this book was generated.
+              </strong>{" "}
               <span className="opacity-90">
                 {kbDrift?.new_kbs?.length ? (
                   <>
@@ -134,8 +136,8 @@ export default function BookHealthBanner({
               {kbDrift?.stale_page_ids?.length ? (
                 <div className="mt-1.5 text-xs opacity-90">
                   {kbDrift.stale_page_ids.length} previously-compiled page
-                  {kbDrift.stale_page_ids.length === 1 ? "" : "s"} may be out
-                  of date.{" "}
+                  {kbDrift.stale_page_ids.length === 1 ? "" : "s"} may be out of
+                  date.{" "}
                   {onRecompile && kbDrift.stale_page_ids[0] && (
                     <button
                       onClick={() => onRecompile(kbDrift.stale_page_ids![0])}
@@ -163,7 +165,9 @@ export default function BookHealthBanner({
                   Recurring issue
                   {repeated.length === 1 ? "" : "s"}:{" "}
                   {repeated
-                    .map((r) => `${humanizeSignature(r.signature)} (×${r.count})`)
+                    .map(
+                      (r) => `${humanizeSignature(r.signature)} (×${r.count})`,
+                    )
                     .join("; ")}
                   .
                 </span>

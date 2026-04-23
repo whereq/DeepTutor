@@ -5,12 +5,14 @@ from pathlib import Path
 from typing import Any
 
 from deeptutor.logging import get_logger
-from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.path_service import get_path_service
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 
 logger = get_logger("KBConfigService")
 
-DEFAULT_CONFIG_PATH = get_path_service().project_root / "data" / "knowledge_bases" / "kb_config.json"
+DEFAULT_CONFIG_PATH = (
+    get_path_service().project_root / "data" / "knowledge_bases" / "kb_config.json"
+)
 
 
 def _default_payload() -> dict[str, Any]:
@@ -46,7 +48,7 @@ class KnowledgeBaseConfigService:
                 payload.update({k: v for k, v in loaded.items() if k != "defaults"})
                 payload["defaults"].update(loaded.get("defaults", {}))
             except Exception as exc:
-                logger.warning("Failed to load KB config: %s", exc)
+                logger.warning(f"Failed to load KB config: {exc}")
         payload.setdefault("knowledge_bases", {})
         payload.setdefault("defaults", _default_payload()["defaults"])
         payload = self._normalize_payload(payload)
@@ -65,13 +67,20 @@ class KnowledgeBaseConfigService:
             raw_provider = config.get("rag_provider")
             config["rag_provider"] = DEFAULT_PROVIDER
 
-            if isinstance(raw_provider, str) and raw_provider.strip().lower() not in {"", DEFAULT_PROVIDER}:
+            if isinstance(raw_provider, str) and raw_provider.strip().lower() not in {
+                "",
+                DEFAULT_PROVIDER,
+            }:
                 config["needs_reindex"] = True
 
             kb_dir = kb_base_dir / kb_name
             legacy_storage = kb_dir / "rag_storage"
             new_storage = kb_dir / "llamaindex_storage"
-            if legacy_storage.exists() and legacy_storage.is_dir() and not (new_storage.exists() and new_storage.is_dir()):
+            if (
+                legacy_storage.exists()
+                and legacy_storage.is_dir()
+                and not (new_storage.exists() and new_storage.is_dir())
+            ):
                 config["needs_reindex"] = True
 
         return payload
@@ -150,7 +159,7 @@ class KnowledgeBaseConfigService:
             with open(metadata_file, "r", encoding="utf-8") as handle:
                 metadata = json.load(handle)
         except Exception as exc:
-            logger.warning("Failed to load KB metadata for %s: %s", kb_name, exc)
+            logger.warning(f"Failed to load KB metadata for {kb_name}: {exc}")
             return
         config: dict[str, Any] = {}
         if metadata.get("rag_provider"):

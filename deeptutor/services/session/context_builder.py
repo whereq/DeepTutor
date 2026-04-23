@@ -314,7 +314,9 @@ class ContextBuilder:
 
         stored_summary = str(session.get("compressed_summary", "") or "").strip()
         summary_up_to_msg_id = int(session.get("summary_up_to_msg_id", 0) or 0)
-        unsummarized = [item for item in messages if int(item.get("id", 0) or 0) > summary_up_to_msg_id]
+        unsummarized = [
+            item for item in messages if int(item.get("id", 0) or 0) > summary_up_to_msg_id
+        ]
 
         current_history = self._build_history(stored_summary, unsummarized)
         current_tokens = count_tokens(build_history_text(current_history))
@@ -328,7 +330,9 @@ class ContextBuilder:
                 budget=budget,
             )
 
-        older_unsummarized, recent_messages = self._select_recent_messages(unsummarized, recent_budget)
+        older_unsummarized, recent_messages = self._select_recent_messages(
+            unsummarized, recent_budget
+        )
         merge_parts: list[str] = []
         if stored_summary:
             merge_parts.append(f"Existing summary:\n{stored_summary}")

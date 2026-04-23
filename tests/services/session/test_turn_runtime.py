@@ -13,7 +13,6 @@ from deeptutor.services.session.turn_runtime import (
     _should_capture_assistant_content,
 )
 
-
 # ---------------------------------------------------------------------------
 # _should_capture_assistant_content
 # ---------------------------------------------------------------------------
@@ -87,9 +86,10 @@ class TestExtractFollowupQuestionContext:
         assert _extract_followup_question_context({"followup_question_context": "string"}) is None
 
     def test_missing_question(self) -> None:
-        assert _extract_followup_question_context(
-            {"followup_question_context": {"question_id": "q1"}}
-        ) is None
+        assert (
+            _extract_followup_question_context({"followup_question_context": {"question_id": "q1"}})
+            is None
+        )
 
     def test_valid_context_extracted(self) -> None:
         config = {

@@ -15,10 +15,10 @@ is injected verbatim into the chat system prompt when the skill is active.
 
 from __future__ import annotations
 
-import re
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
+import re
+import shutil
 from typing import Any
 
 import yaml
@@ -79,9 +79,7 @@ class SkillService:
     def _validate_name(self, name: str) -> str:
         candidate = (name or "").strip().lower()
         if not _NAME_RE.match(candidate):
-            raise InvalidSkillNameError(
-                "Skill name must match ^[a-z0-9][a-z0-9-]{0,63}$"
-            )
+            raise InvalidSkillNameError("Skill name must match ^[a-z0-9][a-z0-9-]{0,63}$")
         return candidate
 
     def _skill_dir(self, name: str) -> Path:
@@ -98,7 +96,7 @@ class SkillService:
         if not match:
             return {}, content
         raw = match.group(1)
-        body = content[match.end():]
+        body = content[match.end() :]
         try:
             data = yaml.safe_load(raw) or {}
         except yaml.YAMLError:
@@ -272,9 +270,7 @@ class SkillService:
         """
         text = content if content is not None else ""
         if _FRONTMATTER_RE.match(text):
-            text = self._rewrite_frontmatter(
-                text, name=name, description=description.strip()
-            )
+            text = self._rewrite_frontmatter(text, name=name, description=description.strip())
             return text
         header = yaml.safe_dump(
             {"name": name, "description": description.strip()},

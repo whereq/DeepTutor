@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import shutil
 import time
-import uuid
-from pathlib import Path
 from typing import Any
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -100,9 +100,7 @@ def _derive_title(content: str, fallback: str = "Untitled draft") -> str:
 def _build_preview(content: str, limit: int = 160) -> str:
     if not content:
         return ""
-    cleaned = "\n".join(
-        line.strip() for line in content.splitlines() if line.strip()
-    )
+    cleaned = "\n".join(line.strip() for line in content.splitlines() if line.strip())
     cleaned = cleaned.replace("\n", "  ")
     if len(cleaned) <= limit:
         return cleaned
@@ -148,7 +146,7 @@ class CoWriterStorage:
         ids: list[str] = []
         for child in root.iterdir():
             if child.is_dir() and child.name.startswith("doc_"):
-                ids.append(child.name[len("doc_"):])
+                ids.append(child.name[len("doc_") :])
         return ids
 
     def list_documents(self) -> list[CoWriterDocumentSummary]:

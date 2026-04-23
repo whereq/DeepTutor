@@ -63,7 +63,10 @@ export function onThemeChange(callback: (theme: Theme) => void): () => void {
   const handleStorageChange = (e: StorageEvent) => {
     if (
       e.key === "deeptutor-theme" &&
-      (e.newValue === "light" || e.newValue === "dark" || e.newValue === "glass" || e.newValue === "snow")
+      (e.newValue === "light" ||
+        e.newValue === "dark" ||
+        e.newValue === "glass" ||
+        e.newValue === "snow")
     ) {
       callback(e.newValue);
     }

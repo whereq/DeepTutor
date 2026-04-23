@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from deeptutor.tutorbot.agent.tools.base import Tool
+
 from . import board, mailbox
 
 if TYPE_CHECKING:
@@ -57,7 +58,7 @@ class TeamTool(Tool):
             "required": ["action"],
         }
 
-    async def execute(self, action: str, **kwargs: Any) -> str:
+    async def execute(self, action: str, **kwargs: Any) -> str:  # type: ignore[override]
         sk = self._session_key
         if action == "create":
             return await self._manager.create(
@@ -77,9 +78,13 @@ class TeamTool(Tool):
         if action == "approve":
             return self._manager.approve_for_session(sk, kwargs.get("task_id") or "")
         if action == "reject":
-            return self._manager.reject_for_session(sk, kwargs.get("task_id") or "", kwargs.get("reason") or "Rejected")
+            return self._manager.reject_for_session(
+                sk, kwargs.get("task_id") or "", kwargs.get("reason") or "Rejected"
+            )
         if action == "message":
-            return await self._manager.message_worker(sk, kwargs.get("to") or "", kwargs.get("content") or "")
+            return await self._manager.message_worker(
+                sk, kwargs.get("to") or "", kwargs.get("content") or ""
+            )
         if action == "add_task":
             return self._manager.add_task(sk, kwargs.get("task") or {})
         return f"Error: unknown action '{action}'"
@@ -106,7 +111,15 @@ class TeamWorkerTool(Tool):
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["board", "claim", "complete", "submit_plan", "mail_send", "mail_read", "mail_broadcast"],
+                    "enum": [
+                        "board",
+                        "claim",
+                        "complete",
+                        "submit_plan",
+                        "mail_send",
+                        "mail_read",
+                        "mail_broadcast",
+                    ],
                 },
                 "task_id": {"type": "string"},
                 "result": {"type": "string"},
@@ -117,7 +130,7 @@ class TeamWorkerTool(Tool):
             "required": ["action"],
         }
 
-    async def execute(self, action: str, **kwargs: Any) -> str:
+    async def execute(self, action: str, **kwargs: Any) -> str:  # type: ignore[override]
         team_dir = self._manager.get_team_dir(self._session_key)
         state = self._manager.get_team_state(self._session_key)
         if not team_dir or not state:
@@ -128,14 +141,23 @@ class TeamWorkerTool(Tool):
         if action == "claim":
             return board.claim(team_dir, kwargs.get("task_id") or "", self._worker_name)
         if action == "complete":
-            return board.update_status(team_dir, kwargs.get("task_id") or "", "completed", result=kwargs.get("result"))
+            return board.update_status(
+                team_dir, kwargs.get("task_id") or "", "completed", result=kwargs.get("result")
+            )
         if action == "submit_plan":
-            return board.submit_plan(team_dir, kwargs.get("task_id") or "", kwargs.get("plan") or "")
+            return board.submit_plan(
+                team_dir, kwargs.get("task_id") or "", kwargs.get("plan") or ""
+            )
         if action == "mail_send":
-            return mailbox.send(team_dir, self._worker_name, kwargs.get("to") or "", kwargs.get("content") or "")
+            return mailbox.send(
+                team_dir, self._worker_name, kwargs.get("to") or "", kwargs.get("content") or ""
+            )
         if action == "mail_read":
             unread = mailbox.read_unread(team_dir, self._worker_name)
-            return "\n".join(f"- [{m.from_agent}] {m.content}" for m in unread) or "No unread messages."
+            return (
+                "\n".join(f"- [{m.from_agent}] {m.content}" for m in unread)
+                or "No unread messages."
+            )
         if action == "mail_broadcast":
             return mailbox.broadcast(team_dir, self._worker_name, kwargs.get("content") or "")
         return f"Error: unknown action '{action}'"

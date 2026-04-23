@@ -8,7 +8,6 @@ from typing import Any, Awaitable, Callable
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.trace import build_trace_metadata, derive_trace_metadata, new_call_id
 from deeptutor.services.llm import clean_thinking_tags, get_llm_config, get_token_limit_kwargs
-from deeptutor.services.llm import complete as llm_complete, stream as llm_stream
 from deeptutor.services.llm import stream as llm_stream
 from deeptutor.services.prompt.manager import get_prompt_manager
 from deeptutor.utils.json_parser import parse_json_response
@@ -50,7 +49,9 @@ class NotebookAnalysisAgent:
         records: list[dict[str, Any]],
         emit: EventSink | None = None,
     ) -> str:
-        thinking_text = await self._stage_thinking(user_question=user_question, records=records, emit=emit)
+        thinking_text = await self._stage_thinking(
+            user_question=user_question, records=records, emit=emit
+        )
         selected_records = await self._stage_acting(
             user_question=user_question,
             thinking_text=thinking_text,
@@ -71,7 +72,9 @@ class NotebookAnalysisAgent:
                     source="notebook_analysis",
                     metadata={
                         "observation": observation,
-                        "selected_record_ids": [record.get("id", "") for record in selected_records],
+                        "selected_record_ids": [
+                            record.get("id", "") for record in selected_records
+                        ],
                     },
                 )
             )
@@ -325,20 +328,23 @@ class NotebookAnalysisAgent:
         thinking_text: str,
         selected_records: list[dict[str, Any]],
     ) -> str:
-        detailed_blocks = "\n\n".join(
-            [
-                "\n".join(
-                    [
-                        f"Record ID: {record.get('id', '')}",
-                        f"Notebook: {record.get('notebook_name', '')}",
-                        f"Title: {record.get('title', '')}",
-                        f"Summary: {record.get('summary', '')}",
-                        f"Content:\n{_clip_text(record.get('output', ''), 2500)}",
-                    ]
-                )
-                for record in selected_records
-            ]
-        ) or "(none)"
+        detailed_blocks = (
+            "\n\n".join(
+                [
+                    "\n".join(
+                        [
+                            f"Record ID: {record.get('id', '')}",
+                            f"Notebook: {record.get('notebook_name', '')}",
+                            f"Title: {record.get('title', '')}",
+                            f"Summary: {record.get('summary', '')}",
+                            f"Content:\n{_clip_text(record.get('output', ''), 2500)}",
+                        ]
+                    )
+                    for record in selected_records
+                ]
+            )
+            or "(none)"
+        )
         return self._stage_text("observing", "user_template").format(
             user_question=user_question.strip() or "(empty)",
             thinking_text=thinking_text or "(empty)",

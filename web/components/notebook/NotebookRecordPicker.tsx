@@ -56,7 +56,9 @@ export default function NotebookRecordPicker({
               {t("Select Notebook Records")}
             </h2>
             <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
-              {t("Choose records across one or more notebooks to ground the next request.")}
+              {t(
+                "Choose records across one or more notebooks to ground the next request.",
+              )}
             </p>
           </div>
           <button

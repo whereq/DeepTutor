@@ -251,9 +251,7 @@ class MathAnimatorCapability(BaseCapability):
         # field shape it expects. We weave the partial trace into the
         # ``learning_goal`` / ``visual_style`` so the generator has at least
         # *some* design intent to work from.
-        narrative_seed = "\n".join(
-            line for line in partial.splitlines() if line.strip()
-        )[:400]
+        narrative_seed = "\n".join(line for line in partial.splitlines() if line.strip())[:400]
         analysis = ConceptAnalysis(
             learning_goal=original,
             math_focus=[],
@@ -367,7 +365,9 @@ class MathAnimatorCapability(BaseCapability):
             language=context.language,
             stages_skipped=["concept_analysis", "concept_design", "summary"],
         )
-        summary_text = notice or "Answer-now: code generated and rendered without prior analysis/design."
+        summary_text = (
+            notice or "Answer-now: code generated and rendered without prior analysis/design."
+        )
         if notice:
             await stream.content(summary_text, source=self.name, stage="summary")
 
@@ -409,7 +409,8 @@ class MathAnimatorCapability(BaseCapability):
             base_metadata = {
                 key: value
                 for key, value in update.items()
-                if key not in {"event", "state", "response", "chunk", "result", "tool_name", "tool_args"}
+                if key
+                not in {"event", "state", "response", "chunk", "result", "tool_name", "tool_args"}
             }
 
             if event != "llm_call":

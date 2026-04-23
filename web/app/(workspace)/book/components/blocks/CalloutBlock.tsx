@@ -1,6 +1,11 @@
 "use client";
 
-import { Lightbulb, AlertTriangle, BookmarkCheck, Sparkles } from "lucide-react";
+import {
+  Lightbulb,
+  AlertTriangle,
+  BookmarkCheck,
+  Sparkles,
+} from "lucide-react";
 import type { Block } from "@/lib/book-types";
 
 const VARIANT_STYLES: Record<

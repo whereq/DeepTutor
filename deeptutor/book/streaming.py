@@ -19,11 +19,11 @@ SOURCE = "book_engine"
 
 # Stage names used across the pipeline
 STAGE_IDEATION = "ideation"
-STAGE_EXPLORATION = "exploration"   # SourceExplorer (Stage 2 prep)
-STAGE_SYNTHESIS = "synthesis"        # SpineSynthesizer draft / revise
-STAGE_CRITIQUE = "critique"          # SpineSynthesizer critique round
-STAGE_OVERVIEW = "overview"          # Engine-injected Overview chapter
-STAGE_SPINE = "spine"                # Outer wrapper for the spine stage
+STAGE_EXPLORATION = "exploration"  # SourceExplorer (Stage 2 prep)
+STAGE_SYNTHESIS = "synthesis"  # SpineSynthesizer draft / revise
+STAGE_CRITIQUE = "critique"  # SpineSynthesizer critique round
+STAGE_OVERVIEW = "overview"  # Engine-injected Overview chapter
+STAGE_SPINE = "spine"  # Outer wrapper for the spine stage
 STAGE_PAGE_PLAN = "page_plan"
 STAGE_COMPILATION = "compilation"
 STAGE_BLOCK = "block"

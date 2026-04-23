@@ -22,8 +22,17 @@ class TestNormalizeProviderName:
 
     @pytest.mark.parametrize(
         "value",
-        [None, "", "  ", "llamaindex", "LlamaIndex", "lightrag", "raganything",
-         "raganything_docling", "totally_unknown_xyz"],
+        [
+            None,
+            "",
+            "  ",
+            "llamaindex",
+            "LlamaIndex",
+            "lightrag",
+            "raganything",
+            "raganything_docling",
+            "totally_unknown_xyz",
+        ],
     )
     def test_collapses_to_default(self, value) -> None:
         assert normalize_provider_name(value) == DEFAULT_PROVIDER

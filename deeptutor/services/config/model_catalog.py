@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from deeptutor.services.path_service import get_path_service
@@ -123,7 +123,9 @@ class ModelCatalogService:
             changed = True
 
         embedding_service = services.setdefault("embedding", _service_shell())
-        if not embedding_service.get("profiles") and (summary.embedding["model"] or summary.embedding["host"]):
+        if not embedding_service.get("profiles") and (
+            summary.embedding["model"] or summary.embedding["host"]
+        ):
             profile_id = "embedding-profile-default"
             model_id = "embedding-model-default"
             services["embedding"] = {
@@ -191,8 +193,8 @@ class ModelCatalogService:
         changed = False
 
         def ensure_llm_profile() -> tuple[dict[str, Any], dict[str, Any]]:
-            service = services.setdefault("llm", _service_shell())
-            profiles = service.setdefault("profiles", [])
+            service = cast(dict[str, Any], services.setdefault("llm", _service_shell()))
+            profiles = cast(list[dict[str, Any]], service.setdefault("profiles", []))
             if not profiles:
                 profile_id = "llm-profile-default"
                 model_id = "llm-model-default"
@@ -209,13 +211,16 @@ class ModelCatalogService:
                 service["profiles"] = [profile]
                 service["active_profile_id"] = profile_id
                 service["active_model_id"] = model_id
-            profile = self.get_active_profile(catalog, "llm") or service["profiles"][0]
-            model = self.get_active_model(catalog, "llm") or (profile.setdefault("models", [{}])[0])
+            profile = self.get_active_profile(catalog, "llm") or profiles[0]
+            model = (
+                self.get_active_model(catalog, "llm")
+                or cast(list[dict[str, Any]], profile.setdefault("models", [{}]))[0]
+            )
             return profile, model
 
         def ensure_embedding_profile() -> tuple[dict[str, Any], dict[str, Any]]:
-            service = services.setdefault("embedding", _service_shell())
-            profiles = service.setdefault("profiles", [])
+            service = cast(dict[str, Any], services.setdefault("embedding", _service_shell()))
+            profiles = cast(list[dict[str, Any]], service.setdefault("profiles", []))
             if not profiles:
                 profile_id = "embedding-profile-default"
                 model_id = "embedding-model-default"
@@ -239,13 +244,16 @@ class ModelCatalogService:
                 service["profiles"] = [profile]
                 service["active_profile_id"] = profile_id
                 service["active_model_id"] = model_id
-            profile = self.get_active_profile(catalog, "embedding") or service["profiles"][0]
-            model = self.get_active_model(catalog, "embedding") or (profile.setdefault("models", [{}])[0])
+            profile = self.get_active_profile(catalog, "embedding") or profiles[0]
+            model = (
+                self.get_active_model(catalog, "embedding")
+                or cast(list[dict[str, Any]], profile.setdefault("models", [{}]))[0]
+            )
             return profile, model
 
         def ensure_search_profile() -> dict[str, Any]:
-            service = services.setdefault("search", _search_shell())
-            profiles = service.setdefault("profiles", [])
+            service = cast(dict[str, Any], services.setdefault("search", _search_shell()))
+            profiles = cast(list[dict[str, Any]], service.setdefault("profiles", []))
             if not profiles:
                 profile_id = "search-profile-default"
                 profile = {
@@ -260,7 +268,7 @@ class ModelCatalogService:
                 }
                 service["profiles"] = [profile]
                 service["active_profile_id"] = profile_id
-            return self.get_active_profile(catalog, "search") or service["profiles"][0]
+            return self.get_active_profile(catalog, "search") or profiles[0]
 
         llm_keys = {
             "LLM_BINDING",
@@ -280,7 +288,10 @@ class ModelCatalogService:
             if "LLM_HOST" in env_values and profile.get("base_url") != summary.llm["host"]:
                 profile["base_url"] = summary.llm["host"]
                 changed = True
-            if "LLM_API_VERSION" in env_values and profile.get("api_version") != summary.llm["api_version"]:
+            if (
+                "LLM_API_VERSION" in env_values
+                and profile.get("api_version") != summary.llm["api_version"]
+            ):
                 profile["api_version"] = summary.llm["api_version"]
                 changed = True
             if "LLM_MODEL" in env_values:
@@ -407,7 +418,9 @@ class ModelCatalogService:
                     if active_profile and active_profile.get("models"):
                         service["active_model_id"] = active_profile["models"][0]["id"]
 
-    def get_active_profile(self, catalog: dict[str, Any], service_name: str) -> dict[str, Any] | None:
+    def get_active_profile(
+        self, catalog: dict[str, Any], service_name: str
+    ) -> dict[str, Any] | None:
         service = catalog.get("services", {}).get(service_name, {})
         active_id = service.get("active_profile_id")
         for profile in service.get("profiles", []):

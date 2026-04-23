@@ -82,11 +82,7 @@ class Generator(BaseAgent):
             correct_answer=payload.get("correct_answer", ""),
             explanation=payload.get("explanation", ""),
             question_type=payload.get("question_type", template.question_type),
-            options=(
-                payload.get("options")
-                if isinstance(payload.get("options"), dict)
-                else None
-            ),
+            options=(payload.get("options") if isinstance(payload.get("options"), dict) else None),
             concentration=template.concentration,
             difficulty=template.difficulty,
             validation=validation,
@@ -292,9 +288,7 @@ class Generator(BaseAgent):
         normalized = dict(payload or {})
         normalized["question_type"] = expected_type
         normalized["question"] = str(normalized.get("question", "") or "").strip()
-        normalized["correct_answer"] = str(
-            normalized.get("correct_answer", "") or ""
-        ).strip()
+        normalized["correct_answer"] = str(normalized.get("correct_answer", "") or "").strip()
         normalized["explanation"] = str(normalized.get("explanation", "") or "").strip()
 
         raw_options = normalized.get("options")
@@ -341,7 +335,9 @@ class Generator(BaseAgent):
             if correct_answer.upper() not in {"A", "B", "C", "D"}:
                 issues.append("choice_correct_answer_must_be_option_key")
         else:
-            if cls._payload_looks_like_choice(question=question, correct_answer=correct_answer, options=options):
+            if cls._payload_looks_like_choice(
+                question=question, correct_answer=correct_answer, options=options
+            ):
                 issues.append("non_choice_payload_looks_like_multiple_choice")
 
         if not question:
@@ -405,9 +401,7 @@ class Generator(BaseAgent):
         template_dict = template.__dict__.copy()
         if isinstance(template_dict.get("metadata"), dict):
             template_dict["metadata"] = {
-                k: v
-                for k, v in template_dict["metadata"].items()
-                if k != "knowledge_context"
+                k: v for k, v in template_dict["metadata"].items() if k != "knowledge_context"
             }
         return template_dict
 
@@ -423,9 +417,7 @@ class Generator(BaseAgent):
         if not content or not content.strip():
             return {}
 
-        cleaned = re.sub(
-            r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", content.strip()
-        )
+        cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]", "", content.strip())
         block_match = re.search(r"```(?:json)?\s*(.*?)```", cleaned, re.DOTALL)
         if block_match:
             cleaned = block_match.group(1).strip()

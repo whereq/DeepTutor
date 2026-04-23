@@ -75,7 +75,10 @@ export default memo(function QuizConfigPanel({
               max={50}
               value={value.num_questions}
               onChange={(e) =>
-                update("num_questions", Math.max(1, Number(e.target.value) || 1))
+                update(
+                  "num_questions",
+                  Math.max(1, Number(e.target.value) || 1),
+                )
               }
               className={`${INPUT_CLS} w-full`}
             />
@@ -122,8 +125,13 @@ export default memo(function QuizConfigPanel({
           <Field label={t("Paper")} width="min-w-[180px] flex-[1.3]">
             {uploadedPdf ? (
               <div className="flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border)]/30 bg-[var(--background)]/50 px-2.5 text-[12px]">
-                <FileText size={12} className="shrink-0 text-[var(--primary)]/60" />
-                <span className="min-w-0 truncate text-[var(--foreground)]">{uploadedPdf.name}</span>
+                <FileText
+                  size={12}
+                  className="shrink-0 text-[var(--primary)]/60"
+                />
+                <span className="min-w-0 truncate text-[var(--foreground)]">
+                  {uploadedPdf.name}
+                </span>
                 <button
                   type="button"
                   onClick={() => onUploadPdf(null)}
@@ -195,7 +203,10 @@ export default memo(function QuizConfigPanel({
               max={100}
               value={value.max_questions}
               onChange={(e) =>
-                update("max_questions", Math.max(1, Number(e.target.value) || 1))
+                update(
+                  "max_questions",
+                  Math.max(1, Number(e.target.value) || 1),
+                )
               }
               className={`${INPUT_CLS} w-full`}
             />
@@ -205,4 +216,3 @@ export default memo(function QuizConfigPanel({
     </CollapsibleConfigSection>
   );
 });
-

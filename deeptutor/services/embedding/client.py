@@ -32,7 +32,9 @@ def _resolve_adapter_class(binding: str) -> type[BaseEmbeddingAdapter]:
         )
     cls = _ADAPTER_MAP.get(spec.adapter)
     if cls is None:
-        raise ValueError(f"No adapter registered for backend '{spec.adapter}' (binding='{binding}')")
+        raise ValueError(
+            f"No adapter registered for backend '{spec.adapter}' (binding='{binding}')"
+        )
     return cls
 
 
@@ -59,9 +61,7 @@ class EmbeddingClient:
             f"(model: {self.config.model}, dimensions: {self.config.dim})"
         )
 
-    async def embed(
-        self, texts: List[str], progress_callback=None
-    ) -> List[List[float]]:
+    async def embed(self, texts: List[str], progress_callback=None) -> List[List[float]]:
         if not texts:
             return []
 
@@ -138,4 +138,3 @@ def get_embedding_client(config: Optional[EmbeddingConfig] = None) -> EmbeddingC
 def reset_embedding_client() -> None:
     global _client
     _client = None
-

@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus, Trash2, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 import { useState } from "react";
 import type { Chapter, ContentType, Spine } from "@/lib/book-types";
 
@@ -27,7 +34,8 @@ const CONTENT_TYPE_OPTIONS: ContentTypeOption[] = [
   {
     value: "derivation",
     label: "Derivation",
-    description: "Step-by-step derivation, often with animation + verifying code.",
+    description:
+      "Step-by-step derivation, often with animation + verifying code.",
   },
   {
     value: "history",
@@ -37,7 +45,8 @@ const CONTENT_TYPE_OPTIONS: ContentTypeOption[] = [
   {
     value: "practice",
     label: "Practice",
-    description: "Quiz-heavy chapter with a runnable code scaffold + explanation.",
+    description:
+      "Quiz-heavy chapter with a runnable code scaffold + explanation.",
   },
   {
     value: "concept",
@@ -52,7 +61,11 @@ export interface SpineEditorProps {
   loading?: boolean;
 }
 
-export default function SpineEditor({ spine, onConfirm, loading = false }: SpineEditorProps) {
+export default function SpineEditor({
+  spine,
+  onConfirm,
+  loading = false,
+}: SpineEditorProps) {
   const [chapters, setChapters] = useState<Chapter[]>(spine.chapters);
 
   const updateChapter = (idx: number, patch: Partial<Chapter>) => {
@@ -72,7 +85,9 @@ export default function SpineEditor({ spine, onConfirm, loading = false }: Spine
   };
 
   const remove = (idx: number) => {
-    setChapters((prev) => prev.filter((_, i) => i !== idx).map((c, i) => ({ ...c, order: i })));
+    setChapters((prev) =>
+      prev.filter((_, i) => i !== idx).map((c, i) => ({ ...c, order: i })),
+    );
   };
 
   const addChapter = () => {
@@ -102,7 +117,9 @@ export default function SpineEditor({ spine, onConfirm, loading = false }: Spine
   return (
     <div className="flex h-full flex-col">
       <header className="border-b border-[var(--border)] bg-[var(--card)]/60 px-6 py-4">
-        <h2 className="text-lg font-semibold text-[var(--foreground)]">Review the chapter spine</h2>
+        <h2 className="text-lg font-semibold text-[var(--foreground)]">
+          Review the chapter spine
+        </h2>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
           Reorder, rename, or remove chapters before the book starts compiling.
         </p>
@@ -118,7 +135,9 @@ export default function SpineEditor({ spine, onConfirm, loading = false }: Spine
               <div className="flex items-start justify-between gap-2">
                 <input
                   value={chapter.title}
-                  onChange={(e) => updateChapter(idx, { title: e.target.value })}
+                  onChange={(e) =>
+                    updateChapter(idx, { title: e.target.value })
+                  }
                   className="flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-base font-semibold text-[var(--foreground)] outline-none focus:border-[var(--border)]"
                 />
                 <div className="flex items-center gap-1">
@@ -159,7 +178,9 @@ export default function SpineEditor({ spine, onConfirm, loading = false }: Spine
                   <select
                     value={chapter.content_type}
                     onChange={(e) =>
-                      updateChapter(idx, { content_type: e.target.value as ContentType })
+                      updateChapter(idx, {
+                        content_type: e.target.value as ContentType,
+                      })
                     }
                     className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm text-[var(--foreground)]"
                   >
@@ -180,7 +201,9 @@ export default function SpineEditor({ spine, onConfirm, loading = false }: Spine
                   Summary
                   <input
                     value={chapter.summary}
-                    onChange={(e) => updateChapter(idx, { summary: e.target.value })}
+                    onChange={(e) =>
+                      updateChapter(idx, { summary: e.target.value })
+                    }
                     placeholder="Optional one-line description"
                     className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm text-[var(--foreground)]"
                   />
@@ -221,7 +244,11 @@ export default function SpineEditor({ spine, onConfirm, loading = false }: Spine
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90 disabled:opacity-50"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4" />
+          )}
           Confirm spine & start compiling
         </button>
       </footer>

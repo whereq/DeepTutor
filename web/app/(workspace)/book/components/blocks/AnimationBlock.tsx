@@ -46,9 +46,7 @@ export default function AnimationBlock({ block }: AnimationBlockProps) {
     primaryRaw.endsWith(".webm") ||
     artifacts.some((a) => (a.content_type || "").startsWith("video/"));
   const filename =
-    String(payload.filename || "") ||
-    artifacts[0]?.filename ||
-    "";
+    String(payload.filename || "") || artifacts[0]?.filename || "";
 
   return (
     <figure className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 shadow-sm">
@@ -95,7 +93,10 @@ export default function AnimationBlock({ block }: AnimationBlockProps) {
       </div>
       {(summary || description) && (
         <figcaption className="mt-3 text-xs leading-snug text-[var(--muted-foreground)]">
-          <MarkdownRenderer content={summary || description} variant="default" />
+          <MarkdownRenderer
+            content={summary || description}
+            variant="default"
+          />
         </figcaption>
       )}
     </figure>

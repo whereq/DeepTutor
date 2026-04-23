@@ -13,13 +13,12 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from deeptutor.agents.solve import MainSolver, SolverSessionManager
 from deeptutor.api.utils.log_interceptor import LogInterceptor
-from deeptutor.capabilities.deep_solve import DeepSolveCapability
 from deeptutor.api.utils.task_id_manager import TaskIDManager
-from deeptutor.services.path_service import get_path_service
-
+from deeptutor.capabilities.deep_solve import DeepSolveCapability
 from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm import get_llm_config
+from deeptutor.services.path_service import get_path_service
 from deeptutor.services.settings.interface_settings import get_ui_language
 
 # Initialize logger with config

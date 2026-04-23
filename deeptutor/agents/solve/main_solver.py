@@ -10,17 +10,18 @@ External interface (preserved for API compatibility):
 from __future__ import annotations
 
 import asyncio
-import os
-import traceback
 from datetime import datetime
+import os
 from pathlib import Path
+import traceback
 from typing import Any
 
 import yaml
 
+from deeptutor.core.trace import derive_trace_metadata, new_call_id
+
 from ...services.config import parse_language
 from ...services.path_service import get_path_service
-from deeptutor.core.trace import derive_trace_metadata, new_call_id
 from .agents import PlannerAgent, SolverAgent, WriterAgent
 from .memory import Scratchpad, Source
 from .tool_runtime import SolveToolRuntime
@@ -127,7 +128,9 @@ class MainSolver:
             self.config = {
                 "system": {
                     "output_base_dir": paths_config.get("solve_output_dir", default_solve_dir),
-                    "save_intermediate_results": solve_config.get("save_intermediate_results", True),
+                    "save_intermediate_results": solve_config.get(
+                        "save_intermediate_results", True
+                    ),
                     "language": full_config.get("system", {}).get("language", "en"),
                 },
                 "logging": full_config.get("logging", {}),
@@ -139,9 +142,11 @@ class MainSolver:
             local_config: dict[str, Any] = {}
             if Path(config_path).exists():
                 try:
+
                     def _load(p: str) -> dict:
                         with open(p, encoding="utf-8") as f:
                             return yaml.safe_load(f) or {}
+
                     local_config = await asyncio.to_thread(_load, config_path)
                 except Exception:
                     pass
@@ -193,10 +198,7 @@ class MainSolver:
         from deeptutor.logging import Logger
 
         logging_config = self.config.get("logging", {})
-        log_dir = (
-            self.config.get("paths", {}).get("user_log_dir")
-            or logging_config.get("log_dir")
-        )
+        log_dir = self.config.get("paths", {}).get("user_log_dir") or logging_config.get("log_dir")
 
         self.logger = Logger(
             name="Solver",
@@ -414,16 +416,23 @@ class MainSolver:
                 step_memory_context = await self._get_solver_memory_context(step.goal)
 
             # Compute step index for progress reporting
-            step_index = next(
-                (i + 1 for i, s in enumerate(scratchpad.plan.steps) if s.id == step.id),
-                0,
-            ) if scratchpad.plan else 0
+            step_index = (
+                next(
+                    (i + 1 for i, s in enumerate(scratchpad.plan.steps) if s.id == step.id),
+                    0,
+                )
+                if scratchpad.plan
+                else 0
+            )
             if hasattr(self, "_send_progress_update"):
-                self._send_progress_update("solve", {
-                    "step_id": step.id,
-                    "step_index": step_index,
-                    "step_target": step.goal,
-                })
+                self._send_progress_update(
+                    "solve",
+                    {
+                        "step_id": step.id,
+                        "step_index": step_index,
+                        "step_target": step.goal,
+                    },
+                )
 
             for round_num in range(max_react):
                 decision = await self.solver_agent.process(
@@ -479,7 +488,9 @@ class MainSolver:
                             }
                         )
                     replan_count += 1
-                    self.logger.info(f"    -> Replan requested ({replan_count}/{max_replans}): {action_input[:80]}")
+                    self.logger.info(
+                        f"    -> Replan requested ({replan_count}/{max_replans}): {action_input[:80]}"
+                    )
                     # Record the replan entry
                     scratchpad.add_entry(
                         step_id=step.id,
@@ -695,7 +706,9 @@ class MainSolver:
                 await self._emit_trace_event(
                     {
                         "event": "tool_log",
-                        "message": f"Query: {action_input}" if action_input else "Starting retrieval",
+                        "message": f"Query: {action_input}"
+                        if action_input
+                        else "Starting retrieval",
                         **derive_trace_metadata(
                             retrieve_trace,
                             trace_kind="call_status",
@@ -727,7 +740,9 @@ class MainSolver:
                         ),
                     }
                 )
-            observation = self._format_tool_observation(action, result.content, result.metadata, obs_max)
+            observation = self._format_tool_observation(
+                action, result.content, result.metadata, obs_max
+            )
             sources = self._convert_tool_sources(result.sources, result.metadata)
         except Exception as exc:
             observation = f"Tool error ({action}): {exc}"
@@ -882,7 +897,9 @@ class MainSolver:
             from deeptutor.events.event_bus import Event, EventType, get_event_bus
 
             task_id = Path(output_dir).name
-            tools_used = list({e.action for e in scratchpad.entries if e.action not in ("done", "replan")})
+            tools_used = list(
+                {e.action for e in scratchpad.entries if e.action not in ("done", "replan")}
+            )
 
             event = Event(
                 type=EventType.SOLVE_COMPLETE,

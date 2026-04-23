@@ -8,7 +8,6 @@ import pytest
 
 from deeptutor.utils.json_parser import parse_json_response, safe_json_loads
 
-
 # ---------------------------------------------------------------------------
 # parse_json_response — direct parsing
 # ---------------------------------------------------------------------------

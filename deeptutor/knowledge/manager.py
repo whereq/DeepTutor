@@ -13,11 +13,11 @@ import os
 from pathlib import Path
 import shutil
 import sys
+from typing import Any
 
 from deeptutor.logging import get_logger
-from deeptutor.services.rag.file_routing import FileTypeRouter
-
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
+from deeptutor.services.rag.file_routing import FileTypeRouter
 
 logger = get_logger("KnowledgeBaseManager")
 
@@ -161,10 +161,10 @@ class KnowledgeBaseManager:
                         kb_entry["rag_provider"] = DEFAULT_PROVIDER
                         config_changed = True
 
-                    if (
-                        isinstance(raw_provider, str)
-                        and raw_provider.strip().lower() not in {"", DEFAULT_PROVIDER}
-                    ):
+                    if isinstance(raw_provider, str) and raw_provider.strip().lower() not in {
+                        "",
+                        DEFAULT_PROVIDER,
+                    }:
                         if not kb_entry.get("needs_reindex", False):
                             kb_entry["needs_reindex"] = True
                             config_changed = True
@@ -172,8 +172,10 @@ class KnowledgeBaseManager:
                     kb_dir = self.base_dir / kb_name
                     legacy_storage = kb_dir / "rag_storage"
                     llamaindex_storage = kb_dir / "llamaindex_storage"
-                    if legacy_storage.exists() and legacy_storage.is_dir() and not (
-                        llamaindex_storage.exists() and llamaindex_storage.is_dir()
+                    if (
+                        legacy_storage.exists()
+                        and legacy_storage.is_dir()
+                        and not (llamaindex_storage.exists() and llamaindex_storage.is_dir())
                     ):
                         if not kb_entry.get("needs_reindex", False):
                             kb_entry["needs_reindex"] = True
@@ -276,7 +278,7 @@ class KnowledgeBaseManager:
 
     def list_knowledge_bases(self) -> list[str]:
         """List all available knowledge bases.
-        
+
         This method:
         1. Loads registered KBs from kb_config.json
         2. Scans the directory for existing KBs not yet registered
@@ -296,46 +298,45 @@ class KnowledgeBaseManager:
             for item in self.base_dir.iterdir():
                 if not item.is_dir() or item.name.startswith(("__", ".")):
                     continue
-                    
+
                 # Skip if already in config
                 if item.name in kb_list:
                     continue
-                    
+
                 # Check if this is a valid KB directory (legacy rag_storage or llamaindex_storage)
                 rag_storage = item / "rag_storage"
                 llamaindex_storage = item / "llamaindex_storage"
-                is_valid_kb = (
-                    (rag_storage.exists() and rag_storage.is_dir()) or
-                    (llamaindex_storage.exists() and llamaindex_storage.is_dir())
+                is_valid_kb = (rag_storage.exists() and rag_storage.is_dir()) or (
+                    llamaindex_storage.exists() and llamaindex_storage.is_dir()
                 )
-                
+
                 if is_valid_kb:
                     # Auto-register this KB to kb_config.json
                     kb_list.add(item.name)
                     self._auto_register_kb(item.name)
                     config_changed = True
-            
+
             # Save config if we registered new KBs
             if config_changed:
                 self._save_config()
 
         return sorted(kb_list)
-    
+
     def _auto_register_kb(self, name: str):
         """Auto-register an existing KB to kb_config.json.
-        
+
         Reads info from metadata.json (if exists) for backward compatibility.
         """
         kb_dir = self.base_dir / name
-        
+
         # Default values
-        kb_entry = {
+        kb_entry: dict[str, Any] = {
             "path": name,
             "description": f"Knowledge base: {name}",
             "status": "ready",  # Existing KB with storage is considered ready
             "updated_at": datetime.now().isoformat(),
         }
-        
+
         # Try to read metadata.json for existing info (backward compatibility)
         metadata_file = kb_dir / "metadata.json"
         if metadata_file.exists():
@@ -356,7 +357,7 @@ class KnowledgeBaseManager:
                     kb_entry["updated_at"] = metadata["last_updated"]
             except Exception as e:
                 logger.warning(f"Failed to read metadata.json for '{name}': {e}")
-        
+
         # Detect rag_provider from storage type if not set
         if "rag_provider" not in kb_entry:
             rag_storage = kb_dir / "rag_storage"
@@ -366,12 +367,12 @@ class KnowledgeBaseManager:
             elif rag_storage.exists():
                 kb_entry["rag_provider"] = DEFAULT_PROVIDER
                 kb_entry["needs_reindex"] = True
-        
+
         # Add to config
         if "knowledge_bases" not in self.config:
             self.config["knowledge_bases"] = {}
         self.config["knowledge_bases"][name] = kb_entry
-        
+
         logger.info(f"Auto-registered KB '{name}' to kb_config.json")
 
     def register_knowledge_base(self, name: str, description: str = "", set_default: bool = False):
@@ -484,7 +485,7 @@ class KnowledgeBaseManager:
 
     def get_metadata(self, name: str | None = None) -> dict:
         """Get knowledge base metadata.
-        
+
         Source:
         1. kb_config.json (authoritative source)
         """
@@ -493,11 +494,11 @@ class KnowledgeBaseManager:
             kb_name = self.get_default()
             if kb_name is None:
                 return {}
-        
+
         # First, try kb_config.json (authoritative source)
         self.config = self._load_config()
         kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
-        
+
         if kb_config:
             # Build metadata from config
             metadata = {
@@ -512,7 +513,7 @@ class KnowledgeBaseManager:
             # Remove None values
             metadata = {k: v for k, v in metadata.items() if v is not None}
             return metadata
-        
+
         return {}
 
     def get_info(self, name: str | None = None) -> dict:
@@ -602,31 +603,30 @@ class KnowledgeBaseManager:
 
         if dir_exists:
             try:
-                raw_count = (
-                    len([f for f in raw_dir.iterdir() if f.is_file()]) if raw_dir.exists() else 0
-                )
+                raw_count = len([f for f in raw_dir.iterdir() if f.is_file()]) if raw_dir else 0
             except Exception:
                 pass
 
             try:
                 images_count = (
-                    len([f for f in images_dir.iterdir() if f.is_file()])
-                    if images_dir.exists()
-                    else 0
+                    len([f for f in images_dir.iterdir() if f.is_file()]) if images_dir else 0
                 )
             except Exception:
                 pass
 
             try:
                 content_lists_count = (
-                    len(list(content_list_dir.glob("*.json"))) if content_list_dir.exists() else 0
+                    len(list(content_list_dir.glob("*.json"))) if content_list_dir else 0
                 )
             except Exception:
                 pass
 
         # Check rag_initialized (llamaindex storage only)
         rag_initialized = (
-            (dir_exists and llamaindex_storage_dir and llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir())
+            dir_exists
+            and llamaindex_storage_dir
+            and llamaindex_storage_dir.exists()
+            and llamaindex_storage_dir.is_dir()
         )
 
         info["statistics"] = {

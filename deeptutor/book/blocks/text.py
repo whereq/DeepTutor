@@ -16,7 +16,6 @@ from ._prompts import get_book_prompt, load_book_prompts
 from ._rag_helpers import optional_rag_lookup
 from .base import BlockContext, BlockGenerator
 
-
 _NONE_LABEL = {"zh": "(无)", "en": "(none)"}
 
 
@@ -48,9 +47,7 @@ class TextGenerator(BlockGenerator):
 
         prompts = load_book_prompts("text", ctx.language)
         none_label = _none_label(ctx.language)
-        rag_section = (
-            f"\n[Relevant source material]\n{rag.text}\n" if rag.text else ""
-        )
+        rag_section = f"\n[Relevant source material]\n{rag.text}\n" if rag.text else ""
         prev_section = (
             f"\n[Previous block recap]\n{previous_block_summary}\n"
             if previous_block_summary

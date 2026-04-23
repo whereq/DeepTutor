@@ -7,8 +7,8 @@ from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
 import json
-from pathlib import Path
 import logging
+from pathlib import Path
 
 # Use unified logging system
 from deeptutor.logging import get_logger

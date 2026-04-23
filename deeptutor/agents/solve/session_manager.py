@@ -98,9 +98,7 @@ class SolverSessionManager(BaseSessionManager):
             "created_at": session.get("created_at"),
             "updated_at": session.get("updated_at"),
             # Include preview of last message
-            "last_message": (
-                messages[-1].get("content", "")[:100] if messages else ""
-            ),
+            "last_message": (messages[-1].get("content", "")[:100] if messages else ""),
         }
 
     # =========================================================================

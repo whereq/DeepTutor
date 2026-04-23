@@ -58,4 +58,3 @@ def get_embedding_config() -> EmbeddingConfig:
         batch_size=max(1, resolved.batch_size),
         batch_delay=max(0.0, resolved.batch_delay),
     )
-

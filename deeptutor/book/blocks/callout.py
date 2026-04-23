@@ -12,7 +12,6 @@ from ._llm_writer import llm_text
 from ._prompts import get_book_prompt, load_book_prompts
 from .base import BlockContext, BlockGenerator
 
-
 _VARIANT_LABELS = {
     "key_idea": ("Key Idea", "核心要点"),
     "common_pitfall": ("Watch Out", "常见误区"),

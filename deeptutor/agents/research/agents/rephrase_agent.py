@@ -63,8 +63,7 @@ class RephraseAgent(BaseAgent):
 
     def _get_mode_contract(self, stage: str) -> str:
         return (
-            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "")
-            or ""
+            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "") or ""
         ).strip()
 
     def _format_conversation_history(self) -> str:

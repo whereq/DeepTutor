@@ -60,9 +60,7 @@ def get_book_prompt(prompts: dict[str, Any], key: str) -> str:
     """
     value = prompts.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise RuntimeError(
-            f"Prompt key '{key}' missing or empty in loaded book prompt bundle."
-        )
+        raise RuntimeError(f"Prompt key '{key}' missing or empty in loaded book prompt bundle.")
     return value
 
 

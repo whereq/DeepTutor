@@ -86,7 +86,10 @@ function titleCase(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function humanizeQuestionId(value: string, t?: (key: string, opts?: Record<string, unknown>) => string) {
+function humanizeQuestionId(
+  value: string,
+  t?: (key: string, opts?: Record<string, unknown>) => string,
+) {
   return value.replace(/\bq_(\d+)\b/gi, (_match, n) =>
     t ? t("Question {{n}}", { n }) : `Question ${n}`,
   );
@@ -96,7 +99,10 @@ export function getTraceMeta(event: StreamEvent): TraceMetadata {
   return (event.metadata ?? {}) as TraceMetadata;
 }
 
-function getTraceLabel(events: StreamEvent[], t?: (key: string, opts?: Record<string, unknown>) => string) {
+function getTraceLabel(
+  events: StreamEvent[],
+  t?: (key: string, opts?: Record<string, unknown>) => string,
+) {
   for (const event of events) {
     const meta = getTraceMeta(event);
     if (meta.label) return humanizeQuestionId(String(meta.label), t);
@@ -135,7 +141,8 @@ function getTraceDurationLabel(events: StreamEvent[]) {
   for (const event of events) {
     const state = String(getTraceMeta(event).call_state || "");
     if (state === "running" && start === null) start = event.timestamp;
-    if ((state === "complete" || state === "error") && end === null) end = event.timestamp;
+    if ((state === "complete" || state === "error") && end === null)
+      end = event.timestamp;
   }
   if (start === null || end === null) return "";
   const seconds = Math.max(1, Math.round(end - start));
@@ -150,7 +157,10 @@ function getTraceStartTimestamp(events: StreamEvent[]) {
   return null;
 }
 
-function getActiveTraceDurationSeconds(events: StreamEvent[], nowSeconds: number) {
+function getActiveTraceDurationSeconds(
+  events: StreamEvent[],
+  nowSeconds: number,
+) {
   const start = getTraceStartTimestamp(events);
   if (start === null) return null;
   return Math.max(1, Math.round(nowSeconds - start));
@@ -217,17 +227,29 @@ function getTraceHeader(
     title = t("Thought");
   } else if (kind === "llm_generation") {
     if (/^generate\s+/i.test(label)) {
-      title = t("Generating {{label}}", { label: label.replace(/^generate\s+/i, "") });
+      title = t("Generating {{label}}", {
+        label: label.replace(/^generate\s+/i, ""),
+      });
     } else if (/^write\s+/i.test(label)) {
-      title = t("Writing {{label}}", { label: label.replace(/^write\s+/i, "") });
+      title = t("Writing {{label}}", {
+        label: label.replace(/^write\s+/i, ""),
+      });
     }
   }
 
-  return duration ? t("{{title}} for {{duration}}", { title, duration }) : title;
+  return duration
+    ? t("{{title}} for {{duration}}", { title, duration })
+    : title;
 }
 
-function getTraceText(events: StreamEvent[], eventTypes: Array<StreamEvent["type"]>) {
-  const textEvents = events.filter((event) => eventTypes.includes(event.type) && event.content.trim().length > 0);
+function getTraceText(
+  events: StreamEvent[],
+  eventTypes: Array<StreamEvent["type"]>,
+) {
+  const textEvents = events.filter(
+    (event) =>
+      eventTypes.includes(event.type) && event.content.trim().length > 0,
+  );
   if (!textEvents.length) return "";
 
   const explicitOutputs = textEvents.filter(
@@ -435,14 +457,18 @@ function TraceRowBody({
       : role === "retrieve"
         ? ""
         : thoughtText || contentText;
-  const inlineSources = callEvents.flatMap((event) => getTraceMeta(event).sources ?? []);
+  const inlineSources = callEvents.flatMap(
+    (event) => getTraceMeta(event).sources ?? [],
+  );
 
   return (
     <div className="text-[11px] italic leading-[1.6] text-[var(--muted-foreground)]">
       {group === "react_round" ? (
         <div className="space-y-2">
           <TraceSection title={t("Thought")}>
-            {thoughtText ? <MarkdownRenderer content={thoughtText} variant="trace" /> : null}
+            {thoughtText ? (
+              <MarkdownRenderer content={thoughtText} variant="trace" />
+            ) : null}
           </TraceSection>
           <TraceSection title={t("Tool")}>
             {toolEvents.length > 0 ? (
@@ -468,7 +494,10 @@ function TraceRowBody({
                       <span>{String(event.metadata?.tool ?? "result")}</span>
                       {event.content && (
                         <div className="ml-3 mt-0.5">
-                          <MarkdownRenderer content={event.content} variant="trace" />
+                          <MarkdownRenderer
+                            content={event.content}
+                            variant="trace"
+                          />
                         </div>
                       )}
                     </div>
@@ -478,7 +507,9 @@ function TraceRowBody({
             ) : null}
           </TraceSection>
           <TraceSection title={t("Observe")}>
-            {observationText ? <MarkdownRenderer content={observationText} variant="trace" /> : null}
+            {observationText ? (
+              <MarkdownRenderer content={observationText} variant="trace" />
+            ) : null}
           </TraceSection>
         </div>
       ) : (
@@ -493,20 +524,24 @@ function TraceRowBody({
             </div>
           )}
 
-          {(role === "retrieve" || kind === "math_render_output") && rawProgressEvents.length > 0 && (
-            <div className="space-y-0.5">
-              <div className="not-italic text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                {t("Raw logs")}
+          {(role === "retrieve" || kind === "math_render_output") &&
+            rawProgressEvents.length > 0 && (
+              <div className="space-y-0.5">
+                <div className="not-italic text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                  {t("Raw logs")}
+                </div>
+                <div className="max-h-[200px] overflow-y-auto rounded-md border border-[var(--border)] bg-[#292524] px-3 py-2 font-mono text-[10px] leading-[1.55] text-[#D6D3D1] shadow-inner">
+                  {rawProgressEvents.map((event, idx) => (
+                    <div
+                      key={`${callId}-raw-${idx}`}
+                      className="whitespace-pre-wrap break-words"
+                    >
+                      {event.content}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="max-h-[200px] overflow-y-auto rounded-md border border-[var(--border)] bg-[#292524] px-3 py-2 font-mono text-[10px] leading-[1.55] text-[#D6D3D1] shadow-inner">
-                {rawProgressEvents.map((event, idx) => (
-                  <div key={`${callId}-raw-${idx}`} className="whitespace-pre-wrap break-words">
-                    {event.content}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            )}
 
           {toolEvents.length > 0 && (
             <div className="space-y-0.5">
@@ -531,7 +566,10 @@ function TraceRowBody({
                     <span>{String(event.metadata?.tool ?? "result")}</span>
                     {event.content && (
                       <div className="ml-3 mt-0.5">
-                        <MarkdownRenderer content={event.content} variant="trace" />
+                        <MarkdownRenderer
+                          content={event.content}
+                          variant="trace"
+                        />
                       </div>
                     )}
                   </div>
@@ -573,7 +611,11 @@ function TraceRowBody({
   );
 }
 
-function hasExpandableContent(callEvents: StreamEvent[], group: string, role: string) {
+function hasExpandableContent(
+  callEvents: StreamEvent[],
+  group: string,
+  role: string,
+) {
   const progressEvents = callEvents.filter((event) => {
     if (event.type !== "progress") return false;
     const traceKind = String(getTraceMeta(event).trace_kind || "");
@@ -601,7 +643,9 @@ function hasExpandableContent(callEvents: StreamEvent[], group: string, role: st
       : role === "retrieve"
         ? ""
         : thoughtText || contentText;
-  const inlineSources = callEvents.flatMap((event) => getTraceMeta(event).sources ?? []);
+  const inlineSources = callEvents.flatMap(
+    (event) => getTraceMeta(event).sources ?? [],
+  );
 
   return (
     toolEvents.length > 0 ||
@@ -610,7 +654,8 @@ function hasExpandableContent(callEvents: StreamEvent[], group: string, role: st
     errorEvents.length > 0 ||
     Boolean(genericBodyText) ||
     inlineSources.length > 0 ||
-    (group === "react_round" && (Boolean(thoughtText) || Boolean(observationText)))
+    (group === "react_round" &&
+      (Boolean(thoughtText) || Boolean(observationText)))
   );
 }
 
@@ -630,7 +675,10 @@ export function CallTracePanel({
 
   useEffect(() => {
     if (!isStreaming) return;
-    const timer = window.setInterval(() => setNowSeconds(Date.now() / 1000), 1000);
+    const timer = window.setInterval(
+      () => setNowSeconds(Date.now() / 1000),
+      1000,
+    );
     return () => window.clearInterval(timer);
   }, [isStreaming]);
 
@@ -653,7 +701,10 @@ export function CallTracePanel({
     return groups;
   }, [events]);
 
-  const displayItems = useMemo(() => buildDisplayItems(traceGroups), [traceGroups]);
+  const displayItems = useMemo(
+    () => buildDisplayItems(traceGroups),
+    [traceGroups],
+  );
 
   if (!traceGroups.length) return null;
 
@@ -669,7 +720,8 @@ export function CallTracePanel({
     const group = getTraceGroup(callEvents);
     const kind = getTraceCallKind(callEvents);
     const header = getTraceHeader(callEvents, nowSeconds, nested, t);
-    const active = Boolean(isStreaming) && isGloballyLast && isTracePending(callEvents);
+    const active =
+      Boolean(isStreaming) && isGloballyLast && isTracePending(callEvents);
     const isFinalResponse = kind === "llm_final_response";
 
     if (isFinalResponse) return null;
@@ -704,11 +756,25 @@ export function CallTracePanel({
         </summary>
         {nested ? (
           <div className="ml-5 mr-3 mt-0.5 px-3 py-1">
-            <TraceRowBody callId={callId} callEvents={callEvents} group={group} role={role} kind={kind} t={t} />
+            <TraceRowBody
+              callId={callId}
+              callEvents={callEvents}
+              group={group}
+              role={role}
+              kind={kind}
+              t={t}
+            />
           </div>
         ) : (
           <ScrollableTraceBody autoScroll={active}>
-            <TraceRowBody callId={callId} callEvents={callEvents} group={group} role={role} kind={kind} t={t} />
+            <TraceRowBody
+              callId={callId}
+              callEvents={callEvents}
+              group={group}
+              role={role}
+              kind={kind}
+              t={t}
+            />
           </ScrollableTraceBody>
         )}
       </details>
@@ -721,14 +787,24 @@ export function CallTracePanel({
         const isLastDisplayItem = displayIdx === displayItems.length - 1;
 
         if (item.kind === "step") {
-          const roundCount = item.traces.filter((tr) => getTraceGroup(tr.events) === "react_round").length;
+          const roundCount = item.traces.filter(
+            (tr) => getTraceGroup(tr.events) === "react_round",
+          ).length;
           const lastTrace = item.traces[item.traces.length - 1];
           const isActiveStep =
-            Boolean(isStreaming) && isLastDisplayItem && isTracePending(lastTrace.events);
-          const stepDuration = isActiveStep ? "" : getStepGroupDuration(item.traces);
+            Boolean(isStreaming) &&
+            isLastDisplayItem &&
+            isTracePending(lastTrace.events);
+          const stepDuration = isActiveStep
+            ? ""
+            : getStepGroupDuration(item.traces);
 
           return (
-            <details key={item.stepId} open={isActiveStep || undefined} className="group/step">
+            <details
+              key={item.stepId}
+              open={isActiveStep || undefined}
+              className="group/step"
+            >
               <summary className="list-none cursor-pointer hover:text-[var(--foreground)] [&::-webkit-details-marker]:hidden">
                 <div className="flex items-center gap-2 py-0.5 not-italic text-[12px] font-medium text-[var(--muted-foreground)]">
                   <ChevronDown
@@ -741,7 +817,9 @@ export function CallTracePanel({
                     {roundCount} {roundCount === 1 ? "round" : "rounds"}
                     {stepDuration ? ` · ${stepDuration}` : ""}
                   </span>
-                  {isActiveStep && <Loader2 size={11} className="animate-spin" />}
+                  {isActiveStep && (
+                    <Loader2 size={11} className="animate-spin" />
+                  )}
                 </div>
               </summary>
               <ScrollableTraceBody
@@ -760,31 +838,48 @@ export function CallTracePanel({
                     if (trGroup === "react_round") {
                       const roundNum = trMeta.round;
                       const duration = getTraceDurationLabel(trace.events);
-                      const thoughtText = getTraceText(trace.events, ["thinking"]);
-                      const observationText = getTraceText(trace.events, ["observation"]);
+                      const thoughtText = getTraceText(trace.events, [
+                        "thinking",
+                      ]);
+                      const observationText = getTraceText(trace.events, [
+                        "observation",
+                      ]);
                       const traceToolEvents = trace.events.filter(
-                        (e) => e.type === "tool_call" || e.type === "tool_result",
+                        (e) =>
+                          e.type === "tool_call" || e.type === "tool_result",
                       );
                       const isLastInStep = idx === item.traces.length - 1;
                       const roundActive =
-                        Boolean(isStreaming) && isLastDisplayItem && isLastInStep && isTracePending(trace.events);
+                        Boolean(isStreaming) &&
+                        isLastDisplayItem &&
+                        isLastInStep &&
+                        isTracePending(trace.events);
 
                       return (
                         <div key={trace.callId}>
-                          {idx > 0 && <div className="my-1.5 h-px bg-[var(--border)]/30" />}
+                          {idx > 0 && (
+                            <div className="my-1.5 h-px bg-[var(--border)]/30" />
+                          )}
                           <div className="mb-1 flex items-center gap-1.5 not-italic text-[11px]">
                             <span className="font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
                               Round {roundNum}
                             </span>
                             {duration && (
-                              <span className="font-normal text-[var(--muted-foreground)]/40">{duration}</span>
+                              <span className="font-normal text-[var(--muted-foreground)]/40">
+                                {duration}
+                              </span>
                             )}
-                            {roundActive && <Loader2 size={10} className="animate-spin" />}
+                            {roundActive && (
+                              <Loader2 size={10} className="animate-spin" />
+                            )}
                           </div>
                           <div className="space-y-1.5 pl-0.5">
                             <TraceSection title={t("Thought")}>
                               {thoughtText ? (
-                                <MarkdownRenderer content={thoughtText} variant="trace" />
+                                <MarkdownRenderer
+                                  content={thoughtText}
+                                  variant="trace"
+                                />
                               ) : null}
                             </TraceSection>
                             <TraceSection title={t("Tool")}>
@@ -792,7 +887,9 @@ export function CallTracePanel({
                                 <div className="space-y-0.5">
                                   {traceToolEvents.map((ev, ei) => {
                                     if (ev.type === "tool_call") {
-                                      const fa = formatTraceArgs(ev.metadata?.args);
+                                      const fa = formatTraceArgs(
+                                        ev.metadata?.args,
+                                      );
                                       return (
                                         <div key={`${trace.callId}-tc-${ei}`}>
                                           <span className="opacity-50">→ </span>
@@ -808,10 +905,17 @@ export function CallTracePanel({
                                     return (
                                       <div key={`${trace.callId}-tr-${ei}`}>
                                         <span className="opacity-50">✓ </span>
-                                        <span>{String(ev.metadata?.tool ?? "result")}</span>
+                                        <span>
+                                          {String(
+                                            ev.metadata?.tool ?? "result",
+                                          )}
+                                        </span>
                                         {ev.content && (
                                           <div className="ml-3 mt-0.5">
-                                            <MarkdownRenderer content={ev.content} variant="trace" />
+                                            <MarkdownRenderer
+                                              content={ev.content}
+                                              variant="trace"
+                                            />
                                           </div>
                                         )}
                                       </div>
@@ -822,7 +926,10 @@ export function CallTracePanel({
                             </TraceSection>
                             <TraceSection title={t("Observe")}>
                               {observationText ? (
-                                <MarkdownRenderer content={observationText} variant="trace" />
+                                <MarkdownRenderer
+                                  content={observationText}
+                                  variant="trace"
+                                />
                               ) : null}
                             </TraceSection>
                           </div>
@@ -831,18 +938,27 @@ export function CallTracePanel({
                     }
 
                     /* Non-round trace (retrieve, tool, etc.) — inline within the step */
-                    const inlineHeader = getTraceHeader(trace.events, nowSeconds, true, t);
+                    const inlineHeader = getTraceHeader(
+                      trace.events,
+                      nowSeconds,
+                      true,
+                      t,
+                    );
                     const progressEvts = trace.events.filter(
                       (e) =>
                         e.type === "progress" &&
-                        String(getTraceMeta(e).trace_kind || "") !== "call_status" &&
+                        String(getTraceMeta(e).trace_kind || "") !==
+                          "call_status" &&
                         e.content.trim().length > 0,
                     );
                     const rawEvts = progressEvts.filter(
-                      (e) => String(getTraceMeta(e).trace_layer || "") === "raw",
+                      (e) =>
+                        String(getTraceMeta(e).trace_layer || "") === "raw",
                     );
                     const summaryEvts = progressEvts.filter(
-                      (e) => String(getTraceMeta(e).trace_layer || "summary") !== "raw",
+                      (e) =>
+                        String(getTraceMeta(e).trace_layer || "summary") !==
+                        "raw",
                     );
                     const inlineToolEvts = trace.events.filter(
                       (e) => e.type === "tool_call" || e.type === "tool_result",
@@ -852,7 +968,8 @@ export function CallTracePanel({
                         ? getTraceText(trace.events, ["observation"])
                         : trRole === "retrieve"
                           ? ""
-                          : getTraceText(trace.events, ["thinking"]) || getTraceText(trace.events, ["content"]);
+                          : getTraceText(trace.events, ["thinking"]) ||
+                            getTraceText(trace.events, ["content"]);
 
                     const hasContent =
                       summaryEvts.length > 0 ||
@@ -868,28 +985,45 @@ export function CallTracePanel({
                         </div>
                         <div className="mt-0.5 space-y-0.5">
                           {summaryEvts.map((ev, ei) => (
-                            <div key={`${trace.callId}-sp-${ei}`} className="opacity-70">
+                            <div
+                              key={`${trace.callId}-sp-${ei}`}
+                              className="opacity-70"
+                            >
                               {ev.content}
                             </div>
                           ))}
-                          {(trRole === "retrieve" || trKind === "math_render_output") && rawEvts.length > 0 && (
-                            <div className="max-h-[160px] overflow-y-auto rounded-md border border-[var(--border)] bg-[#292524] px-3 py-2 font-mono text-[10px] not-italic leading-[1.55] text-[#D6D3D1] shadow-inner">
-                              {rawEvts.map((ev, ei) => (
-                                <div key={`${trace.callId}-rw-${ei}`} className="whitespace-pre-wrap break-words">
-                                  {ev.content}
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                          {(trRole === "retrieve" ||
+                            trKind === "math_render_output") &&
+                            rawEvts.length > 0 && (
+                              <div className="max-h-[160px] overflow-y-auto rounded-md border border-[var(--border)] bg-[#292524] px-3 py-2 font-mono text-[10px] not-italic leading-[1.55] text-[#D6D3D1] shadow-inner">
+                                {rawEvts.map((ev, ei) => (
+                                  <div
+                                    key={`${trace.callId}-rw-${ei}`}
+                                    className="whitespace-pre-wrap break-words"
+                                  >
+                                    {ev.content}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           {inlineToolEvts.map((ev, ei) => (
                             <div key={`${trace.callId}-it-${ei}`}>
-                              <span className="opacity-50">{ev.type === "tool_call" ? "→ " : "✓ "}</span>
-                              <span>{ev.type === "tool_call" ? ev.content : String(ev.metadata?.tool ?? "result")}</span>
+                              <span className="opacity-50">
+                                {ev.type === "tool_call" ? "→ " : "✓ "}
+                              </span>
+                              <span>
+                                {ev.type === "tool_call"
+                                  ? ev.content
+                                  : String(ev.metadata?.tool ?? "result")}
+                              </span>
                             </div>
                           ))}
                           {genericText && (
                             <div className="mt-0.5">
-                              <MarkdownRenderer content={genericText} variant="trace" />
+                              <MarkdownRenderer
+                                content={genericText}
+                                variant="trace"
+                              />
                             </div>
                           )}
                         </div>
@@ -914,7 +1048,10 @@ export function CallTracePanel({
 
 function getResearchStageId(event: StreamEvent): ResearchStageCard["id"] {
   const meta = getTraceMeta(event);
-  const explicitStage = String((event.metadata as Record<string, unknown> | undefined)?.research_stage_card || "");
+  const explicitStage = String(
+    (event.metadata as Record<string, unknown> | undefined)
+      ?.research_stage_card || "",
+  );
   if (
     explicitStage === "understand" ||
     explicitStage === "decompose" ||
@@ -925,13 +1062,17 @@ function getResearchStageId(event: StreamEvent): ResearchStageCard["id"] {
   }
   const stage = String(event.stage || meta.phase || "");
   const text = String(event.content || "").toLowerCase();
-  const agent = String((event.metadata as Record<string, unknown> | undefined)?.agent_name || "");
+  const agent = String(
+    (event.metadata as Record<string, unknown> | undefined)?.agent_name || "",
+  );
 
   if (stage === "reporting") return "result";
-  if (stage === "decomposing" || agent === "decompose_agent") return "decompose";
+  if (stage === "decomposing" || agent === "decompose_agent")
+    return "decompose";
   if (stage === "rephrasing" || agent === "rephrase_agent") return "understand";
   if (stage === "planning") {
-    if (text.includes("decompose") || text.includes("queue")) return "decompose";
+    if (text.includes("decompose") || text.includes("queue"))
+      return "decompose";
     return "understand";
   }
   return "evidence";
@@ -977,11 +1118,15 @@ export function ResearchStagePanel({
   return (
     <div className="mb-3 space-y-0.5">
       {cards.map((card, index) => {
-        const hasTrace = card.events.some((event) => Boolean(getTraceMeta(event).call_id));
+        const hasTrace = card.events.some((event) =>
+          Boolean(getTraceMeta(event).call_id),
+        );
         const active =
           Boolean(isStreaming) &&
           index === cards.length - 1 &&
-          card.events.some((event) => isTracePending([event]) || event.type === "progress");
+          card.events.some(
+            (event) => isTracePending([event]) || event.type === "progress",
+          );
         const summary = formatResearchStageSummary(card.events, card.hint);
 
         return (
@@ -989,9 +1134,16 @@ export function ResearchStagePanel({
             <div className="flex items-center gap-2 py-1 text-[12px] text-[var(--muted-foreground)]">
               <span className="font-semibold">{card.title}</span>
               <span className="text-[11px] opacity-60">{summary}</span>
-              {active && <Loader2 size={11} className="animate-spin text-[var(--primary)]" />}
+              {active && (
+                <Loader2
+                  size={11}
+                  className="animate-spin text-[var(--primary)]"
+                />
+              )}
             </div>
-            {hasTrace ? <CallTracePanel events={card.events} isStreaming={isStreaming} /> : null}
+            {hasTrace ? (
+              <CallTracePanel events={card.events} isStreaming={isStreaming} />
+            ) : null}
           </div>
         );
       })}

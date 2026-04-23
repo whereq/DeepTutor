@@ -38,7 +38,7 @@ Retry Mechanism:
 
 import asyncio
 from collections.abc import AsyncGenerator, Mapping
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import tenacity
 
@@ -71,7 +71,7 @@ DEFAULT_MAX_RETRIES = settings.retry.max_retries
 DEFAULT_RETRY_DELAY = settings.retry.base_delay
 DEFAULT_EXPONENTIAL_BACKOFF = settings.retry.exponential_backoff
 
-CallKwargs = dict[str, object]
+CallKwargs = dict[str, Any]
 
 
 def _is_retriable_error(error: BaseException) -> bool:
@@ -145,11 +145,11 @@ async def complete(
     base_url: str | None = None,
     api_version: str | None = None,
     binding: str | None = None,
-    messages: list[dict[str, object]] | None = None,
+    messages: list[dict[str, Any]] | None = None,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_delay: float = DEFAULT_RETRY_DELAY,
     exponential_backoff: bool = DEFAULT_EXPONENTIAL_BACKOFF,
-    **kwargs: object,
+    **kwargs: Any,
 ) -> str:
     """
     Unified LLM completion function with automatic retry.
@@ -258,7 +258,7 @@ async def complete(
         api_version_value: str | None,
         binding_value: str | None,
         extra_kwargs: CallKwargs,
-        messages_value: list[dict[str, object]] | None,
+        messages_value: list[dict[str, Any]] | None,
     ) -> str:
         try:
             if provider_mode == "oauth" and provider_name == "openai_codex":
@@ -306,7 +306,9 @@ async def complete(
                 api_key=api_key_value,
                 base_url=base_url_value,
                 api_version=api_version_value,
-                binding=direct_binding if provider_mode == "direct" else (binding_value or "openai"),
+                binding=direct_binding
+                if provider_mode == "direct"
+                else (binding_value or "openai"),
                 messages=messages_value,
                 extra_headers=extra_headers or None,
                 **extra_kwargs,
@@ -347,11 +349,11 @@ async def stream(
     base_url: str | None = None,
     api_version: str | None = None,
     binding: str | None = None,
-    messages: list[dict[str, object]] | None = None,
+    messages: list[dict[str, Any]] | None = None,
     max_retries: int = DEFAULT_MAX_RETRIES,
     retry_delay: float = DEFAULT_RETRY_DELAY,
     exponential_backoff: bool = DEFAULT_EXPONENTIAL_BACKOFF,
-    **kwargs: object,
+    **kwargs: Any,
 ) -> AsyncGenerator[str, None]:
     """Stream LLM responses with retry handling."""
     provider_name = binding or "openai"

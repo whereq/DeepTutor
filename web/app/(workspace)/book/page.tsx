@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, MessageSquare } from "lucide-react";
 
@@ -61,7 +69,9 @@ function BookPageInner() {
   // Creator-stage state
   const [creating, setCreating] = useState(false);
   const [confirmingProposal, setConfirmingProposal] = useState(false);
-  const [pendingProposal, setPendingProposal] = useState<BookProposal | null>(null);
+  const [pendingProposal, setPendingProposal] = useState<BookProposal | null>(
+    null,
+  );
   const [pendingBook, setPendingBook] = useState<Book | null>(null);
 
   // Spine-stage state
@@ -71,7 +81,9 @@ function BookPageInner() {
   const [compilingPageId, setCompilingPageId] = useState<string | null>(null);
 
   // Phase 3 state
-  const [pendingDeepDiveTopic, setPendingDeepDiveTopic] = useState<string | null>(null);
+  const [pendingDeepDiveTopic, setPendingDeepDiveTopic] = useState<
+    string | null
+  >(null);
   const [chatOpen, setChatOpen] = useState(false);
 
   // Phase 5 — live BookEngine progress timeline state.
@@ -111,8 +123,11 @@ function BookPageInner() {
       // Always feed the progress reducer so the timeline updates live.
       dispatchProgress(event);
 
-      const meta = (event.metadata as Record<string, unknown> | undefined) || {};
-      const kind = String((event.content as string) || (meta.kind as string) || "");
+      const meta =
+        (event.metadata as Record<string, unknown> | undefined) || {};
+      const kind = String(
+        (event.content as string) || (meta.kind as string) || "",
+      );
       if (
         kind === "block_ready" ||
         kind === "block_error" ||
@@ -292,10 +307,7 @@ function BookPageInner() {
     await loadBookDetail(detail.book.id);
   };
 
-  const handleMoveBlock = async (
-    block: Block,
-    direction: "up" | "down",
-  ) => {
+  const handleMoveBlock = async (block: Block, direction: "up" | "down") => {
     if (!detail || !selectedPage) return;
     const idx = selectedPage.blocks.findIndex((b) => b.id === block.id);
     if (idx < 0) return;
@@ -397,82 +409,88 @@ function BookPageInner() {
           </div>
         )}
         <div className="flex-1 overflow-hidden">
-        {view === "list" && (
-          <BookLibrary
-            books={books}
-            loading={loadingBooks}
-            onNewBook={handleNewBook}
-            onSelectBook={(id) => void handleSelectBook(id)}
-            onDeleteBook={(id) => void handleDeleteBook(id)}
-          />
-        )}
-
-        {view === "creator" && (
-          <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
-            {(confirmingProposal || progressHasActivity(progress)) && (
-              <div className="mx-auto mt-4 max-w-4xl px-4">
-                <BookProgressTimeline progress={progress} />
-              </div>
-            )}
-            <BookCreator
-              onCreate={handleCreate}
-              loading={creating}
-              proposal={pendingProposal}
-              onConfirmProposal={handleConfirmProposal}
-              confirmLoading={confirmingProposal}
+          {view === "list" && (
+            <BookLibrary
+              books={books}
+              loading={loadingBooks}
+              onNewBook={handleNewBook}
+              onSelectBook={(id) => void handleSelectBook(id)}
+              onDeleteBook={(id) => void handleDeleteBook(id)}
             />
-          </div>
-        )}
+          )}
 
-        {view === "spine" && detail?.spine && (
-          <div className="flex h-full flex-col overflow-hidden">
-            <div className="flex-1 overflow-hidden">
-              <SpineEditor
-                spine={detail.spine}
-                onConfirm={handleConfirmSpine}
-                loading={confirmingSpine}
+          {view === "creator" && (
+            <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
+              {(confirmingProposal || progressHasActivity(progress)) && (
+                <div className="mx-auto mt-4 max-w-4xl px-4">
+                  <BookProgressTimeline progress={progress} />
+                </div>
+              )}
+              <BookCreator
+                onCreate={handleCreate}
+                loading={creating}
+                proposal={pendingProposal}
+                onConfirmProposal={handleConfirmProposal}
+                confirmLoading={confirmingProposal}
               />
             </div>
-          </div>
-        )}
+          )}
 
-        {view === "reader" && (
-          <>
-            <BookHealthBanner
-              bookId={selectedBookId}
-              refreshKey={detail?.book.updated_at}
-              onRecompile={(pageId) => {
-                setSelectedPageId(pageId);
-                void compilePage(pageId, true);
-              }}
-            />
-          <PageReader
-            page={selectedPage}
-            bookId={detail?.book.id}
-            bookLanguage={detail?.book.language}
-            loading={!!compilingPageId && compilingPageId === selectedPage?.id}
-            onRegenerateBlock={(block) => void handleRegenerateBlock(block)}
-            onDeleteBlock={(block) => void handleDeleteBlock(block)}
-            onMoveBlock={(block, dir) => void handleMoveBlock(block, dir)}
-            onChangeBlockType={(block, t) => void handleChangeBlockType(block, t)}
-            onInsertBlock={(t) => handleInsertBlock(t)}
-            onDeepDive={(topic, blockId) => handleDeepDive(topic, blockId)}
-            onQuizAttempt={(block, args) => void handleQuizAttempt(block, args)}
-            pendingDeepDiveTopic={pendingDeepDiveTopic}
-            onRecompile={
-              selectedPage
-                ? () => void compilePage(selectedPage.id, true)
-                : undefined
-            }
-          />
-          </>
-        )}
+          {view === "spine" && detail?.spine && (
+            <div className="flex h-full flex-col overflow-hidden">
+              <div className="flex-1 overflow-hidden">
+                <SpineEditor
+                  spine={detail.spine}
+                  onConfirm={handleConfirmSpine}
+                  loading={confirmingSpine}
+                />
+              </div>
+            </div>
+          )}
 
-        {view === "spine" && !detail?.spine && (
-          <div className="flex h-full items-center justify-center text-[var(--muted-foreground)]">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading spine…
-          </div>
-        )}
+          {view === "reader" && (
+            <>
+              <BookHealthBanner
+                bookId={selectedBookId}
+                refreshKey={detail?.book.updated_at}
+                onRecompile={(pageId) => {
+                  setSelectedPageId(pageId);
+                  void compilePage(pageId, true);
+                }}
+              />
+              <PageReader
+                page={selectedPage}
+                bookId={detail?.book.id}
+                bookLanguage={detail?.book.language}
+                loading={
+                  !!compilingPageId && compilingPageId === selectedPage?.id
+                }
+                onRegenerateBlock={(block) => void handleRegenerateBlock(block)}
+                onDeleteBlock={(block) => void handleDeleteBlock(block)}
+                onMoveBlock={(block, dir) => void handleMoveBlock(block, dir)}
+                onChangeBlockType={(block, t) =>
+                  void handleChangeBlockType(block, t)
+                }
+                onInsertBlock={(t) => handleInsertBlock(t)}
+                onDeepDive={(topic, blockId) => handleDeepDive(topic, blockId)}
+                onQuizAttempt={(block, args) =>
+                  void handleQuizAttempt(block, args)
+                }
+                pendingDeepDiveTopic={pendingDeepDiveTopic}
+                onRecompile={
+                  selectedPage
+                    ? () => void compilePage(selectedPage.id, true)
+                    : undefined
+                }
+              />
+            </>
+          )}
+
+          {view === "spine" && !detail?.spine && (
+            <div className="flex h-full items-center justify-center text-[var(--muted-foreground)]">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading spine…
+            </div>
+          )}
         </div>
 
         {view === "reader" && !chatOpen && (

@@ -70,14 +70,10 @@ class RAGService:
             self._pipeline = get_pipeline(kb_base_dir=self.kb_base_dir)
         return self._pipeline
 
-    async def initialize(
-        self, kb_name: str, file_paths: List[str], **kwargs
-    ) -> bool:
+    async def initialize(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
         self.logger.info(f"Initializing KB '{kb_name}'")
         pipeline = self._get_pipeline()
-        return await pipeline.initialize(
-            kb_name=kb_name, file_paths=file_paths, **kwargs
-        )
+        return await pipeline.initialize(kb_name=kb_name, file_paths=file_paths, **kwargs)
 
     async def search(
         self,
@@ -95,9 +91,7 @@ class RAGService:
                 {"query": query, "kb_name": kb_name, "trace_layer": "summary"},
             )
 
-            self.logger.info(
-                f"Searching KB '{kb_name}' with query: {query[:50]}..."
-            )
+            self.logger.info(f"Searching KB '{kb_name}' with query: {query[:50]}...")
             pipeline = self._get_pipeline()
 
             await self._emit_tool_event(
@@ -143,8 +137,8 @@ class RAGService:
         await event_sink(event_type, message, metadata or {})
 
     def _capture_raw_logs(self, event_sink):
-        from contextlib import ExitStack, contextmanager
         import asyncio
+        from contextlib import ExitStack, contextmanager
 
         @contextmanager
         def _manager():
@@ -228,7 +222,9 @@ class RAGService:
                 f"Context:\n{context[:2000]}"
             )
             raw = await complete(prompt, system_prompt="You are a search query generator.")
-            lines = [l.strip().lstrip("0123456789.-) ") for l in raw.strip().split("\n") if l.strip()]
+            lines = [
+                l.strip().lstrip("0123456789.-) ") for l in raw.strip().split("\n") if l.strip()
+            ]
             return lines[:n] if lines else [context[:200]]
         except Exception:
             return [context[:200]]

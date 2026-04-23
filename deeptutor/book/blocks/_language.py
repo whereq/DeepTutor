@@ -9,7 +9,6 @@ when the underlying source material is in a different language.
 
 from __future__ import annotations
 
-
 _LANGUAGE_LABELS: dict[str, str] = {
     "zh": "中文（简体）",
     "zh-cn": "中文（简体）",

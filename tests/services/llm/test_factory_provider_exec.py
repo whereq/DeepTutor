@@ -7,7 +7,6 @@ import pytest
 from deeptutor.services.llm.config import LLMConfig
 from deeptutor.services.llm.factory import complete, stream  # noqa: F401
 
-
 # ---------------------------------------------------------------------------
 # extra_headers dedup / merge (regression for #324)
 # ---------------------------------------------------------------------------

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from deeptutor.agents.research.utils.citation_manager import CitationManager
 from deeptutor.services.config.loader import load_config_with_main
 from deeptutor.services.path_service import PathService
-from deeptutor.agents.research.utils.citation_manager import CitationManager
 
 
 def test_runtime_config_paths_are_confined_to_data_user() -> None:
@@ -33,13 +33,7 @@ def test_citation_manager_defaults_to_research_workspace(tmp_path: Path) -> None
         manager = CitationManager("research_123")
 
         assert manager.cache_dir == (
-            tmp_path
-            / "data"
-            / "user"
-            / "workspace"
-            / "chat"
-            / "deep_research"
-            / "research_123"
+            tmp_path / "data" / "user" / "workspace" / "chat" / "deep_research" / "research_123"
         )
     finally:
         service._project_root = original_root

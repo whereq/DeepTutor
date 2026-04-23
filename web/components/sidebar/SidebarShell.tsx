@@ -42,7 +42,9 @@ const PRIMARY_NAV: NavEntry[] = [
   { href: "/memory", label: "Memory", icon: Brain },
 ];
 
-const SECONDARY_NAV: NavEntry[] = [{ href: "/settings", label: "Settings", icon: Settings }];
+const SECONDARY_NAV: NavEntry[] = [
+  { href: "/settings", label: "Settings", icon: Settings },
+];
 const DEFAULT_SESSION_VIEWPORT_CLASS_NAME = "max-h-[112px]";
 const GITHUB_REPO_URL = "https://github.com/HKUDS/DeepTutor";
 
@@ -74,7 +76,8 @@ export function SidebarShell({
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
-  const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } = useAppShell();
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } =
+    useAppShell();
 
   const handleNewChat = () => {
     if (onNewChat) {
@@ -231,7 +234,12 @@ export function SidebarShell({
 
           {PRIMARY_NAV.map((item) => {
             const active = pathname.startsWith(item.href);
-            const hasSessionsBelow = item.href === "/chat" && showSessions && onSelectSession && onRenameSession && onDeleteSession;
+            const hasSessionsBelow =
+              item.href === "/chat" &&
+              showSessions &&
+              onSelectSession &&
+              onRenameSession &&
+              onDeleteSession;
             const hasBots = item.href === "/agents";
             const hasBooks = item.href === "/book";
             const hasCoWriterDocs = item.href === "/co-writer";
@@ -249,7 +257,9 @@ export function SidebarShell({
                   <span>{t(item.label)}</span>
                 </Link>
                 {hasSessionsBelow && (
-                  <div className={`${sessionViewportClassName} overflow-y-auto`}>
+                  <div
+                    className={`${sessionViewportClassName} overflow-y-auto`}
+                  >
                     <SessionList
                       sessions={sessions}
                       activeSessionId={activeSessionId}

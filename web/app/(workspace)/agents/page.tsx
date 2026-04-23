@@ -23,9 +23,12 @@ import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
 import { apiUrl } from "@/lib/api";
 
-const MarkdownRenderer = dynamic(() => import("@/components/common/MarkdownRenderer"), {
-  ssr: false,
-});
+const MarkdownRenderer = dynamic(
+  () => import("@/components/common/MarkdownRenderer"),
+  {
+    ssr: false,
+  },
+);
 
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -56,7 +59,13 @@ interface SoulTemplate {
 
 type Tab = "bots" | "profiles" | "channels" | "souls";
 
-const BOT_FILES = ["SOUL.md", "USER.md", "TOOLS.md", "AGENTS.md", "HEARTBEAT.md"] as const;
+const BOT_FILES = [
+  "SOUL.md",
+  "USER.md",
+  "TOOLS.md",
+  "AGENTS.md",
+  "HEARTBEAT.md",
+] as const;
 type BotFile = (typeof BOT_FILES)[number];
 
 /* ── Main Page ──────────────────────────────────────────── */
@@ -90,10 +99,15 @@ export default function AgentsPage() {
     try {
       const res = await fetch(apiUrl("/api/v1/tutorbot/souls"));
       if (res.ok) setSouls(await res.json());
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  useEffect(() => { void loadBots(); void loadSouls(); }, [loadBots, loadSouls]);
+  useEffect(() => {
+    void loadBots();
+    void loadSouls();
+  }, [loadBots, loadSouls]);
 
   return (
     <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
@@ -104,7 +118,9 @@ export default function AgentsPage() {
             {t("TutorBot Agents")}
           </h1>
           {toast ? (
-            <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">{toast}</p>
+            <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">
+              {toast}
+            </p>
           ) : (
             <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
               {t("Manage your in-process TutorBot instances")}
@@ -114,12 +130,12 @@ export default function AgentsPage() {
 
         {/* Tabs */}
         <div className="mb-6 flex items-center gap-1 border-b border-[var(--border)]/50 pb-3">
-          {([
+          {[
             { key: "bots" as Tab, label: t("Bots"), icon: Bot },
             { key: "profiles" as Tab, label: t("Profiles"), icon: FileText },
             { key: "channels" as Tab, label: t("Channels"), icon: Settings2 },
             { key: "souls" as Tab, label: t("Souls"), icon: Heart },
-          ]).map((tab) => {
+          ].map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.key;
             return (
@@ -151,7 +167,12 @@ export default function AgentsPage() {
         ) : activeTab === "profiles" ? (
           <ProfilesTab bots={bots} loading={loading} onToast={setToast} />
         ) : activeTab === "channels" ? (
-          <ChannelsTab bots={bots} loading={loading} onToast={setToast} onReload={loadBots} />
+          <ChannelsTab
+            bots={bots}
+            loading={loading}
+            onToast={setToast}
+            onReload={loadBots}
+          />
         ) : (
           <SoulsTab souls={souls} onReload={loadSouls} onToast={setToast} />
         )}
@@ -195,7 +216,11 @@ interface ChannelsSchemaResponse {
 function resolveSchemaVariant(s: JsonSchema): JsonSchema {
   if (!s.anyOf) return s;
   const first = s.anyOf.find((v) => v.type !== "null") ?? s.anyOf[0];
-  return { ...first, title: s.title ?? first.title, description: s.description ?? first.description };
+  return {
+    ...first,
+    title: s.title ?? first.title,
+    description: s.description ?? first.description,
+  };
 }
 
 /** True iff this schema's value can be `null` (e.g. `Optional[str]`). */
@@ -210,13 +235,18 @@ function defaultFor(s: JsonSchema): unknown {
   if (s.default !== undefined) return s.default;
   const v = resolveSchemaVariant(s);
   switch (v.type) {
-    case "boolean": return false;
+    case "boolean":
+      return false;
     case "integer":
-    case "number": return 0;
-    case "array": return [];
-    case "object": return {};
+    case "number":
+      return 0;
+    case "array":
+      return [];
+    case "object":
+      return {};
     case "string":
-    default: return "";
+    default:
+      return "";
   }
 }
 
@@ -264,7 +294,9 @@ function SchemaField({
         <span>
           {label}
           {description && (
-            <span className="ml-1 text-[11px] text-[var(--muted-foreground)]">— {description}</span>
+            <span className="ml-1 text-[11px] text-[var(--muted-foreground)]">
+              — {description}
+            </span>
           )}
         </span>
       </label>
@@ -282,7 +314,9 @@ function SchemaField({
           className="rounded-lg border border-[var(--border)] bg-transparent px-3 py-1.5 text-[13px] outline-none focus:border-[var(--ring)]"
         >
           {enumValues.map((opt) => (
-            <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
+            <option key={String(opt)} value={String(opt)}>
+              {String(opt)}
+            </option>
           ))}
         </select>
       </div>
@@ -295,11 +329,19 @@ function SchemaField({
     const lines = Array.isArray(value) ? (value as unknown[]).map(String) : [];
     return (
       <div>
-        <FieldLabel label={label} description={description ?? "One value per line"} />
+        <FieldLabel
+          label={label}
+          description={description ?? "One value per line"}
+        />
         <textarea
           value={lines.join("\n")}
           onChange={(e) =>
-            onChange(e.target.value.split("\n").map((s) => s.trim()).filter(Boolean))
+            onChange(
+              e.target.value
+                .split("\n")
+                .map((s) => s.trim())
+                .filter(Boolean),
+            )
           }
           rows={Math.max(3, Math.min(8, lines.length + 1))}
           className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 font-mono text-[13px] outline-none focus:border-[var(--ring)]"
@@ -310,11 +352,20 @@ function SchemaField({
 
   // Nested object → recursive fieldset.
   if (v.type === "object" && v.properties) {
-    const obj = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+    const obj = (value && typeof value === "object" ? value : {}) as Record<
+      string,
+      unknown
+    >;
     return (
       <fieldset className="rounded-lg border border-[var(--border)]/60 px-3 py-2.5 space-y-2.5">
-        <legend className="px-1 text-[12px] font-medium text-[var(--muted-foreground)]">{label}</legend>
-        {description && <p className="text-[11px] text-[var(--muted-foreground)]">{description}</p>}
+        <legend className="px-1 text-[12px] font-medium text-[var(--muted-foreground)]">
+          {label}
+        </legend>
+        {description && (
+          <p className="text-[11px] text-[var(--muted-foreground)]">
+            {description}
+          </p>
+        )}
         {Object.entries(v.properties).map(([k, child]) => (
           <SchemaField
             key={k}
@@ -343,7 +394,10 @@ function SchemaField({
           onChange={(e) => {
             const raw = e.target.value;
             if (raw === "") onChange(isNullable(schema) ? null : 0);
-            else onChange(v.type === "integer" ? parseInt(raw, 10) : parseFloat(raw));
+            else
+              onChange(
+                v.type === "integer" ? parseInt(raw, 10) : parseFloat(raw),
+              );
           }}
           className="w-40 rounded-lg border border-[var(--border)] bg-transparent px-3 py-1.5 text-[13px] outline-none focus:border-[var(--ring)]"
         />
@@ -379,7 +433,11 @@ function SchemaField({
             aria-label={reveal ? "Hide secret" : "Show secret"}
             title={reveal ? "Hide secret" : "Show secret"}
           >
-            {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {reveal ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
           </button>
         )}
       </div>
@@ -387,11 +445,19 @@ function SchemaField({
   );
 }
 
-function FieldLabel({ label, description }: { label: string; description?: string }) {
+function FieldLabel({
+  label,
+  description,
+}: {
+  label: string;
+  description?: string;
+}) {
   return (
     <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
       {label}
-      {description && <span className="ml-1 font-normal opacity-70">— {description}</span>}
+      {description && (
+        <span className="ml-1 font-normal opacity-70">— {description}</span>
+      )}
     </label>
   );
 }
@@ -409,7 +475,8 @@ function ChannelsTab({
 }) {
   const { t } = useTranslation();
   const [selectedBot, setSelectedBot] = useState("");
-  const [schemaCatalog, setSchemaCatalog] = useState<ChannelsSchemaResponse | null>(null);
+  const [schemaCatalog, setSchemaCatalog] =
+    useState<ChannelsSchemaResponse | null>(null);
   const [channels, setChannels] = useState<Record<string, unknown>>({});
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
@@ -425,7 +492,9 @@ function ChannelsTab({
       try {
         const res = await fetch(apiUrl("/api/v1/tutorbot/channels/schema"));
         if (res.ok) setSchemaCatalog(await res.json());
-      } catch { /* leave catalog null → renders fallback message */ }
+      } catch {
+        /* leave catalog null → renders fallback message */
+      }
     })();
   }, []);
 
@@ -443,7 +512,9 @@ function ChannelsTab({
     setLoadingDetail(true);
     try {
       // Edit form needs raw secrets to populate fields. Default GET masks them.
-      const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}?include_secrets=true`));
+      const res = await fetch(
+        apiUrl(`/api/v1/tutorbot/${bid}?include_secrets=true`),
+      );
       if (!res.ok) return;
       const data = await res.json();
       const raw = (data.channels ?? {}) as Record<string, unknown>;
@@ -453,11 +524,15 @@ function ChannelsTab({
         send_progress: raw.send_progress !== false,
         send_tool_hints: !!raw.send_tool_hints,
         ...Object.fromEntries(
-          Object.entries(raw).filter(([k]) => k !== "send_progress" && k !== "send_tool_hints"),
+          Object.entries(raw).filter(
+            ([k]) => k !== "send_progress" && k !== "send_tool_hints",
+          ),
         ),
       });
       setReloadError(
-        typeof data.last_reload_error === "string" ? data.last_reload_error : null,
+        typeof data.last_reload_error === "string"
+          ? data.last_reload_error
+          : null,
       );
     } finally {
       setLoadingDetail(false);
@@ -475,7 +550,11 @@ function ChannelsTab({
     const names = Object.keys(schemaCatalog.channels);
     const enabled = names.find((n) => {
       const cfg = channels[n];
-      return cfg && typeof cfg === "object" && (cfg as Record<string, unknown>).enabled === true;
+      return (
+        cfg &&
+        typeof cfg === "object" &&
+        (cfg as Record<string, unknown>).enabled === true
+      );
     });
     setActiveChannel(enabled ?? names[0] ?? null);
   }, [schemaCatalog, channels, activeChannel]);
@@ -514,7 +593,7 @@ function ChannelsTab({
         const msg =
           typeof detail === "string"
             ? detail
-            : detail?.message ?? t("Invalid channel configuration");
+            : (detail?.message ?? t("Invalid channel configuration"));
         onToast(msg);
       } else {
         const err = (await res.json().catch(() => ({}))) as { detail?: string };
@@ -536,7 +615,9 @@ function ChannelsTab({
   if (bots.length === 0) {
     return (
       <div className="flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-center">
-        <p className="text-[14px] font-medium text-[var(--foreground)]">{t("No bots to configure")}</p>
+        <p className="text-[14px] font-medium text-[var(--foreground)]">
+          {t("No bots to configure")}
+        </p>
         <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
           {t("Create a bot first in the Bots tab.")}
         </p>
@@ -549,9 +630,13 @@ function ChannelsTab({
         a.display_name.localeCompare(b.display_name),
       )
     : [];
-  const activeEntry = activeChannel ? schemaCatalog?.channels[activeChannel] : undefined;
+  const activeEntry = activeChannel
+    ? schemaCatalog?.channels[activeChannel]
+    : undefined;
   const activeValue =
-    activeChannel && channels[activeChannel] && typeof channels[activeChannel] === "object"
+    activeChannel &&
+    channels[activeChannel] &&
+    typeof channels[activeChannel] === "object"
       ? (channels[activeChannel] as Record<string, unknown>)
       : (activeEntry?.default_config ?? {});
   const activeSecretSet = new Set(activeEntry?.secret_fields ?? []);
@@ -559,7 +644,9 @@ function ChannelsTab({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-[12px] font-medium text-[var(--muted-foreground)] shrink-0">{t("Bot")}</label>
+        <label className="text-[12px] font-medium text-[var(--muted-foreground)] shrink-0">
+          {t("Bot")}
+        </label>
         <select
           value={selectedBot}
           onChange={(e) => setSelectedBot(e.target.value)}
@@ -577,14 +664,20 @@ function ChannelsTab({
           disabled={saving || loadingDetail}
           className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] disabled:opacity-40"
         >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
           {t("Save")}
         </button>
       </div>
 
       {reloadError && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-300">
-          <strong className="font-medium">{t("Channel listeners failed to restart:")}</strong>{" "}
+          <strong className="font-medium">
+            {t("Channel listeners failed to restart:")}
+          </strong>{" "}
           <span className="font-mono">{reloadError}</span>{" "}
           <span className="opacity-80">
             {t("Config is saved on disk; stop and start the bot to apply.")}
@@ -600,12 +693,19 @@ function ChannelsTab({
         <>
           {/* Globals (Delivery) */}
           <div className="rounded-xl border border-[var(--border)] p-4 space-y-3">
-            <h3 className="text-[13px] font-medium text-[var(--foreground)]">{t("Delivery")}</h3>
+            <h3 className="text-[13px] font-medium text-[var(--foreground)]">
+              {t("Delivery")}
+            </h3>
             <label className="flex items-center gap-2 text-[13px]">
               <input
                 type="checkbox"
                 checked={!!channels.send_progress}
-                onChange={(e) => setChannels((c) => ({ ...c, send_progress: e.target.checked }))}
+                onChange={(e) =>
+                  setChannels((c) => ({
+                    ...c,
+                    send_progress: e.target.checked,
+                  }))
+                }
               />
               {t("Stream progress text to channels")}
             </label>
@@ -613,7 +713,12 @@ function ChannelsTab({
               <input
                 type="checkbox"
                 checked={!!channels.send_tool_hints}
-                onChange={(e) => setChannels((c) => ({ ...c, send_tool_hints: e.target.checked }))}
+                onChange={(e) =>
+                  setChannels((c) => ({
+                    ...c,
+                    send_tool_hints: e.target.checked,
+                  }))
+                }
               />
               {t("Stream tool hints to channels")}
             </label>
@@ -624,7 +729,9 @@ function ChannelsTab({
             <aside className="rounded-xl border border-[var(--border)] p-2 h-fit">
               <ul className="space-y-0.5">
                 {channelEntries.map(([name, entry]) => {
-                  const cfg = channels[name] as Record<string, unknown> | undefined;
+                  const cfg = channels[name] as
+                    | Record<string, unknown>
+                    | undefined;
                   const enabled = cfg?.enabled === true;
                   const isActive = activeChannel === name;
                   return (
@@ -655,35 +762,41 @@ function ChannelsTab({
 
             <section className="rounded-xl border border-[var(--border)] p-4 space-y-3">
               {!activeEntry ? (
-                <p className="text-[13px] text-[var(--muted-foreground)]">{t("Select a channel.")}</p>
+                <p className="text-[13px] text-[var(--muted-foreground)]">
+                  {t("Select a channel.")}
+                </p>
               ) : (
                 <>
                   <div className="flex items-baseline justify-between">
                     <h3 className="text-[14px] font-medium text-[var(--foreground)]">
                       {activeEntry.display_name}
                     </h3>
-                    <code className="text-[11px] text-[var(--muted-foreground)]">{activeEntry.name}</code>
+                    <code className="text-[11px] text-[var(--muted-foreground)]">
+                      {activeEntry.name}
+                    </code>
                   </div>
                   {activeEntry.json_schema.description && (
                     <p className="text-[11px] text-[var(--muted-foreground)]">
                       {activeEntry.json_schema.description}
                     </p>
                   )}
-                  {Object.entries(activeEntry.json_schema.properties ?? {}).map(([k, child]) => (
-                    <SchemaField
-                      key={k}
-                      fieldKey={k}
-                      schema={child}
-                      value={activeValue[k] ?? defaultFor(child)}
-                      onChange={(next) =>
-                        setActiveChannelConfig({ ...activeValue, [k]: next })
-                      }
-                      secretFields={activeSecretSet}
-                      path={k}
-                      showSecretFor={revealed}
-                      toggleSecret={toggleSecret}
-                    />
-                  ))}
+                  {Object.entries(activeEntry.json_schema.properties ?? {}).map(
+                    ([k, child]) => (
+                      <SchemaField
+                        key={k}
+                        fieldKey={k}
+                        schema={child}
+                        value={activeValue[k] ?? defaultFor(child)}
+                        onChange={(next) =>
+                          setActiveChannelConfig({ ...activeValue, [k]: next })
+                        }
+                        secretFields={activeSecretSet}
+                        path={k}
+                        showSecretFor={revealed}
+                        toggleSecret={toggleSecret}
+                      />
+                    ),
+                  )}
                 </>
               )}
             </section>
@@ -722,12 +835,19 @@ function BotsTab({
   const [formModel, setFormModel] = useState("");
 
   const resetForm = () => {
-    setFormName(""); setFormDesc(""); setFormSoulId("_custom");
-    setFormSoul(""); setFormModel("");
+    setFormName("");
+    setFormDesc("");
+    setFormSoulId("_custom");
+    setFormSoul("");
+    setFormModel("");
   };
 
   const botId = useMemo(() => {
-    const slug = formName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = formName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
     return slug || "";
   }, [formName]);
 
@@ -765,25 +885,55 @@ function BotsTab({
     }
   }, [botId, formName, formDesc, formSoul, formModel, onReload, onToast]);
 
-  const startBot = useCallback(async (bid: string) => {
-    const res = await fetch(apiUrl("/api/v1/tutorbot"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bot_id: bid }),
-    });
-    if (res.ok) { onToast(`${bid} started`); await onReload(); }
-  }, [onReload, onToast]);
+  const startBot = useCallback(
+    async (bid: string) => {
+      const res = await fetch(apiUrl("/api/v1/tutorbot"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: bid }),
+      });
+      if (res.ok) {
+        onToast(`${bid} started`);
+        await onReload();
+      }
+    },
+    [onReload, onToast],
+  );
 
-  const stopBot = useCallback(async (bid: string) => {
-    const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}`), { method: "DELETE" });
-    if (res.ok) { onToast(`${bid} stopped`); await onReload(); }
-  }, [onReload, onToast]);
+  const stopBot = useCallback(
+    async (bid: string) => {
+      const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}`), {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        onToast(`${bid} stopped`);
+        await onReload();
+      }
+    },
+    [onReload, onToast],
+  );
 
-  const destroyBot = useCallback(async (bid: string, name: string) => {
-    if (!window.confirm(t("Permanently delete \"{{name}}\" ({{id}})? This cannot be undone.", { name, id: bid }))) return;
-    const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}/destroy`), { method: "DELETE" });
-    if (res.ok) { onToast(`${name} deleted`); await onReload(); }
-  }, [onReload, onToast, t]);
+  const destroyBot = useCallback(
+    async (bid: string, name: string) => {
+      if (
+        !window.confirm(
+          t('Permanently delete "{{name}}" ({{id}})? This cannot be undone.', {
+            name,
+            id: bid,
+          }),
+        )
+      )
+        return;
+      const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}/destroy`), {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        onToast(`${name} deleted`);
+        await onReload();
+      }
+    },
+    [onReload, onToast, t],
+  );
 
   return (
     <>
@@ -802,14 +952,24 @@ function BotsTab({
       {showCreate && (
         <div className="mb-6 rounded-xl border border-[var(--border)] p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[15px] font-medium text-[var(--foreground)]">{t("Create TutorBot")}</h2>
-            <button onClick={() => { setShowCreate(false); resetForm(); }} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+            <h2 className="text-[15px] font-medium text-[var(--foreground)]">
+              {t("Create TutorBot")}
+            </h2>
+            <button
+              onClick={() => {
+                setShowCreate(false);
+                resetForm();
+              }}
+              className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="grid gap-3">
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Name")}</label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                {t("Name")}
+              </label>
               <input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
@@ -817,11 +977,18 @@ function BotsTab({
                 className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
               />
               {botId && (
-                <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">ID: {botId}</p>
+                <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">
+                  ID: {botId}
+                </p>
               )}
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Description")} <span className="font-normal opacity-60">{t("(optional)")}</span></label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                {t("Description")}{" "}
+                <span className="font-normal opacity-60">
+                  {t("(optional)")}
+                </span>
+              </label>
               <input
                 value={formDesc}
                 onChange={(e) => setFormDesc(e.target.value)}
@@ -830,7 +997,9 @@ function BotsTab({
               />
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Soul")}</label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                {t("Soul")}
+              </label>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 <button
                   onClick={() => selectSoul("_custom")}
@@ -858,17 +1027,29 @@ function BotsTab({
               </div>
               <textarea
                 value={formSoul}
-                onChange={(e) => { setFormSoul(e.target.value); setFormSoulId("_custom"); }}
-                placeholder={t("Define the bot's personality, values, and communication style in markdown...")}
+                onChange={(e) => {
+                  setFormSoul(e.target.value);
+                  setFormSoulId("_custom");
+                }}
+                placeholder={t(
+                  "Define the bot's personality, values, and communication style in markdown...",
+                )}
                 rows={8}
                 className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 font-mono text-[13px] leading-6 text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
               />
               <p className="mt-1 text-[11px] text-[var(--muted-foreground)]/60">
-                {t("Pick a soul from the library above, or write your own. Manage the library in the Souls tab.")}
+                {t(
+                  "Pick a soul from the library above, or write your own. Manage the library in the Souls tab.",
+                )}
               </p>
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Model")} <span className="font-normal opacity-60">{t("(optional)")}</span></label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                {t("Model")}{" "}
+                <span className="font-normal opacity-60">
+                  {t("(optional)")}
+                </span>
+              </label>
               <input
                 value={formModel}
                 onChange={(e) => setFormModel(e.target.value)}
@@ -882,7 +1063,11 @@ function BotsTab({
                 disabled={creating || !botId}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-40"
               >
-                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                {creating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
                 {t("Create & Start")}
               </button>
             </div>
@@ -900,7 +1085,9 @@ function BotsTab({
           <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
             <Bot size={18} />
           </div>
-          <p className="text-[14px] font-medium text-[var(--foreground)]">{t("No TutorBots yet")}</p>
+          <p className="text-[14px] font-medium text-[var(--foreground)]">
+            {t("No TutorBots yet")}
+          </p>
           <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
             {t("Create your first TutorBot to get started.")}
           </p>
@@ -913,18 +1100,29 @@ function BotsTab({
               className="flex items-center justify-between rounded-xl border border-[var(--border)] px-5 py-4 transition-colors hover:border-[var(--border)]"
             >
               <div className="flex items-center gap-4 min-w-0">
-                <div className={`h-2 w-2 shrink-0 rounded-full ${bot.running ? "bg-emerald-500" : "bg-[var(--muted-foreground)]/30"}`} />
+                <div
+                  className={`h-2 w-2 shrink-0 rounded-full ${bot.running ? "bg-emerald-500" : "bg-[var(--muted-foreground)]/30"}`}
+                />
                 <div className="min-w-0">
-                  <p className="text-[14px] font-medium text-[var(--foreground)] truncate">{bot.name}</p>
+                  <p className="text-[14px] font-medium text-[var(--foreground)] truncate">
+                    {bot.name}
+                  </p>
                   <div className="mt-0.5 flex items-center gap-3 text-[12px] text-[var(--muted-foreground)]">
                     {bot.description ? (
-                      <span className="truncate max-w-[300px]">{bot.description}</span>
+                      <span className="truncate max-w-[300px]">
+                        {bot.description}
+                      </span>
                     ) : (
                       <span>{bot.bot_id}</span>
                     )}
                     {bot.model && <span>· {bot.model}</span>}
                     {bot.started_at && (
-                      <span>· {t("started {{time}}", { time: new Date(bot.started_at).toLocaleString() })}</span>
+                      <span>
+                        ·{" "}
+                        {t("started {{time}}", {
+                          time: new Date(bot.started_at).toLocaleString(),
+                        })}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -999,18 +1197,21 @@ function ProfilesTab({
     }
   }, [bots, selectedBot]);
 
-  const loadFiles = useCallback(async (bid: string) => {
-    if (!bid) return;
-    setLoadingFiles(true);
-    try {
-      const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}/files`));
-      const data: Record<string, string> = await res.json();
-      setFiles(data);
-      setEditor(data[activeFile] ?? "");
-    } finally {
-      setLoadingFiles(false);
-    }
-  }, [activeFile]);
+  const loadFiles = useCallback(
+    async (bid: string) => {
+      if (!bid) return;
+      setLoadingFiles(true);
+      try {
+        const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}/files`));
+        const data: Record<string, string> = await res.json();
+        setFiles(data);
+        setEditor(data[activeFile] ?? "");
+      } finally {
+        setLoadingFiles(false);
+      }
+    },
+    [activeFile],
+  );
 
   useEffect(() => {
     if (selectedBot) void loadFiles(selectedBot);
@@ -1025,11 +1226,14 @@ function ProfilesTab({
     if (!selectedBot) return;
     setSaving(true);
     try {
-      const res = await fetch(apiUrl(`/api/v1/tutorbot/${selectedBot}/files/${activeFile}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: editor }),
-      });
+      const res = await fetch(
+        apiUrl(`/api/v1/tutorbot/${selectedBot}/files/${activeFile}`),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: editor }),
+        },
+      );
       if (res.ok) {
         setFiles((prev) => ({ ...prev, [activeFile]: editor }));
         onToast(`${activeFile} saved`);
@@ -1063,7 +1267,9 @@ function ProfilesTab({
         <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
           <FileText size={18} />
         </div>
-        <p className="text-[14px] font-medium text-[var(--foreground)]">{t("No bots to configure")}</p>
+        <p className="text-[14px] font-medium text-[var(--foreground)]">
+          {t("No bots to configure")}
+        </p>
         <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
           {t("Create a bot first in the Bots tab.")}
         </p>
@@ -1075,7 +1281,9 @@ function ProfilesTab({
     <div className="space-y-4">
       {/* Bot selector */}
       <div className="flex items-center gap-3">
-        <label className="text-[12px] font-medium text-[var(--muted-foreground)] shrink-0">{t("Bot")}</label>
+        <label className="text-[12px] font-medium text-[var(--muted-foreground)] shrink-0">
+          {t("Bot")}
+        </label>
         <select
           value={selectedBot}
           onChange={(e) => setSelectedBot(e.target.value)}
@@ -1128,7 +1336,11 @@ function ProfilesTab({
           disabled={saving || !hasChanges}
           className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
         >
-          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          {saving ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Save className="h-3 w-3" />
+          )}
           {t("Save")}
         </button>
       </div>
@@ -1155,11 +1367,17 @@ function ProfilesTab({
         </div>
       ) : editor.trim() ? (
         <div className="rounded-xl border border-[var(--border)] px-6 py-5">
-          <MarkdownRenderer content={editor} variant="prose" className="text-[14px] leading-relaxed" />
+          <MarkdownRenderer
+            content={editor}
+            variant="prose"
+            className="text-[14px] leading-relaxed"
+          />
         </div>
       ) : (
         <div className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-center">
-          <p className="text-[14px] font-medium text-[var(--foreground)]">{t("{{file}} is empty", { file: activeFile })}</p>
+          <p className="text-[14px] font-medium text-[var(--foreground)]">
+            {t("{{file}} is empty", { file: activeFile })}
+          </p>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
             {t("Switch to Edit to add content.")}
           </p>
@@ -1232,7 +1450,10 @@ function SoulsTab({
   const createSoul = useCallback(async () => {
     const name = newName.trim();
     if (!name) return;
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const id = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
     if (!id) return;
     setSaving(true);
     try {
@@ -1255,15 +1476,21 @@ function SoulsTab({
     }
   }, [newName, newContent, onReload, onToast]);
 
-  const deleteSoul = useCallback(async (soul: SoulTemplate) => {
-    if (!window.confirm(t("Delete soul \"{{name}}\"?", { name: soul.name }))) return;
-    const res = await fetch(apiUrl(`/api/v1/tutorbot/souls/${soul.id}`), { method: "DELETE" });
-    if (res.ok) {
-      if (editing === soul.id) cancelEdit();
-      onToast(`"${soul.name}" deleted`);
-      await onReload();
-    }
-  }, [editing, onReload, onToast, t]);
+  const deleteSoul = useCallback(
+    async (soul: SoulTemplate) => {
+      if (!window.confirm(t('Delete soul "{{name}}"?', { name: soul.name })))
+        return;
+      const res = await fetch(apiUrl(`/api/v1/tutorbot/souls/${soul.id}`), {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        if (editing === soul.id) cancelEdit();
+        onToast(`"${soul.name}" deleted`);
+        await onReload();
+      }
+    },
+    [editing, onReload, onToast, t],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>, save: () => void) => {
@@ -1295,14 +1522,21 @@ function SoulsTab({
       {creating && (
         <div className="rounded-xl border border-[var(--border)] p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[15px] font-medium text-[var(--foreground)]">{t("New Soul")}</h2>
-            <button onClick={() => setCreating(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+            <h2 className="text-[15px] font-medium text-[var(--foreground)]">
+              {t("New Soul")}
+            </h2>
+            <button
+              onClick={() => setCreating(false)}
+              className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="grid gap-3">
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Name")}</label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                {t("Name")}
+              </label>
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
@@ -1311,12 +1545,19 @@ function SoulsTab({
               />
               {newName.trim() && (
                 <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">
-                  ID: {newName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}
+                  ID:{" "}
+                  {newName
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-|-$/g, "")}
                 </p>
               )}
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Content")}</label>
+              <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                {t("Content")}
+              </label>
               <textarea
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
@@ -1339,7 +1580,11 @@ function SoulsTab({
                 disabled={saving || !newName.trim()}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-40"
               >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {saving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
                 {t("Create")}
               </button>
             </div>
@@ -1353,19 +1598,28 @@ function SoulsTab({
           <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
             <Heart size={18} />
           </div>
-          <p className="text-[14px] font-medium text-[var(--foreground)]">{t("No souls yet")}</p>
+          <p className="text-[14px] font-medium text-[var(--foreground)]">
+            {t("No souls yet")}
+          </p>
           <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
-            {t("Create your first soul template. Default presets will be seeded automatically on next server restart.")}
+            {t(
+              "Create your first soul template. Default presets will be seeded automatically on next server restart.",
+            )}
           </p>
         </div>
       ) : (
         <div className="grid gap-3">
           {souls.map((soul) =>
             editing === soul.id ? (
-              <div key={soul.id} className="rounded-xl border border-[var(--ring)] p-5">
+              <div
+                key={soul.id}
+                className="rounded-xl border border-[var(--ring)] p-5"
+              >
                 <div className="grid gap-3">
                   <div>
-                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Name")}</label>
+                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                      {t("Name")}
+                    </label>
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
@@ -1373,7 +1627,9 @@ function SoulsTab({
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">{t("Content")}</label>
+                    <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                      {t("Content")}
+                    </label>
                     <textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
@@ -1395,7 +1651,11 @@ function SoulsTab({
                       disabled={saving || !editName.trim()}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-40"
                     >
-                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                      {saving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Save className="h-3.5 w-3.5" />
+                      )}
                       {t("Save")}
                     </button>
                   </div>
@@ -1409,8 +1669,12 @@ function SoulsTab({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Heart className="h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)]" />
-                    <p className="text-[14px] font-medium text-[var(--foreground)]">{soul.name}</p>
-                    <span className="text-[11px] text-[var(--muted-foreground)]/60">{soul.id}</span>
+                    <p className="text-[14px] font-medium text-[var(--foreground)]">
+                      {soul.name}
+                    </p>
+                    <span className="text-[11px] text-[var(--muted-foreground)]/60">
+                      {soul.id}
+                    </span>
                   </div>
                   <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[var(--muted-foreground)] pl-5.5">
                     {soul.content.replace(/^#.*\n+/g, "").slice(0, 200)}

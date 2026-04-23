@@ -13,7 +13,10 @@ export interface CapabilityPlaygroundConfig {
   config?: Record<string, unknown>;
 }
 
-export type CapabilityPlaygroundConfigMap = Record<string, CapabilityPlaygroundConfig>;
+export type CapabilityPlaygroundConfigMap = Record<
+  string,
+  CapabilityPlaygroundConfig
+>;
 
 export function loadCapabilityPlaygroundConfigs(): CapabilityPlaygroundConfigMap {
   return loadFromStorage<CapabilityPlaygroundConfigMap>(STORAGE_KEY, {});
@@ -31,9 +34,7 @@ export function resolveCapabilityPlaygroundConfig(
     ),
     knowledgeBase: stored?.knowledgeBase ?? "",
     config:
-      stored?.config && typeof stored.config === "object"
-        ? stored.config
-        : {},
+      stored?.config && typeof stored.config === "object" ? stored.config : {},
   };
 }
 
@@ -45,12 +46,12 @@ export function saveCapabilityPlaygroundConfig(
   const next = {
     ...configs,
     [capabilityName]: {
-      enabledTools: Array.from(new Set(filterFrontendTools(config.enabledTools))),
+      enabledTools: Array.from(
+        new Set(filterFrontendTools(config.enabledTools)),
+      ),
       knowledgeBase: config.knowledgeBase,
       config:
-        config.config && typeof config.config === "object"
-          ? config.config
-          : {},
+        config.config && typeof config.config === "object" ? config.config : {},
     },
   };
   saveToStorage(STORAGE_KEY, next);

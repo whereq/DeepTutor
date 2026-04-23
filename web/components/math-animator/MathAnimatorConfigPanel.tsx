@@ -41,7 +41,12 @@ export default memo(function MathAnimatorConfigPanel({
       <Field label={t("Output")} width="w-[100px]">
         <select
           value={value.output_mode}
-          onChange={(e) => update("output_mode", e.target.value as MathAnimatorFormConfig["output_mode"])}
+          onChange={(e) =>
+            update(
+              "output_mode",
+              e.target.value as MathAnimatorFormConfig["output_mode"],
+            )
+          }
           className={`${INPUT_CLS} w-full`}
         >
           <option value="video">{t("Video")}</option>
@@ -52,7 +57,12 @@ export default memo(function MathAnimatorConfigPanel({
       <Field label={t("Quality")} width="w-[100px]">
         <select
           value={value.quality}
-          onChange={(e) => update("quality", e.target.value as MathAnimatorFormConfig["quality"])}
+          onChange={(e) =>
+            update(
+              "quality",
+              e.target.value as MathAnimatorFormConfig["quality"],
+            )
+          }
           className={`${INPUT_CLS} w-full`}
         >
           <option value="low">{t("Low")}</option>
@@ -73,4 +83,3 @@ export default memo(function MathAnimatorConfigPanel({
     </CollapsibleConfigSection>
   );
 });
-

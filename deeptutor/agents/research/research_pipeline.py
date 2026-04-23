@@ -81,12 +81,15 @@ class ResearchPipeline:
 
         # Set directories
         system_config = config.get("system", {})
-        self.cache_dir = Path(
-            system_config.get(
-                "output_base_dir",
-                "./data/user/workspace/chat/deep_research",
+        self.cache_dir = (
+            Path(
+                system_config.get(
+                    "output_base_dir",
+                    "./data/user/workspace/chat/deep_research",
+                )
             )
-        ) / self.research_id
+            / self.research_id
+        )
         self.reports_dir = Path(
             system_config.get(
                 "reports_dir",
@@ -575,7 +578,9 @@ class ResearchPipeline:
         self._log_progress("planning", "planning_started", user_topic=topic)
 
         if self.pre_confirmed_outline:
-            self.logger.info("\n【Step 1-2】Using pre-confirmed outline (skipping rephrase + decompose)...")
+            self.logger.info(
+                "\n【Step 1-2】Using pre-confirmed outline (skipping rephrase + decompose)..."
+            )
             optimized_topic = topic
             self.optimized_topic = optimized_topic
             self._log_progress(

@@ -14,12 +14,15 @@ export interface ConceptGraphBlockProps {
   language?: string;
 }
 
-const LABELS: Record<string, {
-  chapterMap: (n: number, e: number) => string;
-  conceptMap: (n: number, e: number) => string;
-  chapterIndex: string;
-  noChapters: string;
-}> = {
+const LABELS: Record<
+  string,
+  {
+    chapterMap: (n: number, e: number) => string;
+    conceptMap: (n: number, e: number) => string;
+    chapterIndex: string;
+    noChapters: string;
+  }
+> = {
   zh: {
     chapterMap: (n, e) => `章节图谱 · ${n} 章 · ${e} 条依赖`,
     conceptMap: (n, e) => `概念图 · ${n} 个概念 · ${e} 条关系`,
@@ -85,7 +88,9 @@ export default function ConceptGraphBlock({
 }: ConceptGraphBlockProps) {
   const labels = pickLabels(language);
   const code =
-    (block.payload?.code as { language?: string; content?: string } | undefined) || {};
+    (block.payload?.code as
+      | { language?: string; content?: string }
+      | undefined) || {};
   const mermaidSrc = String(code.content || "").trim();
   const graph = asGraph(block.payload?.graph);
   const index = asIndex(block.payload?.index);
@@ -94,7 +99,7 @@ export default function ConceptGraphBlock({
     () =>
       mermaidSrc
         ? `\`\`\`mermaid\n${mermaidSrc}\n\`\`\``
-        : "```mermaid\ngraph TD\n  empty[\"(no concepts yet)\"]\n```",
+        : '```mermaid\ngraph TD\n  empty["(no concepts yet)"]\n```',
     [mermaidSrc],
   );
 

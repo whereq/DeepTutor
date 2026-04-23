@@ -1,5 +1,7 @@
 """Block generators – one per ``BlockType``."""
 
+# Phase 2+ generators
+from .animation import AnimationGenerator
 from .base import (
     BlockContext,
     BlockGenerator,
@@ -8,18 +10,15 @@ from .base import (
     get_block_registry,
 )
 from .callout import CalloutGenerator
-from .quiz import QuizGenerator
-from .text import TextGenerator, generate_bridge_text
-from .user_note import UserNoteGenerator
-
-# Phase 2+ generators
-from .animation import AnimationGenerator
 from .code import CodeGenerator
 from .deep_dive import DeepDiveGenerator
 from .figure import FigureGenerator
 from .flash_cards import FlashCardsGenerator
 from .interactive import InteractiveGenerator
+from .quiz import QuizGenerator
+from .text import TextGenerator, generate_bridge_text
 from .timeline import TimelineGenerator
+from .user_note import UserNoteGenerator
 
 __all__ = [
     "BlockContext",

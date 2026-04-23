@@ -54,7 +54,7 @@ class AnimationGenerator(BlockGenerator):
         focus_clause = f" focusing on {focus}" if focus else ""
         user_input = (
             f"Create a short Manim animation that walks through the core "
-            f"derivation of \"{chapter_title}\"{focus_clause}. Aim for a "
+            f'derivation of "{chapter_title}"{focus_clause}. Aim for a '
             "clear, step-by-step explanation a learner can follow."
         )
 

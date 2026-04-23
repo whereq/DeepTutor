@@ -55,16 +55,10 @@ class DeepSolveCapability(BaseCapability):
         llm_config = get_llm_config()
         detailed = context.config_overrides.get("detailed_answer", True)
         enabled_tools = list(
-            self.manifest.tools_used
-            if context.enabled_tools is None
-            else context.enabled_tools
+            self.manifest.tools_used if context.enabled_tools is None else context.enabled_tools
         )
         rag_enabled = "rag" in enabled_tools
-        kb_name = (
-            context.knowledge_bases[0]
-            if rag_enabled and context.knowledge_bases
-            else None
-        )
+        kb_name = context.knowledge_bases[0] if rag_enabled and context.knowledge_bases else None
 
         # Consistency normalization: if rag is requested but no KB is
         # actually available, strip "rag" from the enabled tool set so the
@@ -262,7 +256,7 @@ class DeepSolveCapability(BaseCapability):
             except RuntimeError:
                 pass
 
-        solver._send_progress_update = _progress_bridge
+        setattr(solver, "_send_progress_update", _progress_bridge)
         if hasattr(solver, "set_trace_callback"):
             solver.set_trace_callback(_trace_bridge)
 
@@ -278,7 +272,7 @@ class DeepSolveCapability(BaseCapability):
                 stage="writing",
             )
 
-        solver._content_callback = _content_sink
+        setattr(solver, "_content_callback", _content_sink)
 
         image_url = _first_image_url(context.attachments)
 

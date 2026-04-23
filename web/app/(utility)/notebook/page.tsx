@@ -52,12 +52,17 @@ export default function NotebookPage() {
 
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [newCatName, setNewCatName] = useState("");
-  const [renamingCat, setRenamingCat] = useState<{ id: number; name: string } | null>(null);
+  const [renamingCat, setRenamingCat] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   const loadCategories = useCallback(async () => {
     try {
       setCategories(await listCategories());
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const loadItems = useCallback(
@@ -97,10 +102,15 @@ export default function NotebookPage() {
         setItems((prev) =>
           filter === "bookmarked" && !next
             ? prev.filter((e) => e.id !== item.id)
-            : prev.map((e) => (e.id === item.id ? { ...e, bookmarked: next } : e)),
+            : prev.map((e) =>
+                e.id === item.id ? { ...e, bookmarked: next } : e,
+              ),
         );
-        if (filter === "bookmarked" && !next) setTotal((p) => Math.max(0, p - 1));
-      } catch { /* ignore */ }
+        if (filter === "bookmarked" && !next)
+          setTotal((p) => Math.max(0, p - 1));
+      } catch {
+        /* ignore */
+      }
       setPendingId(null);
     },
     [filter],
@@ -114,7 +124,9 @@ export default function NotebookPage() {
         await deleteNotebookEntry(item.id);
         setItems((prev) => prev.filter((e) => e.id !== item.id));
         setTotal((p) => Math.max(0, p - 1));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       setPendingId(null);
     },
     [t],
@@ -128,7 +140,9 @@ export default function NotebookPage() {
         await removeEntryFromCategory(item.id, activeCategoryId);
         setItems((prev) => prev.filter((e) => e.id !== item.id));
         setTotal((p) => Math.max(0, p - 1));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       setPendingId(null);
     },
     [activeCategoryId],
@@ -140,7 +154,9 @@ export default function NotebookPage() {
       await createCategory(newCatName.trim());
       setNewCatName("");
       await loadCategories();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [loadCategories, newCatName]);
 
   const handleRenameCategory = useCallback(async () => {
@@ -149,7 +165,9 @@ export default function NotebookPage() {
       await renameCategory(renamingCat.id, renamingCat.name.trim());
       setRenamingCat(null);
       await loadCategories();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [loadCategories, renamingCat]);
 
   const handleDeleteCategory = useCallback(
@@ -159,7 +177,9 @@ export default function NotebookPage() {
         await deleteCategory(catId);
         if (activeCategoryId === catId) setActiveCategoryId(null);
         await loadCategories();
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     },
     [activeCategoryId, loadCategories, t],
   );
@@ -185,7 +205,9 @@ export default function NotebookPage() {
           </div>
         </div>
 
-        <div className={`mb-4 overflow-hidden rounded-xl border transition-colors ${showCategoryManager ? "border-[var(--border)] bg-[var(--card)]" : "border-[var(--border)]/50 bg-transparent"}`}>
+        <div
+          className={`mb-4 overflow-hidden rounded-xl border transition-colors ${showCategoryManager ? "border-[var(--border)] bg-[var(--card)]" : "border-[var(--border)]/50 bg-transparent"}`}
+        >
           <button
             onClick={() => setShowCategoryManager((v) => !v)}
             className="flex w-full items-center justify-between px-4 py-2.5 text-[13px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/40"
@@ -199,34 +221,57 @@ export default function NotebookPage() {
                 </span>
               )}
             </span>
-            <ChevronDown className={`h-3.5 w-3.5 text-[var(--muted-foreground)] transition-transform duration-200 ${showCategoryManager ? "rotate-180" : ""}`} />
+            <ChevronDown
+              className={`h-3.5 w-3.5 text-[var(--muted-foreground)] transition-transform duration-200 ${showCategoryManager ? "rotate-180" : ""}`}
+            />
           </button>
 
           {showCategoryManager && (
             <div className="border-t border-[var(--border)] px-4 pb-4 pt-3">
               <div className="space-y-1.5">
                 {categories.map((cat) => (
-                  <div key={cat.id} className="flex items-center justify-between gap-2 rounded-lg bg-[var(--muted)]/30 px-3 py-2">
+                  <div
+                    key={cat.id}
+                    className="flex items-center justify-between gap-2 rounded-lg bg-[var(--muted)]/30 px-3 py-2"
+                  >
                     {renamingCat?.id === cat.id ? (
                       <input
                         autoFocus
                         value={renamingCat.name}
-                        onChange={(e) => setRenamingCat({ ...renamingCat, name: e.target.value })}
-                        onKeyDown={(e) => { if (e.key === "Enter") void handleRenameCategory(); if (e.key === "Escape") setRenamingCat(null); }}
+                        onChange={(e) =>
+                          setRenamingCat({
+                            ...renamingCat,
+                            name: e.target.value,
+                          })
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleRenameCategory();
+                          if (e.key === "Escape") setRenamingCat(null);
+                        }}
                         onBlur={() => void handleRenameCategory()}
                         className="flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-0.5 text-[12px] text-[var(--foreground)] outline-none"
                       />
                     ) : (
                       <span className="text-[12px] text-[var(--foreground)]">
                         {cat.name}
-                        <span className="ml-1.5 text-[var(--muted-foreground)]">({cat.entry_count})</span>
+                        <span className="ml-1.5 text-[var(--muted-foreground)]">
+                          ({cat.entry_count})
+                        </span>
                       </span>
                     )}
                     <div className="flex items-center gap-1">
-                      <button onClick={() => setRenamingCat({ id: cat.id, name: cat.name })} className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]">
+                      <button
+                        onClick={() =>
+                          setRenamingCat({ id: cat.id, name: cat.name })
+                        }
+                        className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                      >
                         <Pencil size={12} />
                       </button>
-                      <button onClick={() => void handleDeleteCategory(cat.id)} className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30">
+                      <button
+                        onClick={() => void handleDeleteCategory(cat.id)}
+                        className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30"
+                      >
                         <Trash2 size={12} />
                       </button>
                     </div>
@@ -242,7 +287,9 @@ export default function NotebookPage() {
                 <input
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && void handleCreateCategory()}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && void handleCreateCategory()
+                  }
                   placeholder={t("New category name...")}
                   className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-[12px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
                 />
@@ -266,7 +313,10 @@ export default function NotebookPage() {
               return (
                 <button
                   key={mode}
-                  onClick={() => { setFilter(mode); setActiveCategoryId(null); }}
+                  onClick={() => {
+                    setFilter(mode);
+                    setActiveCategoryId(null);
+                  }}
                   className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
                     active
                       ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
@@ -285,7 +335,10 @@ export default function NotebookPage() {
               return (
                 <button
                   key={cat.id}
-                  onClick={() => { setActiveCategoryId(cat.id); setFilter("all"); }}
+                  onClick={() => {
+                    setActiveCategoryId(cat.id);
+                    setFilter("all");
+                  }}
                   className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
                     active
                       ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
@@ -316,7 +369,9 @@ export default function NotebookPage() {
             <p className="text-[14px] font-medium text-[var(--foreground)]">
               {t("Failed to load entries")}
             </p>
-            <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">{error}</p>
+            <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
+              {error}
+            </p>
             <button
               onClick={() => void loadItems(filter, activeCategoryId)}
               className="mt-3 rounded-lg bg-[var(--primary)] px-4 py-1.5 text-[12px] font-medium text-white"
@@ -352,24 +407,30 @@ export default function NotebookPage() {
                     <div className="min-w-0 flex-1">
                       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                         {item.difficulty && (
-                          <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase ${
-                            item.difficulty === "hard"
-                              ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400"
-                              : item.difficulty === "medium"
-                                ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-                                : "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400"
-                          }`}>{item.difficulty}</span>
+                          <span
+                            className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase ${
+                              item.difficulty === "hard"
+                                ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400"
+                                : item.difficulty === "medium"
+                                  ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
+                                  : "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400"
+                            }`}
+                          >
+                            {item.difficulty}
+                          </span>
                         )}
                         {item.question_type && (
                           <span className="rounded-md bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
                             {item.question_type}
                           </span>
                         )}
-                        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                          item.is_correct
-                            ? "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-                        }`}>
+                        <span
+                          className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                            item.is_correct
+                              ? "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                              : "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+                          }`}
+                        >
                           {item.is_correct ? t("Correct") : t("Incorrect")}
                         </span>
                       </div>
@@ -385,14 +446,19 @@ export default function NotebookPage() {
                       <button
                         onClick={() => void handleToggleBookmark(item)}
                         disabled={disabled}
-                        title={item.bookmarked ? t("Remove Bookmark") : t("Bookmark")}
+                        title={
+                          item.bookmarked ? t("Remove Bookmark") : t("Bookmark")
+                        }
                         className={`rounded-lg p-1.5 transition-colors disabled:opacity-40 ${
                           item.bookmarked
                             ? "text-[var(--primary)]"
                             : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                         }`}
                       >
-                        <Bookmark className="h-4 w-4" fill={item.bookmarked ? "currentColor" : "none"} />
+                        <Bookmark
+                          className="h-4 w-4"
+                          fill={item.bookmarked ? "currentColor" : "none"}
+                        />
                       </button>
                       {activeCategoryId !== null && (
                         <button
@@ -419,8 +485,11 @@ export default function NotebookPage() {
                   {item.options && Object.keys(item.options).length > 0 && (
                     <div className="mb-3 space-y-1.5">
                       {Object.entries(item.options).map(([key, text]) => {
-                        const isUserAnswer = item.user_answer?.toUpperCase() === key.toUpperCase();
-                        const isCorrectAnswer = item.correct_answer?.toUpperCase() === key.toUpperCase();
+                        const isUserAnswer =
+                          item.user_answer?.toUpperCase() === key.toUpperCase();
+                        const isCorrectAnswer =
+                          item.correct_answer?.toUpperCase() ===
+                          key.toUpperCase();
                         const isWrongPick = isUserAnswer && !item.is_correct;
                         return (
                           <div
@@ -433,25 +502,35 @@ export default function NotebookPage() {
                                   : "border-transparent bg-[var(--muted)]/30"
                             }`}
                           >
-                            <span className={`mt-px shrink-0 font-semibold ${
-                              isCorrectAnswer
-                                ? "text-green-600 dark:text-green-400"
-                                : isWrongPick
-                                  ? "text-red-600 dark:text-red-400"
-                                  : "text-[var(--muted-foreground)]"
-                            }`}>
+                            <span
+                              className={`mt-px shrink-0 font-semibold ${
+                                isCorrectAnswer
+                                  ? "text-green-600 dark:text-green-400"
+                                  : isWrongPick
+                                    ? "text-red-600 dark:text-red-400"
+                                    : "text-[var(--muted-foreground)]"
+                              }`}
+                            >
                               {key}.
                             </span>
-                            <span className={`flex-1 ${
-                              isCorrectAnswer || isWrongPick ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]"
-                            }`}>
+                            <span
+                              className={`flex-1 ${
+                                isCorrectAnswer || isWrongPick
+                                  ? "text-[var(--foreground)]"
+                                  : "text-[var(--muted-foreground)]"
+                              }`}
+                            >
                               {text}
                             </span>
                             {isCorrectAnswer && (
-                              <span className="mt-px shrink-0 text-[10px] font-medium text-green-600 dark:text-green-400">✓ {t("Correct")}</span>
+                              <span className="mt-px shrink-0 text-[10px] font-medium text-green-600 dark:text-green-400">
+                                ✓ {t("Correct")}
+                              </span>
                             )}
                             {isWrongPick && (
-                              <span className="mt-px shrink-0 text-[10px] font-medium text-red-600 dark:text-red-400">✗ {t("Your pick")}</span>
+                              <span className="mt-px shrink-0 text-[10px] font-medium text-red-600 dark:text-red-400">
+                                ✗ {t("Your pick")}
+                              </span>
                             )}
                           </div>
                         );
@@ -460,29 +539,44 @@ export default function NotebookPage() {
                   )}
 
                   {/* Answers for coding / written / fill-in questions */}
-                  {(!item.options || Object.keys(item.options).length === 0) && (
+                  {(!item.options ||
+                    Object.keys(item.options).length === 0) && (
                     <div className="mb-3 space-y-2 text-[13px]">
-                      <div className={`rounded-lg border px-3 py-2.5 ${
-                        !item.is_correct
-                          ? "border-red-200/60 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/15"
-                          : "border-green-200/60 bg-green-50/40 dark:border-green-900/40 dark:bg-green-950/15"
-                      }`}>
-                        <div className={`mb-1 text-[11px] font-medium uppercase tracking-wide ${
+                      <div
+                        className={`rounded-lg border px-3 py-2.5 ${
                           !item.is_correct
-                            ? "text-red-500 dark:text-red-400"
-                            : "text-green-600 dark:text-green-400"
-                        }`}>
+                            ? "border-red-200/60 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/15"
+                            : "border-green-200/60 bg-green-50/40 dark:border-green-900/40 dark:bg-green-950/15"
+                        }`}
+                      >
+                        <div
+                          className={`mb-1 text-[11px] font-medium uppercase tracking-wide ${
+                            !item.is_correct
+                              ? "text-red-500 dark:text-red-400"
+                              : "text-green-600 dark:text-green-400"
+                          }`}
+                        >
                           {t("Your Answer")} {item.is_correct ? "✓" : "✗"}
                         </div>
                         <div className="text-[var(--foreground)]">
                           {item.user_answer ? (
                             item.question_type === "coding" ? (
-                              <MarkdownRenderer content={`\`\`\`python\n${item.user_answer}\n\`\`\``} variant="prose" className="text-[13px]" />
+                              <MarkdownRenderer
+                                content={`\`\`\`python\n${item.user_answer}\n\`\`\``}
+                                variant="prose"
+                                className="text-[13px]"
+                              />
                             ) : (
-                              <MarkdownRenderer content={item.user_answer} variant="prose" className="text-[13px] leading-relaxed" />
+                              <MarkdownRenderer
+                                content={item.user_answer}
+                                variant="prose"
+                                className="text-[13px] leading-relaxed"
+                              />
                             )
                           ) : (
-                            <span className="text-[var(--muted-foreground)]">—</span>
+                            <span className="text-[var(--muted-foreground)]">
+                              —
+                            </span>
                           )}
                         </div>
                       </div>
@@ -493,12 +587,28 @@ export default function NotebookPage() {
                         <div className="text-[var(--foreground)]">
                           {item.correct_answer ? (
                             item.question_type === "coding" ? (
-                              <MarkdownRenderer content={item.correct_answer.trimStart().startsWith("```") ? item.correct_answer : `\`\`\`python\n${item.correct_answer}\n\`\`\``} variant="prose" className="text-[13px]" />
+                              <MarkdownRenderer
+                                content={
+                                  item.correct_answer
+                                    .trimStart()
+                                    .startsWith("```")
+                                    ? item.correct_answer
+                                    : `\`\`\`python\n${item.correct_answer}\n\`\`\``
+                                }
+                                variant="prose"
+                                className="text-[13px]"
+                              />
                             ) : (
-                              <MarkdownRenderer content={item.correct_answer} variant="prose" className="text-[13px] leading-relaxed" />
+                              <MarkdownRenderer
+                                content={item.correct_answer}
+                                variant="prose"
+                                className="text-[13px] leading-relaxed"
+                              />
                             )
                           ) : (
-                            <span className="text-[var(--muted-foreground)]">—</span>
+                            <span className="text-[var(--muted-foreground)]">
+                              —
+                            </span>
                           )}
                         </div>
                       </div>
@@ -512,7 +622,11 @@ export default function NotebookPage() {
                         {t("Explanation")}
                       </div>
                       <div className="text-[13px] leading-relaxed text-[var(--foreground)]">
-                        <MarkdownRenderer content={item.explanation} variant="prose" className="text-[13px] leading-relaxed" />
+                        <MarkdownRenderer
+                          content={item.explanation}
+                          variant="prose"
+                          className="text-[13px] leading-relaxed"
+                        />
                       </div>
                     </div>
                   )}
@@ -537,7 +651,9 @@ export default function NotebookPage() {
                         </Link>
                       )}
                     </div>
-                    <span className="text-[var(--muted-foreground)]">{new Date(item.created_at * 1000).toLocaleString()}</span>
+                    <span className="text-[var(--muted-foreground)]">
+                      {new Date(item.created_at * 1000).toLocaleString()}
+                    </span>
                   </div>
                 </li>
               );

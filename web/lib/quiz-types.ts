@@ -72,7 +72,8 @@ export function extractQuizQuestions(
     const question: QuizQuestion = {
       question_id: String(qa.question_id ?? ""),
       question: String(qa.question ?? ""),
-      question_type: (qa.question_type as QuizQuestion["question_type"]) ?? "written",
+      question_type:
+        (qa.question_type as QuizQuestion["question_type"]) ?? "written",
       options: qa.options as Record<string, string> | undefined,
       correct_answer: String(qa.correct_answer ?? ""),
       explanation: String(qa.explanation ?? ""),
@@ -89,7 +90,9 @@ export function extractQuizQuestions(
     return question;
   });
 
-  return parsed.filter((question): question is QuizQuestion => question !== null);
+  return parsed.filter(
+    (question): question is QuizQuestion => question !== null,
+  );
 }
 
 export function buildQuizFollowupConfig(
@@ -135,7 +138,11 @@ export function summarizeQuizConfig(
   const tr = translate ?? ((s: string) => s);
   if (cfg.mode === "mimic") {
     const target = cfg.paper_path.trim() || tr("no paper");
-    return [tr("Mimic Paper"), target, `${tr("Max")} ${cfg.max_questions}`].join(" · ");
+    return [
+      tr("Mimic Paper"),
+      target,
+      `${tr("Max")} ${cfg.max_questions}`,
+    ].join(" · ");
   }
   return [
     tr("Custom"),

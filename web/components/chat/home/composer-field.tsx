@@ -57,9 +57,13 @@ export function CollapsibleConfigSection({
           size={10}
           className={`shrink-0 text-[var(--muted-foreground)]/40 transition-transform ${collapsed ? "-rotate-90" : ""}`}
         />
-        <span className="text-[10px] font-medium text-[var(--muted-foreground)]/55">{t("Settings")}</span>
+        <span className="text-[10px] font-medium text-[var(--muted-foreground)]/55">
+          {t("Settings")}
+        </span>
         {collapsed && summary && (
-          <span className="min-w-0 truncate text-[10px] text-[var(--muted-foreground)]/30">— {summary}</span>
+          <span className="min-w-0 truncate text-[10px] text-[var(--muted-foreground)]/30">
+            — {summary}
+          </span>
         )}
       </button>
       {!collapsed && (

@@ -182,4 +182,10 @@ class TestAllChannelSchemas:
         assert "telegram" in out
         # Every payload has the four documented keys.
         for entry in out.values():
-            assert {"name", "display_name", "default_config", "secret_fields", "json_schema"} <= entry.keys()
+            assert {
+                "name",
+                "display_name",
+                "default_config",
+                "secret_fields",
+                "json_schema",
+            } <= entry.keys()

@@ -30,7 +30,9 @@ const MathAnimatorViewer = dynamic(
   () => import("@/components/math-animator/MathAnimatorViewer"),
   { ssr: false },
 );
-const QuizViewer = dynamic(() => import("@/components/quiz/QuizViewer"), { ssr: false });
+const QuizViewer = dynamic(() => import("@/components/quiz/QuizViewer"), {
+  ssr: false,
+});
 const ResearchOutlineEditor = dynamic(
   () => import("@/components/research/ResearchOutlineEditor"),
   { ssr: false },
@@ -85,7 +87,11 @@ const AssistantMessage = memo(function AssistantMessage({
   outlineStatus?: "editing" | "researching" | "done";
   sessionId?: string | null;
   language?: string;
-  onConfirmOutline?: (outline: Array<{ title: string; overview: string }>, topic: string, researchConfig?: Record<string, unknown> | null) => void;
+  onConfirmOutline?: (
+    outline: Array<{ title: string; overview: string }>,
+    topic: string,
+    researchConfig?: Record<string, unknown> | null,
+  ) => void;
   onAnswerNow?: () => void;
 }) {
   const events = useMemo(() => msg.events ?? [], [msg.events]);
@@ -103,9 +109,15 @@ const AssistantMessage = memo(function AssistantMessage({
     const meta = resultEvent.metadata as Record<string, unknown> | undefined;
     if (!meta?.outline_preview) return null;
     return {
-      sub_topics: (meta.sub_topics ?? []) as Array<{ title: string; overview: string }>,
+      sub_topics: (meta.sub_topics ?? []) as Array<{
+        title: string;
+        overview: string;
+      }>,
       topic: String(meta.topic ?? ""),
-      research_config: (meta.research_config ?? null) as Record<string, unknown> | null,
+      research_config: (meta.research_config ?? null) as Record<
+        string,
+        unknown
+      > | null,
     };
   }, [msg.capability, resultEvent]);
 
@@ -129,12 +141,20 @@ const AssistantMessage = memo(function AssistantMessage({
       {hasCallTrace ? (
         <CallTracePanel events={events} isStreaming={isStreaming} />
       ) : null}
-      {isStreaming && onAnswerNow ? <AnswerNowRow onAnswerNow={onAnswerNow} /> : null}
+      {isStreaming && onAnswerNow ? (
+        <AnswerNowRow onAnswerNow={onAnswerNow} />
+      ) : null}
       {outlinePreview && outlinePreview.sub_topics.length > 0 ? (
         <ResearchOutlineEditor
           outline={outlinePreview.sub_topics}
           topic={outlinePreview.topic}
-          onConfirm={(items) => onConfirmOutline?.(items, outlinePreview.topic, outlinePreview.research_config)}
+          onConfirm={(items) =>
+            onConfirmOutline?.(
+              items,
+              outlinePreview.topic,
+              outlinePreview.research_config,
+            )
+          }
           status={outlineStatus}
         />
       ) : mathAnimatorResult ? (
@@ -142,7 +162,11 @@ const AssistantMessage = memo(function AssistantMessage({
       ) : visualizeResult ? (
         <VisualizationViewer result={visualizeResult} />
       ) : quizQuestions && quizQuestions.length > 0 ? (
-        <QuizViewer questions={quizQuestions} sessionId={sessionId} language={language} />
+        <QuizViewer
+          questions={quizQuestions}
+          sessionId={sessionId}
+          language={language}
+        />
       ) : (
         <AssistantResponse content={msg.content} />
       )}
@@ -199,7 +223,15 @@ const AnswerNowRow = memo(function AnswerNowRow({
 
 AnswerNowRow.displayName = "AnswerNowRow";
 
-function CostFooter({ cost, tokens, calls }: { cost: number; tokens: number; calls: number }) {
+function CostFooter({
+  cost,
+  tokens,
+  calls,
+}: {
+  cost: number;
+  tokens: number;
+  calls: number;
+}) {
   const { t } = useTranslation();
   const formatCost = (usd: number) => {
     if (usd < 0.01) return `$${usd.toFixed(4)}`;
@@ -214,9 +246,13 @@ function CostFooter({ cost, tokens, calls }: { cost: number; tokens: number; cal
       <Coins size={10} strokeWidth={1.5} className="shrink-0" />
       <span>{formatCost(cost)}</span>
       <span className="opacity-40">·</span>
-      <span>{formatTokens(tokens)} {t("tokens")}</span>
+      <span>
+        {formatTokens(tokens)} {t("tokens")}
+      </span>
       <span className="opacity-40">·</span>
-      <span>{calls} {t("calls")}</span>
+      <span>
+        {calls} {t("calls")}
+      </span>
     </div>
   );
 }
@@ -268,7 +304,10 @@ const UserMessage = memo(function UserMessage({
             {msg.attachments
               .filter((a) => a.type === "image" && a.base64)
               .map((a, ai) => (
-                <div key={`img-${ai}`} className="overflow-hidden rounded-2xl border border-[var(--border)]">
+                <div
+                  key={`img-${ai}`}
+                  className="overflow-hidden rounded-2xl border border-[var(--border)]"
+                >
                   <Image
                     src={`data:image/png;base64,${a.base64}`}
                     alt={a.filename || t("image")}
@@ -351,7 +390,9 @@ export const ReferenceChips = memo(function ReferenceChips({
         >
           <MessageSquare size={12} strokeWidth={1.8} className="shrink-0" />
           <span className="shrink-0 font-medium">{t("Chat History")}</span>
-          <span className="truncate text-sky-700/90 dark:text-sky-200/90">{session.title}</span>
+          <span className="truncate text-sky-700/90 dark:text-sky-200/90">
+            {session.title}
+          </span>
           <button
             onClick={() => onRemoveHistory(session.sessionId)}
             className="shrink-0 opacity-60 transition hover:opacity-100"
@@ -424,25 +465,36 @@ export const ChatMessageList = memo(function ChatMessageList({
   ) => void;
   onCopyAssistantMessage: (content: string) => void | Promise<void>;
   onRegenerateMessage: () => void;
-  onConfirmOutline?: (outline: Array<{ title: string; overview: string }>, topic: string, researchConfig?: Record<string, unknown> | null) => void;
+  onConfirmOutline?: (
+    outline: Array<{ title: string; overview: string }>,
+    topic: string,
+    researchConfig?: Record<string, unknown> | null,
+  ) => void;
 }) {
   const { t } = useTranslation();
   const outlineStatusByIndex = useMemo(() => {
     const map = new Map<number, "editing" | "researching" | "done">();
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg.role !== "assistant" || msg.capability !== "deep_research") continue;
+      if (msg.role !== "assistant" || msg.capability !== "deep_research")
+        continue;
       const resultEv = msg.events?.find((e) => e.type === "result");
       const meta = resultEv?.metadata as Record<string, unknown> | undefined;
       if (!meta?.outline_preview) continue;
-      const hasFollowup = messages.slice(i + 1).some(
-        (m) => m.role === "assistant" && m.capability === "deep_research",
-      );
-      if (hasFollowup) {
-        const followup = messages.slice(i + 1).find(
+      const hasFollowup = messages
+        .slice(i + 1)
+        .some(
           (m) => m.role === "assistant" && m.capability === "deep_research",
         );
-        const followupResult = followup?.events?.find((e) => e.type === "result");
+      if (hasFollowup) {
+        const followup = messages
+          .slice(i + 1)
+          .find(
+            (m) => m.role === "assistant" && m.capability === "deep_research",
+          );
+        const followupResult = followup?.events?.find(
+          (e) => e.type === "result",
+        );
         map.set(i, followupResult ? "done" : "researching");
       } else if (isStreaming) {
         map.set(i, "researching");
@@ -462,7 +514,11 @@ export const ChatMessageList = memo(function ChatMessageList({
       .filter(({ msg }) => msg.role !== "system")
       .map(({ msg, originalIndex }) => {
         if (msg.role === "user") {
-          return { msg, originalIndex, pairedUserMessage: null as ChatMessageItem | null };
+          return {
+            msg,
+            originalIndex,
+            pairedUserMessage: null as ChatMessageItem | null,
+          };
         }
         const pairedUserMessage =
           [...messages.slice(0, originalIndex)]
@@ -484,26 +540,20 @@ export const ChatMessageList = memo(function ChatMessageList({
       {messageRows.map(({ msg, originalIndex, pairedUserMessage }) => {
         const i = originalIndex;
         if (msg.role === "user") {
-          return (
-            <UserMessage
-              key={`${msg.role}-${i}`}
-              msg={msg}
-              index={i}
-            />
-          );
+          return <UserMessage key={`${msg.role}-${i}`} msg={msg} index={i} />;
         }
 
         const isActiveAssistant = isStreaming && i === messages.length - 1;
         const msgDone = !isActiveAssistant;
-        const showActions =
-          msgDone && hasVisibleMarkdownContent(msg.content);
+        const showActions = msgDone && hasVisibleMarkdownContent(msg.content);
         const isLastAssistant = i === lastAssistantIndex;
         const showRegenerate =
           showActions &&
           !isStreaming &&
           isLastAssistant &&
           Boolean(pairedUserMessage) &&
-          (!pairedUserMessage?.capability || pairedUserMessage?.capability === "chat");
+          (!pairedUserMessage?.capability ||
+            pairedUserMessage?.capability === "chat");
 
         // The "Answer now" affordance lives inside the trace panel for the
         // currently-streaming assistant turn. We hand the panel a thin
@@ -521,8 +571,16 @@ export const ChatMessageList = memo(function ChatMessageList({
           if (!msgDone) return null;
           const resultEv = msg.events?.find((e) => e.type === "result");
           if (!resultEv) return null;
-          const meta = resultEv.metadata?.metadata as Record<string, unknown> | undefined;
-          const cs = meta?.cost_summary as { total_cost_usd?: number; total_tokens?: number; total_calls?: number } | undefined;
+          const meta = resultEv.metadata?.metadata as
+            | Record<string, unknown>
+            | undefined;
+          const cs = meta?.cost_summary as
+            | {
+                total_cost_usd?: number;
+                total_tokens?: number;
+                total_calls?: number;
+              }
+            | undefined;
           if (!cs || !cs.total_calls) return null;
           return cs;
         })();
@@ -558,7 +616,11 @@ export const ChatMessageList = memo(function ChatMessageList({
                 )}
                 {costSummary && (
                   <div className="ml-auto">
-                    <CostFooter cost={costSummary.total_cost_usd ?? 0} tokens={costSummary.total_tokens ?? 0} calls={costSummary.total_calls ?? 0} />
+                    <CostFooter
+                      cost={costSummary.total_cost_usd ?? 0}
+                      tokens={costSummary.total_tokens ?? 0}
+                      calls={costSummary.total_calls ?? 0}
+                    />
                   </div>
                 )}
               </div>

@@ -51,7 +51,9 @@ export function BookRecent({ collapsed = false, limit = 4 }: BookRecentProps) {
         const res = await fetch(apiUrl("/api/v1/book/books"));
         if (!res.ok) return;
         const data = await res.json();
-        const items: RecentBook[] = Array.isArray(data?.books) ? data.books : [];
+        const items: RecentBook[] = Array.isArray(data?.books)
+          ? data.books
+          : [];
         items.sort(
           (a, b) => (Number(b.updated_at) || 0) - (Number(a.updated_at) || 0),
         );
@@ -72,14 +74,17 @@ export function BookRecent({ collapsed = false, limit = 4 }: BookRecentProps) {
   return (
     <div className="ml-5 border-l border-[var(--border)]/30 py-1">
       {books.map((book) => {
-        const dot = STATUS_DOT[book.status] || "bg-[var(--muted-foreground)]/30";
+        const dot =
+          STATUS_DOT[book.status] || "bg-[var(--muted-foreground)]/30";
         return (
           <Link
             key={book.id}
             href={`/book?book=${encodeURIComponent(book.id)}`}
             className="group flex items-center gap-2 rounded-r-lg py-1 pl-3 pr-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--background)]/40 hover:text-[var(--foreground)]"
           >
-            <span className={`block h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+            <span
+              className={`block h-1.5 w-1.5 shrink-0 rounded-full ${dot}`}
+            />
             <span className="min-w-0 flex-1 truncate text-[13px]">
               {book.title || "Untitled book"}
             </span>

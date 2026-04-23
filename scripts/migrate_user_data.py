@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import shutil
 import sys
-from pathlib import Path
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -59,6 +59,8 @@ def delete_file(path: Path) -> bool:
         path.unlink()
         return True
     return False
+
+
 def create_structure(user_dir: Path) -> None:
     required_dirs = [
         user_dir / "settings",
@@ -103,8 +105,14 @@ def migrate() -> None:
 
     print_banner("Step 3: Moving Session Files")
     session_moves = [
-        (user_dir / "solver_sessions.json", user_dir / "workspace" / "chat" / "deep_solve" / "sessions.json"),
-        (user_dir / "chat_sessions.json", user_dir / "workspace" / "chat" / "chat" / "sessions.json"),
+        (
+            user_dir / "solver_sessions.json",
+            user_dir / "workspace" / "chat" / "deep_solve" / "sessions.json",
+        ),
+        (
+            user_dir / "chat_sessions.json",
+            user_dir / "workspace" / "chat" / "chat" / "sessions.json",
+        ),
     ]
     for src, dst in session_moves:
         if move_file(src, dst):
@@ -129,8 +137,14 @@ def migrate() -> None:
         (user_dir / "agent" / "logs", user_dir / "logs"),
         (user_dir / "notebook", user_dir / "workspace" / "notebook"),
         (user_dir / "workspace" / "notebook", user_dir / "workspace" / "notebook"),
-        (user_dir / "run_code_workspace", user_dir / "workspace" / "chat" / "_detached_code_execution"),
-        (user_dir / "agent" / "run_code_workspace", user_dir / "workspace" / "chat" / "_detached_code_execution"),
+        (
+            user_dir / "run_code_workspace",
+            user_dir / "workspace" / "chat" / "_detached_code_execution",
+        ),
+        (
+            user_dir / "agent" / "run_code_workspace",
+            user_dir / "workspace" / "chat" / "_detached_code_execution",
+        ),
         (user_dir / "agent" / "math_animator", user_dir / "workspace" / "chat" / "math_animator"),
     ]
     for src, dst in moves:
@@ -207,7 +221,12 @@ def verify_migration() -> bool:
             print_step(f"{path}/", "MISSING!")
             all_ok = False
 
-    deprecated = ["user_history.json", "settings.json", "llm_providers.json", "embedding_providers.json"]
+    deprecated = [
+        "user_history.json",
+        "settings.json",
+        "llm_providers.json",
+        "embedding_providers.json",
+    ]
     for filename in deprecated:
         path = user_dir / filename
         if path.exists():
@@ -226,14 +245,18 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Migrate runtime data into data/user/")
     parser.add_argument("--verify", action="store_true", help="Only verify migration status")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be done without making changes"
+    )
     args = parser.parse_args()
 
     if args.verify:
         verify_migration()
     elif args.dry_run:
         print("DRY RUN - No changes will be made")
-        print_banner("Would create settings/ + workspace/ structure and move legacy runtime files under data/user/")
+        print_banner(
+            "Would create settings/ + workspace/ structure and move legacy runtime files under data/user/"
+        )
     else:
         migrate()
         verify_migration()

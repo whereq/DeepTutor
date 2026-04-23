@@ -12,8 +12,8 @@ Generators are stateless and are looked up by ``BlockType`` via
 
 from __future__ import annotations
 
-import asyncio
 from abc import ABC, abstractmethod
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -62,9 +62,7 @@ class BlockContext:
         no exploration is attached."""
         if self.exploration is None or not self.exploration.chunks:
             return []
-        tokens = {
-            t for t in (query or "").lower().split() if len(t) > 2
-        }
+        tokens = {t for t in (query or "").lower().split() if len(t) > 2}
         if not tokens:
             return self.exploration.chunks[:limit]
 
@@ -99,9 +97,7 @@ class BlockGenerator(ABC):
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning(
-                f"Generator {self.__class__.__name__} raised: {exc}", exc_info=True
-            )
+            logger.warning(f"Generator {self.__class__.__name__} raised: {exc}", exc_info=True)
             block.status = BlockStatus.ERROR
             block.error = str(exc)
             return block

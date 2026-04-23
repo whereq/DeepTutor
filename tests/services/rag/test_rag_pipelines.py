@@ -88,7 +88,8 @@ async def test_search_aliases_answer_and_content(fake_service) -> None:
 
 @pytest.mark.asyncio
 async def test_smart_retrieve_aggregates_passages_with_query_hints(
-    fake_service, monkeypatch: pytest.MonkeyPatch,
+    fake_service,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service, pipeline = fake_service
     pipeline.search_result = {"answer": "PASSAGE", "content": "PASSAGE", "provider": "x"}
@@ -112,7 +113,8 @@ async def test_smart_retrieve_aggregates_passages_with_query_hints(
 
 @pytest.mark.asyncio
 async def test_smart_retrieve_returns_empty_when_no_passages(
-    fake_service, monkeypatch: pytest.MonkeyPatch,
+    fake_service,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service, pipeline = fake_service
     pipeline.search_result = {"answer": "", "content": "", "provider": "x"}

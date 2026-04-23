@@ -285,6 +285,7 @@ def _simulate_get_mode_process_prompt(
     prompts: dict, report_style: str, base_key: str, default: str = ""
 ) -> str:
     """Replicate the logic of ReportingAgent._get_mode_process_prompt without importing it."""
+
     def _get(section: str, key: str, dflt: str = "") -> str:
         try:
             return prompts[section][key]

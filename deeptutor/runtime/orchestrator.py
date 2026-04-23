@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
 from typing import Any, AsyncIterator
+import uuid
 
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream import StreamEvent, StreamEventType

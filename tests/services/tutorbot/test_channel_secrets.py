@@ -102,9 +102,10 @@ class TestToDictDefaultsAreSafe:
     def test_default_returns_keys_only(self):
         inst = _make_instance()
         d = inst.to_dict()
-        assert d["channels"] == ["telegram", "send_progress"] or set(
-            d["channels"]
-        ) == {"telegram", "send_progress"}
+        assert d["channels"] == ["telegram", "send_progress"] or set(d["channels"]) == {
+            "telegram",
+            "send_progress",
+        }
         # last_reload_error is always present for the UI to consume
         assert "last_reload_error" in d
         assert d["last_reload_error"] is None
@@ -167,9 +168,7 @@ async def test_reload_lock_serialises_concurrent_calls(monkeypatch):
         in_flight -= 1
 
     monkeypatch.setattr(mgr, "_teardown_channel_listeners", fake_teardown)
-    monkeypatch.setattr(
-        mgr, "_build_channel_manager", lambda config, bus, *, bot_id: None
-    )
+    monkeypatch.setattr(mgr, "_build_channel_manager", lambda config, bus, *, bot_id: None)
 
     try:
         await asyncio.gather(mgr.reload_channels("b"), mgr.reload_channels("b"))

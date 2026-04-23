@@ -2,7 +2,14 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import {
@@ -60,9 +67,12 @@ import {
   type SkillInfo,
 } from "@/lib/skills-api";
 
-const MarkdownRenderer = dynamic(() => import("@/components/common/MarkdownRenderer"), {
-  ssr: false,
-});
+const MarkdownRenderer = dynamic(
+  () => import("@/components/common/MarkdownRenderer"),
+  {
+    ssr: false,
+  },
+);
 const ProcessLogs = dynamic(() => import("@/components/common/ProcessLogs"), {
   ssr: false,
 });
@@ -144,10 +154,12 @@ const EMPTY_PROCESS_STATE: ProcessState = {
   error: null,
 };
 
-const resolveKbStatus = (kb: KnowledgeBase): string => kb.status ?? kb.statistics?.status ?? "unknown";
+const resolveKbStatus = (kb: KnowledgeBase): string =>
+  kb.status ?? kb.statistics?.status ?? "unknown";
 
 const kbNeedsReindex = (kb: KnowledgeBase): boolean =>
-  Boolean(kb.statistics?.needs_reindex) || resolveKbStatus(kb) === "needs_reindex";
+  Boolean(kb.statistics?.needs_reindex) ||
+  resolveKbStatus(kb) === "needs_reindex";
 
 const kbIsUploadable = (kb: KnowledgeBase): boolean =>
   resolveKbStatus(kb) === "ready" && !kbNeedsReindex(kb);
@@ -167,7 +179,9 @@ function KnowledgePageContent() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [uploadingKb, setUploadingKb] = useState<string | null>(null);
-  const [progressMap, setProgressMap] = useState<Record<string, ProgressInfo>>({});
+  const [progressMap, setProgressMap] = useState<Record<string, ProgressInfo>>(
+    {},
+  );
   const [newKbName, setNewKbName] = useState("");
   const [newKbFiles, setNewKbFiles] = useState<File[]>([]);
   const [selectedProvider, setSelectedProvider] = useState("llamaindex");
@@ -175,12 +189,17 @@ function KnowledgePageContent() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [newNotebookName, setNewNotebookName] = useState("");
   const [newNotebookDescription, setNewNotebookDescription] = useState("");
-  const [selectedNotebookId, setSelectedNotebookId] = useState<string | null>(null);
-  const [selectedNotebook, setSelectedNotebook] = useState<NotebookDetail | null>(null);
+  const [selectedNotebookId, setSelectedNotebookId] = useState<string | null>(
+    null,
+  );
+  const [selectedNotebook, setSelectedNotebook] =
+    useState<NotebookDetail | null>(null);
   const [loadingNotebookDetail, setLoadingNotebookDetail] = useState(false);
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
-  const [createProcess, setCreateProcess] = useState<ProcessState>(EMPTY_PROCESS_STATE);
-  const [uploadProcess, setUploadProcess] = useState<ProcessState>(EMPTY_PROCESS_STATE);
+  const [createProcess, setCreateProcess] =
+    useState<ProcessState>(EMPTY_PROCESS_STATE);
+  const [uploadProcess, setUploadProcess] =
+    useState<ProcessState>(EMPTY_PROCESS_STATE);
   const socketsRef = useRef<Record<string, WebSocket>>({});
   const logSourcesRef = useRef<Record<ProcessKind, EventSource | null>>({
     create: null,
@@ -197,12 +216,17 @@ function KnowledgePageContent() {
   const [qError, setQError] = useState<string | null>(null);
   const [qRefreshing, setQRefreshing] = useState(false);
   const [qFilter, setQFilter] = useState<QFilterMode>("all");
-  const [qActiveCategoryId, setQActiveCategoryId] = useState<number | null>(null);
+  const [qActiveCategoryId, setQActiveCategoryId] = useState<number | null>(
+    null,
+  );
   const [qCategories, setQCategories] = useState<NotebookCategory[]>([]);
   const [qPendingId, setQPendingId] = useState<number | null>(null);
   const [qShowCategoryManager, setQShowCategoryManager] = useState(false);
   const [qNewCatName, setQNewCatName] = useState("");
-  const [qRenamingCat, setQRenamingCat] = useState<{ id: number; name: string } | null>(null);
+  const [qRenamingCat, setQRenamingCat] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   // ── Skills state ──
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -269,7 +293,11 @@ function KnowledgePageContent() {
     } catch (err) {
       setSkillEditor((prev) =>
         prev
-          ? { ...prev, saving: false, error: err instanceof Error ? err.message : String(err) }
+          ? {
+              ...prev,
+              saving: false,
+              error: err instanceof Error ? err.message : String(err),
+            }
           : prev,
       );
     }
@@ -303,24 +331,31 @@ function KnowledgePageContent() {
     } catch (err) {
       setSkillEditor((prev) =>
         prev
-          ? { ...prev, saving: false, error: err instanceof Error ? err.message : String(err) }
+          ? {
+              ...prev,
+              saving: false,
+              error: err instanceof Error ? err.message : String(err),
+            }
           : prev,
       );
     }
   }, [skillEditor, loadSkills]);
 
-  const handleDeleteSkill = useCallback(async (name: string) => {
-    if (!window.confirm(`Delete skill "${name}"?`)) return;
-    setSkillDeleting(name);
-    try {
-      await deleteSkill(name);
-      await loadSkills();
-    } catch (err) {
-      setSkillsError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSkillDeleting(null);
-    }
-  }, [loadSkills]);
+  const handleDeleteSkill = useCallback(
+    async (name: string) => {
+      if (!window.confirm(`Delete skill "${name}"?`)) return;
+      setSkillDeleting(name);
+      try {
+        await deleteSkill(name);
+        await loadSkills();
+      } catch (err) {
+        setSkillsError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSkillDeleting(null);
+      }
+    },
+    [loadSkills],
+  );
 
   useEffect(() => {
     if (tab === "skills") void loadSkills();
@@ -328,7 +363,11 @@ function KnowledgePageContent() {
 
   // ── Question Notebook handlers ──
   const loadQCategories = useCallback(async () => {
-    try { setQCategories(await listCategories()); } catch { /* ignore */ }
+    try {
+      setQCategories(await listCategories());
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const loadQItems = useCallback(
@@ -363,10 +402,15 @@ function KnowledgePageContent() {
         setQItems((prev) =>
           qFilter === "bookmarked" && !next
             ? prev.filter((e) => e.id !== item.id)
-            : prev.map((e) => (e.id === item.id ? { ...e, bookmarked: next } : e)),
+            : prev.map((e) =>
+                e.id === item.id ? { ...e, bookmarked: next } : e,
+              ),
         );
-        if (qFilter === "bookmarked" && !next) setQTotal((p) => Math.max(0, p - 1));
-      } catch { /* ignore */ }
+        if (qFilter === "bookmarked" && !next)
+          setQTotal((p) => Math.max(0, p - 1));
+      } catch {
+        /* ignore */
+      }
       setQPendingId(null);
     },
     [qFilter],
@@ -380,7 +424,9 @@ function KnowledgePageContent() {
         await deleteNotebookEntry(item.id);
         setQItems((prev) => prev.filter((e) => e.id !== item.id));
         setQTotal((p) => Math.max(0, p - 1));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       setQPendingId(null);
     },
     [t],
@@ -394,7 +440,9 @@ function KnowledgePageContent() {
         await removeEntryFromCategory(item.id, qActiveCategoryId);
         setQItems((prev) => prev.filter((e) => e.id !== item.id));
         setQTotal((p) => Math.max(0, p - 1));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       setQPendingId(null);
     },
     [qActiveCategoryId],
@@ -406,7 +454,9 @@ function KnowledgePageContent() {
       await createCategory(qNewCatName.trim());
       setQNewCatName("");
       await loadQCategories();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [loadQCategories, qNewCatName]);
 
   const handleQRenameCategory = useCallback(async () => {
@@ -415,7 +465,9 @@ function KnowledgePageContent() {
       await renameCategory(qRenamingCat.id, qRenamingCat.name.trim());
       setQRenamingCat(null);
       await loadQCategories();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [loadQCategories, qRenamingCat]);
 
   const handleQDeleteCategory = useCallback(
@@ -425,7 +477,9 @@ function KnowledgePageContent() {
         await deleteCategory(catId);
         if (qActiveCategoryId === catId) setQActiveCategoryId(null);
         await loadQCategories();
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     },
     [qActiveCategoryId, loadQCategories, t],
   );
@@ -454,7 +508,11 @@ function KnowledgePageContent() {
     socketsRef.current = {};
   };
 
-  const openTaskLogStream = (kind: ProcessKind, taskId: string, label: string) => {
+  const openTaskLogStream = (
+    kind: ProcessKind,
+    taskId: string,
+    label: string,
+  ) => {
     closeTaskLogStream(kind);
     const setProcess = getProcessSetter(kind);
     setProcess({
@@ -465,14 +523,18 @@ function KnowledgePageContent() {
       error: null,
     });
 
-    const source = new EventSource(apiUrl(`/api/v1/knowledge/tasks/${taskId}/stream`));
+    const source = new EventSource(
+      apiUrl(`/api/v1/knowledge/tasks/${taskId}/stream`),
+    );
     logSourcesRef.current[kind] = source;
 
     let settled = false;
 
     source.addEventListener("log", (event) => {
       try {
-        const payload = JSON.parse((event as MessageEvent).data) as { line?: string };
+        const payload = JSON.parse((event as MessageEvent).data) as {
+          line?: string;
+        };
         if (!payload.line) return;
         setProcess((prev) => ({
           ...prev,
@@ -495,7 +557,9 @@ function KnowledgePageContent() {
       settled = true;
       let detail = "Task failed";
       try {
-        const payload = JSON.parse((event as MessageEvent).data) as { detail?: string };
+        const payload = JSON.parse((event as MessageEvent).data) as {
+          detail?: string;
+        };
         detail = payload.detail || detail;
       } catch {
         // Ignore malformed failure events.
@@ -560,7 +624,9 @@ function KnowledgePageContent() {
       if (!selectedNotebookId && nextNotebooks.length > 0) {
         void loadNotebookDetail(nextNotebooks[0].id);
       } else if (selectedNotebookId) {
-        const stillExists = nextNotebooks.some((item: NotebookInfo) => item.id === selectedNotebookId);
+        const stillExists = nextNotebooks.some(
+          (item: NotebookInfo) => item.id === selectedNotebookId,
+        );
         if (stillExists) {
           void loadNotebookDetail(selectedNotebookId);
         } else {
@@ -570,11 +636,17 @@ function KnowledgePageContent() {
       }
 
       const preferredUploadTarget =
-        kbs.find((kb: KnowledgeBase) => kb.is_default && kbIsUploadable(kb))?.name ??
+        kbs.find((kb: KnowledgeBase) => kb.is_default && kbIsUploadable(kb))
+          ?.name ??
         kbs.find((kb: KnowledgeBase) => kbIsUploadable(kb))?.name ??
         "";
       setUploadTarget((prev) => {
-        if (prev && kbs.some((kb: KnowledgeBase) => kb.name === prev && kbIsUploadable(kb))) {
+        if (
+          prev &&
+          kbs.some(
+            (kb: KnowledgeBase) => kb.name === prev && kbIsUploadable(kb),
+          )
+        ) {
           return prev;
         }
         return preferredUploadTarget;
@@ -591,7 +663,10 @@ function KnowledgePageContent() {
           progressStage !== "completed" &&
           progressStage !== "error"
         ) {
-          setProgressMap((prev) => ({ ...prev, [kb.name]: progress || prev[kb.name] || {} }));
+          setProgressMap((prev) => ({
+            ...prev,
+            [kb.name]: progress || prev[kb.name] || {},
+          }));
           const taskId = (progress as ProgressInfo | undefined)?.task_id;
           subscribeProgress(kb.name, taskId || undefined);
         }
@@ -624,8 +699,12 @@ function KnowledgePageContent() {
   const subscribeProgress = (kbName: string, expectedTaskId?: string) => {
     closeProgressSocket(kbName);
 
-    const query = expectedTaskId ? `?task_id=${encodeURIComponent(expectedTaskId)}` : "";
-    const socket = new WebSocket(wsUrl(`/api/v1/knowledge/${kbName}/progress/ws${query}`));
+    const query = expectedTaskId
+      ? `?task_id=${encodeURIComponent(expectedTaskId)}`
+      : "";
+    const socket = new WebSocket(
+      wsUrl(`/api/v1/knowledge/${kbName}/progress/ws${query}`),
+    );
     socketsRef.current[kbName] = socket;
 
     socket.onmessage = (event) => {
@@ -636,9 +715,16 @@ function KnowledgePageContent() {
           message?: string;
         };
         const progress =
-          rawData?.type === "progress" && rawData.data ? rawData.data : (rawData as ProgressInfo);
+          rawData?.type === "progress" && rawData.data
+            ? rawData.data
+            : (rawData as ProgressInfo);
         if (!progress || typeof progress !== "object") return;
-        if (expectedTaskId && progress.task_id && progress.task_id !== expectedTaskId) return;
+        if (
+          expectedTaskId &&
+          progress.task_id &&
+          progress.task_id !== expectedTaskId
+        )
+          return;
 
         setProgressMap((prev) => ({ ...prev, [kbName]: progress }));
         const stage = progress.stage;
@@ -773,13 +859,18 @@ function KnowledgePageContent() {
   };
 
   const setDefaultKnowledgeBase = async (kbName: string) => {
-    await fetch(apiUrl(`/api/v1/knowledge/default/${kbName}`), { method: "PUT" });
+    await fetch(apiUrl(`/api/v1/knowledge/default/${kbName}`), {
+      method: "PUT",
+    });
     invalidateKnowledgeCaches();
     await loadAll();
   };
 
   const deleteKnowledgeBase = async (kbName: string) => {
-    if (!window.confirm(t('Delete knowledge base "{{name}}"?', { name: kbName }))) return;
+    if (
+      !window.confirm(t('Delete knowledge base "{{name}}"?', { name: kbName }))
+    )
+      return;
     setPageError(null);
     try {
       const res = await fetch(
@@ -881,11 +972,25 @@ function KnowledgePageContent() {
   const getRecordBadge = (type: string) => {
     switch (type) {
       case "chat":
-        return { label: t("Chat"), color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300", icon: MessageSquare };
+        return {
+          label: t("Chat"),
+          color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+          icon: MessageSquare,
+        };
       case "research":
-        return { label: t("Research"), color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", icon: Search };
+        return {
+          label: t("Research"),
+          color:
+            "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+          icon: Search,
+        };
       default:
-        return { label: type, color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400", icon: NotebookPen };
+        return {
+          label: type,
+          color:
+            "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+          icon: NotebookPen,
+        };
     }
   };
 
@@ -894,7 +999,8 @@ function KnowledgePageContent() {
       knowledgeBases.map((kb) => ({
         ...kb,
         status: kb.status ?? kb.statistics?.status,
-        progress: progressMap[kb.name] || kb.progress || kb.statistics?.progress,
+        progress:
+          progressMap[kb.name] || kb.progress || kb.statistics?.progress,
       })),
     [knowledgeBases, progressMap],
   );
@@ -912,17 +1018,25 @@ function KnowledgePageContent() {
   const uploadBlockedReason = useMemo(() => {
     if (!uploadTargetKb) return null;
     if (kbNeedsReindex(uploadTargetKb)) {
-      return t("This knowledge base is in legacy index format and needs reindex before upload.");
+      return t(
+        "This knowledge base is in legacy index format and needs reindex before upload.",
+      );
     }
     const status = resolveKbStatus(uploadTargetKb);
     if (status !== "ready") {
-      return t("This knowledge base is currently {{status}} and cannot accept uploads yet.", { status: status.replaceAll("_", " ") });
+      return t(
+        "This knowledge base is currently {{status}} and cannot accept uploads yet.",
+        { status: status.replaceAll("_", " ") },
+      );
     }
     return null;
   }, [uploadTargetKb]);
 
   const uploadDisabled =
-    !uploadTarget || !uploadFiles.length || !!uploadingKb || Boolean(uploadBlockedReason);
+    !uploadTarget ||
+    !uploadFiles.length ||
+    !!uploadingKb ||
+    Boolean(uploadBlockedReason);
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--background)] [scrollbar-gutter:stable]">
@@ -942,7 +1056,11 @@ function KnowledgePageContent() {
             {[
               { key: "knowledge", label: t("Knowledge Bases"), icon: Database },
               { key: "notebooks", label: t("Notebooks"), icon: NotebookPen },
-              { key: "questions", label: t("Question Bank"), icon: ClipboardList },
+              {
+                key: "questions",
+                label: t("Question Bank"),
+                icon: ClipboardList,
+              },
               { key: "skills", label: t("Skills"), icon: Wand2 },
             ].map((item) => (
               <button
@@ -993,7 +1111,9 @@ function KnowledgePageContent() {
 
                   <select
                     value={selectedProvider}
-                    onChange={(event) => setSelectedProvider(event.target.value)}
+                    onChange={(event) =>
+                      setSelectedProvider(event.target.value)
+                    }
                     className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none"
                   >
                     {providers.map((provider) => (
@@ -1041,19 +1161,29 @@ function KnowledgePageContent() {
 
                   <button
                     onClick={createKnowledgeBase}
-                    disabled={creating || !newKbName.trim() || !newKbFiles.length}
+                    disabled={
+                      creating || !newKbName.trim() || !newKbFiles.length
+                    }
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus size={14} />}
+                    {creating ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Plus size={14} />
+                    )}
                     {t("Create")}
                   </button>
 
-                  {(createProcess.taskId || createProcess.logs.length > 0 || createProcess.executing) && (
+                  {(createProcess.taskId ||
+                    createProcess.logs.length > 0 ||
+                    createProcess.executing) && (
                     <div className="space-y-2">
                       {createProcess.label && (
                         <div className="text-[11px] text-[var(--muted-foreground)]">
                           {createProcess.label}
-                          {createProcess.taskId ? ` · ${createProcess.taskId}` : ""}
+                          {createProcess.taskId
+                            ? ` · ${createProcess.taskId}`
+                            : ""}
                         </div>
                       )}
                       <ProcessLogs
@@ -1075,7 +1205,10 @@ function KnowledgePageContent() {
               {/* Upload to existing KB */}
               <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-2">
-                  <Upload size={15} className="text-[var(--muted-foreground)]" />
+                  <Upload
+                    size={15}
+                    className="text-[var(--muted-foreground)]"
+                  />
                   <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
                     {t("Upload documents")}
                   </h2>
@@ -1099,7 +1232,11 @@ function KnowledgePageContent() {
                         suffix = ` (${status.replaceAll("_", " ")})`;
                       }
                       return (
-                        <option key={kb.name} value={kb.name} disabled={!uploadable}>
+                        <option
+                          key={kb.name}
+                          value={kb.name}
+                          disabled={!uploadable}
+                        >
                           {kb.name}
                           {suffix}
                         </option>
@@ -1109,7 +1246,9 @@ function KnowledgePageContent() {
 
                   {!hasUploadableKb && (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-                      {t("No ready knowledge base is available for upload. Create a new KB or reindex legacy KBs first.")}
+                      {t(
+                        "No ready knowledge base is available for upload. Create a new KB or reindex legacy KBs first.",
+                      )}
                     </div>
                   )}
 
@@ -1167,12 +1306,16 @@ function KnowledgePageContent() {
                     {t("Upload")}
                   </button>
 
-                  {(uploadProcess.taskId || uploadProcess.logs.length > 0 || uploadProcess.executing) && (
+                  {(uploadProcess.taskId ||
+                    uploadProcess.logs.length > 0 ||
+                    uploadProcess.executing) && (
                     <div className="space-y-2">
                       {uploadProcess.label && (
                         <div className="text-[11px] text-[var(--muted-foreground)]">
                           {uploadProcess.label}
-                          {uploadProcess.taskId ? ` · ${uploadProcess.taskId}` : ""}
+                          {uploadProcess.taskId
+                            ? ` · ${uploadProcess.taskId}`
+                            : ""}
                         </div>
                       )}
                       <ProcessLogs
@@ -1195,7 +1338,10 @@ function KnowledgePageContent() {
             {/* KB list */}
             <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-2">
-                <BookOpen size={15} className="text-[var(--muted-foreground)]" />
+                <BookOpen
+                  size={15}
+                  className="text-[var(--muted-foreground)]"
+                />
                 <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
                   {t("Knowledge bases")}
                 </h2>
@@ -1206,17 +1352,19 @@ function KnowledgePageContent() {
                   const progress = kb.progress;
                   const status = resolveKbStatus(kb);
                   const needsReindex = kbNeedsReindex(kb);
-                  const displayStatus =
-                    needsReindex
-                      ? t("needs reindex")
-                      : status !== "ready"
-                        ? status.replaceAll("_", " ")
-                        : null;
+                  const displayStatus = needsReindex
+                    ? t("needs reindex")
+                    : status !== "ready"
+                      ? status.replaceAll("_", " ")
+                      : null;
                   const percent =
                     progress?.progress_percent ??
                     progress?.percent ??
                     ((progress?.current ?? 0) && (progress?.total ?? 0)
-                      ? Math.round(((progress?.current ?? 0) / (progress?.total ?? 1)) * 100)
+                      ? Math.round(
+                          ((progress?.current ?? 0) / (progress?.total ?? 1)) *
+                            100,
+                        )
                       : 0);
 
                   return (
@@ -1237,8 +1385,14 @@ function KnowledgePageContent() {
                             )}
                           </div>
                           <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--muted-foreground)]">
-                            <span>{t("Provider")}: {kb.statistics?.rag_provider || "llamaindex"}</span>
-                            <span>{t("Documents")}: {kb.statistics?.raw_documents ?? 0}</span>
+                            <span>
+                              {t("Provider")}:{" "}
+                              {kb.statistics?.rag_provider || "llamaindex"}
+                            </span>
+                            <span>
+                              {t("Documents")}:{" "}
+                              {kb.statistics?.raw_documents ?? 0}
+                            </span>
                             {displayStatus && (
                               <span
                                 className={
@@ -1318,7 +1472,9 @@ function KnowledgePageContent() {
                 />
                 <input
                   value={newNotebookDescription}
-                  onChange={(event) => setNewNotebookDescription(event.target.value)}
+                  onChange={(event) =>
+                    setNewNotebookDescription(event.target.value)
+                  }
                   placeholder={t("Description")}
                   className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25"
                 />
@@ -1335,7 +1491,10 @@ function KnowledgePageContent() {
             {/* Notebook list */}
             <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-2">
-                <NotebookPen size={15} className="text-[var(--muted-foreground)]" />
+                <NotebookPen
+                  size={15}
+                  className="text-[var(--muted-foreground)]"
+                />
                 <h2 className="text-[14px] font-semibold text-[var(--foreground)]">
                   {t("Notebooks")}
                 </h2>
@@ -1362,7 +1521,10 @@ function KnowledgePageContent() {
                           <div className="flex items-start gap-3">
                             <div
                               className="mt-1 h-3 w-3 rounded-full"
-                              style={{ backgroundColor: notebook.color || "var(--primary)" }}
+                              style={{
+                                backgroundColor:
+                                  notebook.color || "var(--primary)",
+                              }}
                             />
                             <div className="min-w-0 flex-1">
                               <div className="text-[14px] font-semibold text-[var(--foreground)]">
@@ -1374,8 +1536,14 @@ function KnowledgePageContent() {
                                 </p>
                               )}
                               <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
-                                <span>{notebook.record_count ?? 0} {t("records")}</span>
-                                <span>{notebook.updated_at ? formatTimestamp(notebook.updated_at) : ""}</span>
+                                <span>
+                                  {notebook.record_count ?? 0} {t("records")}
+                                </span>
+                                <span>
+                                  {notebook.updated_at
+                                    ? formatTimestamp(notebook.updated_at)
+                                    : ""}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -1384,7 +1552,10 @@ function KnowledgePageContent() {
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            void handleDeleteNotebook(notebook.id, notebook.name);
+                            void handleDeleteNotebook(
+                              notebook.id,
+                              notebook.name,
+                            );
                           }}
                           title={t("Delete")}
                           className="absolute right-2 top-2 rounded-md p-1.5 text-[var(--muted-foreground)] opacity-0 transition-opacity hover:bg-[var(--destructive)]/10 hover:text-[var(--destructive)] group-hover:opacity-100"
@@ -1413,7 +1584,10 @@ function KnowledgePageContent() {
                         <div className="flex items-center gap-2.5">
                           <div
                             className="h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: selectedNotebook.color || "var(--primary)" }}
+                            style={{
+                              backgroundColor:
+                                selectedNotebook.color || "var(--primary)",
+                            }}
                           />
                           <h3 className="text-[15px] font-semibold text-[var(--foreground)]">
                             {selectedNotebook.name}
@@ -1431,80 +1605,98 @@ function KnowledgePageContent() {
 
                       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                         <div className="divide-y divide-[var(--border)]">
-                        {selectedNotebook.records?.map((record) => {
-                          const badge = getRecordBadge(record.type);
-                          const BadgeIcon = badge.icon;
-                          const expanded = expandedRecordId === record.id;
-                          const canOpenSession =
-                            record.type === "chat" && Boolean(record.metadata?.session_id);
-                          const sessionLabel = t("Open chat session");
+                          {selectedNotebook.records?.map((record) => {
+                            const badge = getRecordBadge(record.type);
+                            const BadgeIcon = badge.icon;
+                            const expanded = expandedRecordId === record.id;
+                            const canOpenSession =
+                              record.type === "chat" &&
+                              Boolean(record.metadata?.session_id);
+                            const sessionLabel = t("Open chat session");
 
-                          return (
-                            <div key={record.id} className="group">
-                              {/* Collapsed row — always visible */}
-                              <button
-                                onClick={() => setExpandedRecordId(expanded ? null : record.id)}
-                                className="flex w-full items-center gap-3 px-1 py-3.5 text-left transition-colors hover:bg-[var(--muted)]/30"
-                              >
-                                <span className="shrink-0 text-[var(--muted-foreground)]">
-                                  {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                </span>
-                                <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${badge.color}`}>
-                                  <BadgeIcon size={11} />
-                                  {badge.label}
-                                </span>
-                                <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">
-                                  {record.title}
-                                </span>
-                                <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">
-                                  {formatTimestamp(record.created_at)}
-                                </span>
-                              </button>
+                            return (
+                              <div key={record.id} className="group">
+                                {/* Collapsed row — always visible */}
+                                <button
+                                  onClick={() =>
+                                    setExpandedRecordId(
+                                      expanded ? null : record.id,
+                                    )
+                                  }
+                                  className="flex w-full items-center gap-3 px-1 py-3.5 text-left transition-colors hover:bg-[var(--muted)]/30"
+                                >
+                                  <span className="shrink-0 text-[var(--muted-foreground)]">
+                                    {expanded ? (
+                                      <ChevronDown size={14} />
+                                    ) : (
+                                      <ChevronRight size={14} />
+                                    )}
+                                  </span>
+                                  <span
+                                    className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${badge.color}`}
+                                  >
+                                    <BadgeIcon size={11} />
+                                    {badge.label}
+                                  </span>
+                                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">
+                                    {record.title}
+                                  </span>
+                                  <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">
+                                    {formatTimestamp(record.created_at)}
+                                  </span>
+                                </button>
 
-                              {/* Expanded detail */}
-                              {expanded && (
-                                <div className="pb-4 pl-8 pr-1">
-                                  {record.summary && (
-                                    <p className="mb-3 text-[13px] leading-6 text-[var(--foreground)]/85">
-                                      {record.summary}
-                                    </p>
-                                  )}
-                                  {record.type !== "chat" && record.user_query && (
-                                    <div className="mb-3 flex items-baseline gap-2 text-[12px]">
-                                      <span className="shrink-0 font-medium text-[var(--muted-foreground)]">{t("Query:")}</span>
-                                      <span className="text-[var(--foreground)]/70">{record.user_query}</span>
+                                {/* Expanded detail */}
+                                {expanded && (
+                                  <div className="pb-4 pl-8 pr-1">
+                                    {record.summary && (
+                                      <p className="mb-3 text-[13px] leading-6 text-[var(--foreground)]/85">
+                                        {record.summary}
+                                      </p>
+                                    )}
+                                    {record.type !== "chat" &&
+                                      record.user_query && (
+                                        <div className="mb-3 flex items-baseline gap-2 text-[12px]">
+                                          <span className="shrink-0 font-medium text-[var(--muted-foreground)]">
+                                            {t("Query:")}
+                                          </span>
+                                          <span className="text-[var(--foreground)]/70">
+                                            {record.user_query}
+                                          </span>
+                                        </div>
+                                      )}
+
+                                    {canOpenSession && (
+                                      <button
+                                        onClick={() =>
+                                          openNotebookRecord(record)
+                                        }
+                                        className="mb-3 inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3.5 py-2 text-[12px] font-medium text-[var(--foreground)] transition-colors hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/8 hover:text-[var(--primary)]"
+                                      >
+                                        <ExternalLink size={13} />
+                                        {sessionLabel}
+                                        <ArrowRight size={13} />
+                                      </button>
+                                    )}
+
+                                    <div className="max-h-[320px] overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 p-3">
+                                      <MarkdownRenderer
+                                        content={record.output || ""}
+                                        variant="prose"
+                                        className="text-[12px] leading-5 text-[var(--foreground)]"
+                                      />
                                     </div>
-                                  )}
-
-                                  {canOpenSession && (
-                                    <button
-                                      onClick={() => openNotebookRecord(record)}
-                                      className="mb-3 inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3.5 py-2 text-[12px] font-medium text-[var(--foreground)] transition-colors hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/8 hover:text-[var(--primary)]"
-                                    >
-                                      <ExternalLink size={13} />
-                                      {sessionLabel}
-                                      <ArrowRight size={13} />
-                                    </button>
-                                  )}
-
-                                  <div className="max-h-[320px] overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 p-3">
-                                    <MarkdownRenderer
-                                      content={record.output || ""}
-                                      variant="prose"
-                                      className="text-[12px] leading-5 text-[var(--foreground)]"
-                                    />
                                   </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                                )}
+                              </div>
+                            );
+                          })}
 
-                        {!selectedNotebook.records?.length && (
-                          <div className="px-6 py-12 text-center text-[13px] text-[var(--muted-foreground)]">
-                            {t("This notebook is empty for now.")}
-                          </div>
-                        )}
+                          {!selectedNotebook.records?.length && (
+                            <div className="px-6 py-12 text-center text-[13px] text-[var(--muted-foreground)]">
+                              {t("This notebook is empty for now.")}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1521,7 +1713,9 @@ function KnowledgePageContent() {
           /* ── Questions tab content ── */
           <div className="space-y-0">
             {/* Category manager */}
-            <div className={`mb-4 overflow-hidden rounded-xl border transition-colors ${qShowCategoryManager ? "border-[var(--border)] bg-[var(--card)]" : "border-[var(--border)]/50 bg-transparent"}`}>
+            <div
+              className={`mb-4 overflow-hidden rounded-xl border transition-colors ${qShowCategoryManager ? "border-[var(--border)] bg-[var(--card)]" : "border-[var(--border)]/50 bg-transparent"}`}
+            >
               <button
                 onClick={() => setQShowCategoryManager((v) => !v)}
                 className="flex w-full items-center justify-between px-4 py-2.5 text-[13px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/40"
@@ -1535,34 +1729,58 @@ function KnowledgePageContent() {
                     </span>
                   )}
                 </span>
-                <ChevronDown className={`h-3.5 w-3.5 text-[var(--muted-foreground)] transition-transform duration-200 ${qShowCategoryManager ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  className={`h-3.5 w-3.5 text-[var(--muted-foreground)] transition-transform duration-200 ${qShowCategoryManager ? "rotate-180" : ""}`}
+                />
               </button>
 
               {qShowCategoryManager && (
                 <div className="border-t border-[var(--border)] px-4 pb-4 pt-3">
                   <div className="space-y-1.5">
                     {qCategories.map((cat) => (
-                      <div key={cat.id} className="flex items-center justify-between gap-2 rounded-lg bg-[var(--muted)]/30 px-3 py-2">
+                      <div
+                        key={cat.id}
+                        className="flex items-center justify-between gap-2 rounded-lg bg-[var(--muted)]/30 px-3 py-2"
+                      >
                         {qRenamingCat?.id === cat.id ? (
                           <input
                             autoFocus
                             value={qRenamingCat.name}
-                            onChange={(e) => setQRenamingCat({ ...qRenamingCat, name: e.target.value })}
-                            onKeyDown={(e) => { if (e.key === "Enter") void handleQRenameCategory(); if (e.key === "Escape") setQRenamingCat(null); }}
+                            onChange={(e) =>
+                              setQRenamingCat({
+                                ...qRenamingCat,
+                                name: e.target.value,
+                              })
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter")
+                                void handleQRenameCategory();
+                              if (e.key === "Escape") setQRenamingCat(null);
+                            }}
                             onBlur={() => void handleQRenameCategory()}
                             className="flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-2 py-0.5 text-[12px] text-[var(--foreground)] outline-none"
                           />
                         ) : (
                           <span className="text-[12px] text-[var(--foreground)]">
                             {cat.name}
-                            <span className="ml-1.5 text-[var(--muted-foreground)]">({cat.entry_count})</span>
+                            <span className="ml-1.5 text-[var(--muted-foreground)]">
+                              ({cat.entry_count})
+                            </span>
                           </span>
                         )}
                         <div className="flex items-center gap-1">
-                          <button onClick={() => setQRenamingCat({ id: cat.id, name: cat.name })} className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]">
+                          <button
+                            onClick={() =>
+                              setQRenamingCat({ id: cat.id, name: cat.name })
+                            }
+                            className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                          >
                             <Pencil size={12} />
                           </button>
-                          <button onClick={() => void handleQDeleteCategory(cat.id)} className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30">
+                          <button
+                            onClick={() => void handleQDeleteCategory(cat.id)}
+                            className="rounded p-1 text-[var(--muted-foreground)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30"
+                          >
                             <Trash2 size={12} />
                           </button>
                         </div>
@@ -1578,7 +1796,9 @@ function KnowledgePageContent() {
                     <input
                       value={qNewCatName}
                       onChange={(e) => setQNewCatName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && void handleQCreateCategory()}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && void handleQCreateCategory()
+                      }
                       placeholder={t("New category name...")}
                       className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-[12px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
                     />
@@ -1602,7 +1822,10 @@ function KnowledgePageContent() {
                   return (
                     <button
                       key={mode}
-                      onClick={() => { setQFilter(mode); setQActiveCategoryId(null); }}
+                      onClick={() => {
+                        setQFilter(mode);
+                        setQActiveCategoryId(null);
+                      }}
                       className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
                         active
                           ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
@@ -1621,7 +1844,10 @@ function KnowledgePageContent() {
                   return (
                     <button
                       key={cat.id}
-                      onClick={() => { setQActiveCategoryId(cat.id); setQFilter("all"); }}
+                      onClick={() => {
+                        setQActiveCategoryId(cat.id);
+                        setQFilter("all");
+                      }}
                       className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
                         active
                           ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
@@ -1652,7 +1878,9 @@ function KnowledgePageContent() {
                 <p className="text-[14px] font-medium text-[var(--foreground)]">
                   {t("Failed to load entries")}
                 </p>
-                <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">{qError}</p>
+                <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
+                  {qError}
+                </p>
                 <button
                   onClick={() => void loadQItems(qFilter, qActiveCategoryId)}
                   className="mt-3 rounded-lg bg-[var(--primary)] px-4 py-1.5 text-[12px] font-medium text-white"
@@ -1688,24 +1916,30 @@ function KnowledgePageContent() {
                         <div className="min-w-0 flex-1">
                           <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                             {item.difficulty && (
-                              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase ${
-                                item.difficulty === "hard"
-                                  ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400"
-                                  : item.difficulty === "medium"
-                                    ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-                                    : "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400"
-                              }`}>{item.difficulty}</span>
+                              <span
+                                className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase ${
+                                  item.difficulty === "hard"
+                                    ? "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400"
+                                    : item.difficulty === "medium"
+                                      ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
+                                      : "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400"
+                                }`}
+                              >
+                                {item.difficulty}
+                              </span>
                             )}
                             {item.question_type && (
                               <span className="rounded-md bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
                                 {item.question_type}
                               </span>
                             )}
-                            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                              item.is_correct
-                                ? "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
-                                : "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-                            }`}>
+                            <span
+                              className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                                item.is_correct
+                                  ? "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+                              }`}
+                            >
                               {item.is_correct ? t("Correct") : t("Incorrect")}
                             </span>
                           </div>
@@ -1721,18 +1955,27 @@ function KnowledgePageContent() {
                           <button
                             onClick={() => void handleQToggleBookmark(item)}
                             disabled={disabled}
-                            title={item.bookmarked ? t("Remove Bookmark") : t("Bookmark")}
+                            title={
+                              item.bookmarked
+                                ? t("Remove Bookmark")
+                                : t("Bookmark")
+                            }
                             className={`rounded-lg p-1.5 transition-colors disabled:opacity-40 ${
                               item.bookmarked
                                 ? "text-[var(--primary)]"
                                 : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                             }`}
                           >
-                            <Bookmark className="h-4 w-4" fill={item.bookmarked ? "currentColor" : "none"} />
+                            <Bookmark
+                              className="h-4 w-4"
+                              fill={item.bookmarked ? "currentColor" : "none"}
+                            />
                           </button>
                           {qActiveCategoryId !== null && (
                             <button
-                              onClick={() => void handleQRemoveFromCategory(item)}
+                              onClick={() =>
+                                void handleQRemoveFromCategory(item)
+                              }
                               disabled={disabled}
                               title={t("Remove from category")}
                               className="rounded-lg p-1.5 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-40"
@@ -1755,9 +1998,14 @@ function KnowledgePageContent() {
                       {item.options && Object.keys(item.options).length > 0 && (
                         <div className="mb-3 space-y-1.5">
                           {Object.entries(item.options).map(([key, text]) => {
-                            const isUserAnswer = item.user_answer?.toUpperCase() === key.toUpperCase();
-                            const isCorrectAnswer = item.correct_answer?.toUpperCase() === key.toUpperCase();
-                            const isWrongPick = isUserAnswer && !item.is_correct;
+                            const isUserAnswer =
+                              item.user_answer?.toUpperCase() ===
+                              key.toUpperCase();
+                            const isCorrectAnswer =
+                              item.correct_answer?.toUpperCase() ===
+                              key.toUpperCase();
+                            const isWrongPick =
+                              isUserAnswer && !item.is_correct;
                             return (
                               <div
                                 key={key}
@@ -1769,25 +2017,35 @@ function KnowledgePageContent() {
                                       : "border-transparent bg-[var(--muted)]/30"
                                 }`}
                               >
-                                <span className={`mt-px shrink-0 font-semibold ${
-                                  isCorrectAnswer
-                                    ? "text-green-600 dark:text-green-400"
-                                    : isWrongPick
-                                      ? "text-red-600 dark:text-red-400"
-                                      : "text-[var(--muted-foreground)]"
-                                }`}>
+                                <span
+                                  className={`mt-px shrink-0 font-semibold ${
+                                    isCorrectAnswer
+                                      ? "text-green-600 dark:text-green-400"
+                                      : isWrongPick
+                                        ? "text-red-600 dark:text-red-400"
+                                        : "text-[var(--muted-foreground)]"
+                                  }`}
+                                >
                                   {key}.
                                 </span>
-                                <span className={`flex-1 ${
-                                  isCorrectAnswer || isWrongPick ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]"
-                                }`}>
+                                <span
+                                  className={`flex-1 ${
+                                    isCorrectAnswer || isWrongPick
+                                      ? "text-[var(--foreground)]"
+                                      : "text-[var(--muted-foreground)]"
+                                  }`}
+                                >
                                   {text}
                                 </span>
                                 {isCorrectAnswer && (
-                                  <span className="mt-px shrink-0 text-[10px] font-medium text-green-600 dark:text-green-400">✓ {t("Correct")}</span>
+                                  <span className="mt-px shrink-0 text-[10px] font-medium text-green-600 dark:text-green-400">
+                                    ✓ {t("Correct")}
+                                  </span>
                                 )}
                                 {isWrongPick && (
-                                  <span className="mt-px shrink-0 text-[10px] font-medium text-red-600 dark:text-red-400">✗ {t("Your pick")}</span>
+                                  <span className="mt-px shrink-0 text-[10px] font-medium text-red-600 dark:text-red-400">
+                                    ✗ {t("Your pick")}
+                                  </span>
                                 )}
                               </div>
                             );
@@ -1796,29 +2054,44 @@ function KnowledgePageContent() {
                       )}
 
                       {/* Answers for coding / written / fill-in questions */}
-                      {(!item.options || Object.keys(item.options).length === 0) && (
+                      {(!item.options ||
+                        Object.keys(item.options).length === 0) && (
                         <div className="mb-3 space-y-2 text-[13px]">
-                          <div className={`rounded-lg border px-3 py-2.5 ${
-                            !item.is_correct
-                              ? "border-red-200/60 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/15"
-                              : "border-green-200/60 bg-green-50/40 dark:border-green-900/40 dark:bg-green-950/15"
-                          }`}>
-                            <div className={`mb-1 text-[11px] font-medium uppercase tracking-wide ${
+                          <div
+                            className={`rounded-lg border px-3 py-2.5 ${
                               !item.is_correct
-                                ? "text-red-500 dark:text-red-400"
-                                : "text-green-600 dark:text-green-400"
-                            }`}>
+                                ? "border-red-200/60 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/15"
+                                : "border-green-200/60 bg-green-50/40 dark:border-green-900/40 dark:bg-green-950/15"
+                            }`}
+                          >
+                            <div
+                              className={`mb-1 text-[11px] font-medium uppercase tracking-wide ${
+                                !item.is_correct
+                                  ? "text-red-500 dark:text-red-400"
+                                  : "text-green-600 dark:text-green-400"
+                              }`}
+                            >
                               {t("Your Answer")} {item.is_correct ? "✓" : "✗"}
                             </div>
                             <div className="text-[var(--foreground)]">
                               {item.user_answer ? (
                                 item.question_type === "coding" ? (
-                                  <MarkdownRenderer content={`\`\`\`python\n${item.user_answer}\n\`\`\``} variant="prose" className="text-[13px]" />
+                                  <MarkdownRenderer
+                                    content={`\`\`\`python\n${item.user_answer}\n\`\`\``}
+                                    variant="prose"
+                                    className="text-[13px]"
+                                  />
                                 ) : (
-                                  <MarkdownRenderer content={item.user_answer} variant="prose" className="text-[13px] leading-relaxed" />
+                                  <MarkdownRenderer
+                                    content={item.user_answer}
+                                    variant="prose"
+                                    className="text-[13px] leading-relaxed"
+                                  />
                                 )
                               ) : (
-                                <span className="text-[var(--muted-foreground)]">—</span>
+                                <span className="text-[var(--muted-foreground)]">
+                                  —
+                                </span>
                               )}
                             </div>
                           </div>
@@ -1829,12 +2102,28 @@ function KnowledgePageContent() {
                             <div className="text-[var(--foreground)]">
                               {item.correct_answer ? (
                                 item.question_type === "coding" ? (
-                                  <MarkdownRenderer content={item.correct_answer.trimStart().startsWith("```") ? item.correct_answer : `\`\`\`python\n${item.correct_answer}\n\`\`\``} variant="prose" className="text-[13px]" />
+                                  <MarkdownRenderer
+                                    content={
+                                      item.correct_answer
+                                        .trimStart()
+                                        .startsWith("```")
+                                        ? item.correct_answer
+                                        : `\`\`\`python\n${item.correct_answer}\n\`\`\``
+                                    }
+                                    variant="prose"
+                                    className="text-[13px]"
+                                  />
                                 ) : (
-                                  <MarkdownRenderer content={item.correct_answer} variant="prose" className="text-[13px] leading-relaxed" />
+                                  <MarkdownRenderer
+                                    content={item.correct_answer}
+                                    variant="prose"
+                                    className="text-[13px] leading-relaxed"
+                                  />
                                 )
                               ) : (
-                                <span className="text-[var(--muted-foreground)]">—</span>
+                                <span className="text-[var(--muted-foreground)]">
+                                  —
+                                </span>
                               )}
                             </div>
                           </div>
@@ -1848,7 +2137,11 @@ function KnowledgePageContent() {
                             {t("Explanation")}
                           </div>
                           <div className="text-[13px] leading-relaxed text-[var(--foreground)]">
-                            <MarkdownRenderer content={item.explanation} variant="prose" className="text-[13px] leading-relaxed" />
+                            <MarkdownRenderer
+                              content={item.explanation}
+                              variant="prose"
+                              className="text-[13px] leading-relaxed"
+                            />
                           </div>
                         </div>
                       )}
@@ -1873,7 +2166,9 @@ function KnowledgePageContent() {
                             </Link>
                           )}
                         </div>
-                        <span className="text-[var(--muted-foreground)]">{new Date(item.created_at * 1000).toLocaleString()}</span>
+                        <span className="text-[var(--muted-foreground)]">
+                          {new Date(item.created_at * 1000).toLocaleString()}
+                        </span>
                       </div>
                     </li>
                   );
@@ -1929,7 +2224,10 @@ function KnowledgePageContent() {
                       key={skill.name}
                       className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--muted)]/30"
                     >
-                      <Wand2 size={14} className="shrink-0 text-[var(--muted-foreground)]" />
+                      <Wand2
+                        size={14}
+                        className="shrink-0 text-[var(--muted-foreground)]"
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[13px] font-medium text-[var(--foreground)]">
                           {skill.name}
@@ -1972,9 +2270,14 @@ function KnowledgePageContent() {
                 <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-2xl">
                   <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
                     <div className="flex items-center gap-2">
-                      <Wand2 size={14} className="text-[var(--muted-foreground)]" />
+                      <Wand2
+                        size={14}
+                        className="text-[var(--muted-foreground)]"
+                      />
                       <h3 className="text-[14px] font-semibold text-[var(--foreground)]">
-                        {skillEditor.mode === "create" ? t("New skill") : t("Edit skill")}
+                        {skillEditor.mode === "create"
+                          ? t("New skill")
+                          : t("Edit skill")}
                       </h3>
                     </div>
                     <button
@@ -1993,7 +2296,10 @@ function KnowledgePageContent() {
                       <input
                         value={skillEditor.name}
                         onChange={(e) =>
-                          setSkillEditor({ ...skillEditor, name: e.target.value })
+                          setSkillEditor({
+                            ...skillEditor,
+                            name: e.target.value,
+                          })
                         }
                         placeholder={t("e.g. teacher")}
                         className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
@@ -2010,7 +2316,10 @@ function KnowledgePageContent() {
                       <input
                         value={skillEditor.description}
                         onChange={(e) =>
-                          setSkillEditor({ ...skillEditor, description: e.target.value })
+                          setSkillEditor({
+                            ...skillEditor,
+                            description: e.target.value,
+                          })
                         }
                         placeholder={t("Short summary used by Auto mode")}
                         className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
@@ -2024,14 +2333,19 @@ function KnowledgePageContent() {
                       <textarea
                         value={skillEditor.content}
                         onChange={(e) =>
-                          setSkillEditor({ ...skillEditor, content: e.target.value })
+                          setSkillEditor({
+                            ...skillEditor,
+                            content: e.target.value,
+                          })
                         }
                         rows={16}
                         spellCheck={false}
                         className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-[12px] leading-relaxed outline-none transition-colors focus:border-[var(--foreground)]/25"
                       />
                       <p className="mt-1 text-[11px] text-[var(--muted-foreground)]/70">
-                        {t("YAML frontmatter is optional and is auto-managed for name and description.")}
+                        {t(
+                          "YAML frontmatter is optional and is auto-managed for name and description.",
+                        )}
                       </p>
                     </div>
 
@@ -2054,7 +2368,9 @@ function KnowledgePageContent() {
                       disabled={skillEditor.saving}
                       className="inline-flex items-center gap-1.5 rounded-md bg-[var(--foreground)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:opacity-50"
                     >
-                      {skillEditor.saving && <Loader2 size={12} className="animate-spin" />}
+                      {skillEditor.saving && (
+                        <Loader2 size={12} className="animate-spin" />
+                      )}
                       {t("Save")}
                     </button>
                   </div>

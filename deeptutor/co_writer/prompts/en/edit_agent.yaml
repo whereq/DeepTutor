@@ -1,6 +1,6 @@
 system: |
   You are an expert editor and writing assistant.
-  
+
   Available reference tools:
   {available_tools}
 

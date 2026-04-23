@@ -41,7 +41,6 @@ from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.stream_bus import StreamBus
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -179,10 +178,7 @@ class TestFormatTraceSummary:
         assert len(out) < 1000
 
     def test_truncates_overall_transcript(self) -> None:
-        events = [
-            {"type": "thinking", "stage": "s", "content": "a" * 700}
-            for _ in range(20)
-        ]
+        events = [{"type": "thinking", "stage": "s", "content": "a" * 700} for _ in range(20)]
         out = format_trace_summary(events, language="en")
         assert len(out) <= 6000
         assert out.endswith("...")
@@ -254,13 +250,16 @@ class TestChatAnswerNow:
 
         cfg = _fake_llm_config()
 
-        with patch.object(
-            ap_module.AgenticChatPipeline,
-            "_stream_messages",
-            _fake_stream,
-        ), patch(
-            "deeptutor.agents.chat.agentic_pipeline.get_llm_config",
-            return_value=cfg,
+        with (
+            patch.object(
+                ap_module.AgenticChatPipeline,
+                "_stream_messages",
+                _fake_stream,
+            ),
+            patch(
+                "deeptutor.agents.chat.agentic_pipeline.get_llm_config",
+                return_value=cfg,
+            ),
         ):
             from deeptutor.capabilities.chat import ChatCapability
 
@@ -269,9 +268,7 @@ class TestChatAnswerNow:
                 payload={
                     "original_user_message": "Explain Fourier",
                     "partial_response": "We had begun to think about ...",
-                    "events": [
-                        {"type": "thinking", "stage": "thinking", "content": "warming up"}
-                    ],
+                    "events": [{"type": "thinking", "stage": "thinking", "content": "warming up"}],
                 },
             )
             bus = StreamBus()
@@ -290,8 +287,9 @@ class TestDeepSolveAnswerNow:
     async def test_jumps_to_writing_stage(self) -> None:
         cfg = _fake_llm_config()
         chunks = ["The Fourier transform ", "decomposes signals."]
-        with patch.object(_answer_now, "get_llm_config", return_value=cfg), patch.object(
-            _answer_now, "llm_stream", _make_stream_factory(chunks)
+        with (
+            patch.object(_answer_now, "get_llm_config", return_value=cfg),
+            patch.object(_answer_now, "llm_stream", _make_stream_factory(chunks)),
         ):
             from deeptutor.capabilities.deep_solve import DeepSolveCapability
 
@@ -314,9 +312,7 @@ class TestDeepSolveAnswerNow:
             cap = DeepSolveCapability()
             events = await _drain(bus, cap.run(ctx, bus))
 
-            stage_starts = [
-                e for e in events if e.type == StreamEventType.STAGE_START
-            ]
+            stage_starts = [e for e in events if e.type == StreamEventType.STAGE_START]
             assert any(e.stage == "writing" for e in stage_starts)
 
             text = _content_text(events)
@@ -356,8 +352,9 @@ class TestDeepQuestionAnswerNow:
                 ]
             }
         )
-        with patch.object(_answer_now, "get_llm_config", return_value=cfg), patch.object(
-            _answer_now, "llm_stream", _make_stream_factory([payload_json])
+        with (
+            patch.object(_answer_now, "get_llm_config", return_value=cfg),
+            patch.object(_answer_now, "llm_stream", _make_stream_factory([payload_json])),
         ):
             from deeptutor.capabilities.deep_question import DeepQuestionCapability
 
@@ -391,8 +388,9 @@ class TestDeepQuestionAnswerNow:
     @pytest.mark.asyncio
     async def test_handles_unparseable_json_gracefully(self) -> None:
         cfg = _fake_llm_config()
-        with patch.object(_answer_now, "get_llm_config", return_value=cfg), patch.object(
-            _answer_now, "llm_stream", _make_stream_factory(["not json at all"])
+        with (
+            patch.object(_answer_now, "get_llm_config", return_value=cfg),
+            patch.object(_answer_now, "llm_stream", _make_stream_factory(["not json at all"])),
         ):
             from deeptutor.capabilities.deep_question import DeepQuestionCapability
 
@@ -418,8 +416,9 @@ class TestDeepResearchAnswerNow:
     async def test_emits_report_envelope(self) -> None:
         cfg = _fake_llm_config()
         chunks = ["# Report\n\n", "Body section.\n\n", "## Conclusion\n\nWrap-up."]
-        with patch.object(_answer_now, "get_llm_config", return_value=cfg), patch.object(
-            _answer_now, "llm_stream", _make_stream_factory(chunks)
+        with (
+            patch.object(_answer_now, "get_llm_config", return_value=cfg),
+            patch.object(_answer_now, "llm_stream", _make_stream_factory(chunks)),
         ):
             from deeptutor.capabilities.deep_research import DeepResearchCapability
 
@@ -442,9 +441,7 @@ class TestDeepResearchAnswerNow:
             cap = DeepResearchCapability()
             events = await _drain(bus, cap.run(ctx, bus))
 
-            stage_starts = [
-                e for e in events if e.type == StreamEventType.STAGE_START
-            ]
+            stage_starts = [e for e in events if e.type == StreamEventType.STAGE_START]
             assert any(e.stage == "reporting" for e in stage_starts)
 
             result = _result_event(events)
@@ -464,8 +461,9 @@ class TestVisualizeAnswerNow:
                 "code": "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>",
             }
         )
-        with patch.object(_answer_now, "get_llm_config", return_value=cfg), patch.object(
-            _answer_now, "llm_stream", _make_stream_factory([payload_json])
+        with (
+            patch.object(_answer_now, "get_llm_config", return_value=cfg),
+            patch.object(_answer_now, "llm_stream", _make_stream_factory([payload_json])),
         ):
             from deeptutor.capabilities.visualize import VisualizeCapability
 
@@ -495,8 +493,9 @@ class TestVisualizeAnswerNow:
     async def test_falls_back_to_svg_when_render_type_invalid(self) -> None:
         cfg = _fake_llm_config()
         payload_json = json.dumps({"render_type": "totally-bogus", "code": "x"})
-        with patch.object(_answer_now, "get_llm_config", return_value=cfg), patch.object(
-            _answer_now, "llm_stream", _make_stream_factory([payload_json])
+        with (
+            patch.object(_answer_now, "get_llm_config", return_value=cfg),
+            patch.object(_answer_now, "llm_stream", _make_stream_factory([payload_json])),
         ):
             from deeptutor.capabilities.visualize import VisualizeCapability
 
@@ -514,9 +513,10 @@ class TestVisualizeAnswerNow:
     @pytest.mark.asyncio
     async def test_strips_code_fences_around_json(self) -> None:
         cfg = _fake_llm_config()
-        fenced = "```json\n{\"render_type\": \"mermaid\", \"code\": \"graph TD;A-->B\"}\n```"
-        with patch.object(_answer_now, "get_llm_config", return_value=cfg), patch.object(
-            _answer_now, "llm_stream", _make_stream_factory([fenced])
+        fenced = '```json\n{"render_type": "mermaid", "code": "graph TD;A-->B"}\n```'
+        with (
+            patch.object(_answer_now, "get_llm_config", return_value=cfg),
+            patch.object(_answer_now, "llm_stream", _make_stream_factory([fenced])),
         ):
             from deeptutor.capabilities.visualize import VisualizeCapability
 
@@ -544,14 +544,14 @@ class TestMathAnimatorAnswerNow:
     async def test_skips_analysis_design_summary_but_calls_codegen_and_render(
         self,
     ) -> None:
+        # Skip the whole test cleanly when manim isn't available, since
+        # math_animator.run() short-circuits before we can patch anything.
+        import importlib.util as _ilu
+
         from deeptutor.agents.math_animator.models import (
             GeneratedCode,
             RenderResult,
         )
-
-        # Skip the whole test cleanly when manim isn't available, since
-        # math_animator.run() short-circuits before we can patch anything.
-        import importlib.util as _ilu
 
         if _ilu.find_spec("manim") is None:
             pytest.skip("manim not installed; math_animator answer-now test skipped")
@@ -562,9 +562,7 @@ class TestMathAnimatorAnswerNow:
         design_agent_calls: list[Any] = []
         summary_agent_calls: list[Any] = []
 
-        with patch(
-            "deeptutor.agents.math_animator.pipeline.MathAnimatorPipeline"
-        ) as PipelineCls:
+        with patch("deeptutor.agents.math_animator.pipeline.MathAnimatorPipeline") as PipelineCls:
             pipeline_instance = PipelineCls.return_value
             pipeline_instance.run_analysis = AsyncMock(
                 side_effect=lambda *a, **k: analysis_agent_calls.append(("a",))
@@ -635,10 +633,9 @@ class TestNormalPathWhenNoAnswerNow:
         from deeptutor.capabilities.deep_solve import DeepSolveCapability
 
         # We patch MainSolver at its import site inside the capability.
-        with patch(
-            "deeptutor.agents.solve.main_solver.MainSolver"
-        ) as SolverCls, patch(
-            "deeptutor.services.llm.config.get_llm_config", return_value=_fake_llm_config()
+        with (
+            patch("deeptutor.agents.solve.main_solver.MainSolver") as SolverCls,
+            patch("deeptutor.services.llm.config.get_llm_config", return_value=_fake_llm_config()),
         ):
             solver = SolverCls.return_value
             solver.ainit = AsyncMock()

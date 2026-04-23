@@ -10,7 +10,9 @@ export const ACTIVE_SESSION_EVENT = "deeptutor:active-session";
 export const LANGUAGE_EVENT = "deeptutor:language";
 export const SIDEBAR_COLLAPSED_EVENT = "deeptutor:sidebar-collapsed";
 
-export function normalizeLanguage(value: string | null | undefined): AppLanguage {
+export function normalizeLanguage(
+  value: string | null | undefined,
+): AppLanguage {
   return value === "zh" ? "zh" : "en";
 }
 
@@ -76,7 +78,10 @@ export function readStoredSidebarCollapsed(): boolean {
 export function writeStoredSidebarCollapsed(collapsed: boolean): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? "1" : "0");
+    window.localStorage.setItem(
+      SIDEBAR_COLLAPSED_STORAGE_KEY,
+      collapsed ? "1" : "0",
+    );
     window.dispatchEvent(
       new CustomEvent(SIDEBAR_COLLAPSED_EVENT, {
         detail: { collapsed },

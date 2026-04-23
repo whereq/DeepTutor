@@ -39,7 +39,10 @@ test("convertLatexDelimiters: multiline \\\\[...\\\\]", () => {
 test("convertLatexDelimiters: preserves expr containing $& replacement char", () => {
   const input = "\\[x \\$\\& y\\]";
   const result = convertLatexDelimiters(input);
-  assert.ok(result.includes("x \\$\\& y"), "special regex replacement char $& must be preserved");
+  assert.ok(
+    result.includes("x \\$\\& y"),
+    "special regex replacement char $& must be preserved",
+  );
 });
 
 test("convertLatexDelimiters: returns empty-ish input unchanged", () => {

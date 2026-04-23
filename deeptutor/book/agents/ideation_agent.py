@@ -67,9 +67,7 @@ class IdeationAgent(BaseAgent):
         return self._coerce_proposal(payload, ideation_context)
 
     @staticmethod
-    def _coerce_proposal(
-        data: dict[str, Any], ctx: IdeationContext
-    ) -> BookProposal:
+    def _coerce_proposal(data: dict[str, Any], ctx: IdeationContext) -> BookProposal:
         chapters_raw = data.get("estimated_chapters", 0) or 0
         try:
             estimated = max(2, min(8, int(chapters_raw)))

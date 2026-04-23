@@ -418,8 +418,7 @@ class TestPipelineIntegration:
             import pytest as _pytest
 
             _pytest.skip(
-                "RAG pipeline integration test skipped "
-                "(set RAG_INTEGRATION_TESTS=1 to enable)."
+                "RAG pipeline integration test skipped (set RAG_INTEGRATION_TESTS=1 to enable)."
             )
 
         pipeline_name = request.config.getoption("--pipeline")

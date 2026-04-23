@@ -27,6 +27,7 @@ def manager(tmp_path: Path) -> TutorBotManager:
 # load_bot_config / save_bot_config
 # ---------------------------------------------------------------------------
 
+
 class TestLoadAndSave:
     def test_load_returns_none_when_no_config(self, manager: TutorBotManager):
         assert manager.load_bot_config("nonexistent") is None
@@ -55,6 +56,7 @@ class TestLoadAndSave:
 # ---------------------------------------------------------------------------
 # Atomic write
 # ---------------------------------------------------------------------------
+
 
 class TestAtomicWrite:
     def test_save_uses_temp_file_and_replace(self, manager: TutorBotManager, monkeypatch):
@@ -122,6 +124,7 @@ class TestAtomicWrite:
 # merge_bot_config
 # ---------------------------------------------------------------------------
 
+
 class TestMergeBotConfig:
     def test_merge_with_no_existing_uses_defaults(self, manager: TutorBotManager):
         merged = manager.merge_bot_config("brand-new", {"name": "X"})
@@ -147,15 +150,11 @@ class TestMergeBotConfig:
             BotConfig(name="Disk", description="dd"),
         )
 
-        merged = manager.merge_bot_config(
-            "bot-2", {"description": None, "name": "New"}
-        )
+        merged = manager.merge_bot_config("bot-2", {"description": None, "name": "New"})
         assert merged.name == "New"
         assert merged.description == "dd"
 
-    def test_merge_treats_empty_string_and_dict_as_explicit_clear(
-        self, manager: TutorBotManager
-    ):
+    def test_merge_treats_empty_string_and_dict_as_explicit_clear(self, manager: TutorBotManager):
         manager.save_bot_config(
             "bot-3",
             BotConfig(
@@ -165,15 +164,11 @@ class TestMergeBotConfig:
             ),
         )
 
-        merged = manager.merge_bot_config(
-            "bot-3", {"description": "", "channels": {}}
-        )
+        merged = manager.merge_bot_config("bot-3", {"description": "", "channels": {}})
         assert merged.description == ""
         assert merged.channels == {}
 
     def test_merge_ignores_unknown_keys(self, manager: TutorBotManager):
-        merged = manager.merge_bot_config(
-            "bot-4", {"name": "X", "unknown_field": "boom"}
-        )
+        merged = manager.merge_bot_config("bot-4", {"name": "X", "unknown_field": "boom"})
         assert merged.name == "X"
         assert not hasattr(merged, "unknown_field")

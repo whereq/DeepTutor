@@ -52,7 +52,7 @@ class ToolRegistry:
         try:
             # Attempt to cast parameters to match schema types
             params = tool.cast_params(params)
-            
+
             # Validate parameters
             errors = tool.validate_params(params)
             if errors:
@@ -84,7 +84,12 @@ def build_base_tools(
     restrict_to_workspace: bool = False,
 ) -> ToolRegistry:
     """Build a ToolRegistry pre-loaded with filesystem, shell, and web tools."""
-    from deeptutor.tutorbot.agent.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
+    from deeptutor.tutorbot.agent.tools.filesystem import (
+        EditFileTool,
+        ListDirTool,
+        ReadFileTool,
+        WriteFileTool,
+    )
     from deeptutor.tutorbot.agent.tools.shell import ExecTool
     from deeptutor.tutorbot.agent.tools.web import WebFetchTool, WebSearchTool
 
@@ -92,12 +97,14 @@ def build_base_tools(
     allowed_dir = workspace if restrict_to_workspace else None
     for cls in (ReadFileTool, WriteFileTool, EditFileTool, ListDirTool):
         tools.register(cls(workspace=workspace, allowed_dir=allowed_dir))
-    tools.register(ExecTool(
-        working_dir=str(workspace),
-        timeout=exec_config.timeout,
-        restrict_to_workspace=restrict_to_workspace,
-        path_append=exec_config.path_append,
-    ))
+    tools.register(
+        ExecTool(
+            working_dir=str(workspace),
+            timeout=exec_config.timeout,
+            restrict_to_workspace=restrict_to_workspace,
+            path_append=exec_config.path_append,
+        )
+    )
     tools.register(WebSearchTool(config=web_search_config, proxy=web_proxy))
     tools.register(WebFetchTool(proxy=web_proxy))
     return tools

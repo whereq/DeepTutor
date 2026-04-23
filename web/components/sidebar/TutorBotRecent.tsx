@@ -38,7 +38,9 @@ export function TutorBotRecent({ collapsed = false }: { collapsed?: boolean }) {
         /* ignore */
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (bots.length === 0) return null;

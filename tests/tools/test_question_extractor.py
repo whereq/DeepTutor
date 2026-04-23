@@ -23,9 +23,7 @@ def _load_question_extractor_module():
             "supports_response_format": lambda *_args, **_kwargs: False
         },
         "deeptutor.services.llm.config": {"get_llm_config": lambda: None},
-        "deeptutor.utils.json_parser": {
-            "parse_json_response": lambda *_args, **_kwargs: {}
-        },
+        "deeptutor.utils.json_parser": {"parse_json_response": lambda *_args, **_kwargs: {}},
     }
 
     original_modules: dict[str, types.ModuleType | None] = {}

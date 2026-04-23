@@ -85,10 +85,7 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
             first = c[0]
             # list of {"embedding":[...]}
             if isinstance(first, dict) and "embedding" in first:
-                return [
-                    item.get("embedding") or []
-                    for item in c if isinstance(item, dict)
-                ]
+                return [item.get("embedding") or [] for item in c if isinstance(item, dict)]
             # list of vectors [[...], ...]
             if isinstance(first, list):
                 return [item for item in c if isinstance(item, list)]
@@ -123,8 +120,8 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         if request.dimensions or self.dimensions:
             payload["dimensions"] = request.dimensions or self.dimensions
 
-        base = self.base_url.rstrip('/')
-        if base.endswith('/embeddings'):
+        base = self.base_url.rstrip("/")
+        if base.endswith("/embeddings"):
             url = base
         else:
             url = f"{base}/embeddings"
@@ -151,13 +148,13 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
                     # Handle rate limiting (429) with retry
                     if response.status_code == 429:
                         retry_after = float(response.headers.get("Retry-After", 0))
-                        wait = max(retry_after, self._RATE_LIMIT_BACKOFF * (2 ** attempt))
+                        wait = max(retry_after, self._RATE_LIMIT_BACKOFF * (2**attempt))
                         logger.warning(
                             f"Rate limited (429) on attempt {attempt + 1}/{1 + self._MAX_RETRIES}, "
                             f"retrying in {wait:.1f}s..."
                         )
                         await asyncio.sleep(wait)
-                        last_exc = Exception(f"HTTP 429 Too Many Requests")
+                        last_exc = Exception("HTTP 429 Too Many Requests")
                         continue
 
                     if response.status_code >= 400:
@@ -174,7 +171,7 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
                 # need to keep extending an explicit allow-list.
                 last_exc = exc
                 if attempt < self._MAX_RETRIES:
-                    wait = self._RETRY_BACKOFF * (2 ** attempt)
+                    wait = self._RETRY_BACKOFF * (2**attempt)
                     logger.warning(
                         f"Embedding request transport error ({type(exc).__name__}: {exc}) "
                         f"on attempt {attempt + 1}/{1 + self._MAX_RETRIES}, "

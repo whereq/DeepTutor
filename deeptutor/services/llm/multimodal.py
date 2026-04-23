@@ -12,8 +12,8 @@ Supports:
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from .capabilities import supports_vision
@@ -188,9 +188,7 @@ def _inject_images(
         if anthropic:
             content_parts.append(_build_anthropic_image_part(base64_data=b64, mime_type=mime))
         else:
-            content_parts.append(
-                _build_openai_image_part(base64_data=b64, mime_type=mime, url=url)
-            )
+            content_parts.append(_build_openai_image_part(base64_data=b64, mime_type=mime, url=url))
 
     messages[user_idx] = {**msg, "content": content_parts}
 

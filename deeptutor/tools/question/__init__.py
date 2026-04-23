@@ -16,6 +16,7 @@ async def mimic_exam_questions(*args, **kwargs):
 
     return await _mimic_exam_questions(*args, **kwargs)
 
+
 __all__ = [
     "parse_pdf_with_mineru",
     "extract_questions_from_paper",

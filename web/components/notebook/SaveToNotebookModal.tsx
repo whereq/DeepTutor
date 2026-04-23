@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Loader2, MessageSquare, NotebookPen, Sparkles, User, X } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  MessageSquare,
+  NotebookPen,
+  Sparkles,
+  User,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiUrl } from "@/lib/api";
 import {
@@ -9,11 +17,7 @@ import {
   type NotebookSummary as RealNotebookSummary,
 } from "@/lib/notebook-api";
 
-type RecordType =
-  | "solve"
-  | "question"
-  | "research"
-  | "chat";
+type RecordType = "solve" | "question" | "research" | "chat";
 
 export interface NotebookSavePayload {
   recordType: RecordType;
@@ -45,7 +49,9 @@ interface SaveToNotebookModalProps {
   onSaved?: (result: { summary: string }) => void;
 }
 
-function parseSseEvents(buffer: string): Array<{ payload: Record<string, unknown> }> {
+function parseSseEvents(
+  buffer: string,
+): Array<{ payload: Record<string, unknown> }> {
   const events: Array<{ payload: Record<string, unknown> }> = [];
   const chunks = buffer.split("\n\n");
   for (let i = 0; i < chunks.length - 1; i += 1) {
@@ -56,7 +62,10 @@ function parseSseEvents(buffer: string): Array<{ payload: Record<string, unknown
     const dataLine = lines.find((line) => line.startsWith("data:"));
     if (!dataLine) continue;
     try {
-      const payload = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>;
+      const payload = JSON.parse(dataLine.slice(5).trim()) as Record<
+        string,
+        unknown
+      >;
       events.push({ payload });
     } catch {
       continue;
@@ -74,7 +83,12 @@ function roleLabelKey(role: NotebookSaveMessage["role"]): string {
 function buildTranscript(messages: NotebookSaveMessage[]): string {
   return messages
     .map((msg) => {
-      const role = msg.role === "user" ? "User" : msg.role === "assistant" ? "Assistant" : "System";
+      const role =
+        msg.role === "user"
+          ? "User"
+          : msg.role === "assistant"
+            ? "Assistant"
+            : "System";
       return `## ${role}\n${msg.content}`;
     })
     .join("\n\n");
@@ -87,7 +101,10 @@ function buildUserQuery(messages: NotebookSaveMessage[]): string {
     .join("\n\n");
 }
 
-function deriveTitle(messages: NotebookSaveMessage[], fallback: string): string {
+function deriveTitle(
+  messages: NotebookSaveMessage[],
+  fallback: string,
+): string {
   const firstUser = messages.find((msg) => msg.role === "user");
   const candidate = firstUser?.content.trim();
   if (!candidate) return fallback;
@@ -135,7 +152,9 @@ export default function SaveToNotebookModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingNotebooks, setIsLoadingNotebooks] = useState(false);
   const [error, setError] = useState("");
-  const [selectedMessageIdx, setSelectedMessageIdx] = useState<Set<number>>(new Set());
+  const [selectedMessageIdx, setSelectedMessageIdx] = useState<Set<number>>(
+    new Set(),
+  );
   const abortRef = useRef<AbortController | null>(null);
 
   const hasMessageSelection = Array.isArray(messages) && messages.length > 0;
@@ -184,7 +203,13 @@ export default function SaveToNotebookModal({
     if (!open || !hasMessageSelection || titleEdited) return;
     const next = deriveTitle(orderedSelectedMessages, payload?.title || "");
     setTitle(next);
-  }, [open, hasMessageSelection, titleEdited, orderedSelectedMessages, payload?.title]);
+  }, [
+    open,
+    hasMessageSelection,
+    titleEdited,
+    orderedSelectedMessages,
+    payload?.title,
+  ]);
 
   const effectiveOutput = useMemo(() => {
     if (hasMessageSelection) {
@@ -204,10 +229,10 @@ export default function SaveToNotebookModal({
     () =>
       Boolean(
         payload &&
-          title.trim() &&
-          selectedIds.length > 0 &&
-          effectiveOutput.trim() &&
-          (!hasMessageSelection || orderedSelectedMessages.length > 0),
+        title.trim() &&
+        selectedIds.length > 0 &&
+        effectiveOutput.trim() &&
+        (!hasMessageSelection || orderedSelectedMessages.length > 0),
       ),
     [
       payload,
@@ -270,20 +295,23 @@ export default function SaveToNotebookModal({
     }
 
     try {
-      const response = await fetch(apiUrl("/api/v1/notebook/add_record_with_summary"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          notebook_ids: selectedIds,
-          record_type: payload.recordType,
-          title: title.trim(),
-          user_query: effectiveUserQuery,
-          output: effectiveOutput,
-          metadata,
-          kb_name: payload.kbName || null,
-        }),
-        signal: controller.signal,
-      });
+      const response = await fetch(
+        apiUrl("/api/v1/notebook/add_record_with_summary"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            notebook_ids: selectedIds,
+            record_type: payload.recordType,
+            title: title.trim(),
+            user_query: effectiveUserQuery,
+            output: effectiveOutput,
+            metadata,
+            kb_name: payload.kbName || null,
+          }),
+          signal: controller.signal,
+        },
+      );
 
       if (!response.ok || !response.body) {
         throw new Error("Failed to save to notebook.");
@@ -311,7 +339,9 @@ export default function SaveToNotebookModal({
             finalSummary += chunk;
             setSummaryPreview(finalSummary);
           } else if (type === "error") {
-            throw new Error(String(event.payload.detail || "Failed to save to notebook."));
+            throw new Error(
+              String(event.payload.detail || "Failed to save to notebook."),
+            );
           } else if (type === "result") {
             const summary = String(event.payload.summary || finalSummary);
             setSummaryPreview(summary);
@@ -326,7 +356,9 @@ export default function SaveToNotebookModal({
       throw new Error("Notebook save stream ended unexpectedly.");
     } catch (err) {
       if (controller.signal.aborted) return;
-      setError(err instanceof Error ? err.message : "Failed to save to notebook.");
+      setError(
+        err instanceof Error ? err.message : "Failed to save to notebook.",
+      );
       setIsLoading(false);
     }
   };
@@ -335,7 +367,8 @@ export default function SaveToNotebookModal({
 
   const totalMessages = messages?.length ?? 0;
   const selectedMessageCount = selectedMessageIdx.size;
-  const allMessagesSelected = totalMessages > 0 && selectedMessageCount === totalMessages;
+  const allMessagesSelected =
+    totalMessages > 0 && selectedMessageCount === totalMessages;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[var(--background)]/65 p-4 backdrop-blur-md">
@@ -353,7 +386,9 @@ export default function SaveToNotebookModal({
                 ? t(
                     "Choose which messages to include, pick one or more notebooks, and a summary will be generated automatically.",
                   )
-                : t("Select one or more notebooks. A summary will be generated automatically.")}
+                : t(
+                    "Select one or more notebooks. A summary will be generated automatically.",
+                  )}
             </p>
           </div>
           <button
@@ -428,7 +463,12 @@ export default function SaveToNotebookModal({
               <div className="max-h-72 space-y-1.5 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--card)] p-2">
                 {messages.map((msg, idx) => {
                   const selected = selectedMessageIdx.has(idx);
-                  const Icon = msg.role === "user" ? User : msg.role === "assistant" ? Sparkles : MessageSquare;
+                  const Icon =
+                    msg.role === "user"
+                      ? User
+                      : msg.role === "assistant"
+                        ? Sparkles
+                        : MessageSquare;
                   const preview = msg.content.replace(/\s+/g, " ").trim();
                   const empty = preview.length === 0;
                   return (
@@ -455,7 +495,9 @@ export default function SaveToNotebookModal({
                         <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-[var(--muted-foreground)]">
                           <Icon className="h-3 w-3" />
                           <span>{t(roleLabelKey(msg.role))}</span>
-                          <span className="text-[var(--muted-foreground)]/60">·</span>
+                          <span className="text-[var(--muted-foreground)]/60">
+                            ·
+                          </span>
                           <span>#{idx + 1}</span>
                         </div>
                         <p
@@ -514,7 +556,9 @@ export default function SaveToNotebookModal({
                     >
                       <div
                         className="mt-1 h-3 w-3 shrink-0 rounded-full"
-                        style={{ backgroundColor: notebook.color || "var(--primary)" }}
+                        style={{
+                          backgroundColor: notebook.color || "var(--primary)",
+                        }}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">

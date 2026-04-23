@@ -14,7 +14,7 @@ from typing import Any
 from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.utils.json_parser import parse_json_response
 
-from ..models import BookProposal, Chapter, ContentType, Spine, SourceAnchor
+from ..models import BookProposal, Chapter, ContentType, SourceAnchor, Spine
 
 
 def _clip(text: str, limit: int) -> str:
@@ -123,9 +123,7 @@ class SpineAgent(BaseAgent):
             objectives_raw = item.get("learning_objectives") or []
             if not isinstance(objectives_raw, list):
                 objectives_raw = []
-            objectives = [
-                _clip(str(o), 200) for o in objectives_raw if str(o or "").strip()
-            ][:6]
+            objectives = [_clip(str(o), 200) for o in objectives_raw if str(o or "").strip()][:6]
 
             anchors = self._coerce_anchors(item.get("source_anchors"))
             content_type = self._coerce_content_type(item.get("content_type"))
@@ -133,9 +131,7 @@ class SpineAgent(BaseAgent):
             prereq_raw = item.get("prerequisites") or []
             if not isinstance(prereq_raw, list):
                 prereq_raw = []
-            prerequisites = [
-                _clip(str(p), 160) for p in prereq_raw if str(p or "").strip()
-            ][:4]
+            prerequisites = [_clip(str(p), 160) for p in prereq_raw if str(p or "").strip()][:4]
 
             chapters.append(
                 Chapter(
