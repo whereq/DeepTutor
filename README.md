@@ -24,6 +24,8 @@
 
 ---
 
+> 🤝 **We welcome any kinds of contributing!** See our [Contributing Guide](CONTRIBUTING.md) for branching strategy, coding standards, and how to get started.
+
 ### 📦 Releases
 
 > **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — User-authored Skills system (CRUD + chat integration), chat input performance overhaul with state colocation, `response_format` auto-fallback for incompatible providers, LAN remote access fix, sidebar version badge, Deep Solve image attachments, TutorBot WebSocket auto-start, Book Library UI, and visualization fullscreen mode.
