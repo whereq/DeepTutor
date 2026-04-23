@@ -100,6 +100,20 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
     _RETRY_BACKOFF = 1.0
     _RATE_LIMIT_BACKOFF = 5.0
 
+    def _should_send_dimensions(self, model_name: str | None) -> bool:
+        """Decide whether to attach `dimensions` to the request payload.
+
+        Tri-state semantics driven by `self.send_dimensions`:
+        * ``True``  -> always send (user explicitly opted in)
+        * ``False`` -> never send (user explicitly opted out)
+        * ``None``  -> auto: send only for OpenAI ``text-embedding-3*`` family
+        """
+        if self.send_dimensions is True:
+            return True
+        if self.send_dimensions is False:
+            return False
+        return (model_name or "").startswith("text-embedding-3")
+
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         import asyncio
 
@@ -117,12 +131,14 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
             "encoding_format": request.encoding_format or "float",
         }
 
-        # Only OpenAI's text-embedding-3* family officially supports the `dimensions`
-        # request param. Other providers (e.g. Qwen text-embedding-v4 via litellm gateway)
-        # return 400 if we send it — they always use the model's native dim.
-        _model_name = request.model or self.model or ""
-        if (request.dimensions or self.dimensions) and _model_name.startswith("text-embedding-3"):
-            payload["dimensions"] = request.dimensions or self.dimensions
+        # `dimensions` is opt-in. The user's `send_dimensions` flag wins when set
+        # explicitly (True/False); otherwise we fall back to a model-family
+        # heuristic since only OpenAI's text-embedding-3* family officially
+        # supports the param — other providers (e.g. Qwen text-embedding-v4 via
+        # litellm gateway) return HTTP 400 if we send it.
+        dim_value = request.dimensions or self.dimensions
+        if dim_value and self._should_send_dimensions(request.model or self.model):
+            payload["dimensions"] = dim_value
 
         base = self.base_url.rstrip("/")
         if base.endswith("/embeddings"):

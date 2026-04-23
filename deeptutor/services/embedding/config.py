@@ -21,6 +21,7 @@ class EmbeddingConfig:
     api_version: str | None = None
     extra_headers: dict[str, str] | None = None
     dim: int = 3072
+    send_dimensions: bool | None = None
     request_timeout: int = 60
     batch_size: int = 10
     batch_delay: float = 0.0
@@ -54,6 +55,7 @@ def get_embedding_config() -> EmbeddingConfig:
         api_version=resolved.api_version,
         extra_headers=resolved.extra_headers,
         dim=resolved.dimension,
+        send_dimensions=resolved.send_dimensions,
         request_timeout=max(1, resolved.request_timeout),
         batch_size=max(1, resolved.batch_size),
         batch_delay=max(0.0, resolved.batch_delay),

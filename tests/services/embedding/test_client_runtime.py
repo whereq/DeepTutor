@@ -31,7 +31,9 @@ class _FakeAdapter:
         )()
 
 
-def _build_config(binding: str) -> EmbeddingConfig:
+def _build_config(
+    binding: str, *, send_dimensions: bool | None = None
+) -> EmbeddingConfig:
     return EmbeddingConfig(
         model="text-embedding-3-small",
         api_key="sk-test",
@@ -41,6 +43,7 @@ def _build_config(binding: str) -> EmbeddingConfig:
         provider_name=binding,
         provider_mode="standard",
         dim=8,
+        send_dimensions=send_dimensions,
         batch_size=2,
         request_timeout=30,
     )
@@ -75,6 +78,19 @@ def test_resolve_adapter_class_supports_canonical_providers() -> None:
 def test_resolve_adapter_class_rejects_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unknown embedding binding"):
         _resolve_adapter_class("huggingface")
+
+
+@pytest.mark.parametrize("flag", [True, False, None])
+def test_embedding_client_propagates_send_dimensions_to_adapter(
+    monkeypatch, flag: bool | None
+) -> None:
+    """``EmbeddingConfig.send_dimensions`` must reach the adapter's config dict."""
+    _FakeAdapter.instances = []
+    monkeypatch.setattr(
+        "deeptutor.services.embedding.client._resolve_adapter_class", lambda _b: _FakeAdapter
+    )
+    EmbeddingClient(_build_config("openai", send_dimensions=flag))
+    assert _FakeAdapter.instances[-1].config["send_dimensions"] is flag
 
 
 def test_every_registered_provider_has_adapter() -> None:

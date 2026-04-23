@@ -178,6 +178,7 @@ class ResolvedEmbeddingConfig:
     api_version: str | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
     dimension: int = 3072
+    send_dimensions: bool | None = None
     request_timeout: int = 60
     batch_size: int = 10
     batch_delay: float = 0.0
@@ -429,6 +430,26 @@ def _resolve_embedding_dimension(value: Any, default: int = 3072) -> int:
         return default
 
 
+def _coerce_optional_bool(value: Any) -> bool | None:
+    """Parse a tri-state bool from catalog/env values.
+
+    Returns ``True``/``False`` for explicit values and ``None`` for missing,
+    empty, or unrecognised inputs (which means "use the default behaviour").
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if not text:
+        return None
+    if text in {"true", "1", "yes", "on"}:
+        return True
+    if text in {"false", "0", "no", "off"}:
+        return False
+    return None
+
+
 def _resolve_embedding_provider(
     *,
     hint: str | None,
@@ -512,6 +533,10 @@ def resolve_embedding_runtime_config(
     dimension = _resolve_embedding_dimension(
         (model or {}).get("dimension") or summary.embedding.get("dimension") or 3072
     )
+    # Catalog wins over env. ``None`` means "fall back to adapter heuristic".
+    send_dimensions = _coerce_optional_bool((model or {}).get("send_dimensions"))
+    if send_dimensions is None:
+        send_dimensions = _coerce_optional_bool(summary.embedding.get("send_dimensions"))
 
     provider_pool = _collect_embedding_provider_pool(loaded)
     provider_name = _resolve_embedding_provider(
@@ -548,6 +573,7 @@ def resolve_embedding_runtime_config(
         api_version=api_version or None,
         extra_headers=extra_headers,
         dimension=dimension,
+        send_dimensions=send_dimensions,
         request_timeout=60,
         batch_size=10,
         batch_delay=0.0,

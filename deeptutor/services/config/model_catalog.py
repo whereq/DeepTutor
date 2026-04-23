@@ -308,6 +308,7 @@ class ModelCatalogService:
             "EMBEDDING_API_KEY",
             "EMBEDDING_HOST",
             "EMBEDDING_DIMENSION",
+            "EMBEDDING_SEND_DIMENSIONS",
             "EMBEDDING_API_VERSION",
         }
         if embedding_keys.intersection(env_values.keys()):
@@ -349,6 +350,14 @@ class ModelCatalogService:
             ):
                 model["dimension"] = summary.embedding["dimension"]
                 changed = True
+            if "EMBEDDING_SEND_DIMENSIONS" in env_values:
+                env_send_dim = summary.embedding.get("send_dimensions", "")
+                if model.get("send_dimensions", "") != env_send_dim:
+                    if env_send_dim:
+                        model["send_dimensions"] = env_send_dim
+                    else:
+                        model.pop("send_dimensions", None)
+                    changed = True
 
         search_keys = {
             "SEARCH_PROVIDER",

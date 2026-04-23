@@ -11,6 +11,7 @@ import {
   Database,
   Eye,
   EyeOff,
+  Info,
   Loader2,
   Plus,
   Rocket,
@@ -36,6 +37,7 @@ type CatalogModel = {
   name: string;
   model: string;
   dimension?: string;
+  send_dimensions?: boolean;
 };
 
 type CatalogProfile = {
@@ -609,7 +611,7 @@ function SettingsPageContent() {
           name: "New Model",
           model: "",
           ...(activeService === "embedding"
-            ? { dimension: embeddingDefaultDim() }
+            ? { dimension: embeddingDefaultDim(), send_dimensions: true }
             : {}),
         });
         service.active_model_id = modelId;
@@ -647,7 +649,10 @@ function SettingsPageContent() {
         name: "New Model",
         model: "",
         ...(activeService === "embedding"
-          ? { dimension: embeddingDefaultDim(profile.binding) }
+          ? {
+              dimension: embeddingDefaultDim(profile.binding),
+              send_dimensions: true,
+            }
           : {}),
       });
       service.active_model_id = modelId;
@@ -684,6 +689,18 @@ function SettingsPageContent() {
       const model = getActiveModel(next, activeService);
       if (!model) return;
       (model[field] as string | undefined) = value;
+    });
+  };
+
+  const updateModelBoolField = (
+    field: keyof CatalogModel,
+    value: boolean,
+  ) => {
+    if (activeService === "search") return;
+    mutateCatalog((next) => {
+      const model = getActiveModel(next, activeService);
+      if (!model) return;
+      (model[field] as boolean | undefined) = value;
     });
   };
 
@@ -1447,8 +1464,38 @@ function SettingsPageContent() {
                         </div>
                         {activeService === "embedding" && (
                           <div>
-                            <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                              {t("Dimension")}
+                            <div className="mb-1.5 flex items-center justify-between gap-2">
+                              <span className="text-[12px] text-[var(--muted-foreground)]">
+                                {t("Dimension")}
+                              </span>
+                              <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] select-none">
+                                <input
+                                  type="checkbox"
+                                  className="h-3 w-3 cursor-pointer accent-[var(--foreground)]"
+                                  checked={activeModel.send_dimensions !== false}
+                                  onChange={(e) =>
+                                    updateModelBoolField(
+                                      "send_dimensions",
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                                <span>{t("Send dimensions")}</span>
+                                <span
+                                  tabIndex={0}
+                                  className="group/info relative inline-flex cursor-help focus:outline-none"
+                                >
+                                  <Info className="h-3 w-3 opacity-50 transition-opacity group-hover/info:opacity-100 group-focus/info:opacity-100" />
+                                  <span
+                                    role="tooltip"
+                                    className="pointer-events-none absolute top-full left-1/2 z-20 mt-1.5 w-64 -translate-x-1/2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-2.5 text-[11px] leading-relaxed text-[var(--foreground)] opacity-0 shadow-lg transition-opacity duration-75 group-hover/info:opacity-100 group-focus/info:opacity-100"
+                                  >
+                                    {t(
+                                      "Some embedding models (e.g. Qwen text-embedding-v4) reject the `dimensions` request param. Turn this off if your provider returns HTTP 400.",
+                                    )}
+                                  </span>
+                                </span>
+                              </label>
                             </div>
                             <input
                               className={inputClass}
@@ -1459,6 +1506,7 @@ function SettingsPageContent() {
                               onChange={(e) =>
                                 updateModelField("dimension", e.target.value)
                               }
+                              disabled={activeModel.send_dimensions === false}
                             />
                           </div>
                         )}

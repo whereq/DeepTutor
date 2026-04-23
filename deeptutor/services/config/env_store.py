@@ -23,6 +23,7 @@ ENV_KEY_ORDER = (
     "EMBEDDING_API_KEY",
     "EMBEDDING_HOST",
     "EMBEDDING_DIMENSION",
+    "EMBEDDING_SEND_DIMENSIONS",
     "EMBEDDING_API_VERSION",
     "SEARCH_PROVIDER",
     "SEARCH_API_KEY",
@@ -47,6 +48,20 @@ def _safe_int(value: str | None, default: int) -> int:
         return int(value) if value is not None else default
     except (TypeError, ValueError):
         return default
+
+
+def _render_optional_bool(value: Any) -> str:
+    """Serialise a tri-state bool back to .env. ``None``/empty -> empty string."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    text = str(value).strip().lower()
+    if text in {"true", "1", "yes", "on"}:
+        return "true"
+    if text in {"false", "0", "no", "off"}:
+        return "false"
+    return ""
 
 
 @dataclass(slots=True)
@@ -101,6 +116,10 @@ class EnvStore:
                 "dimension": values.get(
                     "EMBEDDING_DIMENSION", os.getenv("EMBEDDING_DIMENSION", "3072")
                 ),
+                "send_dimensions": values.get(
+                    "EMBEDDING_SEND_DIMENSIONS",
+                    os.getenv("EMBEDDING_SEND_DIMENSIONS", ""),
+                ),
                 "api_version": values.get(
                     "EMBEDDING_API_VERSION", os.getenv("EMBEDDING_API_VERSION", "")
                 ),
@@ -120,6 +139,11 @@ class EnvStore:
         for key in ENV_KEY_ORDER:
             value = current.get(key, "")
             if key == "SEARCH_BASE_URL" and not value:
+                continue
+            # `EMBEDDING_SEND_DIMENSIONS` is tri-state; an empty value means
+            # "use the default behaviour", so we drop the line entirely to
+            # keep .env tidy and signal "unset" downstream.
+            if key == "EMBEDDING_SEND_DIMENSIONS" and not value:
                 continue
             ordered[key] = value
 
@@ -159,6 +183,9 @@ class EnvStore:
             "EMBEDDING_API_KEY": str(embedding_map.get("api_key") or ""),
             "EMBEDDING_HOST": str(embedding_map.get("host") or ""),
             "EMBEDDING_DIMENSION": str(embedding_map.get("dimension") or 3072),
+            "EMBEDDING_SEND_DIMENSIONS": _render_optional_bool(
+                embedding_map.get("send_dimensions")
+            ),
             "EMBEDDING_API_VERSION": str(embedding_map.get("api_version") or ""),
             "SEARCH_PROVIDER": str(search_map.get("provider") or ""),
             "SEARCH_API_KEY": str(search_map.get("api_key") or ""),
@@ -192,6 +219,9 @@ class EnvStore:
             "EMBEDDING_API_KEY": str((embedding_profile or {}).get("api_key") or ""),
             "EMBEDDING_HOST": str((embedding_profile or {}).get("base_url") or ""),
             "EMBEDDING_DIMENSION": str((embedding_model or {}).get("dimension") or 3072),
+            "EMBEDDING_SEND_DIMENSIONS": _render_optional_bool(
+                (embedding_model or {}).get("send_dimensions")
+            ),
             "EMBEDDING_API_VERSION": str((embedding_profile or {}).get("api_version") or ""),
             "SEARCH_PROVIDER": str((search_profile or {}).get("provider") or ""),
             "SEARCH_API_KEY": str((search_profile or {}).get("api_key") or ""),

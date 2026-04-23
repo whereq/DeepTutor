@@ -52,6 +52,7 @@ class EmbeddingClient:
                 "api_version": self.config.api_version,
                 "model": self.config.model,
                 "dimensions": self.config.dim,
+                "send_dimensions": self.config.send_dimensions,
                 "request_timeout": self.config.request_timeout,
                 "extra_headers": self.config.extra_headers or {},
             }

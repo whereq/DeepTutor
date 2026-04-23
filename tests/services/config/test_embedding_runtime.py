@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from deeptutor.services.config.env_store import EnvStore
 from deeptutor.services.config.provider_runtime import resolve_embedding_runtime_config
 
@@ -23,7 +25,11 @@ def _build_catalog(
         "extra_headers": {},
         "models": [{"id": "embedding-m", "name": "m", "model": "text-embedding-3-large"}],
     }
-    embedding_model = embedding_model or embedding_profile["models"][0]
+    if embedding_model is not None:
+        # Replace whichever model lives at the active slot so the override is
+        # actually visible to ``resolve_embedding_runtime_config``.
+        embedding_profile["models"] = [embedding_model]
+    embedding_model = embedding_profile["models"][0]
     return {
         "version": 1,
         "services": {
@@ -150,6 +156,68 @@ def test_embedding_openai_default_base_injected(tmp_path: Path) -> None:
     resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
     assert resolved.provider_name == "openai"
     assert resolved.effective_url == "https://api.openai.com/v1"
+
+
+def test_embedding_send_dimensions_default_is_none(tmp_path: Path) -> None:
+    """Catalogs without the field should resolve to ``None`` (Auto behaviour)."""
+    catalog = _build_catalog()  # default model has no `send_dimensions`
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
+    assert resolved.send_dimensions is None
+
+
+@pytest.mark.parametrize(
+    ("catalog_value", "expected"),
+    [
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("false", False),
+        ("on", True),
+        ("off", False),
+        ("", None),
+        ("garbage", None),
+    ],
+)
+def test_embedding_send_dimensions_parsed_from_catalog(
+    tmp_path: Path,
+    catalog_value: object,
+    expected: bool | None,
+) -> None:
+    catalog = _build_catalog(
+        embedding_model={
+            "id": "embedding-m",
+            "name": "m",
+            "model": "text-embedding-v4",
+            "dimension": "1024",
+            "send_dimensions": catalog_value,
+        }
+    )
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
+    assert resolved.send_dimensions is expected
+
+
+def test_embedding_send_dimensions_env_fallback_when_catalog_unset(tmp_path: Path) -> None:
+    """When the catalog has no flag, fall back to the env value."""
+    catalog = _build_catalog()
+    env = _env(tmp_path, ["EMBEDDING_SEND_DIMENSIONS=false"])
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=env)
+    assert resolved.send_dimensions is False
+
+
+def test_embedding_send_dimensions_catalog_wins_over_env(tmp_path: Path) -> None:
+    """An explicit catalog value overrides whatever is in .env."""
+    catalog = _build_catalog(
+        embedding_model={
+            "id": "embedding-m",
+            "name": "m",
+            "model": "text-embedding-3-large",
+            "dimension": "3072",
+            "send_dimensions": True,
+        }
+    )
+    env = _env(tmp_path, ["EMBEDDING_SEND_DIMENSIONS=false"])
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=env)
+    assert resolved.send_dimensions is True
 
 
 def test_embedding_provider_env_key_fallback(tmp_path: Path) -> None:

@@ -661,6 +661,8 @@
   "Label": "标签",
   "Model ID": "模型 ID",
   "Dimension": "维度",
+  "Send dimensions": "发送 dimensions 参数",
+  "Some embedding models (e.g. Qwen text-embedding-v4) reject the `dimensions` request param. Turn this off if your provider returns HTTP 400.": "部分 embedding 模型（如 Qwen text-embedding-v4）不支持 `dimensions` 请求参数。若你的服务返回 HTTP 400，请关闭此开关。",
   "No profiles configured. Add a profile to start.": "暂无配置文件。添加一个以开始使用。",
   "Diagnostics": "诊断",
   "Run test": "运行测试",

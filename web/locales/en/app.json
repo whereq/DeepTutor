@@ -661,6 +661,8 @@
   "Label": "Label",
   "Model ID": "Model ID",
   "Dimension": "Dimension",
+  "Send dimensions": "Send dimensions",
+  "Some embedding models (e.g. Qwen text-embedding-v4) reject the `dimensions` request param. Turn this off if your provider returns HTTP 400.": "Some embedding models (e.g. Qwen text-embedding-v4) reject the `dimensions` request param. Turn this off if your provider returns HTTP 400.",
   "No profiles configured. Add a profile to start.": "No profiles configured. Add a profile to start.",
   "Diagnostics": "Diagnostics",
   "Run test": "Run test",
