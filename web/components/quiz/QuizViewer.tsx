@@ -18,6 +18,10 @@ import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import QuestionFollowupPanel, {
   type FollowupThreadState,
 } from "@/components/quiz/QuestionFollowupPanel";
+import {
+  isChoiceQuizQuestion,
+  resolveChoiceAnswerKey,
+} from "@/lib/quiz-question-type";
 import { buildQuizFollowupConfig, type QuizQuestion } from "@/lib/quiz-types";
 import {
   addEntryToCategory,
@@ -73,7 +77,7 @@ function getQuestionKey(question: QuizQuestion, index: number): string {
 
 function getUserAnswer(question: QuizQuestion, answer: AnswerState): string {
   if (
-    question.question_type === "choice" &&
+    isChoiceQuizQuestion(question.question_type) &&
     question.options &&
     Object.keys(question.options).length > 0
   ) {
@@ -87,11 +91,13 @@ function isAnswerCorrect(question: QuizQuestion, answer: AnswerState): boolean {
   if (!userAnswer) return false;
   const correct = question.correct_answer.trim();
   const isChoice =
-    question.question_type === "choice" &&
+    isChoiceQuizQuestion(question.question_type) &&
     question.options &&
     Object.keys(question.options).length > 0;
   if (isChoice) {
+    const correctChoiceKey = resolveChoiceAnswerKey(correct, question.options);
     return (
+      userAnswer.toUpperCase() === correctChoiceKey ||
       userAnswer.toUpperCase() === correct.toUpperCase() ||
       userAnswer.toUpperCase() === correct.charAt(0).toUpperCase()
     );
@@ -427,7 +433,7 @@ export default function QuizViewer({
   );
 
   const isChoice =
-    q?.question_type === "choice" &&
+    isChoiceQuizQuestion(q?.question_type) &&
     q.options &&
     Object.keys(q.options).length > 0;
   const currentUserAnswer = q ? getUserAnswer(q, ans) : "";

@@ -36,6 +36,7 @@ class LLMConfigUpdate(TypedDict, total=False):
     api_version: str | None
     extra_headers: dict[str, str]
     reasoning_effort: str | None
+    context_window: int | None
     max_tokens: int
     temperature: float
     max_concurrency: int
@@ -50,10 +51,10 @@ PROJECT_ROOT = get_env_store().path.parent
 
 def _is_openai_compatible_binding(binding: str | None) -> bool:
     canonical = canonical_provider_name(binding) or (binding or "").strip().lower()
-    if canonical in {"custom", "azure_openai"}:
-        return True
     spec = find_by_name(canonical)
-    return bool(spec and not spec.is_oauth)
+    if not spec or spec.is_oauth:
+        return False
+    return spec.backend in {"openai_compat", "azure_openai"}
 
 
 def _set_openai_env_vars(api_key: str | None, base_url: str | None, *, source: str) -> None:
@@ -104,6 +105,7 @@ class LLMConfig:
     api_version: str | None = None
     extra_headers: dict[str, str] | None = None
     reasoning_effort: str | None = None
+    context_window: int | None = None
     max_tokens: int = 4096
     temperature: float = 0.7
     max_concurrency: int = 20
@@ -205,6 +207,7 @@ def _get_llm_config_from_resolver() -> LLMConfig:
         api_version=resolved.api_version,
         extra_headers=resolved.extra_headers,
         reasoning_effort=resolved.reasoning_effort,
+        context_window=resolved.context_window,
     )
 
 

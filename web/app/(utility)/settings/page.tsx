@@ -2,10 +2,8 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import {
   Brain,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Database,
@@ -15,13 +13,11 @@ import {
   Loader2,
   Plus,
   Rocket,
-  RotateCcw,
   Save,
   Search,
   Terminal,
   Trash2,
   Wand2,
-  X,
 } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
@@ -38,6 +34,9 @@ type CatalogModel = {
   model: string;
   dimension?: string;
   send_dimensions?: boolean;
+  context_window?: string;
+  context_window_source?: string;
+  context_window_detected_at?: string;
 };
 
 type CatalogProfile = {
@@ -92,19 +91,6 @@ type SystemStatus = {
   llm: { status: string; model?: string; error?: string };
   embeddings: { status: string; model?: string; error?: string };
   search: { status: string; provider?: string; error?: string };
-};
-
-type TourTestResult = "pass" | "fail" | "skip" | "pending";
-type TourTestResults = {
-  llm: TourTestResult;
-  embedding: TourTestResult;
-  search: TourTestResult;
-};
-type TourCompleteResponse = {
-  status: string;
-  message: string;
-  launch_at?: number;
-  redirect_at?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -185,6 +171,29 @@ function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
   }
 }
 
+function formatContextWindowSource(
+  source: string | undefined,
+  t: (key: string) => string,
+): string {
+  if (source === "manual") return t("Manual");
+  if (source === "metadata") return t("Auto");
+  if (source === "default") return t("Default");
+  return t("Unset");
+}
+
+function formatContextWindowUpdatedAt(
+  value: string | undefined,
+  language: "en" | "zh",
+): string {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(language === "zh" ? "zh-CN" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tour onboarding steps
 // ---------------------------------------------------------------------------
@@ -192,23 +201,31 @@ function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
 const TOUR_GUIDE_STEPS = [
   {
     target: "tour-llm",
-    title: "1 / 4  —  LLM",
-    desc: "Configure your language model endpoint. This powers all chat and reasoning.",
+    service: "llm" as const,
+    titleKey: "settingsTour.llm.title",
+    descKey: "settingsTour.llm.desc",
   },
   {
     target: "tour-embedding",
-    title: "2 / 4  —  Embedding",
-    desc: "Set the embedding model for knowledge retrieval.",
+    service: "embedding" as const,
+    titleKey: "settingsTour.embedding.title",
+    descKey: "settingsTour.embedding.desc",
   },
   {
     target: "tour-search",
-    title: "3 / 4  —  Search",
-    desc: "Optional: add a web search provider for real-time information.",
+    service: "search" as const,
+    titleKey: "settingsTour.search.title",
+    descKey: "settingsTour.search.desc",
   },
   {
-    target: "tour-complete",
-    title: "4 / 4  —  Complete",
-    desc: "When you are ready, click here to test and launch DeepTutor.",
+    target: "tour-save-test",
+    titleKey: "settingsTour.saveTest.title",
+    descKey: "settingsTour.saveTest.desc",
+  },
+  {
+    target: "tour-actions",
+    titleKey: "settingsTour.apply.title",
+    descKey: "settingsTour.apply.desc",
   },
 ];
 
@@ -284,10 +301,10 @@ function SpotlightOverlay({
         style={{ top: tooltipTop, left: tooltipLeft }}
       >
         <div className="mb-1 text-[13px] font-semibold text-[var(--foreground)]">
-          {t(guideStep.title)}
+          {t(guideStep.titleKey)}
         </div>
         <p className="mb-4 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
-          {t(guideStep.desc)}
+          {t(guideStep.descKey)}
         </p>
         <div className="flex items-center justify-between">
           <button
@@ -309,122 +326,12 @@ function SpotlightOverlay({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Test results modal
-// ---------------------------------------------------------------------------
-
-function TestResultsModal({
-  results,
-  testing,
-  onConfirm,
-  onCancel,
-}: {
-  results: TourTestResults;
-  testing: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const { t } = useTranslation();
-  const hasCriticalFailure =
-    results.llm === "fail" || results.embedding === "fail";
-  const allDone =
-    !testing && results.llm !== "pending" && results.embedding !== "pending";
-
-  const dot = (r: TourTestResult) => {
-    if (r === "pass") return "bg-emerald-500";
-    if (r === "fail") return "bg-red-400";
-    if (r === "skip") return "bg-[var(--border)]";
-    return "bg-amber-400 animate-pulse";
-  };
-
-  const label = (r: TourTestResult) => {
-    if (r === "pass") return t("Passed");
-    if (r === "fail") return t("Failed");
-    if (r === "skip") return t("Skipped");
-    return t("Testing...");
-  };
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
-      <div className="w-[400px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[16px] font-semibold text-[var(--foreground)]">
-            {testing ? t("Running tests...") : t("Test Results")}
-          </h2>
-          {!testing && (
-            <button
-              onClick={onCancel}
-              className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="mb-6 space-y-3">
-          {(["llm", "embedding", "search"] as const).map((svc) => (
-            <div
-              key={svc}
-              className="flex items-center justify-between rounded-lg border border-[var(--border)]/50 px-4 py-3"
-            >
-              <div className="flex items-center gap-2.5">
-                {serviceIcon(svc)}
-                <span className="text-[13px] font-medium text-[var(--foreground)]">
-                  {svc.toUpperCase()}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${dot(results[svc])}`}
-                />
-                <span className="text-[12px] text-[var(--muted-foreground)]">
-                  {label(results[svc])}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {allDone && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onCancel}
-              className="flex-1 rounded-lg border border-[var(--border)] px-4 py-2 text-[13px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--foreground)]/20 hover:text-[var(--foreground)]"
-            >
-              {t("Back to editing")}
-            </button>
-            <button
-              onClick={onConfirm}
-              className={`flex-1 rounded-lg px-4 py-2 text-[13px] font-medium transition-opacity hover:opacity-80 ${
-                hasCriticalFailure
-                  ? "bg-red-500 text-white"
-                  : "bg-[var(--foreground)] text-[var(--background)]"
-              }`}
-            >
-              {hasCriticalFailure ? t("Launch anyway") : t("Confirm & Launch")}
-            </button>
-          </div>
-        )}
-
-        {testing && (
-          <div className="flex items-center justify-center gap-2 py-2 text-[13px] text-[var(--muted-foreground)]">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            {t("Please wait...")}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════
 
 function SettingsPageContent() {
   const { t } = useTranslation();
-  const searchParams = useSearchParams();
-  const isTourMode = searchParams.get("tour") === "true";
 
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [theme, setTheme] = useState<"light" | "dark" | "glass" | "snow">(
@@ -447,18 +354,7 @@ function SettingsPageContent() {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Tour-specific state
-  const [tourGuideStep, setTourGuideStep] = useState(isTourMode ? 0 : -1);
-  const [tourTestPhase, setTourTestPhase] = useState<
-    "idle" | "testing" | "results"
-  >("idle");
-  const [tourTestResults, setTourTestResults] = useState<TourTestResults>({
-    llm: "pending",
-    embedding: "pending",
-    search: "pending",
-  });
-  const [tourCompleted, setTourCompleted] = useState(false);
-  const [tourRedirectAt, setTourRedirectAt] = useState<number | null>(null);
-  const [redirectCountdown, setRedirectCountdown] = useState(-1);
+  const [tourGuideStep, setTourGuideStep] = useState(-1);
 
   // -- Data loading -------------------------------------------------------
 
@@ -489,34 +385,13 @@ function SettingsPageContent() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // -- Redirect countdown after tour complete -----------------------------
-
-  useEffect(() => {
-    if (!tourCompleted || !tourRedirectAt) return;
-    const tick = () => {
-      const secondsLeft = Math.max(
-        0,
-        Math.ceil(tourRedirectAt - Date.now() / 1000),
-      );
-      setRedirectCountdown(secondsLeft);
-    };
-    tick();
-    const timer = setInterval(tick, 250);
-    return () => clearInterval(timer);
-  }, [tourCompleted, tourRedirectAt]);
-
-  useEffect(() => {
-    if (redirectCountdown === 0 && tourCompleted) {
-      window.location.href = "/";
-    }
-  }, [redirectCountdown, tourCompleted]);
-
   // -- Tour guide auto-switch active service tab --------------------------
 
   useEffect(() => {
-    if (tourGuideStep === 0) setActiveService("llm");
-    else if (tourGuideStep === 1) setActiveService("embedding");
-    else if (tourGuideStep === 2) setActiveService("search");
+    const currentStep = TOUR_GUIDE_STEPS[tourGuideStep];
+    if (currentStep?.service) {
+      setActiveService(currentStep.service);
+    }
   }, [tourGuideStep]);
 
   // -- Derived ------------------------------------------------------------
@@ -692,6 +567,24 @@ function SettingsPageContent() {
     });
   };
 
+  const updateContextWindowField = (value: string) => {
+    if (activeService !== "llm") return;
+    const normalized = value.replace(/[^\d]/g, "");
+    mutateCatalog((next) => {
+      const model = getActiveModel(next, activeService);
+      if (!model) return;
+      if (normalized) {
+        model.context_window = normalized;
+        model.context_window_source = "manual";
+        delete model.context_window_detected_at;
+      } else {
+        delete model.context_window;
+        delete model.context_window_source;
+        delete model.context_window_detected_at;
+      }
+    });
+  };
+
   const updateModelBoolField = (
     field: keyof CatalogModel,
     value: boolean,
@@ -777,8 +670,13 @@ function SettingsPageContent() {
         const entry = JSON.parse(event.data) as {
           type: string;
           message: string;
+          catalog?: Catalog;
         };
         setLogs((current) => `${current}[${entry.type}] ${entry.message}\n`);
+        if (entry.catalog) {
+          setCatalog(entry.catalog);
+          setDraft(cloneCatalog(entry.catalog));
+        }
         if (entry.type === "completed" || entry.type === "failed") {
           source.close();
           eventSourceRef.current = null;
@@ -804,143 +702,11 @@ function SettingsPageContent() {
     }
   };
 
-  // -- Tour: run a single service test and return pass/fail ---------------
+  // -- Tour ---------------------------------------------------------------
 
-  const runSingleTest = useCallback(
-    async (
-      svc: ServiceName,
-      catalogSnapshot: Catalog,
-    ): Promise<"pass" | "fail"> => {
-      try {
-        const response = await fetch(
-          apiUrl(`/api/v1/settings/tests/${svc}/start`),
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ catalog: catalogSnapshot }),
-          },
-        );
-        const payload = (await response.json()) as { run_id?: string };
-        if (!response.ok || !payload.run_id) return "fail";
-
-        return new Promise((resolve) => {
-          const source = new EventSource(
-            apiUrl(`/api/v1/settings/tests/${svc}/${payload.run_id}/events`),
-          );
-          const timeout = setTimeout(() => {
-            source.close();
-            resolve("fail");
-          }, 30000);
-          source.onmessage = (event) => {
-            const entry = JSON.parse(event.data) as { type: string };
-            if (entry.type === "completed") {
-              clearTimeout(timeout);
-              source.close();
-              resolve("pass");
-            } else if (entry.type === "failed") {
-              clearTimeout(timeout);
-              source.close();
-              resolve("fail");
-            }
-          };
-          source.onerror = () => {
-            clearTimeout(timeout);
-            source.close();
-            resolve("fail");
-          };
-        });
-      } catch {
-        return "fail";
-      }
-    },
-    [],
-  );
-
-  // -- Tour: Complete & Launch flow ---------------------------------------
-
-  const startTourComplete = async () => {
-    setTourTestPhase("testing");
-    const results: TourTestResults = {
-      llm: "pending",
-      embedding: "pending",
-      search: "pending",
-    };
-    setTourTestResults({ ...results });
-
-    // Apply catalog first so backend picks up config
-    await fetch(apiUrl("/api/v1/settings/apply"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ catalog: draft }),
-    });
-
-    const catalogSnapshot = cloneCatalog(draft);
-
-    // Test LLM
-    results.llm = await runSingleTest("llm", catalogSnapshot);
-    setTourTestResults({ ...results });
-
-    // Test Embedding
-    results.embedding = await runSingleTest("embedding", catalogSnapshot);
-    setTourTestResults({ ...results });
-
-    // Test Search (skip if no provider configured)
-    const searchProfile = getActiveProfile(catalogSnapshot, "search");
-    const hasSearchProvider =
-      searchProfile?.provider && searchProfile.provider.trim() !== "";
-    if (hasSearchProvider) {
-      results.search = await runSingleTest("search", catalogSnapshot);
-    } else {
-      results.search = "skip";
-    }
-    setTourTestResults({ ...results });
-
-    setTourTestPhase("results");
-  };
-
-  const confirmTourComplete = async () => {
-    setTourTestPhase("idle");
-    try {
-      const response = await fetch(apiUrl("/api/v1/settings/tour/complete"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ catalog: draft, test_results: tourTestResults }),
-      });
-      if (response.ok) {
-        const payload = (await response.json()) as TourCompleteResponse;
-        setTourCompleted(true);
-        setTourRedirectAt(
-          payload.redirect_at ?? Math.floor(Date.now() / 1000) + 5,
-        );
-      } else {
-        setToast(t("Failed to complete tour"));
-      }
-    } catch {
-      setToast(t("Failed to complete tour"));
-    }
-  };
-
-  const cancelTourTest = () => {
-    setTourTestPhase("idle");
-  };
-
-  // -- Reopen tour --------------------------------------------------------
-
-  const reopenTour = async () => {
-    const response = await fetch(apiUrl("/api/v1/settings/tour/reopen"), {
-      method: "POST",
-    });
-    const payload = (await response.json()) as {
-      command?: string;
-      message?: string;
-    };
-    setToast(
-      payload.command
-        ? t("Run {{command}} in your terminal.", { command: payload.command })
-        : payload.message ||
-            t("Run python scripts/start_tour.py in your terminal."),
-    );
-  };
+  const runTour = useCallback(() => {
+    setTourGuideStep(0);
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════════
   // Render
@@ -949,53 +715,6 @@ function SettingsPageContent() {
   return (
     <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto max-w-[960px] px-6 py-8">
-        {/* ── Tour Banner ── */}
-        {isTourMode && !tourCompleted && (
-          <div className="mb-6 flex items-center justify-between rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 px-5 py-4">
-            <div>
-              <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--foreground)]">
-                <Rocket className="h-4 w-4 text-[var(--primary)]" />
-                {t("Setup Tour")}
-              </div>
-              <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-                {t(
-                  "Configure your endpoints below, run tests, then launch DeepTutor.",
-                )}
-              </p>
-            </div>
-            <button
-              data-tour="tour-complete"
-              onClick={startTourComplete}
-              disabled={tourTestPhase === "testing"}
-              className="ml-4 inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--foreground)] px-4 py-2 text-[13px] font-medium text-[var(--background)] transition-opacity hover:opacity-80 disabled:opacity-40"
-            >
-              {tourTestPhase === "testing" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5" />
-              )}
-              {t("Complete & Launch")}
-            </button>
-          </div>
-        )}
-
-        {/* Tour completed banner with countdown */}
-        {isTourMode && tourCompleted && (
-          <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-center">
-            <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-4 w-4" />
-              {t("Configuration saved")}
-            </div>
-            <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-              {redirectCountdown > 0
-                ? t("Redirecting to DeepTutor in {{count}}s...", {
-                    count: redirectCountdown,
-                  })
-                : t("Redirecting...")}
-            </p>
-          </div>
-        )}
-
         {/* ── Header ── */}
         <div className="mb-6 flex items-start justify-between">
           <div>
@@ -1016,6 +735,14 @@ function SettingsPageContent() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={runTour}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
+            >
+              <Rocket className="h-3 w-3" />
+              {t("Tour")}
+            </button>
+            <button
+              data-tour="tour-save-test"
               onClick={saveCatalog}
               disabled={saving}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
@@ -1028,14 +755,10 @@ function SettingsPageContent() {
               {t("Save Draft")}
             </button>
             <button
+              data-tour="tour-actions"
               onClick={applyCatalog}
-              disabled={applying || isTourMode}
-              title={isTourMode ? t("Complete the tour first") : undefined}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-opacity disabled:opacity-40 ${
-                isTourMode
-                  ? "cursor-not-allowed border border-[var(--border)]/30 bg-[var(--muted)] text-[var(--muted-foreground)]"
-                  : "bg-[var(--foreground)] text-[var(--background)] hover:opacity-80"
-              }`}
+              disabled={applying}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--foreground)] px-3 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-80 disabled:opacity-40"
             >
               {applying ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -1462,6 +1185,66 @@ function SettingsPageContent() {
                             placeholder="gpt-4o"
                           />
                         </div>
+                        {activeService === "llm" && (
+                          <>
+                            <div>
+                              <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                {t("Context Window")}
+                              </div>
+                              <input
+                                className={inputClass}
+                                inputMode="numeric"
+                                value={activeModel.context_window || ""}
+                                onChange={(e) =>
+                                  updateContextWindowField(e.target.value)
+                                }
+                                placeholder="65536"
+                              />
+                            </div>
+                            <div className="rounded-xl border border-[var(--border)]/70 bg-[var(--muted)]/30 px-3.5 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]/70">
+                                  {t("Source")}
+                                </div>
+                                <span className="rounded-full border border-[var(--border)]/70 bg-[var(--card)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
+                                  {formatContextWindowSource(
+                                    activeModel.context_window_source,
+                                    t,
+                                  )}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
+                                {activeModel.context_window_source ===
+                                "metadata"
+                                  ? t(
+                                      "Detected from the provider during the latest LLM test and saved into model_catalog.json.",
+                                    )
+                                  : activeModel.context_window_source ===
+                                      "default"
+                                    ? t(
+                                        "The provider did not expose a context window, so the runtime fallback was saved during the latest LLM test.",
+                                      )
+                                    : activeModel.context_window_source ===
+                                        "manual"
+                                      ? t(
+                                          "Manual override from Settings. Save Draft to persist your edit.",
+                                        )
+                                      : t(
+                                          "Run the LLM test to auto-fill this field, or enter a value manually.",
+                                        )}
+                              </p>
+                              {activeModel.context_window_detected_at && (
+                                <div className="mt-2 text-[11px] text-[var(--muted-foreground)]/70">
+                                  {t("Detected at")}:{" "}
+                                  {formatContextWindowUpdatedAt(
+                                    activeModel.context_window_detected_at,
+                                    language,
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
                         {activeService === "embedding" && (
                           <div>
                             <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -1585,28 +1368,16 @@ function SettingsPageContent() {
           )}
         </div>
 
-        {/* ── Footer ── */}
-        <div className="flex items-center justify-between border-t border-[var(--border)]/30 pt-4 pb-2">
-          {!isTourMode && (
-            <button
-              onClick={reopenTour}
-              className="inline-flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]/40 transition-colors hover:text-[var(--muted-foreground)]"
-            >
-              <RotateCcw className="h-3 w-3" />
-              {t("Run Terminal Tour")}
-            </button>
-          )}
-          <span className="text-[11px] text-[var(--muted-foreground)]/30 ml-auto">
-            v{draft.version}
-          </span>
-        </div>
+        {/* ── Footer note ── */}
+        <p className="mt-2 pb-4 text-[11px] leading-relaxed text-[var(--muted-foreground)]/40">
+          {t("settings.configNote")}
+        </p>
       </div>
 
       {/* ── Spotlight overlay (tour onboarding) ── */}
-      {isTourMode &&
-        tourGuideStep >= 0 &&
+      {tourGuideStep >= 0 &&
         tourGuideStep < TOUR_GUIDE_STEPS.length &&
-        !tourCompleted && (
+        (
           <SpotlightOverlay
             stepIndex={tourGuideStep}
             onNext={() => {
@@ -1619,16 +1390,6 @@ function SettingsPageContent() {
             onSkip={() => setTourGuideStep(-1)}
           />
         )}
-
-      {/* ── Test results modal (tour) ── */}
-      {isTourMode && tourTestPhase !== "idle" && (
-        <TestResultsModal
-          results={tourTestResults}
-          testing={tourTestPhase === "testing"}
-          onConfirm={confirmTourComplete}
-          onCancel={cancelTourTest}
-        />
-      )}
     </div>
   );
 }

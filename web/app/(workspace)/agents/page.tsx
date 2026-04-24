@@ -134,7 +134,7 @@ export default function AgentsPage() {
             { key: "bots" as Tab, label: t("Bots"), icon: Bot },
             { key: "profiles" as Tab, label: t("Profiles"), icon: FileText },
             { key: "channels" as Tab, label: t("Channels"), icon: Settings2 },
-            { key: "souls" as Tab, label: t("Souls"), icon: Heart },
+            { key: "souls" as Tab, label: t("Soul Templates"), icon: Heart },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.key;
@@ -165,7 +165,13 @@ export default function AgentsPage() {
             router={router}
           />
         ) : activeTab === "profiles" ? (
-          <ProfilesTab bots={bots} loading={loading} onToast={setToast} />
+          <ProfilesTab
+            bots={bots}
+            souls={souls}
+            loading={loading}
+            onToast={setToast}
+            onReloadSouls={loadSouls}
+          />
         ) : activeTab === "channels" ? (
           <ChannelsTab
             bots={bots}
@@ -843,12 +849,22 @@ function BotsTab({
   };
 
   const botId = useMemo(() => {
-    const slug = formName
-      .trim()
+    const trimmed = formName.trim();
+    if (!trimmed) return "";
+    const slug = trimmed
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    return slug || "";
+    if (slug) return slug;
+    // Name has no ASCII alphanumerics (e.g. pure Chinese / Japanese).
+    // Derive a deterministic ASCII fallback so the bot ID stays
+    // filesystem- and URL-safe while the display name keeps its CJK form.
+    let h = 0;
+    for (let i = 0; i < trimmed.length; i++) {
+      h = (h << 5) - h + trimmed.charCodeAt(i);
+      h |= 0;
+    }
+    return `bot-${Math.abs(h).toString(36).padStart(6, "0").slice(0, 8)}`;
   }, [formName]);
 
   const selectSoul = (id: string) => {
@@ -879,11 +895,22 @@ function BotsTab({
         setShowCreate(false);
         resetForm();
         await onReload();
+      } else {
+        const err = (await res.json().catch(() => ({}))) as {
+          detail?: string | { message?: string };
+        };
+        const detail =
+          typeof err.detail === "string"
+            ? err.detail
+            : (err.detail?.message ?? t("Failed to create bot"));
+        onToast(detail);
       }
+    } catch {
+      onToast(t("Failed to create bot"));
     } finally {
       setCreating(false);
     }
-  }, [botId, formName, formDesc, formSoul, formModel, onReload, onToast]);
+  }, [botId, formName, formDesc, formSoul, formModel, onReload, onToast, t]);
 
   const startBot = useCallback(
     async (bid: string) => {
@@ -1173,23 +1200,50 @@ function BotsTab({
 
 function ProfilesTab({
   bots,
+  souls,
   loading,
   onToast,
+  onReloadSouls,
 }: {
   bots: BotInfo[];
+  souls: SoulTemplate[];
   loading: boolean;
   onToast: (msg: string) => void;
+  onReloadSouls: () => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [selectedBot, setSelectedBot] = useState<string>("");
   const [activeFile, setActiveFile] = useState<BotFile>("SOUL.md");
   const [files, setFiles] = useState<Record<string, string>>({});
   const [editor, setEditor] = useState("");
+  const [selectedSoulId, setSelectedSoulId] = useState("_custom");
+  const [sourceSoulId, setSourceSoulId] = useState<string | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveMode, setSaveMode] = useState<
+    "file_only" | "update_template" | "new_template"
+  >("file_only");
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [replaceModalOpen, setReplaceModalOpen] = useState(false);
+  const [pendingSoulId, setPendingSoulId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"edit" | "preview">("edit");
 
   const hasChanges = editor !== (files[activeFile] ?? "");
+  const activeSoulTemplate = useMemo(
+    () => souls.find((s) => s.id === selectedSoulId) ?? null,
+    [souls, selectedSoulId],
+  );
+  const sourceSoulTemplate = useMemo(
+    () => souls.find((s) => s.id === sourceSoulId) ?? null,
+    [souls, sourceSoulId],
+  );
+
+  const matchSoulId = useCallback(
+    (content: string): string =>
+      souls.find((s) => s.content === content)?.id ?? "_custom",
+    [souls],
+  );
 
   useEffect(() => {
     if (bots.length > 0 && !selectedBot) {
@@ -1206,11 +1260,14 @@ function ProfilesTab({
         const data: Record<string, string> = await res.json();
         setFiles(data);
         setEditor(data[activeFile] ?? "");
+        const matched = matchSoulId(data["SOUL.md"] ?? "");
+        setSelectedSoulId(matched);
+        setSourceSoulId(matched === "_custom" ? null : matched);
       } finally {
         setLoadingFiles(false);
       }
     },
-    [activeFile],
+    [activeFile, matchSoulId],
   );
 
   useEffect(() => {
@@ -1219,13 +1276,122 @@ function ProfilesTab({
 
   useEffect(() => {
     setEditor(files[activeFile] ?? "");
+    if (activeFile === "SOUL.md") {
+      const matched = matchSoulId(files["SOUL.md"] ?? "");
+      setSelectedSoulId(matched);
+      setSourceSoulId(matched === "_custom" ? null : matched);
+    }
     setActiveView("edit");
-  }, [activeFile, files]);
+  }, [activeFile, files, matchSoulId]);
 
-  const saveFile = useCallback(async () => {
-    if (!selectedBot) return;
+  const applySoulSelection = useCallback(
+    (nextId: string) => {
+      if (nextId === "_custom") {
+        setSelectedSoulId("_custom");
+        setSourceSoulId(null);
+        return;
+      }
+      const soul = souls.find((s) => s.id === nextId);
+      if (!soul) return;
+      setSelectedSoulId(nextId);
+      setSourceSoulId(nextId);
+      setEditor(soul.content);
+    },
+    [souls],
+  );
+
+  const handleSoulSelect = useCallback(
+    (nextId: string) => {
+      if (hasChanges) {
+        setPendingSoulId(nextId);
+        setReplaceModalOpen(true);
+        return;
+      }
+      applySoulSelection(nextId);
+    },
+    [applySoulSelection, hasChanges],
+  );
+
+  const saveFile = useCallback(async (
+    mode: "file_only" | "update_template" | "new_template",
+    createTemplateName?: string,
+  ) => {
+    if (!selectedBot) return false;
     setSaving(true);
     try {
+      if (activeFile === "SOUL.md") {
+        const content = editor.trim();
+        if (!content) {
+          onToast(t("SOUL.md is empty"));
+          return false;
+        }
+        if (mode === "update_template") {
+          if (!sourceSoulTemplate) {
+            onToast(t("No template selected to update"));
+            return false;
+          }
+          const tplRes = await fetch(
+            apiUrl(`/api/v1/tutorbot/souls/${sourceSoulTemplate.id}`),
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: sourceSoulTemplate.name,
+                content: editor,
+              }),
+            },
+          );
+          if (!tplRes.ok) {
+            onToast(t("Failed to update soul template"));
+            return false;
+          }
+          await onReloadSouls();
+          setSelectedSoulId(sourceSoulTemplate.id);
+          setSourceSoulId(sourceSoulTemplate.id);
+        } else if (mode === "new_template") {
+          const rawName = (createTemplateName ?? "").trim();
+          if (!rawName) {
+            onToast(t("Template name is required"));
+            return false;
+          }
+          const baseId = rawName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "");
+          if (!baseId) {
+            onToast(t("Please choose a name with letters or numbers"));
+            return false;
+          }
+          const existing = new Set(souls.map((s) => s.id));
+          let soulId = baseId;
+          let n = 2;
+          while (existing.has(soulId)) {
+            soulId = `${baseId}-${n}`;
+            n += 1;
+          }
+          const tplRes = await fetch(apiUrl("/api/v1/tutorbot/souls"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: soulId,
+              name: rawName,
+              content: editor,
+            }),
+          });
+          if (tplRes.status === 409) {
+            onToast(t("A soul with this id already exists, try another name"));
+            return false;
+          }
+          if (!tplRes.ok) {
+            onToast(t("Failed to save soul template"));
+            return false;
+          }
+          await onReloadSouls();
+          setSelectedSoulId(soulId);
+          setSourceSoulId(soulId);
+        }
+      }
+
       const res = await fetch(
         apiUrl(`/api/v1/tutorbot/${selectedBot}/files/${activeFile}`),
         {
@@ -1236,21 +1402,58 @@ function ProfilesTab({
       );
       if (res.ok) {
         setFiles((prev) => ({ ...prev, [activeFile]: editor }));
+        if (activeFile === "SOUL.md") {
+          const personaRes = await fetch(apiUrl(`/api/v1/tutorbot/${selectedBot}`), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ persona: editor }),
+          });
+          if (!personaRes.ok) {
+            onToast(t("SOUL.md saved, but persona sync failed"));
+            return false;
+          }
+        }
         onToast(`${activeFile} saved`);
+        return true;
       }
+      return false;
     } finally {
       setSaving(false);
     }
-  }, [selectedBot, activeFile, editor, onToast]);
+  }, [
+    selectedBot,
+    activeFile,
+    editor,
+    onToast,
+    onReloadSouls,
+    sourceSoulTemplate,
+    souls,
+    t,
+  ]);
+
+  const handleSaveClick = useCallback(() => {
+    if (activeFile !== "SOUL.md") {
+      void saveFile("file_only");
+      return;
+    }
+    setSaveMode(sourceSoulTemplate ? "update_template" : "file_only");
+    setNewTemplateName(`${selectedBot || "custom"} soul`);
+    setSaveModalOpen(true);
+  }, [activeFile, saveFile, selectedBot, sourceSoulTemplate]);
+
+  const handleConfirmSave = useCallback(async () => {
+    const ok = await saveFile(saveMode, newTemplateName);
+    if (ok) setSaveModalOpen(false);
+  }, [newTemplateName, saveFile, saveMode]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        void saveFile();
+        handleSaveClick();
       }
     },
-    [saveFile],
+    [handleSaveClick],
   );
 
   if (loading) {
@@ -1316,7 +1519,7 @@ function ProfilesTab({
 
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {(["edit", "preview"] as const).map((v) => (
             <button
               key={v}
@@ -1330,11 +1533,43 @@ function ProfilesTab({
               {v === "edit" ? t("Edit") : t("Preview")}
             </button>
           ))}
+          {activeFile === "SOUL.md" && (
+            <>
+              <select
+                value={selectedSoulId}
+                onChange={(e) => handleSoulSelect(e.target.value)}
+                className="rounded-lg border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-[12px] text-[var(--foreground)] outline-none focus:border-[var(--ring)]"
+              >
+                <option value="_custom">{t("Custom")}</option>
+                {souls.map((soul) => (
+                  <option key={soul.id} value={soul.id}>
+                    {soul.name}
+                  </option>
+                ))}
+              </select>
+              {activeSoulTemplate && (
+                <span className="text-[11px] text-[var(--muted-foreground)]/70">
+                  {hasChanges
+                    ? t('Editing template "{{name}}"', { name: activeSoulTemplate.name })
+                    : t('Using "{{name}}"', { name: activeSoulTemplate.name })}
+                </span>
+              )}
+              {!activeSoulTemplate && (
+                <span className="text-[11px] text-[var(--muted-foreground)]/70">
+                  {t("Custom soul")}
+                </span>
+              )}
+            </>
+          )}
         </div>
         <button
-          onClick={saveFile}
+          onClick={handleSaveClick}
           disabled={saving || !hasChanges}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40 ${
+            hasChanges
+              ? "bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90"
+              : "border border-[var(--border)]/50 text-[var(--muted-foreground)]"
+          }`}
         >
           {saving ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1354,7 +1589,10 @@ function ProfilesTab({
         <div>
           <textarea
             value={editor}
-            onChange={(e) => setEditor(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setEditor(next);
+            }}
             onKeyDown={handleKeyDown}
             spellCheck={false}
             className="min-h-[420px] w-full resize-none rounded-xl border border-[var(--border)] bg-transparent px-5 py-4 font-mono text-[13px] leading-7 text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
@@ -1381,6 +1619,132 @@ function ProfilesTab({
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
             {t("Switch to Edit to add content.")}
           </p>
+        </div>
+      )}
+      {saveModalOpen && activeFile === "SOUL.md" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--background)] p-5 shadow-xl">
+            <h3 className="text-[15px] font-medium text-[var(--foreground)]">
+              {t("Save SOUL.md")}
+            </h3>
+            <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
+              {t(
+                "Choose whether to only save this bot profile, overwrite the selected template, or save your edits as a new template.",
+              )}
+            </p>
+
+            <div className="mt-4 space-y-2">
+              <label className="flex items-center gap-2 text-[12px] text-[var(--foreground)]">
+                <input
+                  type="radio"
+                  name="save-mode"
+                  checked={saveMode === "file_only"}
+                  onChange={() => setSaveMode("file_only")}
+                />
+                {t("Save profile only")}
+              </label>
+              {sourceSoulTemplate && (
+                <label className="flex items-center gap-2 text-[12px] text-[var(--foreground)]">
+                  <input
+                    type="radio"
+                    name="save-mode"
+                    checked={saveMode === "update_template"}
+                    onChange={() => setSaveMode("update_template")}
+                  />
+                  {t('Save and overwrite template "{{name}}"', {
+                    name: sourceSoulTemplate.name,
+                  })}
+                </label>
+              )}
+              <label className="flex items-center gap-2 text-[12px] text-[var(--foreground)]">
+                <input
+                  type="radio"
+                  name="save-mode"
+                  checked={saveMode === "new_template"}
+                  onChange={() => setSaveMode("new_template")}
+                />
+                {t("Save and create new template")}
+              </label>
+            </div>
+
+            {saveMode === "new_template" && (
+              <div className="mt-4">
+                <label className="mb-1 block text-[12px] font-medium text-[var(--muted-foreground)]">
+                  {t("Template name")}
+                </label>
+                <input
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  placeholder={t("e.g. IELTS Mentor")}
+                  className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
+                />
+              </div>
+            )}
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setSaveModalOpen(false)}
+                disabled={saving}
+                className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-40"
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                onClick={handleConfirmSave}
+                disabled={
+                  saving ||
+                  (saveMode === "new_template" && !newTemplateName.trim())
+                }
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                {saving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Save className="h-3 w-3" />
+                )}
+                {saveMode === "update_template"
+                  ? t("Save and overwrite")
+                  : saveMode === "new_template"
+                    ? t("Save and create")
+                    : t("Save profile")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {replaceModalOpen && activeFile === "SOUL.md" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--background)] p-5 shadow-xl">
+            <h3 className="text-[15px] font-medium text-[var(--foreground)]">
+              {t("Replace SOUL.md content?")}
+            </h3>
+            <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
+              {t(
+                "You have unsaved changes. Switching templates will replace the current editor content.",
+              )}
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => {
+                  setReplaceModalOpen(false);
+                  setPendingSoulId(null);
+                }}
+                className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingSoulId) applySoulSelection(pendingSoulId);
+                  setReplaceModalOpen(false);
+                  setPendingSoulId(null);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90"
+              >
+                {t("Replace")}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

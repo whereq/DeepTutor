@@ -23,6 +23,9 @@ except ImportError:
 else:
     _repair_json_fn = _repair_json_import
 
+# Keep a public alias so tests and callers can patch the repair hook directly.
+repair_json = _repair_json_fn
+
 logger = logging.getLogger(__name__)
 
 _UNSET = object()
@@ -82,14 +85,14 @@ def parse_json_response(
         log.debug(f"Direct JSON parse failed: {parse_error}")
 
     # Strategy 2: Try json-repair if available
-    if _repair_json_fn is None:
+    if repair_json is None:
         log.warning("json-repair library not installed, cannot repair malformed JSON")
         log.debug(f"Response: {extracted_response[:200]}")
         return fallback
 
     try:
         log.debug("Attempting JSON repair")
-        repaired = _repair_json_fn(extracted_response)
+        repaired = repair_json(extracted_response)
         result = json.loads(repaired)
         log.info("Successfully repaired malformed JSON")
         return result

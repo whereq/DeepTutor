@@ -17,7 +17,7 @@ import {
   type NotebookSummary as RealNotebookSummary,
 } from "@/lib/notebook-api";
 
-type RecordType = "solve" | "question" | "research" | "chat";
+type RecordType = "solve" | "question" | "research" | "chat" | "co_writer";
 
 export interface NotebookSavePayload {
   recordType: RecordType;

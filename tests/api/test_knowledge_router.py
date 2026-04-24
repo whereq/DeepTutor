@@ -78,6 +78,10 @@ def _upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
     return [("files", ("demo.txt", b"hello", "text/plain"))]
 
 
+def _invalid_upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
+    return [("files", ("archive.zip", b"PK\x03\x04", "application/zip"))]
+
+
 def test_rag_providers_returns_llamaindex_only() -> None:
     with TestClient(_build_app()) as client:
         response = client.get("/api/v1/knowledge/rag-providers")
@@ -93,6 +97,18 @@ def test_rag_providers_returns_llamaindex_only() -> None:
             }
         ]
     }
+
+
+def test_supported_file_types_returns_upload_policy() -> None:
+    with TestClient(_build_app()) as client:
+        response = client.get("/api/v1/knowledge/supported-file-types")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert ".pdf" in payload["extensions"]
+    assert ".md" in payload["extensions"]
+    assert payload["max_file_size_bytes"] > payload["max_pdf_size_bytes"] > 0
+    assert ".pdf" in payload["accept"]
 
 
 def test_create_kb_does_not_require_llm_precheck(monkeypatch, tmp_path: Path) -> None:
@@ -147,6 +163,25 @@ def test_create_coerces_legacy_provider_to_llamaindex(monkeypatch, tmp_path: Pat
 
     assert response.status_code == 200
     assert manager.config["knowledge_bases"]["kb-legacy"]["rag_provider"] == "llamaindex"
+
+
+def test_create_rejects_invalid_files_before_registering_kb(
+    monkeypatch, tmp_path: Path
+) -> None:
+    manager = _FakeKBManager(tmp_path / "knowledge_bases")
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
+
+    with TestClient(_build_app()) as client:
+        response = client.post(
+            "/api/v1/knowledge/create",
+            data={"name": "kb-invalid", "rag_provider": "llamaindex"},
+            files=_invalid_upload_payload(),
+        )
+
+    assert response.status_code == 400
+    assert "unsupported file type" in response.json()["detail"].lower()
+    assert "kb-invalid" not in manager.config["knowledge_bases"]
 
 
 def test_upload_returns_409_when_kb_needs_reindex(monkeypatch, tmp_path: Path) -> None:

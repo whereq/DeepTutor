@@ -7,6 +7,8 @@ export interface KnowledgeBaseSummary {
   name: string;
   is_default?: boolean;
   status?: string;
+  path?: string;
+  metadata?: Record<string, unknown>;
   progress?: Record<string, unknown>;
   statistics?: Record<string, unknown>;
 }
@@ -15,6 +17,13 @@ export interface RagProviderSummary {
   id: string;
   name: string;
   description: string;
+}
+
+export interface KnowledgeUploadPolicy {
+  extensions: string[];
+  accept: string;
+  max_file_size_bytes: number;
+  max_pdf_size_bytes: number;
 }
 
 export async function listKnowledgeBases(options?: { force?: boolean }) {
@@ -46,6 +55,36 @@ export async function listRagProviders(options?: { force?: boolean }) {
       });
       const data = await response.json();
       return Array.isArray(data?.providers) ? data.providers : [];
+    },
+    {
+      force: options?.force,
+    },
+  );
+}
+
+export async function getKnowledgeUploadPolicy(options?: { force?: boolean }) {
+  return withClientCache<KnowledgeUploadPolicy>(
+    `${KNOWLEDGE_CACHE_PREFIX}upload-policy`,
+    async () => {
+      const response = await fetch(
+        apiUrl("/api/v1/knowledge/supported-file-types"),
+        {
+          cache: "no-store",
+        },
+      );
+      const data = await response.json();
+      return {
+        extensions: Array.isArray(data?.extensions) ? data.extensions : [],
+        accept: typeof data?.accept === "string" ? data.accept : "",
+        max_file_size_bytes:
+          typeof data?.max_file_size_bytes === "number"
+            ? data.max_file_size_bytes
+            : 100 * 1024 * 1024,
+        max_pdf_size_bytes:
+          typeof data?.max_pdf_size_bytes === "number"
+            ? data.max_pdf_size_bytes
+            : 50 * 1024 * 1024,
+      };
     },
     {
       force: options?.force,

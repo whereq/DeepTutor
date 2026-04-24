@@ -127,19 +127,32 @@ class TestContextBuildResult:
 
 
 class TestContextBuilderBudgets:
-    def _make_llm_config(self, max_tokens: int) -> MagicMock:
+    def _make_llm_config(
+        self,
+        max_tokens: int,
+        *,
+        model: str = "test-model",
+        context_window: int | None = None,
+    ) -> MagicMock:
         cfg = MagicMock()
         cfg.max_tokens = max_tokens
+        cfg.model = model
+        cfg.context_window = context_window
         return cfg
 
-    def test_history_budget_ratio(self) -> None:
+    def test_history_budget_uses_explicit_context_window(self) -> None:
         builder = ContextBuilder(store=MagicMock(), history_budget_ratio=0.35)
-        budget = builder._history_budget(self._make_llm_config(4096))
-        assert budget == int(4096 * 0.35)
+        budget = builder._history_budget(self._make_llm_config(4096, context_window=128000))
+        assert budget == int(65536 * 0.35)
+
+    def test_history_budget_uses_large_context_model_heuristic(self) -> None:
+        builder = ContextBuilder(store=MagicMock(), history_budget_ratio=0.35)
+        budget = builder._history_budget(self._make_llm_config(4096, model="gpt-4o-mini"))
+        assert budget == int(65536 * 0.35)
 
     def test_history_budget_minimum(self) -> None:
         builder = ContextBuilder(store=MagicMock(), history_budget_ratio=0.01)
-        budget = builder._history_budget(self._make_llm_config(100))
+        budget = builder._history_budget(self._make_llm_config(100, model="unknown-local-model"))
         assert budget >= 256
 
     def test_summary_budget(self) -> None:
@@ -282,3 +295,33 @@ class TestContextBuilderBuild:
         assert len(result.conversation_history) == 2
         assert result.events == []
         assert result.token_count > 0
+
+    @pytest.mark.asyncio
+    async def test_large_context_model_avoids_premature_summarize(self) -> None:
+        long_user = "user says " + ("alpha " * 1400)
+        long_assistant = "assistant says " + ("beta " * 1400)
+        store = AsyncMock()
+        store.get_session = AsyncMock(
+            return_value={
+                "id": "s1",
+                "compressed_summary": "",
+                "summary_up_to_msg_id": 0,
+            }
+        )
+        store.get_messages_for_context = AsyncMock(
+            return_value=[
+                {"id": 1, "role": "user", "content": long_user},
+                {"id": 2, "role": "assistant", "content": long_assistant},
+            ]
+        )
+
+        builder = ContextBuilder(store=store)
+        cfg = MagicMock()
+        cfg.max_tokens = 4096
+        cfg.model = "gpt-4o-mini"
+        cfg.context_window = None
+
+        result = await builder.build(session_id="s1", llm_config=cfg)
+        assert len(result.conversation_history) == 2
+        assert result.events == []
+        store.update_summary.assert_not_called()

@@ -34,6 +34,11 @@ import {
   extractBase64FromDataUrl,
   readFileAsDataUrl,
 } from "@/lib/file-attachments";
+import {
+  classifyFile,
+  MAX_ATTACHMENT_BYTES,
+  MAX_TOTAL_ATTACHMENT_BYTES,
+} from "@/lib/doc-attachments";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import {
@@ -208,6 +213,8 @@ interface PendingAttachment {
   filename: string;
   base64?: string;
   previewUrl?: string;
+  size?: number;
+  mimeType?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -245,6 +252,8 @@ export default function ChatPage() {
     useState<CapabilityPlaygroundConfigMap>({});
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const attachmentErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [capMenuOpen, setCapMenuOpen] = useState(false);
   const [quizConfig, setQuizConfig] = useState<DeepQuestionFormConfig>({
     ...DEFAULT_QUIZ_CONFIG,
@@ -282,7 +291,7 @@ export default function ChatPage() {
   >([]);
   const [availableSkills, setAvailableSkills] = useState<SkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [skillsAutoMode, setSkillsAutoMode] = useState(true);
+  const [skillsAutoMode, setSkillsAutoMode] = useState(false);
   const dragCounter = useRef(0);
   const capMenuRef = useRef<HTMLDivElement>(null);
   const capBtnRef = useRef<HTMLButtonElement>(null);
@@ -652,6 +661,8 @@ export default function ChatPage() {
               filename: f.name,
               base64: b64,
               previewUrl: isImage ? raw : undefined,
+              size: f.size,
+              mimeType: f.type || undefined,
             });
           })
           .catch(reject);
@@ -659,19 +670,73 @@ export default function ChatPage() {
     [],
   );
 
+  const showAttachmentError = useCallback((message: string) => {
+    setAttachmentError(message);
+    if (attachmentErrorTimer.current) {
+      clearTimeout(attachmentErrorTimer.current);
+    }
+    attachmentErrorTimer.current = setTimeout(() => {
+      setAttachmentError(null);
+      attachmentErrorTimer.current = null;
+    }, 4000);
+  }, []);
+
+  const filterAndReportFiles = useCallback(
+    (files: File[]): File[] => {
+      let runningTotal = attachments.reduce((s, a) => s + (a.size ?? 0), 0);
+      const accepted: File[] = [];
+      const rejected: {
+        name: string;
+        reason: "unsupported" | "too_large" | "quota";
+      }[] = [];
+      for (const f of files) {
+        const kind = classifyFile(f);
+        if (!kind) {
+          rejected.push({ name: f.name, reason: "unsupported" });
+          continue;
+        }
+        if (f.size > MAX_ATTACHMENT_BYTES) {
+          rejected.push({ name: f.name, reason: "too_large" });
+          continue;
+        }
+        if (runningTotal + f.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+          rejected.push({ name: f.name, reason: "quota" });
+          break;
+        }
+        runningTotal += f.size;
+        accepted.push(f);
+      }
+      if (rejected.length) {
+        const first = rejected[0];
+        let msg: string;
+        if (first.reason === "too_large") {
+          msg = t("File too large: {{name}}", { name: first.name });
+        } else if (first.reason === "quota") {
+          msg = t("Too many files, skipped some");
+        } else {
+          msg = t("Unsupported file type: {{name}}", { name: first.name });
+        }
+        showAttachmentError(msg);
+      }
+      return accepted;
+    },
+    [attachments, showAttachmentError, t],
+  );
+
   const handlePaste = useCallback(
     async (event: React.ClipboardEvent) => {
       const items = Array.from(event.clipboardData.items);
-      const imageFiles = items
-        .filter((item) => item.type.startsWith("image/"))
+      const files = items
+        .filter((item) => item.kind === "file")
         .map((item) => item.getAsFile())
         .filter((f): f is File => f !== null);
-      if (!imageFiles.length) return;
+      const accepted = filterAndReportFiles(files);
+      if (!accepted.length) return;
       event.preventDefault();
-      const next = await Promise.all(imageFiles.map(fileToAttachment));
+      const next = await Promise.all(accepted.map(fileToAttachment));
       setAttachments((prev) => [...prev, ...next]);
     },
-    [fileToAttachment],
+    [fileToAttachment, filterAndReportFiles],
   );
 
   const removeAttachment = useCallback((index: number) => {
@@ -703,14 +768,22 @@ export default function ChatPage() {
       e.stopPropagation();
       setDragging(false);
       dragCounter.current = 0;
-      const files = Array.from(e.dataTransfer.files).filter((f) =>
-        f.type.startsWith("image/"),
-      );
-      if (!files.length) return;
-      const next = await Promise.all(files.map(fileToAttachment));
+      const accepted = filterAndReportFiles(Array.from(e.dataTransfer.files));
+      if (!accepted.length) return;
+      const next = await Promise.all(accepted.map(fileToAttachment));
       setAttachments((prev) => [...prev, ...next]);
     },
-    [fileToAttachment],
+    [fileToAttachment, filterAndReportFiles],
+  );
+
+  const handleAddFiles = useCallback(
+    async (files: File[]) => {
+      const accepted = filterAndReportFiles(files);
+      if (!accepted.length) return;
+      const next = await Promise.all(accepted.map(fileToAttachment));
+      setAttachments((prev) => [...prev, ...next]);
+    },
+    [fileToAttachment, filterAndReportFiles],
   );
 
   const handleSend = useCallback(
@@ -729,6 +802,7 @@ export default function ChatPage() {
         type: a.type,
         filename: a.filename,
         base64: a.base64,
+        mime_type: a.mimeType,
       }));
       let config: Record<string, unknown> | undefined;
 
@@ -740,7 +814,12 @@ export default function ChatPage() {
           );
           extraAttachments = [
             ...extraAttachments,
-            { type: "pdf", filename: quizPdf.name, base64: b64 },
+            {
+              type: "pdf",
+              filename: quizPdf.name,
+              base64: b64,
+              mime_type: "application/pdf",
+            },
           ];
         }
       }
@@ -1005,6 +1084,7 @@ export default function ChatPage() {
           skillMenuOpen={skillMenuOpen}
           hasMessages={hasMessages}
           attachments={attachments}
+          attachmentError={attachmentError}
           activeCap={activeCap}
           visibleTools={visibleTools}
           selectedTools={selectedTools}
@@ -1054,6 +1134,7 @@ export default function ChatPage() {
           onDragOver={handleDragOver}
           onDrop={handleDrop}
           onPaste={handlePaste}
+          onAddFiles={handleAddFiles}
           onSelectCapability={handleSelectCapability}
           onCancelStreaming={cancelStreamingTurn}
           onChangeQuizConfig={setQuizConfig}

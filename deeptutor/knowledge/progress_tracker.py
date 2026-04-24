@@ -124,6 +124,18 @@ class ProgressTracker:
         except Exception as e:
             _get_logger().warning("Failed to save progress to kb_config.json: %s", e)
 
+        # Persist the last seen progress snapshot so websocket subscribers and
+        # page reloads can recover the live state without relying on in-memory callbacks.
+        try:
+            self.kb_dir.mkdir(parents=True, exist_ok=True)
+            temp_progress_file = self.progress_file.parent / f"{self.progress_file.name}.tmp"
+            with open(temp_progress_file, "w", encoding="utf-8") as f:
+                json.dump(progress, f, indent=2, ensure_ascii=False)
+                f.flush()
+            temp_progress_file.replace(self.progress_file)
+        except Exception as e:
+            _get_logger().warning("Failed to persist progress snapshot for '%s': %s", self.kb_name, e)
+
     def update(
         self,
         stage: ProgressStage,
@@ -184,19 +196,41 @@ class ProgressTracker:
                 fallback_logger.error("%s [ProgressTracker] Error: %s", prefix, error)
 
         self._save_progress(progress)
+
+        if self.task_id:
+            try:
+                from deeptutor.api.utils.task_log_stream import get_task_stream_manager
+
+                get_task_stream_manager().emit(self.task_id, "progress", progress)
+            except Exception as e:
+                _get_logger().debug("Failed to emit task progress event: %s", e)
+
         self._notify(progress)
 
     def get_progress(self) -> dict | None:
         """Get current progress"""
-        if not self.progress_file.exists():
-            return None
+        if self.progress_file.exists():
+            try:
+                with open(self.progress_file, encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                _get_logger().debug(f"Failed to read progress file for '{self.kb_name}': {e}")
 
         try:
-            with open(self.progress_file, encoding="utf-8") as f:
-                return json.load(f)
+            from deeptutor.knowledge.manager import KnowledgeBaseManager
+
+            manager = KnowledgeBaseManager(base_dir=str(self.base_dir))
+            status = manager.get_kb_status(self.kb_name)
+            if status and status.get("progress"):
+                return status.get("progress")
         except Exception as e:
-            _get_logger().debug(f"Failed to read progress file for '{self.kb_name}': {e}")
-            return None
+            _get_logger().debug(
+                "Failed to recover progress snapshot from kb_config for '%s': %s",
+                self.kb_name,
+                e,
+            )
+
+        return None
 
     def clear(self):
         """Clear progress file"""

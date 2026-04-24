@@ -199,7 +199,7 @@ EMBEDDING_DIMENSION=3072
 | LM Studio | `lm_studio` | `http://localhost:1234/v1` |
 | MiniMax | `minimax` | `https://api.minimax.io/v1` |
 | Mistral | `mistral` | `https://api.mistral.ai/v1` |
-| Moonshot (Kimi) | `moonshot` | `https://api.moonshot.ai/v1` |
+| Moonshot (Kimi) | `moonshot` | `https://api.moonshot.cn/v1` |
 | Ollama | `ollama` | `http://localhost:11434/v1` |
 | OpenAI | `openai` | `https://api.openai.com/v1` |
 | OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |

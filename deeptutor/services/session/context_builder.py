@@ -11,6 +11,7 @@ from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.trace import build_trace_metadata, merge_trace_metadata, new_call_id
 from deeptutor.services.llm.config import LLMConfig
+from deeptutor.services.llm.context_window import resolve_effective_context_window
 
 from .sqlite_store import SQLiteSessionStore
 
@@ -97,9 +98,16 @@ class ContextBuilder:
         self.history_budget_ratio = history_budget_ratio
         self.summary_target_ratio = summary_target_ratio
 
+    def _effective_context_window(self, llm_config: LLMConfig) -> int:
+        return resolve_effective_context_window(
+            context_window=getattr(llm_config, "context_window", None),
+            model=str(getattr(llm_config, "model", "") or ""),
+            max_tokens=getattr(llm_config, "max_tokens", None),
+        )
+
     def _history_budget(self, llm_config: LLMConfig) -> int:
-        configured = int(getattr(llm_config, "max_tokens", 4096) or 4096)
-        return max(256, int(configured * self.history_budget_ratio))
+        effective_context_window = self._effective_context_window(llm_config)
+        return max(256, int(effective_context_window * self.history_budget_ratio))
 
     def _summary_budget(self, budget: int) -> int:
         return max(96, int(budget * self.summary_target_ratio))

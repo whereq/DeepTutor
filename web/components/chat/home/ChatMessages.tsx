@@ -19,6 +19,7 @@ import type { SelectedHistorySession } from "@/components/chat/HistorySessionPic
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import AssistantResponse from "@/components/common/AssistantResponse";
 import type { MessageRequestSnapshot } from "@/context/UnifiedChatContext";
+import { docIconFor } from "@/lib/doc-attachments";
 import { extractMathAnimatorResult } from "@/lib/math-animator-types";
 import { extractQuizQuestions } from "@/lib/quiz-types";
 import { extractVisualizeResult } from "@/lib/visualize-types";
@@ -51,6 +52,7 @@ interface ChatMessageItem {
     type: string;
     filename?: string;
     base64?: string;
+    mime_type?: string;
   }>;
   requestSnapshot?: MessageRequestSnapshot;
 }
@@ -318,6 +320,61 @@ const UserMessage = memo(function UserMessage({
                   />
                 </div>
               ))}
+          </div>
+        )}
+        {msg.attachments?.some((a) => a.type !== "image") && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {msg.attachments
+              .filter((a) => a.type !== "image")
+              .map((a, ai) => {
+                const filename = a.filename || t("Attachment");
+                const spec = docIconFor(filename);
+                const Icon = spec.Icon;
+                const href =
+                  a.base64 && a.mime_type
+                    ? `data:${a.mime_type};base64,${a.base64}`
+                    : null;
+                const cardClass =
+                  "flex h-14 w-[220px] items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-2.5 shadow-sm transition-colors hover:border-[var(--border)]/80";
+                const inner = (
+                  <>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[var(--muted)]/60">
+                      <Icon
+                        size={20}
+                        strokeWidth={1.5}
+                        className={spec.tint}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1 text-left">
+                      <div className="truncate text-[12px] font-medium text-[var(--foreground)]">
+                        {filename}
+                      </div>
+                      <div className="truncate text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
+                        {spec.label}
+                      </div>
+                    </div>
+                  </>
+                );
+                return href ? (
+                  <a
+                    key={`doc-${ai}`}
+                    href={href}
+                    download={filename}
+                    title={filename}
+                    className={cardClass}
+                  >
+                    {inner}
+                  </a>
+                ) : (
+                  <div
+                    key={`doc-${ai}`}
+                    title={filename}
+                    className={cardClass}
+                  >
+                    {inner}
+                  </div>
+                );
+              })}
           </div>
         )}
         <div className="rounded-2xl bg-[var(--secondary)] px-4 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] shadow-sm">

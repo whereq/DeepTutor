@@ -28,6 +28,8 @@
 
 ### 📦 Releases
 
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — Document attachments in chat (PDF/DOCX/XLSX/PPTX), reasoning model thinking-block display, tri-state embedding `send_dimensions` toggle, LLM provider core refactor, Soul template editor, Co-Writer save-to-notebook, Knowledge Base drag-and-drop upload & delete resilience, and question generation language fidelity.
+
 > **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — User-authored Skills system (CRUD + chat integration), chat input performance overhaul with state colocation, `response_format` auto-fallback for incompatible providers, LAN remote access fix, sidebar version badge, Deep Solve image attachments, TutorBot WebSocket auto-start, Book Library UI, and visualization fullscreen mode.
 
 > **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — Per-stage chat token limits in `agents.yaml` (8000-token responses), Regenerate last response across CLI / WebSocket / Web UI, RAG `None`-embedding crash fix, Gemma `json_object` compatibility, and dark code-block readability.
@@ -115,7 +117,7 @@ You'll also need an **API key** from at least one LLM provider (e.g. [OpenAI](ht
 
 ### Option A — Setup Tour (Recommended)
 
-A **single interactive script** that walks you through everything: dependency installation, environment configuration, live connection testing, and launch. No manual `.env` editing needed.
+A **single interactive CLI script** that walks you through local configuration: language selection, ports, LLM, embedding, and optional search. The wizard writes everything directly into `.env`, so no manual env editing is needed.
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
@@ -130,12 +132,18 @@ python -m venv .venv && .venv\Scripts\activate                       # otherwise
 python scripts/start_tour.py
 ```
 
-The tour asks how you'd like to use DeepTutor:
+The setup tour:
 
-- **Web mode** (recommended) — Installs all dependencies (pip + npm), spins up a temporary server, and opens the **Settings** page in your browser. A four-step guided tour walks you through LLM, Embedding, and Search provider setup with live connection testing. Once complete, DeepTutor restarts automatically with your configuration.
-- **CLI mode** — A fully interactive terminal flow: choose a dependency profile, install dependencies, configure providers, verify connections, and apply — all without leaving the shell.
+- automatically creates `.env` from `.env.example` if needed
+- lets you choose the UI language first
+- walks through backend/frontend ports plus LLM, embedding, and search settings
+- writes the final values directly into `.env`
 
-Either way, you end up with a running DeepTutor at [http://localhost:3782](http://localhost:3782).
+Once the wizard finishes, start DeepTutor with:
+
+```bash
+python scripts/start_web.py
+```
 
 > **Daily launch** — The tour is only needed once. From now on, start DeepTutor with:
 >
@@ -143,7 +151,7 @@ Either way, you end up with a running DeepTutor at [http://localhost:3782](http:
 > python scripts/start_web.py
 > ```
 >
-> This boots both the backend and frontend in one command and opens the browser automatically. Re-run `start_tour.py` only if you need to reconfigure providers or reinstall dependencies.
+> This boots both the backend and frontend in one command and prints the frontend URL in the terminal. Re-run `start_tour.py` only if you need to reconfigure providers. Inside the web Settings page, you can also click **Run Tour** to replay the highlight-based UI walkthrough.
 
 ### Option B — Manual Local Install
 
@@ -198,30 +206,32 @@ EMBEDDING_DIMENSION=3072
 | Azure OpenAI | `azure_openai` | — |
 | BytePlus | `byteplus` | `https://ark.ap-southeast.bytepluses.com/api/v3` |
 | BytePlus Coding Plan | `byteplus_coding_plan` | `https://ark.ap-southeast.bytepluses.com/api/coding/v3` |
-| Custom (OpenAI-compat) | `custom` | — |
-| DashScope (Qwen) | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| Custom | `custom` | — |
+| Custom (Anthropic API) | `custom_anthropic` | — |
+| DashScope | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | DeepSeek | `deepseek` | `https://api.deepseek.com` |
 | Gemini | `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | GitHub Copilot | `github_copilot` | `https://api.githubcopilot.com` |
 | Groq | `groq` | `https://api.groq.com/openai/v1` |
 | llama.cpp | `llama_cpp` | `http://localhost:8080/v1` |
 | LM Studio | `lm_studio` | `http://localhost:1234/v1` |
-| MiniMax | `minimax` | `https://api.minimax.io/v1` |
+| MiniMax | `minimax` | `https://api.minimaxi.com/v1` |
+| MiniMax (Anthropic) | `minimax_anthropic` | `https://api.minimaxi.com/anthropic` |
 | Mistral | `mistral` | `https://api.mistral.ai/v1` |
-| Moonshot (Kimi) | `moonshot` | `https://api.moonshot.ai/v1` |
+| Moonshot | `moonshot` | `https://api.moonshot.cn/v1` |
 | Ollama | `ollama` | `http://localhost:11434/v1` |
 | OpenAI | `openai` | `https://api.openai.com/v1` |
 | OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
 | OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
 | OpenVINO Model Server | `ovms` | `http://localhost:8000/v3` |
-| Qianfan (Ernie) | `qianfan` | `https://qianfan.baidubce.com/v2` |
+| Qianfan | `qianfan` | `https://qianfan.baidubce.com/v2` |
 | SiliconFlow | `siliconflow` | `https://api.siliconflow.cn/v1` |
 | Step Fun | `stepfun` | `https://api.stepfun.com/v1` |
-| vLLM | `vllm` | `http://localhost:8000/v1` |
+| vLLM/Local | `vllm` | — |
 | VolcEngine | `volcengine` | `https://ark.cn-beijing.volces.com/api/v3` |
 | VolcEngine Coding Plan | `volcengine_coding_plan` | `https://ark.cn-beijing.volces.com/api/coding/v3` |
 | Xiaomi MIMO | `xiaomi_mimo` | `https://api.xiaomimimo.com/v1` |
-| Zhipu AI (GLM) | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
+| Zhipu AI | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
 
 </details>
 

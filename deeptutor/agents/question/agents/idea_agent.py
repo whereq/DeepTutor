@@ -11,6 +11,7 @@ from typing import Any
 from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.agents.question.models import QuestionTemplate
 from deeptutor.core.trace import build_trace_metadata, new_call_id
+from deeptutor.services.prompt.language import append_language_directive
 from deeptutor.tools.rag_tool import rag_search
 from deeptutor.utils.json_parser import parse_json_response
 
@@ -177,7 +178,10 @@ class IdeaAgent(BaseAgent):
         trace_id: str = "ideation",
         batch_number: int | None = None,
     ) -> list[QuestionTemplate]:
-        system_prompt = self.get_prompt("system", "")
+        system_prompt = append_language_directive(
+            self.get_prompt("system", ""),
+            self.language,
+        )
         idea_prompt = self.get_prompt("generate_ideas", "")
         if not idea_prompt:
             idea_prompt = (
@@ -211,7 +215,7 @@ class IdeaAgent(BaseAgent):
             _chunks: list[str] = []
             async for _c in self.stream_llm(
                 user_prompt=user_prompt,
-                system_prompt=system_prompt or "",
+                system_prompt=system_prompt,
                 response_format={"type": "json_object"},
                 stage="idea_generate_templates",
                 trace_meta=build_trace_metadata(

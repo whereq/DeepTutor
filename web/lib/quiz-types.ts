@@ -2,6 +2,8 @@
  * Shared types for Quiz Generation (deep_question capability).
  */
 
+import { normalizeQuizQuestionType } from "./quiz-question-type";
+
 export type DeepQuestionMode = "custom" | "mimic";
 
 export interface DeepQuestionFormConfig {
@@ -72,8 +74,7 @@ export function extractQuizQuestions(
     const question: QuizQuestion = {
       question_id: String(qa.question_id ?? ""),
       question: String(qa.question ?? ""),
-      question_type:
-        (qa.question_type as QuizQuestion["question_type"]) ?? "written",
+      question_type: normalizeQuizQuestionType(qa.question_type),
       options: qa.options as Record<string, string> | undefined,
       correct_answer: String(qa.correct_answer ?? ""),
       explanation: String(qa.explanation ?? ""),
