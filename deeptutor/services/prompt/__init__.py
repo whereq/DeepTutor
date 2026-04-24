@@ -17,9 +17,19 @@ Usage:
     system_prompt = pm.get_prompt(prompts, "system", "base")
 """
 
+from .language import (
+    append_language_directive,
+    language_directive,
+    language_label,
+    normalize_language,
+)
 from .manager import PromptManager, get_prompt_manager
 
 __all__ = [
     "PromptManager",
+    "append_language_directive",
     "get_prompt_manager",
+    "language_directive",
+    "language_label",
+    "normalize_language",
 ]

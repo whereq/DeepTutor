@@ -555,7 +555,22 @@ class TurnRuntimeManager:
                     "mime_type": item.get("mime_type", ""),
                 }
                 attachment_records.append(record)
-                attachments.append(Attachment(**record))
+
+            from deeptutor.utils.document_extractor import extract_documents_from_records
+
+            document_texts, attachment_records = extract_documents_from_records(
+                attachment_records
+            )
+            attachments = [
+                Attachment(
+                    type=r.get("type", "file"),
+                    url=r.get("url", ""),
+                    base64=r.get("base64", ""),
+                    filename=r.get("filename", ""),
+                    mime_type=r.get("mime_type", ""),
+                )
+                for r in attachment_records
+            ]
 
             if followup_question_context:
                 existing_messages = await self.store.get_messages_for_context(session_id)
@@ -691,6 +706,8 @@ class TurnRuntimeManager:
 
             effective_user_message = raw_user_content
             context_parts: list[str] = []
+            if document_texts:
+                context_parts.append("[Attached Documents]\n" + "\n\n".join(document_texts))
             if notebook_context:
                 context_parts.append(f"[Notebook Context]\n{notebook_context}")
             if history_context:

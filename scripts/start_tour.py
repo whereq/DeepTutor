@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""DeepTutor Setup Tour — minimal terminal-first guided installer."""
+"""DeepTutor Setup Tour - simplified CLI configuration wizard."""
 
 from __future__ import annotations
 
@@ -11,27 +11,22 @@ import platform
 import shutil
 import subprocess
 import sys
-import time
 from typing import Any
-from uuid import uuid4
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+ENV_PATH = PROJECT_ROOT / ".env"
+ENV_EXAMPLE_PATH = PROJECT_ROOT / ".env.example"
+INTERFACE_SETTINGS_PATH = PROJECT_ROOT / "data" / "user" / "settings" / "interface.json"
+LEGACY_TOUR_CACHE_PATH = PROJECT_ROOT / "data" / "user" / "settings" / ".tour_cache.json"
+
 
 def _resolve_python() -> str:
-    """Return a validated path to the current Python interpreter.
-
-    ``sys.executable`` can be empty or point to a non-existent path on
-    some platforms (notably Windows with Python 3.14+).  This helper
-    resolves the real path first, then falls back to ``shutil.which``.
-    """
+    """Return a validated path to the current Python interpreter."""
     exe = sys.executable
     if exe:
-        # Prefer the unresolved path first — resolving symlinks can escape
-        # a virtual-env and point at the system Python, which on modern
-        # Homebrew / PEP 668 installs will refuse ``pip install``.
         if Path(exe).exists():
             return exe
         resolved = str(Path(exe).resolve())
@@ -46,13 +41,18 @@ def _resolve_python() -> str:
 
 _PYTHON: str = _resolve_python()
 
-# ---------------------------------------------------------------------------
-# Bootstrap: ensure minimum packages required to import project modules
-# ---------------------------------------------------------------------------
-
 _BOOTSTRAP_PACKAGES = [
     ("yaml", "PyYAML>=6.0"),
 ]
+
+
+def _can_import(name: str) -> bool:
+    try:
+        __import__(name)
+        return True
+    except ImportError:
+        return False
+
 
 
 def _bootstrap() -> None:
@@ -67,17 +67,8 @@ def _bootstrap() -> None:
     )
 
 
-def _can_import(name: str) -> bool:
-    try:
-        __import__(name)
-        return True
-    except ImportError:
-        return False
-
-
 _bootstrap()
 
-# ---------------------------------------------------------------------------
 
 
 def _load_runtime_deps():
@@ -97,11 +88,7 @@ def _load_runtime_deps():
         text_input,
     )
 
-    from deeptutor.services.config import (
-        get_config_test_runner,
-        get_env_store,
-        get_model_catalog_service,
-    )
+    from deeptutor.services.config import get_env_store
 
     return (
         accent,
@@ -117,9 +104,7 @@ def _load_runtime_deps():
         select,
         step,
         text_input,
-        get_config_test_runner,
         get_env_store,
-        get_model_catalog_service,
     )
 
 
@@ -137,13 +122,11 @@ def _load_runtime_deps():
     select,
     step,
     text_input,
-    get_config_test_runner,
     get_env_store,
-    get_model_catalog_service,
 ) = _load_runtime_deps()
 
 # ---------------------------------------------------------------------------
-# Constants
+# Legacy install helpers kept for compatibility and tests
 # ---------------------------------------------------------------------------
 
 PROFILE_COMMANDS: dict[str, list[str]] = {
@@ -153,7 +136,6 @@ PROFILE_COMMANDS: dict[str, list[str]] = {
     "web-rag": ["requirements/server.txt"],
 }
 
-# Legacy aliases kept for backward compatibility (hidden from UI).
 PROFILE_ALIASES: dict[str, str] = {
     "cli-rag-lite": "cli-rag",
     "cli-rag-full": "cli-rag",
@@ -161,47 +143,164 @@ PROFILE_ALIASES: dict[str, str] = {
     "web-rag-full": "web-rag",
 }
 
-CACHE_PATH = PROJECT_ROOT / "data" / "user" / "settings" / ".tour_cache.json"
 MATH_ANIMATOR_REQUIREMENTS = "requirements/math-animator.txt"
 
+
+MESSAGES: dict[str, dict[str, str]] = {
+    "en": {
+        "banner_line_1": "Configure DeepTutor from the terminal.",
+        "banner_line_2": "We will write ports and provider settings directly into .env.",
+        "env_created": "Created `.env` from `.env.example`.",
+        "env_exists": "Using existing `.env` file.",
+        "env_missing_template": "`.env.example` was not found. Creating an empty `.env` instead.",
+        "platform": "Platform",
+        "python": "Python",
+        "node": "Node",
+        "env_path": ".env",
+        "language_step": "Choose language",
+        "language_prompt": "Choose your language",
+        "language_en_desc": "Run the setup wizard in English",
+        "language_zh_desc": "Run the setup wizard in Chinese",
+        "language_saved": "Saved interface language to `{path}`.",
+        "ports_step": "Configure ports",
+        "backend_port": "Backend port",
+        "frontend_port": "Frontend port",
+        "llm_step": "Configure LLM",
+        "embedding_step": "Configure embedding",
+        "search_step": "Configure search",
+        "review_step": "Write configuration",
+        "provider_prompt": "Choose a provider",
+        "search_provider_prompt": "Choose a search provider",
+        "profile_binding": "Provider / binding",
+        "base_url": "Base URL",
+        "api_key": "API key",
+        "api_version": "API version",
+        "model_id": "Model ID",
+        "dimension": "Dimension",
+        "send_dimensions": "Send `dimensions` parameter",
+        "send_dimensions_auto": "auto",
+        "send_dimensions_yes": "yes",
+        "send_dimensions_no": "no",
+        "search_enable": "Configure web search?",
+        "search_base_url": "Search base URL",
+        "search_proxy": "Search proxy",
+        "keep_secret": "Press Enter to keep the existing secret value.",
+        "optional": "Optional",
+        "none": "None",
+        "write_confirm": "Write these settings into `.env` now?",
+        "write_success": "Updated `.env` successfully.",
+        "no_changes": "No files changed.",
+        "next_steps": "Setup complete. You can now start DeepTutor with:",
+        "next_command": "python scripts/start_web.py",
+        "summary_ports": "Ports",
+        "summary_llm": "LLM",
+        "summary_embedding": "Embedding",
+        "summary_search": "Search",
+        "search_disabled": "disabled",
+        "tour_cache_removed": "Removed legacy setup-tour cache.",
+        "interrupt": "Setup interrupted.",
+        "manual_desc": "Enter a custom provider name",
+        "custom_desc": "Any OpenAI-compatible endpoint",
+        "local_desc": "Local model endpoint",
+        "search_none_desc": "Disable web search integration",
+        "search_proxy_placeholder": "http://127.0.0.1:7890",
+        "searxng_default": "http://localhost:8080",
+    },
+    "zh": {
+        "banner_line_1": "在命令行中完成 DeepTutor 配置。",
+        "banner_line_2": "我们会把端口和提供商配置直接写入 .env。",
+        "env_created": "已根据 `.env.example` 创建 `.env`。",
+        "env_exists": "检测到现有 `.env` 文件。",
+        "env_missing_template": "未找到 `.env.example`，将创建一个空的 `.env`。",
+        "platform": "平台",
+        "python": "Python",
+        "node": "Node",
+        "env_path": ".env",
+        "language_step": "选择语言",
+        "language_prompt": "选择界面语言",
+        "language_en_desc": "使用英文完成配置",
+        "language_zh_desc": "使用中文完成配置",
+        "language_saved": "已将界面语言写入 `{path}`。",
+        "ports_step": "配置端口",
+        "backend_port": "后端端口",
+        "frontend_port": "前端端口",
+        "llm_step": "配置 LLM",
+        "embedding_step": "配置 Embedding",
+        "search_step": "配置 Search",
+        "review_step": "写入配置",
+        "provider_prompt": "选择提供商",
+        "search_provider_prompt": "选择搜索提供商",
+        "profile_binding": "提供商 / 绑定",
+        "base_url": "Base URL",
+        "api_key": "API Key",
+        "api_version": "API 版本",
+        "model_id": "模型 ID",
+        "dimension": "维度",
+        "send_dimensions": "是否发送 `dimensions` 参数",
+        "send_dimensions_auto": "自动",
+        "send_dimensions_yes": "是",
+        "send_dimensions_no": "否",
+        "search_enable": "是否配置联网搜索？",
+        "search_base_url": "搜索服务 Base URL",
+        "search_proxy": "搜索代理",
+        "keep_secret": "直接回车即可保留当前密钥。",
+        "optional": "可选",
+        "none": "不配置",
+        "write_confirm": "现在将这些设置写入 `.env` 吗？",
+        "write_success": "已成功更新 `.env`。",
+        "no_changes": "未修改任何文件。",
+        "next_steps": "配置完成。你现在可以用下面的命令启动 DeepTutor：",
+        "next_command": "python scripts/start_web.py",
+        "summary_ports": "端口",
+        "summary_llm": "LLM",
+        "summary_embedding": "Embedding",
+        "summary_search": "Search",
+        "search_disabled": "未启用",
+        "tour_cache_removed": "已移除旧版 setup-tour 缓存。",
+        "interrupt": "配置已中断。",
+        "manual_desc": "手动输入自定义提供商名称",
+        "custom_desc": "任意兼容 OpenAI 的接口",
+        "local_desc": "本地模型服务",
+        "search_none_desc": "关闭联网搜索集成",
+        "search_proxy_placeholder": "http://127.0.0.1:7890",
+        "searxng_default": "http://localhost:8080",
+    },
+}
+
+_LANG = "en"
+
+LLM_MODEL_SUGGESTIONS = {
+    "openai": "gpt-4o-mini",
+    "deepseek": "deepseek-chat",
+    "dashscope": "qwen-max",
+    "gemini": "gemini-2.5-flash",
+    "groq": "llama-3.3-70b-versatile",
+    "zhipu": "glm-4.5",
+    "ollama": "qwen3:8b",
+    "vllm": "Qwen/Qwen3-8B",
+}
+
+EMBEDDING_MODEL_SUGGESTIONS = {
+    "openai": "text-embedding-3-large",
+    "cohere": "embed-v4.0",
+    "jina": "jina-embeddings-v3",
+    "ollama": "nomic-embed-text",
+}
+
+SEARCH_PROVIDERS = (
+    ("none", "None", "Disable web search integration"),
+    ("brave", "Brave", "API key required"),
+    ("tavily", "Tavily", "API key required"),
+    ("jina", "Jina", "API key required"),
+    ("searxng", "SearXNG", "Self-hosted or public instance"),
+    ("duckduckgo", "DuckDuckGo", "No API key required"),
+    ("perplexity", "Perplexity", "API key required"),
+)
+
+
 # ---------------------------------------------------------------------------
-# Cache helpers
+# Compatibility helpers
 # ---------------------------------------------------------------------------
-
-
-def _save_cache(data: dict[str, Any]) -> None:
-    data["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
-
-def _load_cache() -> dict[str, Any] | None:
-    if CACHE_PATH.exists():
-        try:
-            return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            pass
-    return None
-
-
-def _cleanup_cache() -> None:
-    if CACHE_PATH.exists():
-        CACHE_PATH.unlink(missing_ok=True)
-
-
-# ---------------------------------------------------------------------------
-# Environment detection
-# ---------------------------------------------------------------------------
-
-
-def _python_strategy() -> str:
-    if os.environ.get("CONDA_DEFAULT_ENV"):
-        return f"conda:{os.environ['CONDA_DEFAULT_ENV']}"
-    if os.environ.get("VIRTUAL_ENV"):
-        return f"venv:{Path(os.environ['VIRTUAL_ENV']).name}"
-    if (PROJECT_ROOT / ".venv").exists():
-        return "repo-.venv"
-    return "system"
 
 
 def _node_strategy() -> str:
@@ -218,178 +317,15 @@ def _node_strategy() -> str:
     return "manual"
 
 
-def _node_install_cmd() -> list[str] | None:
-    mapping: dict[str, list[str]] = {
-        "brew": ["brew", "install", "node"],
-        "winget": ["winget", "install", "OpenJS.NodeJS.LTS"],
-        "apt": ["sudo", "apt", "install", "-y", "nodejs", "npm"],
-        "dnf": ["sudo", "dnf", "install", "-y", "nodejs", "npm"],
-        "yum": ["sudo", "yum", "install", "-y", "nodejs", "npm"],
-    }
-    return mapping.get(_node_strategy())
-
-
-def _has_cairo_pkgconfig() -> bool:
-    pkg_config = shutil.which("pkg-config")
-    if not pkg_config:
-        return False
-    check = subprocess.run(
-        [pkg_config, "--exists", "cairo"],
-        cwd=str(PROJECT_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    return check.returncode == 0
-
-
-def _missing_math_animator_system_deps() -> list[str]:
-    missing: list[str] = []
-    for tool in ("latex", "pkg-config", "cmake", "ffmpeg"):
-        if not shutil.which(tool):
-            missing.append(tool)
-    if not _has_cairo_pkgconfig():
-        missing.append("cairo")
-    return missing
-
-
-def _math_animator_install_cmd(dep: str) -> list[str] | None:
-    system = platform.system().lower()
-    _INSTALL_MAPS: dict[str, dict[str, list[str]]] = {
-        "brew": {
-            "latex": ["brew", "install", "--cask", "basictex"],
-            "pkg-config": ["brew", "install", "pkgconf"],
-            "cmake": ["brew", "install", "cmake"],
-            "ffmpeg": ["brew", "install", "ffmpeg"],
-            "cairo": ["brew", "install", "cairo"],
-        },
-        "apt": {
-            "latex": ["sudo", "apt", "install", "-y", "texlive-latex-base"],
-            "pkg-config": ["sudo", "apt", "install", "-y", "pkg-config"],
-            "cmake": ["sudo", "apt", "install", "-y", "cmake"],
-            "ffmpeg": ["sudo", "apt", "install", "-y", "ffmpeg"],
-            "cairo": ["sudo", "apt", "install", "-y", "libcairo2-dev"],
-        },
-        "dnf": {
-            "latex": ["sudo", "dnf", "install", "-y", "texlive-scheme-basic"],
-            "pkg-config": ["sudo", "dnf", "install", "-y", "pkgconf"],
-            "cmake": ["sudo", "dnf", "install", "-y", "cmake"],
-            "ffmpeg": ["sudo", "dnf", "install", "-y", "ffmpeg"],
-            "cairo": ["sudo", "dnf", "install", "-y", "cairo-devel"],
-        },
-        "yum": {
-            "latex": ["sudo", "yum", "install", "-y", "texlive-latex"],
-            "pkg-config": ["sudo", "yum", "install", "-y", "pkgconfig"],
-            "cmake": ["sudo", "yum", "install", "-y", "cmake"],
-            "ffmpeg": ["sudo", "yum", "install", "-y", "ffmpeg"],
-            "cairo": ["sudo", "yum", "install", "-y", "cairo-devel"],
-        },
-        "winget": {
-            "latex": ["winget", "install", "MiKTeX.MiKTeX"],
-            "cmake": ["winget", "install", "Kitware.CMake"],
-            "ffmpeg": ["winget", "install", "Gyan.FFmpeg"],
-        },
-        "choco": {
-            "latex": ["choco", "install", "miktex", "-y"],
-            "pkg-config": ["choco", "install", "pkgconfiglite", "-y"],
-            "cmake": ["choco", "install", "cmake", "-y"],
-            "ffmpeg": ["choco", "install", "ffmpeg", "-y"],
-            "cairo": ["choco", "install", "gtk-runtime", "-y"],
-        },
-    }
-    if system == "darwin" and shutil.which("brew"):
-        return _INSTALL_MAPS["brew"].get(dep)
-    if system == "linux":
-        for pm in ("apt", "dnf", "yum"):
-            if shutil.which(pm):
-                return _INSTALL_MAPS[pm].get(dep)
-    if system == "windows":
-        for pm in ("winget", "choco"):
-            if shutil.which(pm):
-                return _INSTALL_MAPS[pm].get(dep)
-    return None
-
-
-def _ensure_math_animator_system_deps() -> None:
-    missing = _missing_math_animator_system_deps()
-    if not missing:
-        return
-
-    pretty_names = {
-        "latex": "LaTeX executable",
-        "pkg-config": "pkg-config",
-        "cmake": "CMake",
-        "ffmpeg": "FFmpeg",
-        "cairo": "Cairo development library",
-    }
-    details = ", ".join(pretty_names.get(item, item) for item in missing)
-    log_warn(f"Math animator system dependencies missing: {details}")
-
-    installable = [dep for dep in missing if _math_animator_install_cmd(dep) is not None]
-    if installable and confirm("Install missing system dependencies automatically?", default=True):
-        for dep in installable:
-            cmd = _math_animator_install_cmd(dep)
-            if cmd:
-                _run_cmd(cmd, PROJECT_ROOT)
-
-    still_missing = _missing_math_animator_system_deps()
-    if still_missing:
-        commands = []
-        for dep in still_missing:
-            cmd = _math_animator_install_cmd(dep)
-            commands.append(" ".join(cmd) if cmd else f"install {dep} manually")
-        log_warn("Math animator may fail until these are installed: " + " | ".join(commands))
-
-
-# ---------------------------------------------------------------------------
-# Provider detection (providers are now bundled in cli.txt)
-# ---------------------------------------------------------------------------
-
-_NATIVE_BINDINGS = frozenset(
-    {
-        "anthropic",
-        "azure_openai",
-        "dashscope",
-        "perplexity",
-        "exa",
-        "tavily",
-        "serper",
-        "jina",
-        "baidu",
-    }
-)
-
-
-def _needs_providers(catalog: dict[str, Any]) -> bool:
-    bindings: list[str] = []
-    for svc in ("llm", "embedding"):
-        p = get_model_catalog_service().get_active_profile(catalog, svc)
-        if p:
-            bindings.append(str(p.get("binding") or "").lower())
-    sp = get_model_catalog_service().get_active_profile(catalog, "search")
-    if sp:
-        bindings.append(str(sp.get("provider") or "").lower())
-    return bool(_NATIVE_BINDINGS & set(bindings))
-
-
-# ---------------------------------------------------------------------------
-# Dependency installation
-# ---------------------------------------------------------------------------
-
 
 def _get_npm_command() -> str:
-    """Return the correct npm command for the current platform.
-
-    With shell=True on Windows, we can just use "npm" and let the shell resolve it.
-    """
     if platform.system().lower() == "windows":
         return "npm.cmd"
-    else:
-        # On Unix-like systems, npm should be found directly
-        npm = shutil.which("npm")
-        if npm:
-            return npm
-        return "npm"
+    npm = shutil.which("npm")
+    if npm:
+        return npm
+    return "npm"
+
 
 
 def _install_commands(
@@ -398,6 +334,7 @@ def _install_commands(
     *,
     include_math_animator: bool = False,
 ) -> list[tuple[list[str], Path]]:
+    del catalog
     profile = PROFILE_ALIASES.get(profile, profile)
     if profile not in PROFILE_COMMANDS:
         raise ValueError(f"Unknown install profile: {profile}")
@@ -411,193 +348,22 @@ def _install_commands(
         )
     cmds.append(([_PYTHON, "-m", "pip", "install", "-e", ".", "--no-deps"], PROJECT_ROOT))
     if profile.startswith("web"):
-        npm_cmd = _get_npm_command()
-        cmds.append(([npm_cmd, "install"], PROJECT_ROOT / "web"))
-    # Provider SDKs are now bundled in cli.txt, no separate install needed.
+        cmds.append(([_get_npm_command(), "install"], PROJECT_ROOT / "web"))
     return cmds
+
 
 
 def _run_cmd(cmd: list[str], cwd: Path) -> None:
     log_info(f"{dim(str(cwd))}  {' '.join(cmd)}")
-    # On Windows, use shell=True to handle .cmd files properly
     use_shell = platform.system().lower() == "windows"
     result = subprocess.run(cmd, cwd=str(cwd), check=False, shell=use_shell)
     if result.returncode != 0:
-        # winget may return non-zero even on success (e.g., pending reboot)
-        if "winget" in cmd[0]:
-            log_warn(f"winget command may have issues (exit {result.returncode}): {' '.join(cmd)}")
-        else:
-            raise RuntimeError(f"Command failed (exit {result.returncode}): {' '.join(cmd)}")
+        raise RuntimeError(f"Command failed (exit {result.returncode}): {' '.join(cmd)}")
 
-
-# ---------------------------------------------------------------------------
-# Model catalog helpers
-# ---------------------------------------------------------------------------
-
-
-def _ensure_service(
-    catalog: dict[str, Any], svc: str
-) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    services = catalog.setdefault("services", {})
-    service = services.setdefault(svc, {"active_profile_id": None, "profiles": []})
-    profiles = service.setdefault("profiles", [])
-
-    if not profiles:
-        pid = f"{svc}-profile-{uuid4().hex[:8]}"
-        profile: dict[str, Any] = {
-            "id": pid,
-            "name": f"Default {svc.title()} Profile",
-            "base_url": "",
-            "api_key": "",
-            "api_version": "",
-            "models": [],
-        }
-        if svc == "search":
-            profile["provider"] = "perplexity"
-        else:
-            profile["binding"] = "openai"
-            mid = f"{svc}-model-{uuid4().hex[:8]}"
-            model: dict[str, Any] = {"id": mid, "name": f"Default {svc.title()} Model", "model": ""}
-            if svc == "embedding":
-                model["dimension"] = "3072"
-            profile["models"] = [model]
-            service["active_model_id"] = mid
-        profiles.append(profile)
-        service["active_profile_id"] = pid
-
-    active_profile = get_model_catalog_service().get_active_profile(catalog, svc)
-    if active_profile is None:
-        active_profile = profiles[0]
-        service["active_profile_id"] = active_profile["id"]
-
-    if svc == "search":
-        return active_profile, None
-
-    models = active_profile.setdefault("models", [])
-    if not models:
-        mid = f"{svc}-model-{uuid4().hex[:8]}"
-        m = {"id": mid, "name": f"Default {svc.title()} Model", "model": ""}
-        if svc == "embedding":
-            m["dimension"] = "3072"
-        models.append(m)
-        service["active_model_id"] = mid
-
-    active_model = get_model_catalog_service().get_active_model(catalog, svc)
-    if active_model is None:
-        active_model = models[0]
-        service["active_model_id"] = active_model["id"]
-    return active_profile, active_model
-
-
-# ---------------------------------------------------------------------------
-# Configure a single service interactively (CLI path only)
-# ---------------------------------------------------------------------------
-
-
-def _configure_service(catalog: dict[str, Any], svc: str) -> None:
-    profile, model = _ensure_service(catalog, svc)
-
-    print(f"  {bold(svc.upper())}")
-    print()
-
-    profile["name"] = text_input("Profile name", str(profile.get("name") or ""))
-    if svc == "search":
-        profile["provider"] = text_input("Provider", str(profile.get("provider") or "perplexity"))
-    else:
-        profile["binding"] = text_input("Binding", str(profile.get("binding") or "openai"))
-    profile["base_url"] = text_input("Base URL", str(profile.get("base_url") or ""))
-    profile["api_key"] = text_input("API key", str(profile.get("api_key") or ""), secret=True)
-    profile["api_version"] = text_input("API version", str(profile.get("api_version") or ""))
-
-    if model is not None:
-        model["name"] = text_input("Model label", str(model.get("name") or ""))
-        model["model"] = text_input("Model id", str(model.get("model") or ""))
-        if svc == "embedding":
-            model["dimension"] = text_input("Dimension", str(model.get("dimension") or "3072"))
-
-    print()
-
-
-# ---------------------------------------------------------------------------
-# Live connectivity test (CLI path only)
-# ---------------------------------------------------------------------------
-
-
-def _stream_test(svc: str, catalog: dict[str, Any]) -> bool:
-    run = get_config_test_runner().start(svc, catalog)
-    seen = 0
-    print(f"  {dim(f'Testing {svc.upper()} endpoint ...')}")
-
-    while True:
-        events = run.snapshot(seen)
-        if events:
-            for ev in events:
-                kind = ev["type"]
-                msg = ev["message"]
-                if kind == "info":
-                    log_info(dim(msg))
-                elif kind == "config":
-                    p = ev.get("profile", {})
-                    log_info(
-                        dim(f"{p.get('name', '')}  {p.get('binding', '')}  {p.get('base_url', '')}")
-                    )
-                elif kind == "response":
-                    snippet = ev.get("snippet", "")
-                    d_actual = ev.get("actual_dimension")
-                    if snippet:
-                        log_success(f"Response received  {dim(snippet[:120])}")
-                    elif d_actual is not None:
-                        log_success(f"Embedding OK  dim={d_actual}")
-                    else:
-                        log_success("Response received")
-                elif kind == "completed":
-                    log_success(msg)
-                elif kind == "failed":
-                    log_error(msg)
-            seen += len(events)
-            last = events[-1]["type"]
-            if last in ("completed", "failed"):
-                return last == "completed"
-        time.sleep(0.15)
-
-
-# ---------------------------------------------------------------------------
-# Build final .env dict
-# ---------------------------------------------------------------------------
-
-
-def _build_env(ports: dict[str, int], catalog: dict[str, Any]) -> dict[str, str]:
-    rendered = get_env_store().render_from_catalog(catalog)
-    rendered["BACKEND_PORT"] = str(ports["backend"])
-    rendered["FRONTEND_PORT"] = str(ports["frontend"])
-    return rendered
-
-
-# ---------------------------------------------------------------------------
-# Tour banner
-# ---------------------------------------------------------------------------
-
-
-def _tour_banner() -> None:
-    banner(
-        "DeepTutor Setup Tour",
-        [
-            "Configure your local DeepTutor environment.",
-            "Choose a workflow, set API endpoints, verify connections.",
-        ],
-    )
-
-
-# ===================================================================
-# Web path — install deps, start temp server, wait for browser config
-# ===================================================================
 
 
 def _stream_text_kwargs() -> dict[str, object]:
-    """Best-effort text decoding for background process output."""
-    # Some Windows child processes emit locale-specific bytes even when Python
-    # runs in UTF-8 mode. Replace undecodable bytes so the background drain
-    # thread keeps consuming output instead of crashing.
+    """Best-effort text decoding for subprocess output."""
     encoding = locale.getpreferredencoding(False) or "utf-8"
     return {
         "stdout": subprocess.PIPE,
@@ -609,356 +375,449 @@ def _stream_text_kwargs() -> dict[str, object]:
     }
 
 
-def _spawn_process(
-    cmd: list[str],
-    *,
-    cwd: Path,
-    env: dict[str, str],
-    name: str,
-) -> subprocess.Popen[str]:
-    import threading
-
-    kwargs: dict[str, object] = {
-        "cwd": str(cwd),
-        "env": env,
-        **_stream_text_kwargs(),
-    }
-    if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
-    else:
-        kwargs["start_new_session"] = True
-
-    proc = subprocess.Popen(cmd, **kwargs)  # type: ignore[arg-type]
-
-    def _drain() -> None:
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            pass  # silently drain; tour terminal stays clean
-
-    threading.Thread(target=_drain, daemon=True).start()
-    return proc
+# ---------------------------------------------------------------------------
+# Localized prompt helpers
+# ---------------------------------------------------------------------------
 
 
-def _kill_process(proc: subprocess.Popen[str] | None, name: str) -> None:
-    import signal as _sig
-
-    if proc is None or proc.poll() is not None:
-        return
-    try:
-        if os.name == "nt":
-            proc.send_signal(_sig.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
-        else:
-            os.killpg(os.getpgid(proc.pid), _sig.SIGTERM)
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
+def _set_language(language: str) -> None:
+    global _LANG
+    _LANG = "zh" if str(language).strip().lower().startswith("zh") else "en"
 
 
-def _run_web_tour() -> None:
-    total = 4
 
-    # -- Step 1: Profile ---------------------------------------------------
-    step(1, total, "Install profile")
-    profile = select(
-        "Choose a dependency profile",
-        [
-            ("web-basic", "web-basic", "FastAPI + Next.js"),
-            ("web-rag", "web-rag", "+ LlamaIndex RAG"),
-        ],
-    )
-    _save_cache({"step": 1, "mode": "web", "profile": profile, "status": "running"})
+def _t(key: str, **kwargs: Any) -> str:
+    template = MESSAGES[_LANG].get(key, MESSAGES["en"].get(key, key))
+    return template.format(**kwargs)
 
-    # -- Step 2: Ports -----------------------------------------------------
-    step(2, total, "Ports")
-    summary = get_env_store().as_summary()
-    ports = {
-        "backend": summary.backend_port,
-        "frontend": summary.frontend_port,
-    }
-    ports["frontend"] = int(text_input("Frontend port", str(ports["frontend"])))
-    ports["backend"] = int(text_input("Backend port", str(ports["backend"])))
-    print()
-    _save_cache({"step": 2, "mode": "web", "profile": profile, "ports": ports, "status": "running"})
 
-    # -- Step 3: Install dependencies --------------------------------------
-    catalog = get_model_catalog_service().load()
 
-    step(3, total, "Install dependencies")
-    if confirm("Install dependencies now?", default=True):
-        install_math_animator = confirm("Install Math Animator addon (Manim) now?", default=True)
-        if not (shutil.which("node") and shutil.which("npm")):
-            cmd = _node_install_cmd()
-            if cmd:
-                if confirm(f"Node.js not found. Install via {cmd[0]}?", default=True):
-                    _run_cmd(cmd, PROJECT_ROOT)
-            else:
-                log_warn("No automatic Node.js installer found for this platform.")
-        if install_math_animator:
-            _ensure_math_animator_system_deps()
+def _secret_mask(value: str) -> str:
+    if not value:
+        return "-"
+    if len(value) <= 8:
+        return "****"
+    return f"{value[:4]}...{value[-4:]}"
 
-        for cmd, cwd in _install_commands(
-            profile,
-            catalog,
-            include_math_animator=install_math_animator,
-        ):
-            _run_cmd(cmd, cwd)
-        log_success("Dependencies installed.")
-    else:
-        log_warn("Skipped. You can rerun the tour later.")
-    print()
 
-    # -- Step 4: Start temp server & wait for browser config ---------------
-    step(4, total, "Configure in browser")
 
-    # Write ports to .env for the temp server
-    get_env_store().write(_build_env(ports, catalog))
-
-    # Mark cache as waiting (the backend reads this)
-    _save_cache(
-        {
-            "step": 4,
-            "mode": "web",
-            "profile": profile,
-            "ports": ports,
-            "status": "waiting",
-        }
-    )
-
-    npm = _get_npm_command()
-    # Verify npm is actually available and works
-    try:
-        subprocess.run([npm, "--version"], capture_output=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        log_error("npm not found. Cannot start frontend.")
-        raise SystemExit(1)
-
-    api_base = f"http://localhost:{ports['backend']}"
-
-    # Write web/.env.local so the frontend picks up the correct backend port
-    env_local_path = PROJECT_ROOT / "web" / ".env.local"
-    env_local_path.write_text(
-        f"# Auto-generated by start_tour.py — do not edit manually\n"
-        f"NEXT_PUBLIC_API_BASE={api_base}\n"
-    )
-
-    backend_env = os.environ.copy()
-    backend_env["PYTHONUNBUFFERED"] = "1"
-
-    frontend_env = os.environ.copy()
-    frontend_env["NEXT_PUBLIC_API_BASE"] = api_base
-
-    backend_cmd = [_PYTHON, "-m", "deeptutor.api.run_server"]
-    frontend_cmd = [npm, "run", "dev", "--", "--port", str(ports["frontend"])]
-
-    log_info("Starting temporary server ...")
-    backend = _spawn_process(backend_cmd, cwd=PROJECT_ROOT, env=backend_env, name="backend")
-    time.sleep(2)
-    frontend = _spawn_process(
-        frontend_cmd, cwd=PROJECT_ROOT / "web", env=frontend_env, name="frontend"
-    )
-    time.sleep(3)
-
-    settings_url = f"http://localhost:{ports['frontend']}/settings?tour=true"
-
-    banner(
-        "Setup Tour",
-        [
-            f"Open {settings_url}",
-            "Configure your endpoints in the browser, then click 'Complete & Launch'.",
-            "Waiting for you to finish ...",
-        ],
-    )
-
-    # Poll the cache file for the "completed" signal from the backend
-    try:
-        while True:
-            if backend.poll() is not None:
-                log_error(f"Backend exited unexpectedly (code {backend.returncode}).")
-                _kill_process(frontend, "frontend")
-                raise SystemExit(1)
-            cache = _load_cache()
-            if cache and cache.get("status") == "completed":
-                break
-            time.sleep(1)
-    except KeyboardInterrupt:
-        log_warn("Interrupted. Stopping temporary server ...")
-        _kill_process(frontend, "frontend")
-        _kill_process(backend, "backend")
-        raise SystemExit(130)
-
-    log_success("Configuration complete!")
-    print()
-
-    # Shut down temp server
-    log_info("Stopping temporary server ...")
-    _kill_process(frontend, "frontend")
-    _kill_process(backend, "backend")
-    time.sleep(1)
-
-    _cleanup_cache()
-
-    log_info("Restarting DeepTutor with your configuration ...")
-    print()
-    launch_at = None
-    if cache:
+def _save_ui_language(language: str, path: Path = INTERFACE_SETTINGS_PATH) -> None:
+    payload: dict[str, Any] = {"theme": "light", "language": language}
+    if path.exists():
         try:
-            launch_at = int(cache.get("launch_at")) if cache.get("launch_at") is not None else None
-        except (TypeError, ValueError):
-            launch_at = None
-
-    remaining = max(1, int((launch_at - time.time()) + 0.999)) if launch_at else 3
-    countdown(remaining, "Launching in")
-    print()
-
-    os.execvp(_PYTHON, [_PYTHON, str(PROJECT_ROOT / "scripts" / "start_web.py")])
+            payload.update(json.loads(path.read_text(encoding="utf-8")) or {})
+        except Exception:
+            pass
+    payload["language"] = "zh" if language == "zh" else "en"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-# ===================================================================
-# CLI path — full interactive configuration in the terminal
-# ===================================================================
+
+def _ensure_env_file(env_path: Path = ENV_PATH, template_path: Path = ENV_EXAMPLE_PATH) -> bool:
+    if env_path.exists():
+        return False
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    if template_path.exists():
+        shutil.copyfile(template_path, env_path)
+        return True
+    env_path.write_text("", encoding="utf-8")
+    return True
 
 
-def _run_cli_tour() -> None:
-    total = 6
 
-    # -- Step 1: Profile ---------------------------------------------------
-    step(1, total, "Install profile")
-    profile = select(
-        "Choose a dependency profile",
+def _cleanup_legacy_tour_cache(path: Path = LEGACY_TOUR_CACHE_PATH) -> bool:
+    if not path.exists():
+        return False
+    path.unlink(missing_ok=True)
+    return True
+
+
+
+def _prompt_int(prompt: str, default: int) -> int:
+    while True:
+        value = text_input(prompt, str(default)).strip()
+        try:
+            return int(value)
+        except ValueError:
+            log_warn(f"{prompt}: {value!r} is not a valid integer.")
+
+
+
+def _prompt_secret(prompt: str, default: str) -> str:
+    if default:
+        log_info(dim(_t("keep_secret")))
+    return text_input(prompt, default, secret=True)
+
+
+
+def _enum_options(options: list[tuple[str, str, str]], current: str | None = None) -> list[tuple[str, str, str]]:
+    normalized_current = str(current or "").strip()
+    if not normalized_current:
+        return options
+    seen = {value for value, _, _ in options}
+    if normalized_current in seen:
+        return options
+    current_label = normalized_current
+    current_desc = "current value" if _LANG == "en" else "当前值"
+    return [(normalized_current, current_label, current_desc)] + options
+
+
+
+def _load_provider_metadata():
+    from deeptutor.services.config.provider_runtime import EMBEDDING_PROVIDERS
+    from deeptutor.services.provider_registry import find_by_name
+
+    return EMBEDDING_PROVIDERS, find_by_name
+
+
+
+def _llm_provider_options(current: str | None) -> list[tuple[str, str, str]]:
+    _, find_by_name = _load_provider_metadata()
+    common = [
+        "openai",
+        "anthropic",
+        "deepseek",
+        "gemini",
+        "dashscope",
+        "zhipu",
+        "groq",
+        "ollama",
+        "lm_studio",
+        "azure_openai",
+        "custom",
+    ]
+    options: list[tuple[str, str, str]] = []
+    for name in common:
+        spec = find_by_name(name)
+        label = spec.label if spec else name
+        if name == "custom":
+            desc = _t("custom_desc")
+        elif spec and spec.is_local:
+            desc = _t("local_desc")
+        else:
+            desc = spec.default_api_base if spec and spec.default_api_base else ""
+        options.append((name, label, desc))
+    return _enum_options(options, current)
+
+
+
+def _embedding_provider_options(current: str | None) -> list[tuple[str, str, str]]:
+    embedding_providers, _ = _load_provider_metadata()
+    common = ["openai", "jina", "cohere", "ollama", "vllm", "azure_openai", "custom"]
+    options: list[tuple[str, str, str]] = []
+    for name in common:
+        spec = embedding_providers.get(name)
+        label = spec.label if spec else name
+        if name == "custom":
+            desc = _t("custom_desc")
+        elif spec and spec.is_local:
+            desc = _t("local_desc")
+        else:
+            desc = spec.default_api_base if spec and spec.default_api_base else ""
+        options.append((name, label, desc))
+    return _enum_options(options, current)
+
+
+
+def _search_provider_options(current: str | None) -> list[tuple[str, str, str]]:
+    options = [
+        (value, label, _t("search_none_desc") if value == "none" else desc)
+        for value, label, desc in SEARCH_PROVIDERS
+    ]
+    return _enum_options(options, current)
+
+
+
+def _default_base_url(binding: str, current_binding: str, current_value: str, fallback: str = "") -> str:
+    if current_value and binding == current_binding:
+        return current_value
+    embedding_providers, find_by_name = _load_provider_metadata()
+    if binding in embedding_providers:
+        return embedding_providers[binding].default_api_base or fallback
+    spec = find_by_name(binding)
+    if spec and spec.default_api_base:
+        return spec.default_api_base
+    return fallback
+
+
+
+def _default_llm_model(binding: str, current_binding: str, current_model: str) -> str:
+    if current_model and binding == current_binding:
+        return current_model
+    return LLM_MODEL_SUGGESTIONS.get(binding, current_model)
+
+
+
+def _default_embedding_model(binding: str, current_binding: str, current_model: str) -> str:
+    if current_model and binding == current_binding:
+        return current_model
+    embedding_providers, _ = _load_provider_metadata()
+    spec = embedding_providers.get(binding)
+    if spec and spec.default_model:
+        return spec.default_model
+    return EMBEDDING_MODEL_SUGGESTIONS.get(binding, current_model)
+
+
+
+def _default_embedding_dimension(binding: str, current_binding: str, current_value: str) -> str:
+    if current_value and binding == current_binding:
+        return current_value
+    embedding_providers, _ = _load_provider_metadata()
+    spec = embedding_providers.get(binding)
+    if spec and spec.default_dim:
+        return str(spec.default_dim)
+    return current_value or "3072"
+
+
+
+def _send_dimensions_choice(current_value: str) -> str:
+    normalized = str(current_value or "").strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+        default = "true"
+    elif normalized in {"false", "0", "no", "off"}:
+        default = "false"
+    else:
+        default = "auto"
+    return select(
+        _t("send_dimensions"),
         [
-            ("cli-core", "cli-core", "Minimal CLI (~80 MB)"),
-            ("cli-rag", "cli-rag", "+ LlamaIndex RAG"),
+            ("auto", _t("send_dimensions_auto"), ""),
+            ("true", _t("send_dimensions_yes"), ""),
+            ("false", _t("send_dimensions_no"), ""),
+        ],
+    ) or default
+
+
+# ---------------------------------------------------------------------------
+# Wizard steps
+# ---------------------------------------------------------------------------
+
+
+def _choose_language() -> str:
+    step(1, 6, "Language")
+    language = select(
+        "Choose language / 选择语言",
+        [
+            ("en", "English", "Run the setup wizard in English"),
+            ("zh", "中文", "使用中文完成配置"),
         ],
     )
-    _save_cache({"step": 1, "mode": "cli", "profile": profile})
+    _set_language(language)
+    _save_ui_language(language)
+    log_success(_t("language_saved", path=INTERFACE_SETTINGS_PATH.relative_to(PROJECT_ROOT)))
+    print()
+    return language
 
-    # -- Step 2: Ports -----------------------------------------------------
-    step(2, total, "Ports")
+
+
+def _configure_ports() -> dict[str, str]:
+    step(2, 6, _t("ports_step"))
     summary = get_env_store().as_summary()
-    ports = {
-        "backend": summary.backend_port,
-        "frontend": summary.frontend_port,
+    backend_port = _prompt_int(_t("backend_port"), summary.backend_port)
+    frontend_port = _prompt_int(_t("frontend_port"), summary.frontend_port)
+    print()
+    return {
+        "BACKEND_PORT": str(backend_port),
+        "FRONTEND_PORT": str(frontend_port),
     }
-    ports["backend"] = int(text_input("Backend port", str(ports["backend"])))
+
+
+
+def _configure_llm() -> dict[str, str]:
+    step(3, 6, _t("llm_step"))
+    summary = get_env_store().as_summary()
+    current_binding = summary.llm["binding"] or "openai"
+    binding = select(_t("provider_prompt"), _llm_provider_options(current_binding))
+    base_url = text_input(
+        _t("base_url"),
+        _default_base_url(binding, current_binding, summary.llm["host"]),
+    )
+    api_key = _prompt_secret(_t("api_key"), summary.llm["api_key"])
+    model_id = text_input(
+        _t("model_id"),
+        _default_llm_model(binding, current_binding, summary.llm["model"]),
+    )
+    api_version_default = summary.llm["api_version"] if binding == current_binding else ""
+    api_version = text_input(_t("api_version"), api_version_default)
     print()
-    _save_cache({"step": 2, "mode": "cli", "profile": profile, "ports": ports})
+    return {
+        "LLM_BINDING": binding,
+        "LLM_HOST": base_url,
+        "LLM_API_KEY": api_key,
+        "LLM_MODEL": model_id,
+        "LLM_API_VERSION": api_version,
+    }
 
-    # -- Step 3: Install dependencies --------------------------------------
-    catalog = get_model_catalog_service().load()
 
-    step(3, total, "Install dependencies")
-    if confirm("Install dependencies now?", default=True):
-        for cmd, cwd in _install_commands(profile, catalog):
-            _run_cmd(cmd, cwd)
-        log_success("Dependencies installed.")
-    else:
-        log_warn("Skipped. You can rerun the tour later.")
+
+def _configure_embedding() -> dict[str, str]:
+    step(4, 6, _t("embedding_step"))
+    summary = get_env_store().as_summary()
+    current_binding = summary.embedding["binding"] or "openai"
+    binding = select(_t("provider_prompt"), _embedding_provider_options(current_binding))
+    base_url = text_input(
+        _t("base_url"),
+        _default_base_url(binding, current_binding, summary.embedding["host"]),
+    )
+    api_key = _prompt_secret(_t("api_key"), summary.embedding["api_key"])
+    model_id = text_input(
+        _t("model_id"),
+        _default_embedding_model(binding, current_binding, summary.embedding["model"]),
+    )
+    dimension = text_input(
+        _t("dimension"),
+        _default_embedding_dimension(binding, current_binding, summary.embedding["dimension"]),
+    )
+    send_dimensions = _send_dimensions_choice(summary.embedding["send_dimensions"])
+    api_version_default = summary.embedding["api_version"] if binding == current_binding else ""
+    api_version = text_input(_t("api_version"), api_version_default)
     print()
-    _save_cache({"step": 3, "mode": "cli", "profile": profile, "ports": ports})
+    return {
+        "EMBEDDING_BINDING": binding,
+        "EMBEDDING_HOST": base_url,
+        "EMBEDDING_API_KEY": api_key,
+        "EMBEDDING_MODEL": model_id,
+        "EMBEDDING_DIMENSION": dimension,
+        "EMBEDDING_SEND_DIMENSIONS": "" if send_dimensions == "auto" else send_dimensions,
+        "EMBEDDING_API_VERSION": api_version,
+    }
 
-    # -- Step 4: Configure providers ---------------------------------------
-    step(4, total, "Configure providers")
-    _configure_service(catalog, "llm")
-    _configure_service(catalog, "embedding")
 
-    search_enabled = False
-    if confirm("Configure a search provider?", default=False):
-        _configure_service(catalog, "search")
-        search_enabled = True
 
-    _save_cache({"step": 4, "mode": "cli", "profile": profile, "ports": ports})
+def _configure_search() -> dict[str, str]:
+    step(5, 6, _t("search_step"))
+    summary = get_env_store().as_summary()
+    current_provider = summary.search["provider"] or "none"
+    provider = select(_t("search_provider_prompt"), _search_provider_options(current_provider))
 
-    # -- Step 5: Live diagnostics ------------------------------------------
-    step(5, total, "Verify connections")
-    llm_ok = _stream_test("llm", catalog)
-    print()
-    emb_ok = _stream_test("embedding", catalog)
-    print()
-
-    if search_enabled:
-        _stream_test("search", catalog)
+    if provider == "none":
         print()
+        return {
+            "SEARCH_PROVIDER": "",
+            "SEARCH_API_KEY": "",
+            "SEARCH_BASE_URL": "",
+            "SEARCH_PROXY": "",
+        }
 
-    if not llm_ok or not emb_ok:
-        log_error("LLM and Embedding must both pass before saving.")
-        raise SystemExit(1)
+    base_url_default = summary.search["base_url"] if provider == current_provider else ""
+    if provider == "searxng" and not base_url_default:
+        base_url_default = _t("searxng_default")
+    api_key_default = summary.search["api_key"] if provider == current_provider else ""
+    proxy_default = summary.search["proxy"] if provider == current_provider else ""
 
-    # -- Step 6: Review & apply --------------------------------------------
-    step(6, total, "Review & apply")
+    base_url = base_url_default
+    if provider == "searxng" or base_url_default:
+        base_url = text_input(_t("search_base_url"), base_url_default)
 
-    llm_p = get_model_catalog_service().get_active_profile(catalog, "llm")
-    llm_m = get_model_catalog_service().get_active_model(catalog, "llm")
-    emb_p = get_model_catalog_service().get_active_profile(catalog, "embedding")
-    emb_m = get_model_catalog_service().get_active_model(catalog, "embedding")
-    search_p = get_model_catalog_service().get_active_profile(catalog, "search")
+    api_key = ""
+    if provider in {"brave", "tavily", "jina", "perplexity"} or api_key_default:
+        api_key = _prompt_secret(_t("api_key"), api_key_default)
 
-    log_info(f"Profile   {bold(profile)}")
-    log_info(f"Backend   {bold(str(ports['backend']))}")
+    proxy = text_input(_t("search_proxy"), proxy_default or _t("search_proxy_placeholder"))
+    if proxy == _t("search_proxy_placeholder") and not proxy_default:
+        proxy = ""
+
+    print()
+    return {
+        "SEARCH_PROVIDER": provider,
+        "SEARCH_API_KEY": api_key,
+        "SEARCH_BASE_URL": base_url,
+        "SEARCH_PROXY": proxy,
+    }
+
+
+
+def _print_review(values: dict[str, str]) -> None:
+    step(6, 6, _t("review_step"))
     log_info(
-        f"LLM       {bold((llm_p or {}).get('name', '?'))}  {dim((llm_m or {}).get('model', '?'))}"
+        f"{_t('summary_ports')}  {bold(values['BACKEND_PORT'])} / {bold(values['FRONTEND_PORT'])}"
     )
     log_info(
-        f"Embedding {bold((emb_p or {}).get('name', '?'))}  {dim((emb_m or {}).get('model', '?'))}"
+        "{}  {}  {}  {}".format(
+            _t("summary_llm"),
+            bold(values["LLM_BINDING"] or "-"),
+            dim(values["LLM_MODEL"] or "-"),
+            dim(values["LLM_HOST"] or "-"),
+        )
     )
-    if search_enabled:
-        log_info(f"Search    {bold((search_p or {}).get('name', '?'))}")
-    else:
-        log_info(f"Search    {dim('skipped')}")
-    print()
-
-    if not confirm("Write configuration?", default=True):
-        log_warn("No files changed.")
-        _cleanup_cache()
-        raise SystemExit(0)
-
-    get_model_catalog_service().save(catalog)
-    get_env_store().write(_build_env(ports, catalog))
-    log_success("Saved model_catalog.json and .env")
-
-    _cleanup_cache()
-
-    print()
-    log_success("Tour complete. Next commands:")
-    print()
-    print(f"  {dim('$')} deeptutor chat")
-    print(f"  {dim('$')} deeptutor kb list")
-    print(f"  {dim('$')} deeptutor serve --port {ports['backend']}")
+    log_info(
+        "{}  {}  {}  {}".format(
+            _t("summary_embedding"),
+            bold(values["EMBEDDING_BINDING"] or "-"),
+            dim(values["EMBEDDING_MODEL"] or "-"),
+            dim(values["EMBEDDING_HOST"] or "-"),
+        )
+    )
+    search_summary = values["SEARCH_PROVIDER"] or _t("search_disabled")
+    log_info(f"{_t('summary_search')}  {bold(search_summary)}")
+    log_info(f"LLM key  {dim(_secret_mask(values['LLM_API_KEY']))}")
+    log_info(f"Emb key  {dim(_secret_mask(values['EMBEDDING_API_KEY']))}")
+    if values["SEARCH_PROVIDER"]:
+        log_info(f"Search key  {dim(_secret_mask(values['SEARCH_API_KEY']))}")
     print()
 
 
-# ===================================================================
-# Entry
-# ===================================================================
+
+def _write_env(values: dict[str, str]) -> None:
+    get_env_store().write(values)
+
+
+
+def _tour_banner() -> None:
+    banner(
+        "DeepTutor Setup Tour / DeepTutor 配置向导",
+        [
+            "CLI-first setup wizard.",
+            "命令行配置向导。",
+        ],
+    )
+
 
 
 def run_tour() -> None:
     _tour_banner()
 
-    log_info(f"Platform  {dim(f'{platform.system()} {platform.release()}')}")
-    log_info(f"Python    {dim(_python_strategy())}")
-    log_info(f"Node      {dim(_node_strategy())}")
+    created_env = _ensure_env_file()
+    removed_cache = _cleanup_legacy_tour_cache()
+
+    _choose_language()
+
+    if created_env:
+        if ENV_EXAMPLE_PATH.exists():
+            log_success(_t("env_created"))
+        else:
+            log_warn(_t("env_missing_template"))
+    else:
+        log_info(_t("env_exists"))
+    if removed_cache:
+        log_info(_t("tour_cache_removed"))
+
+    log_info(f"{_t('platform')}  {dim(f'{platform.system()} {platform.release()}')}")
+    log_info(f"{_t('python')}    {dim(_resolve_python())}")
+    log_info(f"{_t('node')}      {dim(_node_strategy())}")
+    log_info(f"{_t('env_path')}       {dim(str(ENV_PATH.relative_to(PROJECT_ROOT)))}")
     print()
 
-    cache = _load_cache()
-    if cache:
-        log_warn("A previous tour session was interrupted.")
-        if not confirm("Resume where you left off?", default=True):
-            _cleanup_cache()
-            cache = None
+    values: dict[str, str] = {}
+    values.update(_configure_ports())
+    values.update(_configure_llm())
+    values.update(_configure_embedding())
+    values.update(_configure_search())
 
-    step(1, "?", "Choose mode")
-    mode = select(
-        "How would you like to use DeepTutor?",
-        [
-            ("web", "web", "Browser UI — configure in Settings page (recommended)"),
-            ("cli", "cli", "Terminal only — configure interactively here"),
-        ],
-    )
+    _print_review(values)
+    if not confirm(_t("write_confirm"), default=True):
+        log_warn(_t("no_changes"))
+        return
 
-    if mode == "web":
-        _run_web_tour()
-    else:
-        _run_cli_tour()
+    _write_env(values)
+    log_success(_t("write_success"))
+    print()
+    log_success(_t("next_steps"))
+    print()
+    print(f"  {dim('$')} {_t('next_command')}")
+    print()
+
 
 
 def main() -> None:
@@ -966,7 +825,7 @@ def main() -> None:
         run_tour()
     except KeyboardInterrupt:
         print()
-        log_warn("Tour interrupted.")
+        log_warn(_t("interrupt"))
         raise SystemExit(130)
 
 

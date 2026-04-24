@@ -71,6 +71,9 @@ class ProvidersConfig(Base):
     """Configuration for LLM providers."""
 
     custom: ProviderConfig = Field(default_factory=ProviderConfig)  # Any OpenAI-compatible endpoint
+    custom_anthropic: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # Any Anthropic-compatible endpoint
     azure_openai: ProviderConfig = Field(
         default_factory=ProviderConfig
     )  # Azure OpenAI (model = deployment name)

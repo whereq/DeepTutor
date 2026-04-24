@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { firstParam } from "../lib/route-params.ts";
+import { firstParam } from "../lib/route-params";
 
 test("firstParam returns undefined for missing param", () => {
   assert.equal(firstParam(undefined), undefined);

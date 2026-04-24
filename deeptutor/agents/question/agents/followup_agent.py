@@ -9,6 +9,7 @@ from typing import Any
 
 from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.core.trace import build_trace_metadata, new_call_id
+from deeptutor.services.prompt.language import append_language_directive
 
 
 class FollowupAgent(BaseAgent):
@@ -29,7 +30,10 @@ class FollowupAgent(BaseAgent):
         question_context: dict[str, Any],
         history_context: str = "",
     ) -> str:
-        system_prompt = self.get_prompt("system", "")
+        system_prompt = append_language_directive(
+            self.get_prompt("system", ""),
+            self.language,
+        )
         user_prompt_template = self.get_prompt("answer_followup", "")
         if not user_prompt_template:
             user_prompt_template = (
@@ -47,7 +51,7 @@ class FollowupAgent(BaseAgent):
         _chunks: list[str] = []
         async for _c in self.stream_llm(
             user_prompt=user_prompt,
-            system_prompt=system_prompt or "",
+            system_prompt=system_prompt,
             stage="followup_answer",
             trace_meta=build_trace_metadata(
                 call_id=new_call_id(

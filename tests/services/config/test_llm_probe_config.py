@@ -116,6 +116,11 @@ class TestLlmProbeUsesAgentsYaml:
             "resolve_llm_runtime_config",
             lambda catalog: _stub_resolved_llm(),
         )
+        monkeypatch.setattr(
+            test_runner_module,
+            "detect_context_window",
+            _stub_context_window_detection,
+        )
         monkeypatch.setattr(llm_module, "get_token_limit_kwargs", _real_get_token_limit_kwargs)
         monkeypatch.setattr(llm_module, "complete", _fake_llm_complete)
         monkeypatch.setattr(llm_module, "clear_llm_config_cache", lambda: None)
@@ -150,6 +155,11 @@ class TestLlmProbeUsesAgentsYaml:
             "resolve_llm_runtime_config",
             lambda catalog: _stub_resolved_llm(),
         )
+        monkeypatch.setattr(
+            test_runner_module,
+            "detect_context_window",
+            _stub_context_window_detection,
+        )
         monkeypatch.setattr(llm_module, "get_token_limit_kwargs", _real_get_token_limit_kwargs)
         monkeypatch.setattr(llm_module, "complete", _fake_llm_complete)
         monkeypatch.setattr(llm_module, "clear_llm_config_cache", lambda: None)
@@ -162,6 +172,86 @@ class TestLlmProbeUsesAgentsYaml:
             captured_kwargs.get("max_tokens") == 4096
             or captured_kwargs.get("max_completion_tokens") == 4096
         )
+
+    @pytest.mark.asyncio
+    async def test_probe_persists_detected_context_window_when_catalog_present(
+        self, tmp_path, monkeypatch
+    ):
+        from deeptutor.services import llm as llm_module
+        from deeptutor.services.config import test_runner as test_runner_module
+        from deeptutor.services.config.model_catalog import ModelCatalogService
+        from deeptutor.services.config.test_runner import ConfigTestRunner, TestRun
+
+        catalog = {
+            "version": 1,
+            "services": {
+                "llm": {
+                    "active_profile_id": "llm-p",
+                    "active_model_id": "llm-m",
+                    "profiles": [
+                        {
+                            "id": "llm-p",
+                            "name": "LLM",
+                            "binding": "openai",
+                            "base_url": "https://api.example.com/v1",
+                            "api_key": "sk-test",
+                            "api_version": "",
+                            "extra_headers": {},
+                            "models": [
+                                {
+                                    "id": "llm-m",
+                                    "name": "GPT",
+                                    "model": "gpt-4o-mini",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "embedding": {
+                    "active_profile_id": None,
+                    "active_model_id": None,
+                    "profiles": [],
+                },
+                "search": {"active_profile_id": None, "profiles": []},
+            },
+        }
+        service = ModelCatalogService(path=tmp_path / "model_catalog.json")
+        service.save(catalog)
+
+        async def _fake_llm_complete(**_kwargs):
+            return "OK I am gpt-4o-mini"
+
+        monkeypatch.setattr(
+            test_runner_module,
+            "get_model_catalog_service",
+            lambda: service,
+        )
+        monkeypatch.setattr(
+            test_runner_module,
+            "resolve_llm_runtime_config",
+            lambda catalog: _stub_resolved_llm(),
+        )
+        monkeypatch.setattr(
+            test_runner_module,
+            "detect_context_window",
+            _stub_metadata_context_window_detection,
+        )
+        monkeypatch.setattr(test_runner_module, "clear_llm_config_cache", lambda: None)
+        monkeypatch.setattr(test_runner_module, "reset_llm_client", lambda: None)
+        monkeypatch.setattr(llm_module, "get_token_limit_kwargs", _real_get_token_limit_kwargs)
+        monkeypatch.setattr(llm_module, "complete", _fake_llm_complete)
+        monkeypatch.setattr(llm_module, "clear_llm_config_cache", lambda: None)
+
+        runner = ConfigTestRunner()
+        run = TestRun(id="test-llm-context-window", service="llm")
+        await runner._test_llm(run, catalog=catalog)
+
+        saved = service.load()
+        saved_model = saved["services"]["llm"]["profiles"][0]["models"][0]
+        assert saved_model["context_window"] == "128000"
+        assert saved_model["context_window_source"] == "metadata"
+        assert saved_model["context_window_detected_at"] == "2026-04-24T08:00:00+00:00"
+        assert any(event["type"] == "catalog" for event in run.events)
 
 
 # ---------------------------------------------------------------------------
@@ -194,3 +284,29 @@ def _real_get_token_limit_kwargs(model: str, max_tokens: int) -> dict[str, int]:
     if uses_max_completion_tokens(model):
         return {"max_completion_tokens": max_tokens}
     return {"max_tokens": max_tokens}
+
+
+async def _stub_context_window_detection(*_args, **_kwargs):
+    from deeptutor.services.config.context_window_detection import (
+        ContextWindowDetectionResult,
+    )
+
+    return ContextWindowDetectionResult(
+        context_window=65536,
+        source="default",
+        detail="stub",
+        detected_at="2026-04-24T00:00:00+00:00",
+    )
+
+
+async def _stub_metadata_context_window_detection(*_args, **_kwargs):
+    from deeptutor.services.config.context_window_detection import (
+        ContextWindowDetectionResult,
+    )
+
+    return ContextWindowDetectionResult(
+        context_window=128000,
+        source="metadata",
+        detail="stub",
+        detected_at="2026-04-24T08:00:00+00:00",
+    )

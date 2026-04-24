@@ -161,6 +161,7 @@ class ResolvedLLMConfig:
     api_version: str | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
     reasoning_effort: str | None = None
+    context_window: int | None = None
 
 
 @dataclass(slots=True)
@@ -354,6 +355,9 @@ def resolve_llm_runtime_config(
     )
     active_extra_headers = _to_headers((profile or {}).get("extra_headers"))
     reasoning_effort = _as_str((model or {}).get("reasoning_effort")) or None
+    context_window = _coerce_optional_int((model or {}).get("context_window"))
+    if context_window is None:
+        context_window = _coerce_optional_int((model or {}).get("context_window_tokens"))
 
     provider_pool = _collect_provider_pool(loaded)
     spec = _choose_resolved_provider(
@@ -386,6 +390,7 @@ def resolve_llm_runtime_config(
         api_version=api_version or None,
         extra_headers=extra_headers,
         reasoning_effort=reasoning_effort,
+        context_window=context_window,
     )
 
 
@@ -448,6 +453,17 @@ def _coerce_optional_bool(value: Any) -> bool | None:
     if text in {"false", "0", "no", "off"}:
         return False
     return None
+
+
+def _coerce_optional_int(value: Any) -> int | None:
+    """Parse a positive int from catalog values, returning ``None`` when unset."""
+    if value is None:
+        return None
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _resolve_embedding_provider(

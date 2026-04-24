@@ -7,7 +7,12 @@ import { apiUrl } from "@/lib/api";
 // (NotebookRecordPicker) live in this system. They are distinct from the
 // "Question Notebook" categories below which only track quiz entries.
 
-export type NotebookRecordType = "solve" | "question" | "research" | "chat";
+export type NotebookRecordType =
+  | "solve"
+  | "question"
+  | "research"
+  | "chat"
+  | "co_writer";
 
 export interface NotebookSummary {
   id: string;

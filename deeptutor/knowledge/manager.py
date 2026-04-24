@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import sys
 from typing import Any
 
@@ -247,15 +248,14 @@ class KnowledgeBaseManager:
         kb_config["status"] = status
         kb_config["updated_at"] = datetime.now().isoformat()
 
-        if progress is not None:
+        if status == "ready":
+            # Ready KBs should look like stable resources in the UI instead of
+            # permanently carrying a "completed" progress banner.
+            kb_config.pop("progress", None)
+            if progress is not None:
+                kb_config["last_completed_at"] = progress.get("timestamp") or datetime.now().isoformat()
+        elif progress is not None:
             kb_config["progress"] = progress
-        elif status == "ready":
-            # Clear progress when ready
-            kb_config["progress"] = {
-                "stage": "completed",
-                "message": "Ready",
-                "percent": 100,
-            }
 
         if status == "ready":
             fp = _get_embedding_fingerprint()
@@ -673,14 +673,28 @@ class KnowledgeBaseManager:
                 return False
 
         if dir_exists:
-            try:
-                shutil.rmtree(kb_dir)
-            except FileNotFoundError:
-                # Race: someone else deleted it between exists() and rmtree.
-                pass
-            except OSError as e:
-                logger.error(f"Failed to remove KB directory '{kb_dir}': {e}")
-                raise
+
+            def _on_rmtree_error(func, path, exc_info):
+                exc = exc_info[1]
+                if isinstance(exc, FileNotFoundError):
+                    # Race: something else removed the entry between walk and unlink.
+                    return
+                # On Windows (and some bind-mounted filesystems) a read-only bit
+                # or a stale handle from a failed RAG init can block removal.
+                # Clear the read-only bit and retry once; if it still fails, log
+                # and continue so the config entry gets cleaned up regardless —
+                # leaving the KB stuck in the list is worse than orphan files on
+                # disk (issue #370).
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                except Exception as retry_exc:
+                    logger.warning(
+                        f"Could not remove '{path}' while deleting KB '{name}': "
+                        f"{retry_exc}. Continuing; orphan files may remain on disk."
+                    )
+
+            shutil.rmtree(kb_dir, onerror=_on_rmtree_error)
         else:
             logger.warning(
                 f"KB directory '{kb_dir}' missing on disk; cleaning up orphaned config entry."

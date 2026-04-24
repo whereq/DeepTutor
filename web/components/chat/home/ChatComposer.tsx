@@ -17,7 +17,6 @@ import {
   BookOpen,
   ChevronDown,
   ClipboardList,
-  FilePlus2,
   Layers,
   MessageSquare,
   Paperclip,
@@ -27,6 +26,11 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import {
+  ATTACHMENT_ACCEPT,
+  docIconFor,
+  formatBytes,
+} from "@/lib/doc-attachments";
 import { useTranslation } from "react-i18next";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
@@ -65,6 +69,8 @@ interface PendingAttachment {
   filename: string;
   base64?: string;
   previewUrl?: string;
+  size?: number;
+  mimeType?: string;
 }
 
 interface KnowledgeBase {
@@ -109,6 +115,7 @@ export default memo(function ChatComposer({
   skillMenuOpen,
   hasMessages,
   attachments,
+  attachmentError,
   activeCap,
   visibleTools,
   selectedTools,
@@ -158,6 +165,7 @@ export default memo(function ChatComposer({
   onDragOver,
   onDrop,
   onPaste,
+  onAddFiles,
   onSelectCapability,
   onCancelStreaming,
   onChangeQuizConfig,
@@ -184,6 +192,7 @@ export default memo(function ChatComposer({
   skillMenuOpen: boolean;
   hasMessages: boolean;
   attachments: PendingAttachment[];
+  attachmentError: string | null;
   activeCap: CapabilityDef;
   visibleTools: ToolDef[];
   selectedTools: Set<string>;
@@ -237,6 +246,7 @@ export default memo(function ChatComposer({
   onDragOver: (event: React.DragEvent) => void;
   onDrop: (event: React.DragEvent) => void;
   onPaste: (event: React.ClipboardEvent) => void;
+  onAddFiles: (files: File[]) => void;
   onSelectCapability: (value: string) => void;
   onCancelStreaming: () => void;
   onChangeQuizConfig: (next: DeepQuestionFormConfig) => void;
@@ -252,6 +262,21 @@ export default memo(function ChatComposer({
   const [hasContent, setHasContent] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHandleRef = useRef<ComposerInputHandle>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePickFiles = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const picked = Array.from(event.target.files ?? []);
+      if (picked.length) onAddFiles(picked);
+      // Reset so picking the same file twice still triggers `change`.
+      event.target.value = "";
+    },
+    [onAddFiles],
+  );
 
   const activeCapabilityKey = activeCap.value || "chat";
 
@@ -361,14 +386,28 @@ export default memo(function ChatComposer({
         >
           {dragging && (
             <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-[var(--primary)]/50 bg-[var(--primary)]/[0.04]">
-              <div className="flex flex-col items-center gap-1.5 text-[var(--primary)]">
+              <div className="flex flex-col items-center gap-1 text-[var(--primary)]">
                 <Paperclip size={22} strokeWidth={1.6} />
                 <span className="text-[13px] font-medium">
-                  {t("Drop images here")}
+                  {t("Drop files here")}
+                </span>
+                <span className="text-[11px] text-[var(--primary)]/70">
+                  {t("Images, PDF, DOCX, XLSX, PPTX")}
                 </span>
               </div>
             </div>
           )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ATTACHMENT_ACCEPT}
+            onChange={handleFileInputChange}
+            className="hidden"
+            aria-hidden="true"
+            tabIndex={-1}
+          />
 
           {hasReferences && (
             <div className="px-4 pt-3.5 [&>div]:mb-0">
@@ -399,37 +438,72 @@ export default memo(function ChatComposer({
 
           {!!attachments.length && (
             <div className="flex flex-wrap gap-2 px-4 pb-2">
-              {attachments.map((a, i) => (
-                <div key={`${a.filename}-${i}`} className="group relative">
-                  {a.type === "image" && a.previewUrl ? (
-                    <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-[var(--border)]">
-                      <Image
-                        src={a.previewUrl}
-                        alt={a.filename || t("Attachment preview")}
-                        fill
-                        unoptimized
-                        className="object-cover"
-                      />
-                      <button
-                        onClick={() => onRemoveAttachment(i)}
-                        className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--foreground)] text-[var(--background)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
-                      >
-                        <X size={10} />
-                      </button>
+              {attachments.map((a, i) => {
+                if (a.type === "image" && a.previewUrl) {
+                  return (
+                    <div
+                      key={`${a.filename}-${i}`}
+                      className="group relative"
+                    >
+                      <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-[var(--border)]">
+                        <Image
+                          src={a.previewUrl}
+                          alt={a.filename || t("Attachment preview")}
+                          fill
+                          unoptimized
+                          className="object-cover"
+                        />
+                        <button
+                          onClick={() => onRemoveAttachment(i)}
+                          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--foreground)] text-[var(--background)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
                     </div>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-[var(--muted)] px-2 py-0.5 text-[11px] text-[var(--muted-foreground)]">
-                      <FilePlus2 size={10} /> {a.filename}
-                      <button
-                        onClick={() => onRemoveAttachment(i)}
-                        className="ml-0.5 opacity-60 hover:opacity-100"
-                      >
-                        <X size={10} />
-                      </button>
-                    </span>
-                  )}
-                </div>
-              ))}
+                  );
+                }
+                const spec = docIconFor(a.filename);
+                const Icon = spec.Icon;
+                const sizeLabel = a.size ? formatBytes(a.size) : "";
+                return (
+                  <div
+                    key={`${a.filename}-${i}`}
+                    className="group relative"
+                    title={a.filename}
+                  >
+                    <div className="flex h-16 w-[160px] items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--muted)]/60">
+                        <Icon
+                          size={22}
+                          strokeWidth={1.5}
+                          className={spec.tint}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12px] font-medium text-[var(--foreground)]">
+                          {a.filename}
+                        </div>
+                        <div className="truncate text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
+                          {sizeLabel ? `${spec.label} · ${sizeLabel}` : spec.label}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onRemoveAttachment(i)}
+                      className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--foreground)] text-[var(--background)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {attachmentError && (
+            <div className="px-4 pb-2 text-[11px] text-red-600">
+              {attachmentError}
             </div>
           )}
 
@@ -590,6 +664,17 @@ export default memo(function ChatComposer({
                     )}
                   </div>
                 ) : null}
+
+                <button
+                  type="button"
+                  onClick={handlePickFiles}
+                  title={t("Attach files")}
+                  aria-label={t("Attach files")}
+                  className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                >
+                  <Paperclip size={12} strokeWidth={1.7} />
+                  {t("Attach")}
+                </button>
 
                 <div className="relative flex items-center gap-0.5">
                   <button

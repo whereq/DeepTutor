@@ -31,6 +31,7 @@ import {
   ListTodo,
   Loader2,
   Minus,
+  NotebookPen,
   Quote,
   Redo2,
   Strikethrough,
@@ -47,6 +48,9 @@ import {
   updateCoWriterDocument,
 } from "@/lib/co-writer-api";
 import { notifyCoWriterChanged } from "@/lib/co-writer-events";
+import SaveToNotebookModal, {
+  type NotebookSavePayload,
+} from "@/components/notebook/SaveToNotebookModal";
 import { CO_WRITER_SAMPLE_TEMPLATE } from "../sampleTemplate";
 
 const MarkdownRenderer = dynamic(
@@ -199,6 +203,8 @@ export default function CoWriterPage() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [notebookSavePayload, setNotebookSavePayload] =
+    useState<NotebookSavePayload | null>(null);
   const [selectedRange, setSelectedRange] = useState<SelectedRange | null>(
     null,
   );
@@ -673,6 +679,26 @@ export default function CoWriterPage() {
     anchor.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleOpenSaveToNotebook = useCallback(() => {
+    if (!markdown.trim()) {
+      setError(t("Add some content before saving to a notebook."));
+      return;
+    }
+    const fallbackTitle = t("Untitled Co-Writer Document");
+    const titleForRecord = (docTitle || fallbackTitle).trim() || fallbackTitle;
+    setNotebookSavePayload({
+      recordType: "co_writer",
+      title: titleForRecord,
+      userQuery: titleForRecord,
+      output: markdown,
+      metadata: {
+        source: "co_writer",
+        doc_id: docId,
+      },
+      kbName: kbName || null,
+    });
+  }, [docId, docTitle, kbName, markdown, t]);
 
   const replaceSelectedText = useCallback(
     (range: SelectedRange, replacement: string) => {
@@ -1608,6 +1634,12 @@ export default function CoWriterPage() {
             <Download size={17} strokeWidth={1.7} />
           </ToolbarIconBtn>
           <ToolbarIconBtn
+            title={t("Save to Notebook")}
+            onClick={handleOpenSaveToNotebook}
+          >
+            <NotebookPen size={17} strokeWidth={1.7} />
+          </ToolbarIconBtn>
+          <ToolbarIconBtn
             title={t("Load Example Template")}
             onClick={loadExampleTemplate}
           >
@@ -2185,6 +2217,16 @@ export default function CoWriterPage() {
           </div>
         </div>
       )}
+
+      <SaveToNotebookModal
+        open={notebookSavePayload !== null}
+        payload={notebookSavePayload}
+        onClose={() => setNotebookSavePayload(null)}
+        onSaved={() => {
+          setStatus(t("Saved to notebook."));
+          setError("");
+        }}
+      />
     </div>
   );
 }

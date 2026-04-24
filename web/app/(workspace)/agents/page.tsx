@@ -849,12 +849,22 @@ function BotsTab({
   };
 
   const botId = useMemo(() => {
-    const slug = formName
-      .trim()
+    const trimmed = formName.trim();
+    if (!trimmed) return "";
+    const slug = trimmed
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    return slug || "";
+    if (slug) return slug;
+    // Name has no ASCII alphanumerics (e.g. pure Chinese / Japanese).
+    // Derive a deterministic ASCII fallback so the bot ID stays
+    // filesystem- and URL-safe while the display name keeps its CJK form.
+    let h = 0;
+    for (let i = 0; i < trimmed.length; i++) {
+      h = (h << 5) - h + trimmed.charCodeAt(i);
+      h |= 0;
+    }
+    return `bot-${Math.abs(h).toString(36).padStart(6, "0").slice(0, 8)}`;
   }, [formName]);
 
   const selectSoul = (id: string) => {
@@ -885,11 +895,22 @@ function BotsTab({
         setShowCreate(false);
         resetForm();
         await onReload();
+      } else {
+        const err = (await res.json().catch(() => ({}))) as {
+          detail?: string | { message?: string };
+        };
+        const detail =
+          typeof err.detail === "string"
+            ? err.detail
+            : (err.detail?.message ?? t("Failed to create bot"));
+        onToast(detail);
       }
+    } catch {
+      onToast(t("Failed to create bot"));
     } finally {
       setCreating(false);
     }
-  }, [botId, formName, formDesc, formSoul, formModel, onReload, onToast]);
+  }, [botId, formName, formDesc, formSoul, formModel, onReload, onToast, t]);
 
   const startBot = useCallback(
     async (bid: string) => {

@@ -141,3 +141,27 @@ class TestResolvePython:
                 assert cmd[0] == python_used, (
                     f"Expected resolved python {python_used!r}, got {cmd[0]!r}"
                 )
+
+
+def test_ensure_env_file_copies_template_when_missing(tmp_path: Path) -> None:
+    start_tour = _load_start_tour_module()
+    env_path = tmp_path / ".env"
+    template_path = tmp_path / ".env.example"
+    template_path.write_text("BACKEND_PORT=8001\n", encoding="utf-8")
+
+    created = start_tour._ensure_env_file(env_path=env_path, template_path=template_path)
+
+    assert created is True
+    assert env_path.read_text(encoding="utf-8") == "BACKEND_PORT=8001\n"
+
+
+def test_save_ui_language_preserves_existing_theme(tmp_path: Path) -> None:
+    start_tour = _load_start_tour_module()
+    settings_path = tmp_path / "interface.json"
+    settings_path.write_text('{"theme":"glass","language":"en"}', encoding="utf-8")
+
+    start_tour._save_ui_language("zh", path=settings_path)
+
+    saved = settings_path.read_text(encoding="utf-8")
+    assert '"theme": "glass"' in saved
+    assert '"language": "zh"' in saved

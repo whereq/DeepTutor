@@ -41,7 +41,7 @@ class AddRecordRequest(BaseModel):
     """Add record request"""
 
     notebook_ids: list[str]
-    record_type: Literal["solve", "question", "research", "chat"]
+    record_type: Literal["solve", "question", "research", "chat", "co_writer"]
     title: str
     summary: str = ""
     user_query: str

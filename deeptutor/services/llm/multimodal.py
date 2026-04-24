@@ -72,6 +72,11 @@ def _build_anthropic_image_part(
     }
 
 
+def _image_placeholder(url: str = "", filename: str = "") -> str:
+    label = filename or url
+    return f"[image: {label}]" if label else "[image omitted]"
+
+
 def prepare_multimodal_messages(
     messages: list[dict[str, Any]],
     attachments: list[Any] | None,
@@ -193,7 +198,45 @@ def _inject_images(
     messages[user_idx] = {**msg, "content": content_parts}
 
 
+def has_image_parts(messages: list[dict[str, Any]]) -> bool:
+    """Return True when any message content contains image blocks."""
+    for msg in messages:
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            if isinstance(item, dict) and item.get("type") in {"image_url", "image"}:
+                return True
+    return False
+
+
+def strip_image_parts(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Replace image blocks with text placeholders for fallback retries."""
+    stripped: list[dict[str, Any]] = []
+    for msg in messages:
+        content = msg.get("content")
+        if not isinstance(content, list):
+            stripped.append(dict(msg))
+            continue
+        new_content: list[dict[str, Any]] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") in {"image_url", "image"}:
+                image_url = item.get("image_url") or {}
+                url = image_url.get("url", "") if isinstance(image_url, dict) else ""
+                meta = item.get("_meta") or {}
+                filename = ""
+                if isinstance(meta, dict):
+                    filename = str(meta.get("path") or meta.get("filename") or "")
+                new_content.append({"type": "text", "text": _image_placeholder(url, filename)})
+            else:
+                new_content.append(item)
+        stripped.append({**msg, "content": new_content})
+    return stripped
+
+
 __all__ = [
     "MultimodalResult",
+    "has_image_parts",
     "prepare_multimodal_messages",
+    "strip_image_parts",
 ]
