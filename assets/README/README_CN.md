@@ -23,7 +23,14 @@
 </div>
 
 ---
+
+> 🤝 **欢迎各种形式的贡献！** 分支策略、编码规范与入手方式见 [参与贡献指南](../../CONTRIBUTING.md)。
+
 ### 📦 版本发布
+
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — 聊天内文档附件（PDF/DOCX/XLSX/PPTX）、推理模型思维链块展示、嵌入 `send_dimensions` 三态开关、LLM 提供商核心重构、Soul 模板编辑器、Co-Writer 保存到笔记本、知识库拖放上传与删除韧性、出题语言保真度。
+
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — 用户自编写 Skills 体系（增删改查 + 聊天集成）、聊天输入性能重构与状态共置、不兼容提供商的 `response_format` 自动回退、局域网远程访问修复、侧栏版本徽章、Deep Solve 图片附件、TutorBot WebSocket 自启动、图书库 UI、可视化全屏模式。
 
 > **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` 按阶段配置 chat token 上限（8000-token 回复）；CLI / WebSocket / Web UI 重新生成上一条回复；RAG `None` 嵌入崩溃修复；Gemma `json_object` 兼容；暗色代码块可读性修复。
 
@@ -70,6 +77,8 @@
 
 ### 📰 动态
 
+> **[2026.4.19]** 🎉 发布 111 天后突破 20k star！感谢大家的支持 —— 我们会持续迭代，朝着真正个性化、智能的辅导不断前进。
+
 > **[2026.4.4]** 好久不见！✨ DeepTutor v1.0.0 终于到来 —— 在 Apache-2.0 许可下的智能体原生演进：自底向上架构重写、TutorBot、灵活模式切换。新篇章开启，故事继续！
 
 > **[2026.2.6]** 🚀 仅用 39 天即突破 10k star！感谢社区的大力支持！
@@ -105,39 +114,32 @@
 | [Node.js](https://nodejs.org/) | 18+ | `node --version` | 前端构建（仅 CLI 或 Docker 可不装） |
 | [npm](https://www.npmjs.com/) | 9+ | `npm --version` | 一般随 Node.js 附带 |
 
-你还需要至少一个 LLM 提供商的 **API Key**（例如 [OpenAI](https://platform.openai.com/api-keys)、[DeepSeek](https://platform.deepseek.com/)、[Anthropic](https://console.anthropic.com/)）。设置向导会引导你填写并完成连通性测试。
+你还需要至少一个 LLM 提供商的 **API Key**（例如 [OpenAI](https://platform.openai.com/api-keys)、[DeepSeek](https://platform.deepseek.com/)、[Anthropic](https://console.anthropic.com/)）。安装向导会引导你完成填写。
 
 ### 方案 A — 引导式安装（推荐）
 
-**一条交互脚本**完成依赖安装、环境配置、连通性检测与启动，无需手改 `.env`。
+**单条交互式 CLI 脚本**带你从刚克隆的仓库到可运行应用 —— 无需手动 `pip install`、无需 `npm install`、也无需手改 `.env`。在 7 步分步引导中完成检测、安装与配置。
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 
 # 创建 Python 虚拟环境（任选其一）：
-conda create -n deeptutor python=3.11 && conda activate deeptutor   # 若使用 Anaconda/Miniconda
-python -m venv .venv && source .venv/bin/activate                    # 否则（macOS/Linux）
-python -m venv .venv && .venv\Scripts\activate                       # 否则（Windows）
+conda create -n deeptutor python=3.11 && conda activate deeptutor   # Anaconda/Miniconda
+python -m venv .venv && source .venv/bin/activate                    # macOS/Linux
+python -m venv .venv && .venv\Scripts\activate                       # Windows
 
 # 启动引导
 python scripts/start_tour.py
 ```
 
-向导会询问使用方式：
+完成向导后：
 
-- **Web 模式**（推荐）— 安装全部依赖（pip + npm）、拉起临时服务并在浏览器打开 **设置** 页；四步引导配置 LLM、嵌入与搜索提供商并现场测通；完成后 DeepTutor 会按你的配置自动重启。
-- **CLI 模式** — 全终端交互：选择依赖配置、安装依赖、配置提供商、验证连接并应用，全程不离开 shell。
+```bash
+python scripts/start_web.py
+```
 
-任一方式完成后，在 [http://localhost:3782](http://localhost:3782) 使用 DeepTutor。
-
-> **日常启动** — 引导只需运行一次。之后请用：
->
-> ```bash
-> python scripts/start_web.py
-> ```
->
-> 该命令会同时启动后端与前端并自动打开浏览器。仅在需要更换提供商或重装依赖时再运行 `start_tour.py`。
+> **日常启动** — 引导一般只需运行一次。之后请直接执行 `python scripts/start_web.py` 以同时启动后端与前端（终端会打印前端 URL）。仅当你要重新配置提供商、修改端口或补装依赖时再运行 `start_tour.py`。在 Web **设置** 页面也可点击 **Run Tour** 重播高亮式界面引导。
 
 <a id="option-b-manual"></a>
 ### 方案 B — 本地手动安装
@@ -193,30 +195,32 @@ EMBEDDING_DIMENSION=3072
 | Azure OpenAI | `azure_openai` | — |
 | BytePlus | `byteplus` | `https://ark.ap-southeast.bytepluses.com/api/v3` |
 | BytePlus Coding Plan | `byteplus_coding_plan` | `https://ark.ap-southeast.bytepluses.com/api/coding/v3` |
-| Custom (OpenAI-compat) | `custom` | — |
-| DashScope (Qwen) | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| Custom | `custom` | — |
+| Custom (Anthropic API) | `custom_anthropic` | — |
+| DashScope | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | DeepSeek | `deepseek` | `https://api.deepseek.com` |
 | Gemini | `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | GitHub Copilot | `github_copilot` | `https://api.githubcopilot.com` |
 | Groq | `groq` | `https://api.groq.com/openai/v1` |
 | llama.cpp | `llama_cpp` | `http://localhost:8080/v1` |
 | LM Studio | `lm_studio` | `http://localhost:1234/v1` |
-| MiniMax | `minimax` | `https://api.minimax.io/v1` |
+| MiniMax | `minimax` | `https://api.minimaxi.com/v1` |
+| MiniMax (Anthropic) | `minimax_anthropic` | `https://api.minimaxi.com/anthropic` |
 | Mistral | `mistral` | `https://api.mistral.ai/v1` |
-| Moonshot (Kimi) | `moonshot` | `https://api.moonshot.cn/v1` |
+| Moonshot | `moonshot` | `https://api.moonshot.cn/v1` |
 | Ollama | `ollama` | `http://localhost:11434/v1` |
 | OpenAI | `openai` | `https://api.openai.com/v1` |
 | OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
 | OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
 | OpenVINO Model Server | `ovms` | `http://localhost:8000/v3` |
-| Qianfan (Ernie) | `qianfan` | `https://qianfan.baidubce.com/v2` |
+| Qianfan | `qianfan` | `https://qianfan.baidubce.com/v2` |
 | SiliconFlow | `siliconflow` | `https://api.siliconflow.cn/v1` |
 | Step Fun | `stepfun` | `https://api.stepfun.com/v1` |
-| vLLM | `vllm` | `http://localhost:8000/v1` |
+| vLLM/Local | `vllm` | — |
 | VolcEngine | `volcengine` | `https://ark.cn-beijing.volces.com/api/v3` |
 | VolcEngine Coding Plan | `volcengine_coding_plan` | `https://ark.cn-beijing.volces.com/api/coding/v3` |
 | Xiaomi MIMO | `xiaomi_mimo` | `https://api.xiaomimimo.com/v1` |
-| Zhipu AI (GLM) | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
+| Zhipu AI | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
 
 </details>
 
@@ -667,7 +671,7 @@ deeptutor session open <id>
 | `deeptutor config show` | 配置摘要 |
 | `deeptutor plugin list` | 已注册工具与能力 |
 | `deeptutor plugin info <name>` | 工具或能力详情 |
-| `deeptutor provider login <provider>` | OAuth（`openai-codex`、`github-copilot`） |
+| `deeptutor provider login <provider>` | 提供商认证（`openai-codex` 为 OAuth 登录；`github-copilot` 校验已存在的 Copilot 登录会话） |
 
 </details>
 

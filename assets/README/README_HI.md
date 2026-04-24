@@ -23,9 +23,17 @@
 </div>
 
 ---
+
+> 🤝 **हर तरह का योगदान स्वागत है!** शाखा रणनीति, कोड मानक और शुरुआत के लिए [Contributing गाइड](../../CONTRIBUTING.md) देखें।
+
 ### 📦 रिलीज़
 
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — चैट में दस्तावेज़ संलग्नक (PDF/DOCX/XLSX/PPTX), तर्क मॉडल की सोच-ब्लॉक प्रदर्शन, एम्बेडिंग `send_dimensions` त्रि-स्थिति टॉगल, LLM प्रदाता कोर रिफैक्टर, Soul टेम्पलेट संपादक, Co-Writer से नोटबुक में सहेजें, नॉलेज बेस ड्रैग-एंड-ड्रॉप अपलोड व हटाने में लचीलेपन, प्रश्न निर्माण में भाषा निष्ठा।
+
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — उपयोगकर्ता-लिखित Skills प्रणाली (CRUD + चैट एकीकरण), चैट इनपुट प्रदर्शन ओवरहॉल व state सह-स्थान, असंगत प्रदाताओं के लिए `response_format` ऑटो-फ़ॉलबैक, LAN रिमोट एक्सेस फिक्स, साइडबार संस्करण बैज, Deep Solve में चित्र संलग्नक, TutorBot WebSocket ऑटो-स्टार्ट, बुक लाइब्रेरी UI, विज़ुअलाइज़ेशन फ़ुलस्क्रीन।
+
 > **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` में चरण-दर-चरण चैट टोकन सीमाएँ (8000-टोकन उत्तर), CLI / WebSocket / वेब UI पर अंतिम उत्तर पुनर्जनन, RAG `None`-एम्बेडिंग क्रैश ठीक, Gemma `json_object` अनुकूलता, गहरे कोड ब्लॉक पठनीयता।
+
 > **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine: 14 ब्लॉक प्रकारों के साथ मल्टी-एजेंट «जीवंत पुस्तक» संकलक, मल्टी-दस्तावेज़ Co-Workspace, इंटरैक्टिव HTML विज़ुअलाइज़ेशन, चैट में प्रश्न बैंक @-उल्लेख, प्रॉम्प्ट बाहरीकरण चरण 2, साइडबार ओवरहॉल।
 
 > **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — स्कीमा-चालित Channels टैब व सीक्रेट मास्किंग; एकल RAG पाइपलाइन; RAG/KB स्थिरता मजबूत; चैट प्रॉम्प्ट बाहरी फ़ाइलों में; थाई README।
@@ -69,6 +77,8 @@
 
 ### 📰 समाचार
 
+> **[2026.4.19]** 🎉 111 दिनों में 20k सितारे! समर्थन के लिए धन्यवाद — हम वास्तव में व्यक्तिगत, बुद्धिमान शिक्षण की दिशा में निरंतर सुधार करते रहेंगे।
+
 > **[2026.4.4]** बहुत दिन बाद! ✨ DeepTutor v1.0.0 आ गया — Apache-2.0 के तहत एजेंट-नेटिव विकास: ज़मीन से आर्किटेक्चर रिराइट, TutorBot, लचीले मोड। नया अध्याय शुरू!
 
 > **[2026.2.6]** 🚀 39 दिनों में 10k सितारे — समुदाय का धन्यवाद!
@@ -104,38 +114,32 @@
 | [Node.js](https://nodejs.org/) | 18+ | `node --version` | फ्रंटएंड बिल्ड (केवल CLI या Docker पर अनिवार्य नहीं) |
 | [npm](https://www.npmjs.com/) | 9+ | `npm --version` | आमतौर पर Node के साथ |
 
-कम से कम एक LLM प्रदाता की **API कुंजी** आवश्यक है (उदा. [OpenAI](https://platform.openai.com/api-keys), [DeepSeek](https://platform.deepseek.com/), [Anthropic](https://console.anthropic.com/))। सेटअप टूर इसे भरवाने और कनेक्शन परीक्षण में मदद करता है।
+कम से कम एक LLM प्रदाता की **API कुंजी** आवश्यक है (उदा. [OpenAI](https://platform.openai.com/api-keys), [DeepSeek](https://platform.deepseek.com/), [Anthropic](https://console.anthropic.com/))। सेटअप टूर भरने में मार्गदर्शन देता है।
 
 ### विकल्प A — सेटअप टूर (अनुशंसित)
 
-**एक इंटरैक्टिव स्क्रिप्ट** निर्भरताएँ स्थापित करती है, वातावरण सेट करती है, लाइव कनेक्शन टेस्ट करती है और लॉन्च करती है। `.env` का मैनुअल संपादन लगभग अनावश्यक।
+**एक इंटरैक्टिव CLI स्क्रिप्ट** ताजे क्लोन से चलते ऐप तक ले जाती है — बिना मैनुअल `pip install`, `npm install` या `.env` संपादन। 7-चरणीय गाइडेड प्रवाह में सब कुछ पता लगाया, इंस्टॉल व कॉन्फ़िगर होता है।
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 
 # Python वर्चुअल वातावरण (एक चुनें):
-conda create -n deeptutor python=3.11 && conda activate deeptutor   # Anaconda/Miniconda हो तो
-python -m venv .venv && source .venv/bin/activate                    # अन्यथा (macOS/Linux)
-python -m venv .venv && .venv\Scripts\activate                       # अन्यथा (Windows)
+conda create -n deeptutor python=3.11 && conda activate deeptutor   # Anaconda/Miniconda
+python -m venv .venv && source .venv/bin/activate                    # macOS/Linux
+python -m venv .venv && .venv\Scripts\activate                       # Windows
 
+# टूर चलाएँ
 python scripts/start_tour.py
 ```
 
-टूर पूछता है कि आप DeepTutor कैसे उपयोग करना चाहते हैं:
+विज़ार्ड पूरा होने पर:
 
-- **वेब मोड** (अनुशंसित) — सभी निर्भरताएँ (pip + npm) स्थापित करता है, अस्थायी सर्वर चालू करता है और ब्राउज़र में **सेटिंग्स** खोलता है; LLM, एम्बेडिंग व खोज के लिए चार चरणों में लाइव टेस्ट; पूरा होने पर आपकी कॉन्फ़िगरेशन के साथ DeepTutor स्वतः पुनः आरंभ।
-- **CLI मोड** — पूरा इंटरैक्टिव टर्मिनल प्रवाह: प्रोफ़ाइल, स्थापना, प्रदाता, सत्यापन और लागू — बिना शेल छोड़े।
+```bash
+python scripts/start_web.py
+```
 
-दोनों स्थितियों में परिणाम [http://localhost:3782](http://localhost:3782) है।
-
-> **दैनिक लॉन्च** — टूर केवल एक बार चलाएँ। उसके बाद:
->
-> ```bash
-> python scripts/start_web.py
-> ```
->
-> यह एक ही कमांड से बैकएंड व फ्रंटएंड चालू करता है और ब्राउज़र खोलता है। केवल प्रदाता बदलने या निर्भरताएँ पुनः स्थापित करने पर `start_tour.py` दोबारा चलाएँ।
+> **दैनिक लॉन्च** — आमतौर पर टूर एक बार। बाद में `python scripts/start_web.py` से बैकएंड व फ्रंटएंड एक साथ (फ्रंट URL टर्मिनल में)। `start_tour.py` तभी दोबारा जब प्रदाता/पोर्ट बदलें या extra इंस्टॉल हों। वेब **सेटिंग्स** में **Run Tour** से UI हाइलाइट वॉकथ्रू दोहरा सकते हैं।
 
 <a id="option-b-manual"></a>
 ### विकल्प B — मैन्युअल स्थानीय इंस्टॉल
@@ -191,30 +195,32 @@ EMBEDDING_DIMENSION=3072
 | Azure OpenAI | `azure_openai` | — |
 | BytePlus | `byteplus` | `https://ark.ap-southeast.bytepluses.com/api/v3` |
 | BytePlus Coding Plan | `byteplus_coding_plan` | `https://ark.ap-southeast.bytepluses.com/api/coding/v3` |
-| Custom (OpenAI-compat) | `custom` | — |
-| DashScope (Qwen) | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| Custom | `custom` | — |
+| Custom (Anthropic API) | `custom_anthropic` | — |
+| DashScope | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | DeepSeek | `deepseek` | `https://api.deepseek.com` |
 | Gemini | `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | GitHub Copilot | `github_copilot` | `https://api.githubcopilot.com` |
 | Groq | `groq` | `https://api.groq.com/openai/v1` |
 | llama.cpp | `llama_cpp` | `http://localhost:8080/v1` |
 | LM Studio | `lm_studio` | `http://localhost:1234/v1` |
-| MiniMax | `minimax` | `https://api.minimax.io/v1` |
+| MiniMax | `minimax` | `https://api.minimaxi.com/v1` |
+| MiniMax (Anthropic) | `minimax_anthropic` | `https://api.minimaxi.com/anthropic` |
 | Mistral | `mistral` | `https://api.mistral.ai/v1` |
-| Moonshot (Kimi) | `moonshot` | `https://api.moonshot.cn/v1` |
+| Moonshot | `moonshot` | `https://api.moonshot.cn/v1` |
 | Ollama | `ollama` | `http://localhost:11434/v1` |
 | OpenAI | `openai` | `https://api.openai.com/v1` |
 | OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
 | OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
 | OpenVINO Model Server | `ovms` | `http://localhost:8000/v3` |
-| Qianfan (Ernie) | `qianfan` | `https://qianfan.baidubce.com/v2` |
+| Qianfan | `qianfan` | `https://qianfan.baidubce.com/v2` |
 | SiliconFlow | `siliconflow` | `https://api.siliconflow.cn/v1` |
 | Step Fun | `stepfun` | `https://api.stepfun.com/v1` |
-| vLLM | `vllm` | `http://localhost:8000/v1` |
+| vLLM/Local | `vllm` | — |
 | VolcEngine | `volcengine` | `https://ark.cn-beijing.volces.com/api/v3` |
 | VolcEngine Coding Plan | `volcengine_coding_plan` | `https://ark.cn-beijing.volces.com/api/coding/v3` |
 | Xiaomi MIMO | `xiaomi_mimo` | `https://api.xiaomimimo.com/v1` |
-| Zhipu AI (GLM) | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
+| Zhipu AI | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
 
 </details>
 
@@ -644,7 +650,7 @@ deeptutor session open <id>
 | `deeptutor config show` | कॉन्फ़िग सारांश |
 | `deeptutor plugin list` | पंजीकृत टूल और क्षमताएँ |
 | `deeptutor plugin info <name>` | टूल या क्षमता विवरण |
-| `deeptutor provider login <provider>` | OAuth (`openai-codex`, `github-copilot`) |
+| `deeptutor provider login <provider>` | प्रदाता प्रमाणीकरण (`openai-codex` OAuth लॉगिन; `github-copilot` मौजूदा Copilot सत्र सत्यापित करता है) |
 
 </details>
 

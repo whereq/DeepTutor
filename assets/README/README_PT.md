@@ -23,7 +23,14 @@
 </div>
 
 ---
+
+> 🤝 **Aceitamos todo tipo de contribuição!** Veja o [Guia de contribuição](../../CONTRIBUTING.md) para estratégia de branches, padrões de código e como começar.
+
 ### 📦 Lançamentos
+
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — Anexos de documentos no chat (PDF/DOCX/XLSX/PPTX), exibição do bloco de raciocínio do modelo, alternância tríade `send_dimensions` em embeddings, refactor do núcleo de provedores LLM, editor de modelos Soul, salvar no caderno no Co-Writer, arrastar e soltar na base de conhecimento e remoção resiliente, fidelidade idiomática na geração de questões.
+
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — Skills criados pelo usuário (CRUD + integração no chat), melhoria de desempenho do input com colocação de estado, fallback automático de `response_format` para provedores incompatíveis, correção de acesso remoto na LAN, selo de versão na barra lateral, anexos de imagem no Deep Solve, início automático do WebSocket do TutorBot, UI da biblioteca de livros e modo tela cheia nas visualizações.
 
 > **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — Limites de tokens por etapa em `agents.yaml` (respostas de 8000 tokens), regenerar a última resposta (CLI / WebSocket / Web UI), correção de falha RAG com embeddings `None`, compatibilidade Gemma `json_object`, legibilidade de blocos de código escuros.
 
@@ -70,6 +77,8 @@
 
 ### 📰 Notícias
 
+> **[2026.4.19]** 🎉 Alcançamos 20k estrelas em 111 dias! Obrigado pelo apoio — seguimos iterando rumo a um ensino realmente personalizado e inteligente.
+
 > **[2026.4.4]** Há quanto tempo! ✨ DeepTutor v1.0.0 chegou — evolução nativa de agentes com reescrita da arquitetura do zero, TutorBot e modos flexíveis sob Apache-2.0. Um novo capítulo começa!
 
 > **[2026.2.6]** 🚀 10k estrelas em 39 dias — obrigado à comunidade!
@@ -105,38 +114,32 @@ Antes de começar, certifique-se de ter instalado:
 | [Node.js](https://nodejs.org/) | 18+ | `node --version` | Build do frontend (não necessário só CLI ou Docker) |
 | [npm](https://www.npmjs.com/) | 9+ | `npm --version` | Geralmente vem com o Node.js |
 
-Você também precisa de uma **chave API** de pelo menos um provedor LLM (por exemplo [OpenAI](https://platform.openai.com/api-keys), [DeepSeek](https://platform.deepseek.com/), [Anthropic](https://console.anthropic.com/)). O tour guiado ajuda a inseri-la e testar a conexão.
+Você também precisa de uma **chave API** de pelo menos um provedor LLM (por exemplo [OpenAI](https://platform.openai.com/api-keys), [DeepSeek](https://platform.deepseek.com/), [Anthropic](https://console.anthropic.com/)). O tour guiado orienta o preenchimento.
 
 ### Opção A — Tour de configuração (recomendado)
 
-Um **único script interativo** cobre instalação de dependências, configuração do ambiente, teste de conexão em tempo real e inicialização. Quase não é preciso editar `.env` manualmente.
+Um **único script CLI interativo** leva do clone novo ao app em execução — sem `pip install` ou `npm install` manuais nem edição de `.env`. Tudo é detectado, instalado e configurado em um fluxo guiado de 7 passos.
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 
 # Ambiente virtual Python (escolha um):
-conda create -n deeptutor python=3.11 && conda activate deeptutor   # se usar Anaconda/Miniconda
-python -m venv .venv && source .venv/bin/activate                    # caso contrário (macOS/Linux)
-python -m venv .venv && .venv\Scripts\activate                       # caso contrário (Windows)
+conda create -n deeptutor python=3.11 && conda activate deeptutor   # Anaconda/Miniconda
+python -m venv .venv && source .venv/bin/activate                    # macOS/Linux
+python -m venv .venv && .venv\Scripts\activate                       # Windows
 
+# Iniciar o tour
 python scripts/start_tour.py
 ```
 
-O tour pergunta como deseja usar o DeepTutor:
+Após o assistente:
 
-- **Modo web** (recomendado) — Instala todas as dependências (pip + npm), sobe um servidor temporário e abre **Configurações** no navegador; quatro passos para LLM, embeddings e busca com teste de conexão em tempo real; ao terminar, o DeepTutor reinicia automaticamente com sua configuração.
-- **Modo CLI** — Fluxo totalmente interativo no terminal: perfil, instalação, provedores, verificação e aplicação sem sair do shell.
+```bash
+python scripts/start_web.py
+```
 
-Em ambos os casos você terá o DeepTutor em [http://localhost:3782](http://localhost:3782).
-
-> **Início diário** — O tour só é necessário uma vez. Depois disso, inicie com:
->
-> ```bash
-> python scripts/start_web.py
-> ```
->
-> Inicia backend e frontend em um único comando e abre o navegador. Execute `start_tour.py` novamente apenas se precisar reconfigurar provedores ou reinstalar dependências.
+> **Início diário** — O tour costuma bastar uma vez. Depois use `python scripts/start_web.py` para subir backend e frontend (a URL do frontend aparece no terminal). Só execute `start_tour.py` de novo para reconfigurar provedores, mudar portas ou instalar extras. Na **Configurações** da web também há **Run Tour** para repetir o guia com destaque na UI.
 
 <a id="option-b-manual"></a>
 ### Opção B — Instalação local manual
@@ -192,30 +195,32 @@ EMBEDDING_DIMENSION=3072
 | Azure OpenAI | `azure_openai` | — |
 | BytePlus | `byteplus` | `https://ark.ap-southeast.bytepluses.com/api/v3` |
 | BytePlus Coding Plan | `byteplus_coding_plan` | `https://ark.ap-southeast.bytepluses.com/api/coding/v3` |
-| Custom (OpenAI-compat) | `custom` | — |
-| DashScope (Qwen) | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| Custom | `custom` | — |
+| Custom (Anthropic API) | `custom_anthropic` | — |
+| DashScope | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | DeepSeek | `deepseek` | `https://api.deepseek.com` |
 | Gemini | `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | GitHub Copilot | `github_copilot` | `https://api.githubcopilot.com` |
 | Groq | `groq` | `https://api.groq.com/openai/v1` |
 | llama.cpp | `llama_cpp` | `http://localhost:8080/v1` |
 | LM Studio | `lm_studio` | `http://localhost:1234/v1` |
-| MiniMax | `minimax` | `https://api.minimax.io/v1` |
+| MiniMax | `minimax` | `https://api.minimaxi.com/v1` |
+| MiniMax (Anthropic) | `minimax_anthropic` | `https://api.minimaxi.com/anthropic` |
 | Mistral | `mistral` | `https://api.mistral.ai/v1` |
-| Moonshot (Kimi) | `moonshot` | `https://api.moonshot.cn/v1` |
+| Moonshot | `moonshot` | `https://api.moonshot.cn/v1` |
 | Ollama | `ollama` | `http://localhost:11434/v1` |
 | OpenAI | `openai` | `https://api.openai.com/v1` |
 | OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
 | OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
 | OpenVINO Model Server | `ovms` | `http://localhost:8000/v3` |
-| Qianfan (Ernie) | `qianfan` | `https://qianfan.baidubce.com/v2` |
+| Qianfan | `qianfan` | `https://qianfan.baidubce.com/v2` |
 | SiliconFlow | `siliconflow` | `https://api.siliconflow.cn/v1` |
 | Step Fun | `stepfun` | `https://api.stepfun.com/v1` |
-| vLLM | `vllm` | `http://localhost:8000/v1` |
+| vLLM/Local | `vllm` | — |
 | VolcEngine | `volcengine` | `https://ark.cn-beijing.volces.com/api/v3` |
 | VolcEngine Coding Plan | `volcengine_coding_plan` | `https://ark.cn-beijing.volces.com/api/coding/v3` |
 | Xiaomi MIMO | `xiaomi_mimo` | `https://api.xiaomimimo.com/v1` |
-| Zhipu AI (GLM) | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
+| Zhipu AI | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
 
 </details>
 
@@ -645,7 +650,7 @@ deeptutor session open <id>
 | `deeptutor config show` | Resumo da configuração |
 | `deeptutor plugin list` | Ferramentas e capacidades registradas |
 | `deeptutor plugin info <name>` | Detalhe de ferramenta ou capacidade |
-| `deeptutor provider login <provider>` | OAuth (`openai-codex`, `github-copilot`) |
+| `deeptutor provider login <provider>` | Autenticação do provedor (OAuth com `openai-codex`; `github-copilot` valida uma sessão Copilot existente) |
 
 </details>
 

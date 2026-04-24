@@ -23,7 +23,14 @@
 </div>
 
 ---
+
+> 🤝 **あらゆる形の貢献を歓迎します！** ブランチ方針、コーディング規約、始め方は [Contributing ガイド](../../CONTRIBUTING.md) を参照してください。
+
 ### 📦 リリース
+
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — チャットでの文書添付（PDF/DOCX/XLSX/PPTX）、推論モデルの思考ブロック表示、埋め込み `send_dimensions` 三択、LLM プロバイダ中核のリファクタ、Soul テンプレートエディタ、Co-Writer のノートブック保存、ナレッジベースのドラッグ＆ドロップアップロードと削除耐性、問題生成の言語忠実度。
+
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — ユーザー作成 Skills（CRUD＋チャット連携）、チャット入力の性能刷新と state の配置、`response_format` の非互換プロバイダ向け自動フォールバック、LAN リモートアクセス修正、サイドバーのバージョン表示、Deep Solve の画像添付、TutorBot WebSocket の自動起動、Book Library UI、可視化の全画面表示。
 
 > **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` によるチャット各段階のトークン上限（8000 トークン応答）、CLI / WebSocket / Web UI で最終応答を再生成、RAG の `None` 埋め込みクラッシュ修正、Gemma の `json_object` 互換、暗いコードブロックの可読性。
 
@@ -70,6 +77,8 @@
 
 ### 📰 ニュース
 
+> **[2026.4.19]** 🎉 111 日で 20k スターに到達しました！ご支援に感謝します — 真にパーソナルで知的なチュターリングに向けて、継続的に改善を続けます。
+
 > **[2026.4.4]** お久しぶりです！✨ DeepTutor v1.0.0 がついに登場 — Apache-2.0 のもと、ゼロからの架構書き直し、TutorBot、柔軟なモード切替を備えたエージェントネイティブな進化です。新章の始まりです！
 
 > **[2026.2.6]** 🚀 わずか 39 日で 10k スターに到達。コミュニティに感謝します！
@@ -105,38 +114,32 @@
 | [Node.js](https://nodejs.org/) | 18+ | `node --version` | フロント構築（CLI のみ / Docker の場合は不要） |
 | [npm](https://www.npmjs.com/) | 9+ | `npm --version` | Node に同梱されることが多い |
 
-少なくとも 1 つの LLM プロバイダの **API キー**（例：[OpenAI](https://platform.openai.com/api-keys)、[DeepSeek](https://platform.deepseek.com/)、[Anthropic](https://console.anthropic.com/)）が必要です。セットアップツアーで入力と接続テストを案内します。
+少なくとも 1 つの LLM プロバイダの **API キー**（例：[OpenAI](https://platform.openai.com/api-keys)、[DeepSeek](https://platform.deepseek.com/)、[Anthropic](https://console.anthropic.com/)）が必要です。セットアップツアーで入力方法を案内します。
 
 ### オプション A — セットアップツアー（推奨）
 
-**1 本の対話スクリプト**で依存関係のインストール、環境設定、接続テスト、起動まで案内します。手動で `.env` を編集する必要はほぼありません。
+**単一の対話式 CLI スクリプト**で、新規クローンから動くアプリまで案内します — 手動の `pip install`・`npm install`・`.env` 編集は不要です。7 ステップのガイド内で検出・インストール・設定を行います。
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 
 # Python 仮想環境（いずれか）：
-conda create -n deeptutor python=3.11 && conda activate deeptutor   # Anaconda / Miniconda 利用時
-python -m venv .venv && source .venv/bin/activate                    # それ以外（macOS / Linux）
-python -m venv .venv && .venv\Scripts\activate                       # それ以外（Windows）
+conda create -n deeptutor python=3.11 && conda activate deeptutor   # Anaconda / Miniconda
+python -m venv .venv && source .venv/bin/activate                    # macOS / Linux
+python -m venv .venv && .venv\Scripts\activate                       # Windows
 
+# ツアーを起動
 python scripts/start_tour.py
 ```
 
-ツアーでは利用方法を尋ねます。
+ツアー完了後：
 
-- **Web モード**（推奨）— すべての依存（pip + npm）をインストールし、一時サーバを立ち上げてブラウザの **設定** を開きます。LLM・Embedding・検索プロバイダを 4 ステップで設定し、ライブ接続テストが可能です。完了後、設定に応じて DeepTutor が自動再起動します。
-- **CLI モード** — シェル内だけで、プロファイル選択から依存インストール、プロバイダ設定、検証、適用まで完結します。
+```bash
+python scripts/start_web.py
+```
 
-いずれも [http://localhost:3782](http://localhost:3782) で利用できます。
-
-> **日次の起動** — ツアーは初回だけで構いません。以降は次で起動してください。
->
-> ```bash
-> python scripts/start_web.py
-> ```
->
-> バックエンドとフロントエンドをまとめて起動し、ブラウザを自動で開きます。プロバイダの再設定や依存の再インストールが必要なときだけ `start_tour.py` を再実行してください。
+> **日次の起動** — ツアーは通常初回だけです。以降は `python scripts/start_web.py` だけでバックエンドとフロントエンドを起動（フロントの URL はターミナルに表示）。プロバイダ再設定、ポート変更、不足分の再インストールが必要なときだけ `start_tour.py` を再実行。Web の **設定** から **Run Tour** でもハイライト付きの UI 案内を再生できます。
 
 <a id="option-b-manual"></a>
 ### オプション B — 手動ローカルインストール
@@ -190,30 +193,32 @@ EMBEDDING_DIMENSION=3072
 | Azure OpenAI | `azure_openai` | — |
 | BytePlus | `byteplus` | `https://ark.ap-southeast.bytepluses.com/api/v3` |
 | BytePlus Coding Plan | `byteplus_coding_plan` | `https://ark.ap-southeast.bytepluses.com/api/coding/v3` |
-| Custom (OpenAI-compat) | `custom` | — |
-| DashScope (Qwen) | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| Custom | `custom` | — |
+| Custom (Anthropic API) | `custom_anthropic` | — |
+| DashScope | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | DeepSeek | `deepseek` | `https://api.deepseek.com` |
 | Gemini | `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | GitHub Copilot | `github_copilot` | `https://api.githubcopilot.com` |
 | Groq | `groq` | `https://api.groq.com/openai/v1` |
 | llama.cpp | `llama_cpp` | `http://localhost:8080/v1` |
 | LM Studio | `lm_studio` | `http://localhost:1234/v1` |
-| MiniMax | `minimax` | `https://api.minimax.io/v1` |
+| MiniMax | `minimax` | `https://api.minimaxi.com/v1` |
+| MiniMax (Anthropic) | `minimax_anthropic` | `https://api.minimaxi.com/anthropic` |
 | Mistral | `mistral` | `https://api.mistral.ai/v1` |
-| Moonshot (Kimi) | `moonshot` | `https://api.moonshot.cn/v1` |
+| Moonshot | `moonshot` | `https://api.moonshot.cn/v1` |
 | Ollama | `ollama` | `http://localhost:11434/v1` |
 | OpenAI | `openai` | `https://api.openai.com/v1` |
 | OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
 | OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
 | OpenVINO Model Server | `ovms` | `http://localhost:8000/v3` |
-| Qianfan (Ernie) | `qianfan` | `https://qianfan.baidubce.com/v2` |
+| Qianfan | `qianfan` | `https://qianfan.baidubce.com/v2` |
 | SiliconFlow | `siliconflow` | `https://api.siliconflow.cn/v1` |
 | Step Fun | `stepfun` | `https://api.stepfun.com/v1` |
-| vLLM | `vllm` | `http://localhost:8000/v1` |
+| vLLM/Local | `vllm` | — |
 | VolcEngine | `volcengine` | `https://ark.cn-beijing.volces.com/api/v3` |
 | VolcEngine Coding Plan | `volcengine_coding_plan` | `https://ark.cn-beijing.volces.com/api/coding/v3` |
 | Xiaomi MIMO | `xiaomi_mimo` | `https://api.xiaomimimo.com/v1` |
-| Zhipu AI (GLM) | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
+| Zhipu AI | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
 
 </details>
 
@@ -643,7 +648,7 @@ deeptutor session open <id>
 | `deeptutor config show` | 設定サマリを表示 |
 | `deeptutor plugin list` | 登録済みツールと能力 |
 | `deeptutor plugin info <name>` | ツールまたは能力の詳細 |
-| `deeptutor provider login <provider>` | OAuth ログイン（`openai-codex`、`github-copilot`） |
+| `deeptutor provider login <provider>` | プロバイダ認証（`openai-codex` は OAuth ログイン；`github-copilot` は既存の Copilot 認証セッションの検証） |
 
 </details>
 

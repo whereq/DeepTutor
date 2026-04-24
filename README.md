@@ -117,41 +117,28 @@ You'll also need an **API key** from at least one LLM provider (e.g. [OpenAI](ht
 
 ### Option A — Setup Tour (Recommended)
 
-A **single interactive CLI script** that walks you through local configuration: language selection, ports, LLM, embedding, and optional search. The wizard writes everything directly into `.env`, so no manual env editing is needed.
+A **single interactive CLI script** that takes you from a fresh clone to a running app — no manual `pip install`, no `npm install`, no `.env` editing. Everything is detected, installed, and configured for you in a guided 7-step flow.
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 
 # Create a Python virtual environment (pick one):
-conda create -n deeptutor python=3.11 && conda activate deeptutor   # if you use Anaconda/Miniconda
-python -m venv .venv && source .venv/bin/activate                    # otherwise (macOS/Linux)
-python -m venv .venv && .venv\Scripts\activate                       # otherwise (Windows)
+conda create -n deeptutor python=3.11 && conda activate deeptutor   # Anaconda/Miniconda
+python -m venv .venv && source .venv/bin/activate                    # macOS/Linux
+python -m venv .venv && .venv\Scripts\activate                       # Windows
 
 # Launch the guided tour
 python scripts/start_tour.py
 ```
 
-The setup tour:
-
-- automatically creates `.env` from `.env.example` if needed
-- lets you choose the UI language first
-- walks through backend/frontend ports plus LLM, embedding, and search settings
-- writes the final values directly into `.env`
-
-Once the wizard finishes, start DeepTutor with:
+Once the wizard finishes:
 
 ```bash
 python scripts/start_web.py
 ```
 
-> **Daily launch** — The tour is only needed once. From now on, start DeepTutor with:
->
-> ```bash
-> python scripts/start_web.py
-> ```
->
-> This boots both the backend and frontend in one command and prints the frontend URL in the terminal. Re-run `start_tour.py` only if you need to reconfigure providers. Inside the web Settings page, you can also click **Run Tour** to replay the highlight-based UI walkthrough.
+> **Daily launch** — The tour is only needed once. From now on, just run `python scripts/start_web.py` to boot both the backend and frontend in a single command (the frontend URL is printed in the terminal). Re-run `start_tour.py` only if you want to reconfigure providers, change ports, or install missing extras. Inside the web **Settings** page you can also click **Run Tour** to replay the highlight-based UI walkthrough.
 
 ### Option B — Manual Local Install
 
