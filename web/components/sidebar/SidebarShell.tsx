@@ -103,7 +103,7 @@ export function SidebarShell({
               alt="DeepTutor"
               width={22}
               height={22}
-              className="rounded-md"
+              className="h-[22px] w-[22px] rounded-md"
             />
           </Link>
           <button
@@ -205,7 +205,7 @@ export function SidebarShell({
             alt="DeepTutor"
             width={22}
             height={22}
-            className="transition-transform duration-200 group-hover:scale-105"
+            className="h-[22px] w-[22px] transition-transform duration-200 group-hover:scale-105"
           />
           <span className="text-[16px] font-semibold leading-none tracking-[-0.02em] text-[var(--foreground)]">
             DeepTutor

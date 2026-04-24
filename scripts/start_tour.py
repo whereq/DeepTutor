@@ -84,6 +84,7 @@ def _load_runtime_deps():
         log_success,
         log_warn,
         select,
+        spinner,
         step,
         text_input,
     )
@@ -102,6 +103,7 @@ def _load_runtime_deps():
         log_success,
         log_warn,
         select,
+        spinner,
         step,
         text_input,
         get_env_store,
@@ -120,6 +122,7 @@ def _load_runtime_deps():
     log_success,
     log_warn,
     select,
+    spinner,
     step,
     text_input,
     get_env_store,
@@ -205,6 +208,36 @@ MESSAGES: dict[str, dict[str, str]] = {
         "search_none_desc": "Disable web search integration",
         "search_proxy_placeholder": "http://127.0.0.1:7890",
         "searxng_default": "http://localhost:8080",
+        "api_version_hint_azure": "Optional — required only for Azure OpenAI (e.g. 2024-02-15-preview)",
+        "api_version_hint_generic": "Optional — leave blank unless your provider requires it",
+        "search_proxy_hint": "Optional — only set if you need an HTTP/SOCKS proxy to reach the search provider",
+        # -- install step --
+        "install_step": "Install dependencies",
+        "install_desc": "We will install Python (via uv) and Node.js dependencies for you.",
+        "install_checking": "Checking environment ...",
+        "install_uv_ok": "uv: {version}",
+        "install_python_ok": "Python: {version}",
+        "install_node_ok": "Node.js: {version}",
+        "install_npm_ok": "npm: {version}",
+        "install_node_missing": "Node.js / npm not found.",
+        "install_node_hint_brew": "Install with: brew install node",
+        "install_node_hint_apt": "Install with: sudo apt install nodejs npm",
+        "install_node_hint_dnf": "Install with: sudo dnf install nodejs npm",
+        "install_node_hint_yum": "Install with: sudo yum install nodejs npm",
+        "install_node_hint_winget": "Install with: winget install OpenJS.NodeJS",
+        "install_node_hint_manual": "Download from https://nodejs.org",
+        "install_node_abort": "Node.js is required for the frontend. Please install it and re-run this script.",
+        "install_confirm": "Install dependencies now?",
+        "install_backend": "Installing Python dependencies ...",
+        "install_backend_done": "Python dependencies installed.",
+        "install_frontend": "Installing frontend dependencies (npm install) ...",
+        "install_frontend_done": "Frontend dependencies installed.",
+        "install_editable": "Installing DeepTutor package ...",
+        "install_editable_done": "DeepTutor package installed.",
+        "install_failed": "Installation failed: {error}",
+        "install_skipped": "Skipped dependency installation.",
+        "install_all_done": "All dependencies installed successfully.",
+        "install_retry_node": "Press Enter after installing Node.js to continue, or Ctrl-C to exit.",
     },
     "zh": {
         "banner_line_1": "在命令行中完成 DeepTutor 配置。",
@@ -264,6 +297,36 @@ MESSAGES: dict[str, dict[str, str]] = {
         "search_none_desc": "关闭联网搜索集成",
         "search_proxy_placeholder": "http://127.0.0.1:7890",
         "searxng_default": "http://localhost:8080",
+        "api_version_hint_azure": "选填 — 仅 Azure OpenAI 需要（例如 2024-02-15-preview）",
+        "api_version_hint_generic": "选填 — 一般留空，除非你的提供商明确要求",
+        "search_proxy_hint": "选填 — 仅当你需要通过 HTTP/SOCKS 代理访问搜索服务时填写",
+        # -- install step --
+        "install_step": "安装依赖",
+        "install_desc": "我们将通过 uv 安装 Python 依赖，并安装 Node.js 依赖。",
+        "install_checking": "正在检测环境 ...",
+        "install_uv_ok": "uv: {version}",
+        "install_python_ok": "Python: {version}",
+        "install_node_ok": "Node.js: {version}",
+        "install_npm_ok": "npm: {version}",
+        "install_node_missing": "未检测到 Node.js / npm。",
+        "install_node_hint_brew": "请运行: brew install node",
+        "install_node_hint_apt": "请运行: sudo apt install nodejs npm",
+        "install_node_hint_dnf": "请运行: sudo dnf install nodejs npm",
+        "install_node_hint_yum": "请运行: sudo yum install nodejs npm",
+        "install_node_hint_winget": "请运行: winget install OpenJS.NodeJS",
+        "install_node_hint_manual": "请前往 https://nodejs.org 下载安装",
+        "install_node_abort": "前端运行需要 Node.js，请安装后重新运行本脚本。",
+        "install_confirm": "现在安装依赖？",
+        "install_backend": "正在安装 Python 依赖 ...",
+        "install_backend_done": "Python 依赖安装完成。",
+        "install_frontend": "正在安装前端依赖（npm install）...",
+        "install_frontend_done": "前端依赖安装完成。",
+        "install_editable": "正在安装 DeepTutor 包 ...",
+        "install_editable_done": "DeepTutor 包安装完成。",
+        "install_failed": "安装失败：{error}",
+        "install_skipped": "已跳过依赖安装。",
+        "install_all_done": "所有依赖安装成功。",
+        "install_retry_node": "安装好 Node.js 后按回车继续，或按 Ctrl-C 退出。",
     },
 }
 
@@ -271,13 +334,33 @@ _LANG = "en"
 
 LLM_MODEL_SUGGESTIONS = {
     "openai": "gpt-4o-mini",
+    "anthropic": "claude-3-5-sonnet-latest",
     "deepseek": "deepseek-chat",
     "dashscope": "qwen-max",
     "gemini": "gemini-2.5-flash",
     "groq": "llama-3.3-70b-versatile",
     "zhipu": "glm-4.5",
+    "moonshot": "kimi-k2-0905",
+    "minimax": "MiniMax-M1",
+    "minimax_anthropic": "MiniMax-M1",
+    "mistral": "mistral-large-latest",
+    "stepfun": "step-1-8k",
+    "xiaomi_mimo": "MiMo-7B-RL",
+    "qianfan": "ernie-4.0-8k",
+    "openrouter": "openai/gpt-4o-mini",
+    "aihubmix": "gpt-4o-mini",
+    "siliconflow": "Qwen/Qwen2.5-72B-Instruct",
+    "volcengine": "doubao-1-5-pro-32k-250115",
+    "volcengine_coding_plan": "doubao-seed-code-1-6",
+    "byteplus": "seed-1-5-pro-250115",
+    "byteplus_coding_plan": "seed-coding-1-6",
+    "github_copilot": "gpt-4o",
+    "openai_codex": "gpt-5",
     "ollama": "qwen3:8b",
     "vllm": "Qwen/Qwen3-8B",
+    "lm_studio": "qwen2.5-7b-instruct",
+    "llama_cpp": "qwen2.5-7b-instruct",
+    "ovms": "qwen2.5-7b-instruct",
 }
 
 EMBEDDING_MODEL_SUGGESTIONS = {
@@ -295,6 +378,7 @@ SEARCH_PROVIDERS = (
     ("searxng", "SearXNG", "Self-hosted or public instance"),
     ("duckduckgo", "DuckDuckGo", "No API key required"),
     ("perplexity", "Perplexity", "API key required"),
+    ("serper", "Serper", "API key required"),
 )
 
 
@@ -466,44 +550,76 @@ def _enum_options(options: list[tuple[str, str, str]], current: str | None = Non
 
 def _load_provider_metadata():
     from deeptutor.services.config.provider_runtime import EMBEDDING_PROVIDERS
-    from deeptutor.services.provider_registry import find_by_name
+    from deeptutor.services.provider_registry import PROVIDERS, find_by_name
 
-    return EMBEDDING_PROVIDERS, find_by_name
+    return EMBEDDING_PROVIDERS, find_by_name, PROVIDERS
 
+
+
+# Order in which provider modes are listed in the wizard.
+_LLM_MODE_ORDER = {
+    "standard": 0,
+    "gateway": 1,
+    "local": 2,
+    "oauth": 3,
+    "direct": 4,
+}
+
+# Featured providers appear first within their mode group.
+_LLM_FEATURED_ORDER = (
+    "openai",
+    "anthropic",
+    "deepseek",
+    "gemini",
+    "dashscope",
+    "zhipu",
+    "moonshot",
+    "minimax",
+    "groq",
+    "openrouter",
+    "siliconflow",
+    "volcengine",
+    "byteplus",
+    "ollama",
+    "lm_studio",
+    "vllm",
+    "llama_cpp",
+    "azure_openai",
+    "custom",
+    "custom_anthropic",
+)
 
 
 def _llm_provider_options(current: str | None) -> list[tuple[str, str, str]]:
-    _, find_by_name = _load_provider_metadata()
-    common = [
-        "openai",
-        "anthropic",
-        "deepseek",
-        "gemini",
-        "dashscope",
-        "zhipu",
-        "groq",
-        "ollama",
-        "lm_studio",
-        "azure_openai",
-        "custom",
-    ]
+    _, _, providers = _load_provider_metadata()
+    featured_index = {name: i for i, name in enumerate(_LLM_FEATURED_ORDER)}
+
+    def sort_key(spec) -> tuple[int, int, str]:
+        return (
+            _LLM_MODE_ORDER.get(spec.mode, 99),
+            featured_index.get(spec.name, 1000),
+            spec.label.lower(),
+        )
+
     options: list[tuple[str, str, str]] = []
-    for name in common:
-        spec = find_by_name(name)
-        label = spec.label if spec else name
-        if name == "custom":
+    for spec in sorted(providers, key=sort_key):
+        if spec.name == "custom":
             desc = _t("custom_desc")
-        elif spec and spec.is_local:
+        elif spec.name == "custom_anthropic":
+            desc = "Anthropic-compatible custom endpoint"
+        elif spec.is_local:
             desc = _t("local_desc")
+        elif spec.is_oauth:
+            desc = "OAuth login required"
         else:
-            desc = spec.default_api_base if spec and spec.default_api_base else ""
-        options.append((name, label, desc))
+            desc = spec.default_api_base or ""
+        options.append((spec.name, spec.label, desc))
     return _enum_options(options, current)
 
 
 
 def _embedding_provider_options(current: str | None) -> list[tuple[str, str, str]]:
-    embedding_providers, _ = _load_provider_metadata()
+    embedding_providers, _, _ = _load_provider_metadata()
     common = ["openai", "jina", "cohere", "ollama", "vllm", "azure_openai", "custom"]
     options: list[tuple[str, str, str]] = []
     for name in common:
@@ -532,7 +648,7 @@ def _search_provider_options(current: str | None) -> list[tuple[str, str, str]]:
 def _default_base_url(binding: str, current_binding: str, current_value: str, fallback: str = "") -> str:
     if current_value and binding == current_binding:
         return current_value
-    embedding_providers, find_by_name = _load_provider_metadata()
+    embedding_providers, find_by_name, _ = _load_provider_metadata()
     if binding in embedding_providers:
         return embedding_providers[binding].default_api_base or fallback
     spec = find_by_name(binding)
@@ -552,7 +668,7 @@ def _default_llm_model(binding: str, current_binding: str, current_model: str) -
 def _default_embedding_model(binding: str, current_binding: str, current_model: str) -> str:
     if current_model and binding == current_binding:
         return current_model
-    embedding_providers, _ = _load_provider_metadata()
+    embedding_providers, _, _ = _load_provider_metadata()
     spec = embedding_providers.get(binding)
     if spec and spec.default_model:
         return spec.default_model
@@ -563,7 +679,7 @@ def _default_embedding_model(binding: str, current_binding: str, current_model: 
 def _default_embedding_dimension(binding: str, current_binding: str, current_value: str) -> str:
     if current_value and binding == current_binding:
         return current_value
-    embedding_providers, _ = _load_provider_metadata()
+    embedding_providers, _, _ = _load_provider_metadata()
     spec = embedding_providers.get(binding)
     if spec and spec.default_dim:
         return str(spec.default_dim)
@@ -593,9 +709,176 @@ def _send_dimensions_choice(current_value: str) -> str:
 # Wizard steps
 # ---------------------------------------------------------------------------
 
+_TOTAL_STEPS = 7
+
+
+def _get_version(cmd: list[str]) -> str | None:
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_uv() -> str:
+    """Return path to uv, installing it via pip if necessary."""
+    found = shutil.which("uv")
+    if found:
+        return found
+    log_info(dim("uv not found — installing via pip ..."))
+    subprocess.check_call(
+        [_PYTHON, "-m", "pip", "install", "uv", "-q"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    found = shutil.which("uv")
+    if found:
+        return found
+    return f"{_PYTHON} -m uv"
+
+
+_UV: str | None = None
+
+
+def _uv() -> str:
+    global _UV
+    if _UV is None:
+        _UV = _resolve_uv()
+    return _UV
+
+
+def _run_live(cmd: list[str], cwd: Path, label: str) -> None:
+    """Run a command, inheriting the parent's TTY so progress bars display
+    correctly (uv / npm / pip all detect TTY via stdout)."""
+    log_info(label)
+    log_info(dim(f"  {' '.join(cmd)}"))
+    print()
+    use_shell = platform.system().lower() == "windows"
+
+    env = os.environ.copy()
+    env.setdefault("FORCE_COLOR", "1")
+    env.setdefault("CLICOLOR_FORCE", "1")
+    env.setdefault("PY_COLORS", "1")
+
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    result = subprocess.run(
+        cmd,
+        cwd=str(cwd),
+        check=False,
+        shell=use_shell,
+        env=env,
+    )
+    print()
+    if result.returncode != 0:
+        raise RuntimeError(f"Command failed (exit {result.returncode}): {' '.join(cmd)}")
+
+
+def _install_dependencies() -> None:
+    step(2, _TOTAL_STEPS, _t("install_step"))
+    log_info(_t("install_desc"))
+    print()
+
+    # --- detect Python ---
+    py_version = _get_version([_PYTHON, "--version"])
+    log_success(_t("install_python_ok", version=py_version or "unknown"))
+
+    # --- detect / install uv ---
+    uv = _uv()
+    uv_version = _get_version([uv, "--version"])
+    log_success(_t("install_uv_ok", version=uv_version or "unknown"))
+
+    # --- detect Node.js / npm ---
+    node_version = _get_version(["node", "--version"])
+    npm_version = _get_version(["npm", "--version"])
+
+    if node_version and npm_version:
+        log_success(_t("install_node_ok", version=node_version))
+        log_success(_t("install_npm_ok", version=npm_version))
+    else:
+        log_warn(_t("install_node_missing"))
+        strategy = _node_strategy()
+        hint_key = f"install_node_hint_{strategy}"
+        if hint_key in MESSAGES[_LANG]:
+            log_info(_t(hint_key))
+        else:
+            log_info(_t("install_node_hint_manual"))
+        print()
+        try:
+            input(f"  {_t('install_retry_node')}")
+        except EOFError:
+            pass
+        node_version = _get_version(["node", "--version"])
+        npm_version = _get_version(["npm", "--version"])
+        if not (node_version and npm_version):
+            log_error(_t("install_node_abort"))
+            raise SystemExit(1)
+        log_success(_t("install_node_ok", version=node_version))
+        log_success(_t("install_npm_ok", version=npm_version))
+
+    print()
+
+    if not confirm(_t("install_confirm"), default=True):
+        log_warn(_t("install_skipped"))
+        print()
+        return
+
+    print()
+
+    uv = _uv()
+
+    # --- uv pip install -r requirements/server.txt ---
+    try:
+        _run_live(
+            [uv, "pip", "install", "-r", "requirements/server.txt", "--python", _PYTHON],
+            PROJECT_ROOT,
+            _t("install_backend"),
+        )
+        log_success(_t("install_backend_done"))
+    except RuntimeError as exc:
+        log_error(_t("install_failed", error=str(exc)))
+        raise SystemExit(1)
+
+    # --- uv pip install -e . --no-deps ---
+    try:
+        _run_live(
+            [uv, "pip", "install", "-e", ".", "--no-deps", "--python", _PYTHON],
+            PROJECT_ROOT,
+            _t("install_editable"),
+        )
+        log_success(_t("install_editable_done"))
+    except RuntimeError as exc:
+        log_error(_t("install_failed", error=str(exc)))
+        raise SystemExit(1)
+
+    # --- npm install ---
+    try:
+        npm_cmd = _get_npm_command()
+        _run_live(
+            [npm_cmd, "install"],
+            PROJECT_ROOT / "web",
+            _t("install_frontend"),
+        )
+        log_success(_t("install_frontend_done"))
+    except RuntimeError as exc:
+        log_error(_t("install_failed", error=str(exc)))
+        raise SystemExit(1)
+
+    print()
+    log_success(_t("install_all_done"))
+    print()
+
 
 def _choose_language() -> str:
-    step(1, 6, "Language")
+    step(1, _TOTAL_STEPS, "Language")
     language = select(
         "Choose language / 选择语言",
         [
@@ -612,7 +895,7 @@ def _choose_language() -> str:
 
 
 def _configure_ports() -> dict[str, str]:
-    step(2, 6, _t("ports_step"))
+    step(3, _TOTAL_STEPS, _t("ports_step"))
     summary = get_env_store().as_summary()
     backend_port = _prompt_int(_t("backend_port"), summary.backend_port)
     frontend_port = _prompt_int(_t("frontend_port"), summary.frontend_port)
@@ -625,7 +908,7 @@ def _configure_ports() -> dict[str, str]:
 
 
 def _configure_llm() -> dict[str, str]:
-    step(3, 6, _t("llm_step"))
+    step(4, _TOTAL_STEPS, _t("llm_step"))
     summary = get_env_store().as_summary()
     current_binding = summary.llm["binding"] or "openai"
     binding = select(_t("provider_prompt"), _llm_provider_options(current_binding))
@@ -639,6 +922,10 @@ def _configure_llm() -> dict[str, str]:
         _default_llm_model(binding, current_binding, summary.llm["model"]),
     )
     api_version_default = summary.llm["api_version"] if binding == current_binding else ""
+    if binding == "azure_openai":
+        log_info(dim(_t("api_version_hint_azure")))
+    else:
+        log_info(dim(_t("api_version_hint_generic")))
     api_version = text_input(_t("api_version"), api_version_default)
     print()
     return {
@@ -652,7 +939,7 @@ def _configure_llm() -> dict[str, str]:
 
 
 def _configure_embedding() -> dict[str, str]:
-    step(4, 6, _t("embedding_step"))
+    step(5, _TOTAL_STEPS, _t("embedding_step"))
     summary = get_env_store().as_summary()
     current_binding = summary.embedding["binding"] or "openai"
     binding = select(_t("provider_prompt"), _embedding_provider_options(current_binding))
@@ -671,6 +958,10 @@ def _configure_embedding() -> dict[str, str]:
     )
     send_dimensions = _send_dimensions_choice(summary.embedding["send_dimensions"])
     api_version_default = summary.embedding["api_version"] if binding == current_binding else ""
+    if binding == "azure_openai":
+        log_info(dim(_t("api_version_hint_azure")))
+    else:
+        log_info(dim(_t("api_version_hint_generic")))
     api_version = text_input(_t("api_version"), api_version_default)
     print()
     return {
@@ -686,7 +977,7 @@ def _configure_embedding() -> dict[str, str]:
 
 
 def _configure_search() -> dict[str, str]:
-    step(5, 6, _t("search_step"))
+    step(6, _TOTAL_STEPS, _t("search_step"))
     summary = get_env_store().as_summary()
     current_provider = summary.search["provider"] or "none"
     provider = select(_t("search_provider_prompt"), _search_provider_options(current_provider))
@@ -711,9 +1002,10 @@ def _configure_search() -> dict[str, str]:
         base_url = text_input(_t("search_base_url"), base_url_default)
 
     api_key = ""
-    if provider in {"brave", "tavily", "jina", "perplexity"} or api_key_default:
+    if provider in {"brave", "tavily", "jina", "perplexity", "serper"} or api_key_default:
         api_key = _prompt_secret(_t("api_key"), api_key_default)
 
+    log_info(dim(_t("search_proxy_hint")))
     proxy = text_input(_t("search_proxy"), proxy_default or _t("search_proxy_placeholder"))
     if proxy == _t("search_proxy_placeholder") and not proxy_default:
         proxy = ""
@@ -729,7 +1021,7 @@ def _configure_search() -> dict[str, str]:
 
 
 def _print_review(values: dict[str, str]) -> None:
-    step(6, 6, _t("review_step"))
+    step(7, _TOTAL_STEPS, _t("review_step"))
     log_info(
         f"{_t('summary_ports')}  {bold(values['BACKEND_PORT'])} / {bold(values['FRONTEND_PORT'])}"
     )
@@ -793,11 +1085,10 @@ def run_tour() -> None:
     if removed_cache:
         log_info(_t("tour_cache_removed"))
 
-    log_info(f"{_t('platform')}  {dim(f'{platform.system()} {platform.release()}')}")
-    log_info(f"{_t('python')}    {dim(_resolve_python())}")
-    log_info(f"{_t('node')}      {dim(_node_strategy())}")
     log_info(f"{_t('env_path')}       {dim(str(ENV_PATH.relative_to(PROJECT_ROOT)))}")
     print()
+
+    _install_dependencies()
 
     values: dict[str, str] = {}
     values.update(_configure_ports())
