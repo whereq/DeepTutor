@@ -1644,7 +1644,6 @@ function KnowledgePageContent() {
                     ref={createFileRef}
                     type="file"
                     multiple
-                    accept={uploadPolicy.accept || undefined}
                     className="hidden"
                     onChange={(event) => {
                       setNewKbFiles((prev) =>
@@ -1819,7 +1818,6 @@ function KnowledgePageContent() {
                     ref={uploadFileRef}
                     type="file"
                     multiple
-                    accept={uploadPolicy.accept || undefined}
                     className="hidden"
                     onChange={(event) => {
                       setUploadFiles((prev) =>

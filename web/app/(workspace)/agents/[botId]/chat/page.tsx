@@ -37,14 +37,17 @@ export default function BotChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = useCallback(() => {
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior,
+        });
       });
-    });
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!botId) {
@@ -64,10 +67,17 @@ export default function BotChatPage() {
             role: m.role as "user" | "assistant",
             content: m.content,
           }));
-        if (restored.length) setMessages(restored);
+        if (restored.length) {
+          setMessages(restored);
+          // Markdown/KaTeX inside AssistantResponse can grow the container after
+          // the first paint — re-snap a few times so we land at the bottom.
+          requestAnimationFrame(() => scrollToBottom("instant"));
+          window.setTimeout(() => scrollToBottom("instant"), 80);
+          window.setTimeout(() => scrollToBottom("instant"), 250);
+        }
       })
       .catch(() => {});
-  }, [botId]);
+  }, [botId, scrollToBottom]);
 
   useEffect(() => {
     if (!botId) {
