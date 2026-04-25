@@ -41,6 +41,21 @@ def _resolve_python() -> str:
 
 _PYTHON: str = _resolve_python()
 
+
+def _resolve_pip_cmd() -> list[str]:
+    """Return the best available pip invocation for the current environment.
+
+    Prefer ``uv pip`` when uv is on PATH (uv-managed venvs may have pip
+    disabled).  Fall back to ``python -m pip`` otherwise.
+    """
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "pip"]
+    return [_PYTHON, "-m", "pip"]
+
+
+_PIP_CMD: list[str] = _resolve_pip_cmd()
+
 _BOOTSTRAP_PACKAGES = [
     ("yaml", "PyYAML>=6.0"),
 ]
@@ -61,7 +76,7 @@ def _bootstrap() -> None:
         return
     print(f"  Installing bootstrap dependencies: {', '.join(missing)} ...")
     subprocess.check_call(
-        [_PYTHON, "-m", "pip", "install", *missing, "-q"],
+        [*_PIP_CMD, "install", *missing, "-q"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -425,12 +440,12 @@ def _install_commands(
 
     cmds: list[tuple[list[str], Path]] = []
     for req in PROFILE_COMMANDS[profile]:
-        cmds.append(([_PYTHON, "-m", "pip", "install", "-r", req], PROJECT_ROOT))
+        cmds.append(([*_PIP_CMD, "install", "-r", req], PROJECT_ROOT))
     if include_math_animator:
         cmds.append(
-            ([_PYTHON, "-m", "pip", "install", "-r", MATH_ANIMATOR_REQUIREMENTS], PROJECT_ROOT)
+            ([*_PIP_CMD, "install", "-r", MATH_ANIMATOR_REQUIREMENTS], PROJECT_ROOT)
         )
-    cmds.append(([_PYTHON, "-m", "pip", "install", "-e", ".", "--no-deps"], PROJECT_ROOT))
+    cmds.append(([*_PIP_CMD, "install", "-e", ".", "--no-deps"], PROJECT_ROOT))
     if profile.startswith("web"):
         cmds.append(([_get_npm_command(), "install"], PROJECT_ROOT / "web"))
     return cmds
