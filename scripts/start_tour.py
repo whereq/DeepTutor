@@ -798,7 +798,8 @@ def _install_dependencies() -> None:
 
     # --- detect Node.js / npm ---
     node_version = _get_version(["node", "--version"])
-    npm_version = _get_version(["npm", "--version"])
+    _npm_cmd = _get_npm_command()
+    npm_version = _get_version([_npm_cmd, "--version"])
 
     if node_version and npm_version:
         log_success(_t("install_node_ok", version=node_version))
