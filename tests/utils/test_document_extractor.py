@@ -71,15 +71,26 @@ def _make_pptx(slides_text: list[list[str]]) -> bytes:
 
 
 class TestIsDocumentExtension:
-    def test_supported(self) -> None:
+    def test_office(self) -> None:
         assert is_document_extension("foo.pdf")
         assert is_document_extension("foo.DOCX")
         assert is_document_extension("report.xlsx")
         assert is_document_extension("deck.pptx")
 
+    def test_text_and_code(self) -> None:
+        # Any extension in FileTypeRouter.TEXT_EXTENSIONS should be supported.
+        assert is_document_extension("notes.txt")
+        assert is_document_extension("readme.md")
+        assert is_document_extension("module.py")
+        assert is_document_extension("config.yaml")
+        assert is_document_extension("data.json")
+        assert is_document_extension("index.html")
+        assert is_document_extension("table.csv")
+
     def test_unsupported(self) -> None:
         assert not is_document_extension("foo.png")
-        assert not is_document_extension("foo.txt")
+        assert not is_document_extension("foo.zip")
+        assert not is_document_extension("foo.exe")
         assert not is_document_extension("foo")
         assert not is_document_extension("")
 
@@ -120,6 +131,56 @@ class TestExtractPptx:
         assert "--- Slide 2 ---" in text
         assert "Slide 1 title" in text
         assert "Slide 2 only text" in text
+
+
+class TestExtractTextLike:
+    def test_plain_txt(self) -> None:
+        text = extract_text_from_bytes("note.txt", "hello world\nline two".encode("utf-8"))
+        assert "hello world" in text
+        assert "line two" in text
+
+    def test_python_source(self) -> None:
+        src = b"def greet(name: str) -> str:\n    return f'hi {name}'\n"
+        text = extract_text_from_bytes("greet.py", src)
+        assert "def greet" in text
+
+    def test_json(self) -> None:
+        text = extract_text_from_bytes("data.json", b'{"x": 42, "y": "ok"}')
+        assert '"x": 42' in text
+
+    def test_csv(self) -> None:
+        text = extract_text_from_bytes("table.csv", b"a,b,c\n1,2,3\n")
+        assert "a,b,c" in text
+        assert "1,2,3" in text
+
+    def test_markdown(self) -> None:
+        text = extract_text_from_bytes("doc.md", b"# Heading\n\nBody.\n")
+        assert "# Heading" in text
+
+    def test_utf8_with_bom(self) -> None:
+        # The candidate chain has utf-8 before utf-8-sig (same order as KB
+        # pipeline), so BOM-prefixed bytes decode as utf-8 and the BOM is
+        # retained. Mirror that behavior here.
+        text = extract_text_from_bytes("note.txt", b"\xef\xbb\xbfhello")
+        assert "hello" in text
+
+    def test_gbk_fallback(self) -> None:
+        # "你好" in GBK
+        text = extract_text_from_bytes("note.txt", "你好".encode("gbk"))
+        assert text == "你好"
+
+    def test_svg(self) -> None:
+        svg = (
+            b'<?xml version="1.0"?>'
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
+            b'<circle cx="50" cy="50" r="40" fill="red"/>'
+            b'<text x="50" y="55">Hello</text>'
+            b'</svg>'
+        )
+        text = extract_text_from_bytes("logo.svg", svg)
+        assert "<svg" in text
+        assert "<circle" in text
+        assert "Hello" in text
 
 
 class TestExtractPdf:

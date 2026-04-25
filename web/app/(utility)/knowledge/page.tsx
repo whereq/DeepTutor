@@ -36,7 +36,6 @@ import {
   Pencil,
   Plus,
   Search,
-  Sparkles,
   Star,
   Trash2,
   Upload,
@@ -382,15 +381,6 @@ function KnowledgePageContent() {
   const uploadSelection = useMemo(
     () => validateFileSelection(uploadFiles),
     [uploadFiles, validateFileSelection],
-  );
-
-  const visibleSupportedFormats = useMemo(
-    () => uploadPolicy.extensions.slice(0, 8),
-    [uploadPolicy.extensions],
-  );
-  const hiddenSupportedFormatCount = Math.max(
-    0,
-    uploadPolicy.extensions.length - visibleSupportedFormats.length,
   );
 
   const removeNewKbFile = (fileId: string) => {
@@ -1595,44 +1585,6 @@ function KnowledgePageContent() {
                     ))}
                   </select>
 
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--background)]/70 p-4">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--foreground)]">
-                          <Sparkles className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-                          {t("Supported formats")}
-                        </div>
-                        <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                          {t("Maximum file size: {{size}}", {
-                            size: formatFileSize(uploadPolicy.max_file_size_bytes),
-                          })}{" "}
-                          ·{" "}
-                          {t("PDF limit: {{size}}", {
-                            size: formatFileSize(uploadPolicy.max_pdf_size_bytes),
-                          })}
-                        </p>
-                      </div>
-                      <div className="rounded-full bg-[var(--muted)] px-2 py-1 text-[10px] text-[var(--muted-foreground)]">
-                        {uploadPolicy.extensions.length} {t("types")}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {visibleSupportedFormats.map((extension) => (
-                        <span
-                          key={`create-ext-${extension}`}
-                          className="rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--muted-foreground)]"
-                        >
-                          {extension.replace(".", "")}
-                        </span>
-                      ))}
-                      {hiddenSupportedFormatCount > 0 && (
-                        <span className="rounded-full border border-[var(--border)] bg-[var(--muted)] px-2 py-1 text-[10px] font-medium text-[var(--muted-foreground)]">
-                          +{hiddenSupportedFormatCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
                   <button
                     type="button"
                     onClick={() => createFileRef.current?.click()}
@@ -1640,18 +1592,15 @@ function KnowledgePageContent() {
                     onDragLeave={(event) => handleDropZoneLeave("create", event)}
                     onDragOver={(event) => handleDropZoneOver("create", event)}
                     onDrop={(event) => handleDropZoneDrop("create", event)}
-                    className={`group relative flex w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border border-dashed px-5 py-6 text-center transition-all ${
+                    className={`group flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-5 py-7 text-center transition-colors ${
                       createDropZone.active
                         ? createDropZone.invalid
-                          ? "border-amber-400 bg-amber-50/90 shadow-[0_0_0_4px_rgba(245,158,11,0.08)] dark:border-amber-700 dark:bg-amber-950/20"
-                          : "border-sky-400 bg-sky-50/90 shadow-[0_0_0_4px_rgba(56,189,248,0.08)] dark:border-sky-700 dark:bg-sky-950/20"
-                        : "border-[var(--border)] bg-[linear-gradient(180deg,var(--background),var(--muted)_180%)] hover:border-[var(--foreground)]/25 hover:bg-[var(--muted)]/30"
+                          ? "border-amber-400 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20"
+                          : "border-sky-400 bg-sky-50/60 dark:border-sky-700 dark:bg-sky-950/20"
+                        : "border-[var(--border)] bg-[var(--background)] hover:border-[var(--foreground)]/25 hover:bg-[var(--muted)]/40"
                     }`}
                   >
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.32),transparent_60%)] opacity-60" />
-                    <div className="rounded-2xl bg-[var(--muted)] p-3 text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--foreground)]">
-                      <Files className="h-5 w-5" />
-                    </div>
+                    <Files className="h-5 w-5 text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--foreground)]" />
                     <div className="space-y-1">
                       <div className="text-[13px] font-medium text-[var(--foreground)]">
                         {createDropZone.active
@@ -1681,6 +1630,16 @@ function KnowledgePageContent() {
                       </p>
                     </div>
                   </button>
+                  <p className="text-[11px] text-[var(--muted-foreground)]">
+                    {uploadPolicy.extensions.length} {t("types")} ·{" "}
+                    {t("Maximum file size: {{size}}", {
+                      size: formatFileSize(uploadPolicy.max_file_size_bytes),
+                    })}{" "}
+                    ·{" "}
+                    {t("PDF limit: {{size}}", {
+                      size: formatFileSize(uploadPolicy.max_pdf_size_bytes),
+                    })}
+                  </p>
                   <input
                     ref={createFileRef}
                     type="file"
@@ -1801,44 +1760,6 @@ function KnowledgePageContent() {
                     </div>
                   )}
 
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--background)]/70 p-4">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--foreground)]">
-                          <Sparkles className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-                          {t("Supported formats")}
-                        </div>
-                        <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                          {t("Maximum file size: {{size}}", {
-                            size: formatFileSize(uploadPolicy.max_file_size_bytes),
-                          })}{" "}
-                          ·{" "}
-                          {t("PDF limit: {{size}}", {
-                            size: formatFileSize(uploadPolicy.max_pdf_size_bytes),
-                          })}
-                        </p>
-                      </div>
-                      <div className="rounded-full bg-[var(--muted)] px-2 py-1 text-[10px] text-[var(--muted-foreground)]">
-                        {uploadPolicy.extensions.length} {t("types")}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {visibleSupportedFormats.map((extension) => (
-                        <span
-                          key={`upload-ext-${extension}`}
-                          className="rounded-full border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--muted-foreground)]"
-                        >
-                          {extension.replace(".", "")}
-                        </span>
-                      ))}
-                      {hiddenSupportedFormatCount > 0 && (
-                        <span className="rounded-full border border-[var(--border)] bg-[var(--muted)] px-2 py-1 text-[10px] font-medium text-[var(--muted-foreground)]">
-                          +{hiddenSupportedFormatCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
                   <button
                     type="button"
                     onClick={() => uploadFileRef.current?.click()}
@@ -1846,18 +1767,15 @@ function KnowledgePageContent() {
                     onDragLeave={(event) => handleDropZoneLeave("upload", event)}
                     onDragOver={(event) => handleDropZoneOver("upload", event)}
                     onDrop={(event) => handleDropZoneDrop("upload", event)}
-                    className={`group relative flex w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border border-dashed px-5 py-6 text-center transition-all ${
+                    className={`group flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-5 py-7 text-center transition-colors ${
                       uploadDropZone.active
                         ? uploadDropZone.invalid
-                          ? "border-amber-400 bg-amber-50/90 shadow-[0_0_0_4px_rgba(245,158,11,0.08)] dark:border-amber-700 dark:bg-amber-950/20"
-                          : "border-sky-400 bg-sky-50/90 shadow-[0_0_0_4px_rgba(56,189,248,0.08)] dark:border-sky-700 dark:bg-sky-950/20"
-                        : "border-[var(--border)] bg-[linear-gradient(180deg,var(--background),var(--muted)_180%)] hover:border-[var(--foreground)]/25 hover:bg-[var(--muted)]/30"
+                          ? "border-amber-400 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/20"
+                          : "border-sky-400 bg-sky-50/60 dark:border-sky-700 dark:bg-sky-950/20"
+                        : "border-[var(--border)] bg-[var(--background)] hover:border-[var(--foreground)]/25 hover:bg-[var(--muted)]/40"
                     }`}
                   >
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.32),transparent_60%)] opacity-60" />
-                    <div className="rounded-2xl bg-[var(--muted)] p-3 text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--foreground)]">
-                      <Files className="h-5 w-5" />
-                    </div>
+                    <Files className="h-5 w-5 text-[var(--muted-foreground)] transition-colors group-hover:text-[var(--foreground)]" />
                     <div className="space-y-1">
                       <div className="text-[13px] font-medium text-[var(--foreground)]">
                         {uploadDropZone.active
@@ -1887,6 +1805,16 @@ function KnowledgePageContent() {
                       </p>
                     </div>
                   </button>
+                  <p className="text-[11px] text-[var(--muted-foreground)]">
+                    {uploadPolicy.extensions.length} {t("types")} ·{" "}
+                    {t("Maximum file size: {{size}}", {
+                      size: formatFileSize(uploadPolicy.max_file_size_bytes),
+                    })}{" "}
+                    ·{" "}
+                    {t("PDF limit: {{size}}", {
+                      size: formatFileSize(uploadPolicy.max_pdf_size_bytes),
+                    })}
+                  </p>
                   <input
                     ref={uploadFileRef}
                     type="file"
@@ -1974,12 +1902,6 @@ function KnowledgePageContent() {
                   const isLive = kbHasLiveProgress(kb);
                   const percent = resolveProgressPercent(progress);
                   const documentsCount = kb.statistics?.raw_documents ?? 0;
-                  const imagesCount = kb.statistics?.images ?? 0;
-                  const contentListsCount = kb.statistics?.content_lists ?? 0;
-                  const assetCount = imagesCount + contentListsCount;
-                  const createdLabel =
-                    formatKnowledgeTimestamp(kbMetadata.created_at) ||
-                    t("Unknown time");
                   const updatedLabel =
                     formatKnowledgeTimestamp(kbMetadata.last_updated) ||
                     t("Unknown time");
@@ -2012,21 +1934,17 @@ function KnowledgePageContent() {
                   return (
                     <div
                       key={kb.name}
-                      className="group rounded-2xl border border-[var(--border)] bg-[linear-gradient(180deg,var(--card),var(--background)_180%)] p-4 transition-colors hover:border-[var(--foreground)]/10"
+                      className="group rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition-colors hover:border-[var(--foreground)]/15"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex min-w-0 flex-1 items-start gap-4">
-                          <div className="relative hidden h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[linear-gradient(180deg,var(--card),var(--muted)_160%)] sm:block">
-                            <div className="absolute -right-3 -top-3 h-10 w-10 rounded-full bg-[var(--primary)]/12 blur-xl" />
-                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.26),transparent_58%)]" />
-                            <div className="relative flex h-full items-center justify-center text-[var(--foreground)]">
-                              <Layers className="h-5 w-5 opacity-80" />
-                            </div>
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--muted)]/60 text-[var(--muted-foreground)] sm:flex">
+                            <Layers className="h-4 w-4" />
                           </div>
 
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-[15px] font-semibold text-[var(--foreground)]">
+                              <h3 className="text-[14px] font-semibold text-[var(--foreground)]">
                                 {kb.name}
                               </h3>
                               {kb.is_default && (
@@ -2055,18 +1973,15 @@ function KnowledgePageContent() {
                                 {statusLabel}
                               </span>
                             </div>
-                            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-[var(--muted-foreground)]">
-                              <span className="rounded-full border border-[var(--border)] px-2.5 py-1">
-                                {t("Provider")}:{" "}
-                                {kb.statistics?.rag_provider || "llamaindex"}
-                              </span>
-                              <span className="rounded-full border border-[var(--border)] px-2.5 py-1">
-                                {t("Embedding")}: {embeddingLabel}
-                              </span>
+                            <div className="mt-1 truncate text-[11px] text-[var(--muted-foreground)]">
+                              {kb.statistics?.rag_provider || "llamaindex"}
+                              {" · "}
+                              {embeddingLabel}
                               {!!progress?.current && !!progress?.total && isLive && (
-                                <span className="rounded-full border border-[var(--border)] px-2.5 py-1">
+                                <>
+                                  {" · "}
                                   {t("Progress")}: {progress.current}/{progress.total}
-                                </span>
+                                </>
                               )}
                             </div>
                           </div>
@@ -2076,76 +1991,43 @@ function KnowledgePageContent() {
                           {!kb.is_default && (
                             <button
                               onClick={() => setDefaultKnowledgeBase(kb.name)}
-                              className="rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+                              className="rounded-md px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                             >
                               {t("Set default")}
                             </button>
                           )}
                           <button
                             onClick={() => deleteKnowledgeBase(kb.name)}
-                            className="rounded-md border border-[var(--border)] p-1.5 text-[var(--muted-foreground)] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                            className="rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
                           >
                             <Trash2 size={13} />
                           </button>
                         </div>
                       </div>
 
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--background)]/65 p-3">
-                          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                            {t("Documents")}
-                          </div>
-                          <div className="mt-2 text-[20px] font-semibold text-[var(--foreground)]">
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[var(--muted-foreground)]">
+                        <span>
+                          <span className="font-medium text-[var(--foreground)]">
                             {documentsCount}
-                          </div>
-                          <div className="mt-1 text-[11px] text-[var(--muted-foreground)]">
-                            {assetCount > 0
-                              ? t("{{count}} derived assets", { count: assetCount })
-                              : t("No derived assets yet")}
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--background)]/65 p-3">
-                          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                            {t("Updated")}
-                          </div>
-                          <div className="mt-2 text-[13px] font-medium leading-relaxed text-[var(--foreground)]">
-                            {updatedLabel}
-                          </div>
-                          <div className="mt-1 text-[11px] text-[var(--muted-foreground)]">
-                            {t("Created")}: {createdLabel}
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--background)]/65 p-3">
-                          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                            {t("Index")}
-                          </div>
-                          <div className="mt-2 text-[13px] font-medium text-[var(--foreground)]">
-                            {kb.statistics?.rag_initialized
-                              ? t("Vector index ready")
-                              : t("Index not ready")}
-                          </div>
-                          <div className="mt-1 break-all text-[11px] text-[var(--muted-foreground)]">
-                            {kb.path || t("No storage path")}
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--background)]/65 p-3">
-                          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                            {t("Assets")}
-                          </div>
-                          <div className="mt-2 text-[13px] font-medium text-[var(--foreground)]">
-                            {imagesCount} {t("images")} · {contentListsCount}{" "}
-                            {t("lists")}
-                          </div>
-                          <div className="mt-1 text-[11px] text-[var(--muted-foreground)]">
-                            {kbMetadata.embedding_mismatch
-                              ? t("Embedding config changed")
-                              : t("Embedding config aligned")}
-                          </div>
-                        </div>
+                          </span>{" "}
+                          {documentsCount === 1 ? t("document") : t("documents")}
+                        </span>
+                        <span className="h-3 w-px bg-[var(--border)]" aria-hidden />
+                        <span>
+                          {kb.statistics?.rag_initialized
+                            ? t("Vector index ready")
+                            : t("Index not ready")}
+                        </span>
+                        <span className="h-3 w-px bg-[var(--border)]" aria-hidden />
+                        <span>
+                          {t("Updated")} {updatedLabel}
+                        </span>
                       </div>
+                      {kb.path && (
+                        <div className="mt-1 truncate font-mono text-[10.5px] text-[var(--muted-foreground)]/80">
+                          {kb.path}
+                        </div>
+                      )}
 
                       {(isLive || isError || needsReindex) && activityMessage && (
                         <div

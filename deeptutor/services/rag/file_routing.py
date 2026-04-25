@@ -90,6 +90,7 @@ class FileTypeRouter:
         ".html",
         ".htm",
         ".xml",
+        ".svg",
         ".css",
         ".scss",
         ".sass",
@@ -165,12 +166,34 @@ class FileTypeRouter:
             unsupported=unsupported,
         )
 
+    TEXT_DECODING_CANDIDATES = (
+        "utf-8",
+        "utf-8-sig",
+        "gbk",
+        "gb2312",
+        "gb18030",
+        "latin-1",
+        "cp1252",
+    )
+
+    @classmethod
+    def decode_bytes(cls, data: bytes) -> str:
+        """Decode raw bytes using the same fallback chain as read_text_file.
+
+        Used by the chat-attachment extractor so path-based and bytes-based
+        callers share one source of truth for supported encodings.
+        """
+        for encoding in cls.TEXT_DECODING_CANDIDATES:
+            try:
+                return data.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return data.decode("utf-8", errors="replace")
+
     @classmethod
     async def read_text_file(cls, file_path: str) -> str:
         """Read a text file with automatic encoding detection."""
-        encodings = ["utf-8", "utf-8-sig", "gbk", "gb2312", "gb18030", "latin-1", "cp1252"]
-
-        for encoding in encodings:
+        for encoding in cls.TEXT_DECODING_CANDIDATES:
             try:
                 with open(file_path, "r", encoding=encoding) as f:
                     return f.read()

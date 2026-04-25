@@ -36,6 +36,7 @@ import {
 } from "@/lib/file-attachments";
 import {
   classifyFile,
+  isSvgFilename,
   MAX_ATTACHMENT_BYTES,
   MAX_TOTAL_ATTACHMENT_BYTES,
 } from "@/lib/doc-attachments";
@@ -71,6 +72,7 @@ import {
 } from "@/lib/research-types";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
 import { listSkills, type SkillInfo } from "@/lib/skills-api";
+import { downloadChatMarkdown } from "@/lib/chat-export";
 
 const NotebookRecordPicker = dynamic(
   () => import("@/components/notebook/NotebookRecordPicker"),
@@ -654,13 +656,17 @@ export default function ChatPage() {
       new Promise((resolve, reject) => {
         readFileAsDataUrl(f)
           .then((raw) => {
-            const isImage = f.type.startsWith("image/");
+            // SVG: treat as file (text extraction on server, vision models
+            // reject SVG) but keep the data URL so the chip can render a
+            // thumbnail via a raw <img> tag.
+            const svg = isSvgFilename(f.name) || f.type === "image/svg+xml";
+            const isImage = !svg && f.type.startsWith("image/");
             const b64 = extractBase64FromDataUrl(raw);
             resolve({
               type: isImage ? "image" : "file",
               filename: f.name,
               base64: b64,
-              previewUrl: isImage ? raw : undefined,
+              previewUrl: isImage || svg ? raw : undefined,
               size: f.size,
               mimeType: f.type || undefined,
             });
@@ -998,6 +1004,16 @@ export default function ChatPage() {
     router.push("/chat");
   }, [router]);
 
+  const handleDownloadMarkdown = useCallback(() => {
+    if (!state.messages.length) return;
+    const title =
+      state.messages
+        .find((msg) => msg.role === "user")
+        ?.content.trim()
+        .slice(0, 80) || "Chat Session";
+    downloadChatMarkdown(state.messages, { title });
+  }, [state.messages]);
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[var(--background)]">
       <div className="mx-auto flex w-full max-w-[960px] items-center justify-between px-6 pt-3 pb-0">
@@ -1011,6 +1027,14 @@ export default function ChatPage() {
             className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--border)]/50 disabled:hover:text-[var(--muted-foreground)]"
           >
             {t("Save to Notebook")}
+          </button>
+          <button
+            onClick={handleDownloadMarkdown}
+            disabled={!state.messages.length}
+            title={t("Download chat history as Markdown")}
+            className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--border)]/50 disabled:hover:text-[var(--muted-foreground)]"
+          >
+            {t("Download Markdown")}
           </button>
           <button
             onClick={handleNewChat}

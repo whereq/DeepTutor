@@ -30,6 +30,7 @@ import {
   ATTACHMENT_ACCEPT,
   docIconFor,
   formatBytes,
+  isSvgFilename,
 } from "@/lib/doc-attachments";
 import { useTranslation } from "react-i18next";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
@@ -333,7 +334,7 @@ export default memo(function ChatComposer({
           className="absolute bottom-full left-0 right-0 z-50 mb-1"
         >
           <div className="mx-auto">
-            <div className="w-[280px] rounded-xl border border-[var(--border)] bg-[var(--card)] py-1.5 shadow-lg">
+            <div className="w-[280px] rounded-xl border border-[var(--border)] bg-[var(--popover)] py-1.5 shadow-lg backdrop-blur-md">
               {capabilities.map((cap) => {
                 const Icon = cap.icon;
                 const selected = activeCap.value === cap.value;
@@ -392,7 +393,7 @@ export default memo(function ChatComposer({
                   {t("Drop files here")}
                 </span>
                 <span className="text-[11px] text-[var(--primary)]/70">
-                  {t("Images, PDF, DOCX, XLSX, PPTX")}
+                  {t("Images, Office docs, code & text")}
                 </span>
               </div>
             </div>
@@ -452,6 +453,33 @@ export default memo(function ChatComposer({
                           fill
                           unoptimized
                           className="object-cover"
+                        />
+                        <button
+                          onClick={() => onRemoveAttachment(i)}
+                          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--foreground)] text-[var(--background)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+                if (isSvgFilename(a.filename) && a.previewUrl) {
+                  return (
+                    <div
+                      key={`${a.filename}-${i}`}
+                      className="group relative"
+                      title={a.filename}
+                    >
+                      <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                        {/* Native <img> is safe for SVG: scripts inside an
+                            SVG don't execute under <img> context. Next.js
+                            <Image> rejects SVG by default. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={a.previewUrl}
+                          alt={a.filename || t("Attachment preview")}
+                          className="h-full w-full object-contain p-1"
                         />
                         <button
                           onClick={() => onRemoveAttachment(i)}
@@ -567,7 +595,7 @@ export default memo(function ChatComposer({
                     {toolMenuOpen && (
                       <div
                         ref={toolMenuRef}
-                        className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg"
+                        className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
                       >
                         {researchSources.map((source) => {
                           const active = researchConfig.sources.includes(
@@ -635,7 +663,7 @@ export default memo(function ChatComposer({
                     {toolMenuOpen && (
                       <div
                         ref={toolMenuRef}
-                        className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg"
+                        className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
                       >
                         {visibleTools.map((tool) => {
                           const active = selectedTools.has(tool.name);
@@ -701,7 +729,7 @@ export default memo(function ChatComposer({
                   {refMenuOpen && (
                     <div
                       ref={refMenuRef}
-                      className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg"
+                      className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
                     >
                       <button
                         onClick={() => {
@@ -798,7 +826,7 @@ export default memo(function ChatComposer({
                     {skillMenuOpen && (
                       <div
                         ref={skillMenuRef}
-                        className="absolute bottom-full left-0 z-50 mb-1.5 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg"
+                        className="absolute bottom-full left-0 z-50 mb-1.5 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
                       >
                         <button
                           onClick={() => onSetSkillsAuto(!skillsAutoMode)}

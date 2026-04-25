@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --background: #faf9f6;
     --foreground: #1f1d1b;
     --card: #ffffff;
@@ -26,6 +27,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: #1a1918;
     --foreground: #e8e4de;
     --card: #242220;
@@ -48,6 +50,7 @@
   }
 
   .theme-snow {
+    color-scheme: light;
     --background: #f8fafc;
     --foreground: #0f172a;
     --card: #ffffff;
@@ -70,11 +73,12 @@
   }
 
   .theme-glass {
+    color-scheme: dark;
     --background: #111111;
     --foreground: #ffffff;
     --card: rgba(255, 255, 255, 0.05);
     --card-foreground: #ffffff;
-    --popover: rgba(255, 255, 255, 0.1);
+    --popover: rgba(24, 22, 36, 0.92);
     --popover-foreground: #ffffff;
     --primary: #9d50bb;
     --primary-foreground: #ffffff;
