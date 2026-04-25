@@ -80,11 +80,21 @@ def _bootstrap() -> None:
     if not missing:
         return
     print(f"  Installing bootstrap dependencies: {', '.join(missing)} ...")
-    subprocess.check_call(
-        [*_PIP_CMD, "install", *missing, *_PIP_PYTHON_ARGS, "-q"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    cmd = [*_PIP_CMD, "install", *missing, *_PIP_PYTHON_ARGS, "-q"]
+    result = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    if result.returncode != 0:
+        # Surface the real pip error instead of silently exiting — without
+        # this, users see only an opaque CalledProcessError traceback.
+        if result.stdout:
+            sys.stderr.write(result.stdout)
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+        sys.stderr.write(
+            f"\n  Failed to install bootstrap dependencies: {', '.join(missing)}\n"
+            f"  Try running it manually to inspect the full error:\n"
+            f"    {' '.join(cmd[:-1])}\n"
+        )
+        raise SystemExit(1)
 
 
 _bootstrap()
@@ -235,6 +245,19 @@ MESSAGES: dict[str, dict[str, str]] = {
         "install_step": "Install dependencies",
         "install_desc": "We will install Python (via uv) and Node.js dependencies for you.",
         "install_checking": "Checking environment ...",
+        "install_uv_via_pip": "uv not found — installing via pip ...",
+        "install_uv_pip_failed": "Failed to install uv via pip. The underlying error was:",
+        "install_uv_hint": (
+            "Possible fixes:\n"
+            "  - Python 3.14+ may not yet have a prebuilt uv wheel; try Python 3.12 or 3.13.\n"
+            "  - If you already installed uv manually, open a NEW terminal so PATH is refreshed.\n"
+            "  - Slow / blocked PyPI? Try a mirror, e.g.\n"
+            "      pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple\n"
+            "  - Or install uv directly: https://docs.astral.sh/uv/getting-started/installation/"
+        ),
+        "install_uv_not_on_path": (
+            "uv was installed but is not on PATH. Open a new terminal and re-run this script."
+        ),
         "install_uv_ok": "uv: {version}",
         "install_python_ok": "Python: {version}",
         "install_node_ok": "Node.js: {version}",
@@ -324,6 +347,19 @@ MESSAGES: dict[str, dict[str, str]] = {
         "install_step": "安装依赖",
         "install_desc": "我们将通过 uv 安装 Python 依赖，并安装 Node.js 依赖。",
         "install_checking": "正在检测环境 ...",
+        "install_uv_via_pip": "未检测到 uv，正在通过 pip 安装 ...",
+        "install_uv_pip_failed": "通过 pip 安装 uv 失败，下方是 pip 输出的真实错误：",
+        "install_uv_hint": (
+            "可能的解决办法：\n"
+            "  - Python 3.14+ 可能还没有预编译的 uv wheel，建议改用 Python 3.12 或 3.13。\n"
+            "  - 如果你已经手动安装了 uv，请关闭并重新打开终端以刷新 PATH 后重试。\n"
+            "  - PyPI 下载缓慢或被拦截？可以切换镜像源，例如：\n"
+            "      pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple\n"
+            "  - 也可参考官方安装方式：https://docs.astral.sh/uv/getting-started/installation/"
+        ),
+        "install_uv_not_on_path": (
+            "uv 已安装但没有出现在 PATH 中，请新开一个终端窗口后重新运行本脚本。"
+        ),
         "install_uv_ok": "uv: {version}",
         "install_python_ok": "Python: {version}",
         "install_node_ok": "Node.js: {version}",
@@ -744,11 +780,55 @@ def _get_version(cmd: list[str]) -> str | None:
             capture_output=True,
             text=True,
             timeout=10,
+            errors="replace",
         )
         if result.returncode == 0:
             return result.stdout.strip()
     except Exception:
         pass
+    return None
+
+
+def _detect_command_version(name: str) -> str | None:
+    """Resolve ``name`` via ``shutil.which`` then probe ``--version``.
+
+    Why: on Windows, ``node`` resolves to ``node.exe`` and ``npm`` to
+    ``npm.cmd``. ``subprocess.run`` with a bare name (no ``shell=True``)
+    handles the former unevenly across Python versions and outright rejects
+    ``.cmd``/``.bat`` files since the CVE-2024-4030 hardening in 3.12. Using
+    the absolute path returned by ``shutil.which`` (which already respects
+    ``PATHEXT``) sidesteps both pitfalls and matches how ``_node_strategy``
+    detects the same tools.
+    """
+    exe = shutil.which(name)
+    if not exe:
+        return None
+    return _get_version([exe, "--version"])
+
+
+def _find_uv_in_known_locations() -> str | None:
+    """Look for uv in well-known install locations even if not on PATH.
+
+    Helps when the user just ran the standalone installer (or ``pip install
+    --user uv``) and hasn't reopened their shell to refresh PATH — without
+    this, we'd needlessly try to install uv again.
+    """
+    home = Path.home()
+    if platform.system().lower() == "windows":
+        candidates = [
+            home / ".local" / "bin" / "uv.exe",
+            home / ".cargo" / "bin" / "uv.exe",
+        ]
+    else:
+        candidates = [
+            home / ".local" / "bin" / "uv",
+            home / ".cargo" / "bin" / "uv",
+            Path("/opt/homebrew/bin/uv"),
+            Path("/usr/local/bin/uv"),
+        ]
+    for path in candidates:
+        if path.is_file():
+            return str(path)
     return None
 
 
@@ -759,19 +839,33 @@ def _resolve_uv() -> str:
     returned None we cannot bootstrap uv with itself, and a pip-less venv
     would have already failed in ``_bootstrap()`` above.
     """
-    found = shutil.which("uv")
+    found = shutil.which("uv") or _find_uv_in_known_locations()
     if found:
         return found
-    log_info(dim("uv not found — installing via pip ..."))
-    subprocess.check_call(
-        [_PYTHON, "-m", "pip", "install", "uv", "-q"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    found = shutil.which("uv")
+    log_info(dim(_t("install_uv_via_pip")))
+    cmd = [_PYTHON, "-m", "pip", "install", "uv", "--disable-pip-version-check"]
+    result = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    if result.returncode != 0:
+        log_error(_t("install_uv_pip_failed"))
+        # Replay pip's real output so the user can see *why* it failed
+        # (no wheel for this Python, network/proxy, SSL, etc.).
+        if result.stdout:
+            sys.stderr.write(result.stdout)
+            if not result.stdout.endswith("\n"):
+                sys.stderr.write("\n")
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+            if not result.stderr.endswith("\n"):
+                sys.stderr.write("\n")
+        log_warn(_t("install_uv_hint"))
+        raise SystemExit(1)
+    found = shutil.which("uv") or _find_uv_in_known_locations()
     if found:
         return found
-    return f"{_PYTHON} -m uv"
+    # pip reported success but uv is nowhere we recognize — its Scripts/bin
+    # dir is not on PATH. Reopening the shell almost always fixes this.
+    log_error(_t("install_uv_not_on_path"))
+    raise SystemExit(1)
 
 
 _UV: str | None = None
@@ -827,9 +921,8 @@ def _install_dependencies() -> None:
     log_success(_t("install_uv_ok", version=uv_version or "unknown"))
 
     # --- detect Node.js / npm ---
-    node_version = _get_version(["node", "--version"])
-    _npm_cmd = _get_npm_command()
-    npm_version = _get_version([_npm_cmd, "--version"])
+    node_version = _detect_command_version("node")
+    npm_version = _detect_command_version("npm")
 
     if node_version and npm_version:
         log_success(_t("install_node_ok", version=node_version))
@@ -847,8 +940,8 @@ def _install_dependencies() -> None:
             input(f"  {_t('install_retry_node')}")
         except EOFError:
             pass
-        node_version = _get_version(["node", "--version"])
-        npm_version = _get_version(["npm", "--version"])
+        node_version = _detect_command_version("node")
+        npm_version = _detect_command_version("npm")
         if not (node_version and npm_version):
             log_error(_t("install_node_abort"))
             raise SystemExit(1)

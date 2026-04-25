@@ -268,6 +268,7 @@ class MainSolver:
         self,
         question: str,
         image_url: str | None = None,
+        attachments: list[Any] | None = None,
         verbose: bool = True,
         detailed: bool | None = None,
         conversation_context: str = "",
@@ -277,6 +278,7 @@ class MainSolver:
         Args:
             question: The user question to solve.
             image_url: Optional image URL for multimodal questions.
+            attachments: Optional multimodal attachments from the chat composer.
             verbose: Enable verbose logging.
             detailed: If True, use iterative detailed writing. If None, read from config.
 
@@ -305,7 +307,12 @@ class MainSolver:
         self.logger.info(f"Output: {output_dir}")
 
         try:
-            result = await self._run_pipeline(question, output_dir, image_url=image_url)
+            result = await self._run_pipeline(
+                question,
+                output_dir,
+                image_url=image_url,
+                attachments=attachments,
+            )
             result["metadata"] = {
                 **result.get("metadata", {}),
                 "mode": "plan_react_write",
@@ -349,6 +356,7 @@ class MainSolver:
         question: str,
         output_dir: str,
         image_url: str | None = None,
+        attachments: list[Any] | None = None,
     ) -> dict[str, Any]:
         solve_cfg = self.config.get("solve", {})
         max_react = solve_cfg.get("max_react_iterations", 5)
@@ -375,6 +383,7 @@ class MainSolver:
             kb_name=self.kb_name,
             memory_context=memory_ctx,
             image_url=image_url,
+            attachments=attachments,
         )
         scratchpad.set_plan(plan)
         scratchpad.save(output_dir)
@@ -441,6 +450,7 @@ class MainSolver:
                     scratchpad=scratchpad,
                     memory_context=step_memory_context,
                     image_url=image_url,
+                    attachments=attachments,
                     round_index=round_num + 1,
                 )
 
@@ -514,6 +524,7 @@ class MainSolver:
                             replan=True,
                             memory_context=replan_memory,
                             image_url=image_url,
+                            attachments=attachments,
                         )
                         scratchpad.update_plan(new_plan)
                         scratchpad.save(output_dir)

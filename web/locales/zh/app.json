@@ -339,6 +339,7 @@
   "session": "个会话",
   "sessions": "个会话",
   "Chat": "聊天",
+  "Tutorbot": "辅导机器人",
   "No history found": "未找到历史记录",
   "Your activities will appear here": "您的活动将显示在这里",
   "Continue": "继续",
@@ -1102,5 +1103,12 @@
   "lists": "列表",
   "Embedding config changed": "嵌入配置已变化",
   "Embedding config aligned": "嵌入配置已对齐",
-  "Default embedding": "默认嵌入配置"
+  "Default embedding": "默认嵌入配置",
+  "Remove attachment": "移除附件",
+  "Loading preview…": "正在加载预览…",
+  "File preview: {{name}}": "文件预览：{{name}}",
+  "Copy link": "复制链接",
+  "Original file is not stored (sent before preview was supported).": "原始文件未保存（消息发送于预览功能上线之前）。",
+  "Preview is not available for this file type.": "暂不支持预览此类文件。",
+  "Showing extracted text — the same content the assistant reads. Download the original to see full formatting.": "以下是提取出的纯文本，也是助手实际读取的内容。如需查看完整排版，请下载原文件。"
 }

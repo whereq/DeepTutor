@@ -48,6 +48,7 @@ class IdeaAgent(BaseAgent):
         target_question_type: str = "",
         existing_concentrations: list[str] | None = None,
         batch_number: int | None = None,
+        attachments: list[Any] | None = None,
     ) -> dict[str, Any]:
         """
         Build grounded question templates in a single pass.
@@ -78,6 +79,7 @@ class IdeaAgent(BaseAgent):
             ],
             trace_id=trace_id,
             batch_number=batch_number,
+            attachments=attachments,
         )
         return {
             "templates": templates,
@@ -177,6 +179,7 @@ class IdeaAgent(BaseAgent):
         retrieval_queries: list[str] | None = None,
         trace_id: str = "ideation",
         batch_number: int | None = None,
+        attachments: list[Any] | None = None,
     ) -> list[QuestionTemplate]:
         system_prompt = append_language_directive(
             self.get_prompt("system", ""),
@@ -218,6 +221,7 @@ class IdeaAgent(BaseAgent):
                 system_prompt=system_prompt,
                 response_format={"type": "json_object"},
                 stage="idea_generate_templates",
+                attachments=attachments,
                 trace_meta=build_trace_metadata(
                     call_id=new_call_id("quiz-ideation"),
                     phase="ideation",

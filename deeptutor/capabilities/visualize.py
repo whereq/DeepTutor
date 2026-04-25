@@ -66,6 +66,7 @@ class VisualizeCapability(BaseCapability):
                 user_input=context.user_message,
                 history_context=history_context,
                 render_mode=render_mode,
+                attachments=context.attachments,
             )
             await stream.progress(
                 message=f"Render type: {analysis.render_type} — {analysis.description}",

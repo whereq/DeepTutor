@@ -26,6 +26,7 @@ class RecordType(str, Enum):
     RESEARCH = "research"
     CHAT = "chat"
     CO_WRITER = "co_writer"
+    TUTORBOT = "tutorbot"
 
 
 class NotebookRecord(BaseModel):

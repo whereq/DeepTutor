@@ -65,6 +65,7 @@ class PlannerAgent(BaseAgent):
         replan: bool = False,
         memory_context: str = "",
         image_url: str | None = None,
+        attachments: list[Any] | None = None,
     ) -> Plan:
         """Generate or revise the solving plan.
 
@@ -75,6 +76,7 @@ class PlannerAgent(BaseAgent):
             replan: If True, this is a replan request — include progress so far.
             memory_context: Historical memory context string.
             image_url: Optional image URL for multimodal questions.
+            attachments: Optional chat attachments for multimodal input.
 
         Returns:
             A Plan object with ordered steps.
@@ -113,8 +115,11 @@ class PlannerAgent(BaseAgent):
             ),
         }
 
+        llm_attachments = list(attachments or [])
         if image_url:
-            llm_kwargs["attachments"] = [Attachment(type="image", url=image_url)]
+            llm_attachments.append(Attachment(type="image", url=image_url))
+        if llm_attachments:
+            llm_kwargs["attachments"] = llm_attachments
 
         chunks: list[str] = []
         async for chunk in self.stream_llm(**llm_kwargs):

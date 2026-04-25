@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from deeptutor.agents.base_agent import BaseAgent
+from deeptutor.core.context import Attachment
 from deeptutor.core.trace import build_trace_metadata, new_call_id
 
 from ..models import VisualizationAnalysis
@@ -32,6 +33,7 @@ class AnalysisAgent(BaseAgent):
         user_input: str,
         history_context: str,
         render_mode: str = "auto",
+        attachments: list[Attachment] | None = None,
     ) -> VisualizationAnalysis:
         if render_mode in ("svg", "chartjs", "mermaid", "html"):
             system_prompt = self.get_prompt("system_fixed")
@@ -62,6 +64,7 @@ class AnalysisAgent(BaseAgent):
             system_prompt=system_prompt,
             response_format={"type": "json_object"},
             stage="analyzing",
+            attachments=attachments,
             trace_meta=build_trace_metadata(
                 call_id=new_call_id("viz-analysis"),
                 phase="analyzing",

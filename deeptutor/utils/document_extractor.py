@@ -323,9 +323,11 @@ def extract_documents_from_records(
         ``doc_texts`` is a list of strings formatted as
         ``"[File: <name>]\\n<text>"`` (one per processed or skipped doc).
         ``updated_records`` is the input list with the ``base64`` field
-        cleared on successfully-extracted docs (to save DB space) and an
-        ``extracted_chars`` field added. Image / non-document records are
-        returned unchanged.
+        cleared on successfully-extracted docs (to save DB space), an
+        ``extracted_chars`` field added, and the extracted plain text
+        stored under ``extracted_text`` so the chat UI can preview office
+        documents without re-running the parser. Image / non-document
+        records are returned unchanged.
     """
     doc_texts: list[str] = []
     updated: list[dict] = []
@@ -405,6 +407,7 @@ def extract_documents_from_records(
         doc_texts.append(f"[File: {filename}]\n{text}")
         record["base64"] = ""
         record["extracted_chars"] = len(text)
+        record["extracted_text"] = text
         updated.append(record)
 
     return doc_texts, updated

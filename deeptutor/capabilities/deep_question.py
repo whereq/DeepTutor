@@ -67,6 +67,7 @@ class DeepQuestionCapability(BaseCapability):
                     history_context=str(
                         context.metadata.get("conversation_context_text", "") or ""
                     ).strip(),
+                    attachments=context.attachments,
                 )
                 if answer:
                     await stream.content(answer, source=self.name, stage="generation")
@@ -174,6 +175,7 @@ class DeepQuestionCapability(BaseCapability):
                 difficulty=difficulty,
                 question_type=question_type,
                 history_context=history_context,
+                attachments=context.attachments,
             )
 
         content = self._render_summary_markdown(result)
@@ -410,6 +412,26 @@ class DeepQuestionCapability(BaseCapability):
                 history_context=str(
                     context.metadata.get("conversation_context_text", "") or ""
                 ).strip(),
+            )
+
+        if "[Attached Documents]" in context.user_message:
+            async with stream.stage("ideation", source=self.name):
+                await stream.thinking(
+                    "Using extracted attachment text as the quiz source...",
+                    source=self.name,
+                    stage="ideation",
+                )
+            return await coordinator.generate_from_topic(
+                user_topic=context.user_message,
+                preference=(
+                    "Mimic the attached source document as closely as possible: "
+                    "style, difficulty, structure, and assessed concepts."
+                ),
+                num_questions=max_questions,
+                history_context=str(
+                    context.metadata.get("conversation_context_text", "") or ""
+                ).strip(),
+                attachments=context.attachments,
             )
 
         await stream.error(

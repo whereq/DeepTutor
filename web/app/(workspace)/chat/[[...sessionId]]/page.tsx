@@ -25,10 +25,16 @@ import type { SelectedHistorySession } from "@/components/chat/HistorySessionPic
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import ChatComposer from "@/components/chat/home/ChatComposer";
 import { ChatMessageList } from "@/components/chat/home/ChatMessages";
+// Imported eagerly so the drawer shell is always mounted off-screen —
+// clicking a chip becomes a single CSS class flip, no chunk fetch + double
+// render. The heavy renderers inside still load lazily.
+import FilePreviewDrawer from "@/components/chat/preview/FilePreviewDrawer";
 import {
   useUnifiedChat,
+  type MessageAttachment,
   type MessageRequestSnapshot,
 } from "@/context/UnifiedChatContext";
+import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
 import type { StreamEvent } from "@/lib/unified-ws";
 import {
   extractBase64FromDataUrl,
@@ -255,6 +261,9 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [dragging, setDragging] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [previewSource, setPreviewSource] = useState<FilePreviewSource | null>(
+    null,
+  );
   const attachmentErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [capMenuOpen, setCapMenuOpen] = useState(false);
   const [quizConfig, setQuizConfig] = useState<DeepQuestionFormConfig>({
@@ -749,6 +758,40 @@ export default function ChatPage() {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const handlePreviewPendingAttachment = useCallback(
+    (index: number) => {
+      const a = attachments[index];
+      if (!a) return;
+      setPreviewSource({
+        filename: a.filename,
+        mimeType: a.mimeType,
+        type: a.type,
+        base64: a.base64,
+        size: a.size,
+      });
+    },
+    [attachments],
+  );
+
+  const handlePreviewMessageAttachment = useCallback(
+    (a: MessageAttachment) => {
+      setPreviewSource({
+        filename: a.filename || "",
+        mimeType: a.mime_type,
+        type: a.type,
+        url: a.url,
+        base64: a.base64,
+        extractedText: a.extracted_text,
+        id: a.id,
+      });
+    },
+    [],
+  );
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewSource(null);
+  }, []);
+
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1015,7 +1058,17 @@ export default function ChatPage() {
   }, [state.messages]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[var(--background)]">
+    <div
+      // When the preview drawer is open AND the viewport is wide enough,
+      // push the chat content to the left by the drawer's width so the two
+      // panels live side-by-side (matches Claude desktop). On smaller
+      // screens the drawer overlays — squeezing a phone-width chat into
+      // the remaining ~30 px would be useless. The actual padding +
+      // transition lives in `chat-preview-shell` (globals.css) so we can
+      // hand-tune it without fighting Tailwind's arbitrary-value parser.
+      data-preview-open={previewSource ? "true" : "false"}
+      className="chat-preview-shell flex h-full flex-col overflow-hidden bg-[var(--background)]"
+    >
       <div className="mx-auto flex w-full max-w-[960px] items-center justify-between px-6 pt-3 pb-0">
         <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
           {t(activeCap.label)}
@@ -1085,6 +1138,7 @@ export default function ChatPage() {
               onCopyAssistantMessage={copyAssistantMessage}
               onRegenerateMessage={handleRegenerateMessage}
               onConfirmOutline={handleConfirmOutline}
+              onPreviewAttachment={handlePreviewMessageAttachment}
             />
             <div ref={messagesEndRef} className="h-px w-full shrink-0" />
           </div>
@@ -1150,6 +1204,7 @@ export default function ChatPage() {
           onToggleResearchSource={toggleResearchSource}
           onSend={handleSend}
           onRemoveAttachment={removeAttachment}
+          onPreviewAttachment={handlePreviewPendingAttachment}
           onRemoveHistory={handleRemoveHistory}
           onRemoveNotebook={handleRemoveNotebook}
           onRemoveQuestion={handleRemoveQuestion}
@@ -1189,6 +1244,11 @@ export default function ChatPage() {
         payload={chatSavePayload}
         messages={chatSaveMessages}
         onClose={handleCloseSaveModal}
+      />
+      <FilePreviewDrawer
+        open={previewSource !== null}
+        source={previewSource}
+        onClose={handleClosePreview}
       />
     </div>
   );

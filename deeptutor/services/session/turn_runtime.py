@@ -546,6 +546,11 @@ class TurnRuntimeManager:
             history_context = ""
             question_bank_context = ""
 
+            import base64 as _b64
+            import uuid as _uuid
+
+            from deeptutor.services.storage import get_attachment_store
+
             for item in payload.get("attachments", []):
                 record = {
                     "type": item.get("type", "file"),
@@ -553,8 +558,45 @@ class TurnRuntimeManager:
                     "base64": item.get("base64", ""),
                     "filename": item.get("filename", ""),
                     "mime_type": item.get("mime_type", ""),
+                    "id": item.get("id", "") or _uuid.uuid4().hex[:12],
                 }
                 attachment_records.append(record)
+
+            # Persist original bytes to the attachment store before extraction
+            # so the frontend preview drawer can fetch the file later. The
+            # extractor will clear base64 on documents to keep DB rows lean,
+            # but the URL we record here outlives that pruning. Upload errors
+            # are non-fatal — extraction still runs from the in-memory base64.
+            attachment_store = get_attachment_store()
+            for record in attachment_records:
+                if record.get("url"):
+                    continue  # already hosted (e.g. legacy URL)
+                b64 = record.get("base64") or ""
+                if not b64:
+                    continue
+                try:
+                    raw_bytes = _b64.b64decode(b64, validate=False)
+                except Exception as exc:
+                    logger.warning(
+                        "skipping attachment upload for %r: invalid base64 (%s)",
+                        record.get("filename"),
+                        exc,
+                    )
+                    continue
+                try:
+                    record["url"] = await attachment_store.put(
+                        session_id=session_id,
+                        attachment_id=record["id"],
+                        filename=record.get("filename", "") or "file",
+                        data=raw_bytes,
+                        mime_type=record.get("mime_type", "") or "",
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "attachment store rejected %r: %s",
+                        record.get("filename"),
+                        exc,
+                    )
 
             from deeptutor.utils.document_extractor import extract_documents_from_records
 
@@ -568,7 +610,20 @@ class TurnRuntimeManager:
                     base64=r.get("base64", ""),
                     filename=r.get("filename", ""),
                     mime_type=r.get("mime_type", ""),
+                    id=r.get("id", ""),
+                    extracted_text=r.get("extracted_text", ""),
                 )
+                for r in attachment_records
+            ]
+            # DB persistence copy: drop base64 unconditionally now that the
+            # original bytes live in the attachment store. Image attachments
+            # used to keep base64 here (which bloated message rows); the URL
+            # is now the stable source for previews.
+            persisted_attachment_records = [
+                {
+                    **{k: v for k, v in r.items() if k != "base64"},
+                    "base64": "",
+                }
                 for r in attachment_records
             ]
 
@@ -727,7 +782,7 @@ class TurnRuntimeManager:
                     role="user",
                     content=raw_user_content,
                     capability=capability_name,
-                    attachments=attachment_records,
+                    attachments=persisted_attachment_records,
                 )
 
             context = UnifiedContext(

@@ -89,7 +89,11 @@ class RephraseAgent(BaseAgent):
         return "\n\n".join(history_parts)
 
     async def process(
-        self, user_input: str, iteration: int = 0, previous_result: dict[str, Any] = None
+        self,
+        user_input: str,
+        iteration: int = 0,
+        previous_result: dict[str, Any] = None,
+        attachments: list[Any] | None = None,
     ) -> dict[str, Any]:
         """
         Rephrase and optimize user input using the accumulated planning context.
@@ -98,6 +102,7 @@ class RephraseAgent(BaseAgent):
             user_input: Research topic or the latest rephrased topic
             iteration: Iteration count (for tracking rephrasing rounds)
             previous_result: Previous rephrasing result
+            attachments: Optional chat attachments for multimodal topic analysis
 
         Returns:
             Dictionary containing rephrasing results
@@ -172,6 +177,7 @@ class RephraseAgent(BaseAgent):
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="rephrase",
+            attachments=attachments,
             trace_meta=self._build_trace_meta(iteration),
         ):
             _chunks.append(_c)

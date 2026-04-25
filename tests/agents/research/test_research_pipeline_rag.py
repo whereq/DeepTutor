@@ -15,6 +15,7 @@ These tests pin two contracts:
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -144,3 +145,50 @@ def test_decompose_agent_no_longer_falls_back_to_ai_textbook() -> None:
 
     assert agent.kb_name is None  # NOT "ai_textbook"
     assert agent.enable_rag is False
+
+
+@pytest.mark.asyncio
+async def test_research_planning_forwards_attachments_when_rephrase_has_zero_iterations(
+    tmp_path,
+) -> None:
+    """If rephrase is enabled but performs no LLM call, decompose is the first LLM."""
+    config = _minimal_pipeline_config()
+    config["planning"]["rephrase"] = {"enabled": True, "max_iterations": 0}
+    attachment = object()
+    captured: dict[str, Any] = {}
+
+    class FakeDecomposeAgent:
+        def set_citation_manager(self, citation_manager: Any) -> None:
+            captured["citation_manager"] = citation_manager
+
+        async def process(self, **kwargs: Any) -> dict[str, Any]:
+            captured["decompose"] = kwargs
+            return {
+                "sub_topics": [],
+                "sub_queries": [],
+                "rag_context": "",
+                "total_subtopics": 0,
+            }
+
+    pipeline = ResearchPipeline.__new__(ResearchPipeline)
+    pipeline.config = config
+    pipeline.attachments = [attachment]
+    pipeline.pre_confirmed_outline = None
+    pipeline.cache_dir = tmp_path
+    pipeline.citation_manager = object()
+    pipeline.agents = {
+        "decompose": FakeDecomposeAgent(),
+        "manager": SimpleNamespace(set_primary_topic=lambda _topic: None),
+    }
+    pipeline.queue = SimpleNamespace(blocks=[], get_statistics=lambda: {"total_blocks": 0})
+    pipeline.logger = SimpleNamespace(
+        info=lambda *_args, **_kwargs: None,
+        success=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+    )
+    pipeline._log_progress = lambda *_args, **_kwargs: None
+
+    result = await pipeline._phase1_planning("Research this image")
+
+    assert result == "Research this image"
+    assert captured["decompose"]["attachments"] == [attachment]

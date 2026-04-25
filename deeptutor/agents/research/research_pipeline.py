@@ -42,6 +42,7 @@ class ResearchPipeline:
         progress_callback: Callable | None = None,
         trace_callback: Callable[[dict[str, Any]], Any] | None = None,
         pre_confirmed_outline: list[dict[str, str]] | None = None,
+        attachments: list[Any] | None = None,
     ):
         """
         Initialize research workflow
@@ -55,11 +56,13 @@ class ResearchPipeline:
             kb_name: Knowledge base name (optional, if provided overrides config file setting)
             progress_callback: Progress callback function (optional), signature: callback(event: Dict[str, Any])
             pre_confirmed_outline: Pre-confirmed sub-topics from outline preview (skips decompose)
+            attachments: Optional chat attachments for the planning LLMs.
         """
         self.config = config
         self.progress_callback = progress_callback
         self.trace_callback = trace_callback
         self.pre_confirmed_outline = pre_confirmed_outline
+        self.attachments = list(attachments or [])
 
         # If kb_name is provided, override config
         if kb_name is not None:
@@ -626,13 +629,18 @@ class ResearchPipeline:
             rephrase_result = {"topic": topic}
             current_topic = topic
             iteration = 0
+            planning_attachments_used = False
 
             while iteration < max_iterations:
+                first_rephrase_turn = iteration == 0
                 rephrase_result = await self.agents["rephrase"].process(
                     current_topic,
                     iteration=iteration,
                     previous_result=rephrase_result,
+                    attachments=self.attachments if first_rephrase_turn else None,
                 )
+                if first_rephrase_turn:
+                    planning_attachments_used = True
                 iteration += 1
                 next_topic = str(rephrase_result.get("topic", "") or "").strip()
                 if not next_topic:
@@ -652,6 +660,7 @@ class ResearchPipeline:
         else:
             self.logger.info("\n【Step 1】Topic Rephrasing (disabled, skipping)...")
             optimized_topic = topic
+            planning_attachments_used = False
             self._log_progress(
                 "planning",
                 "rephrase_skipped",
@@ -682,7 +691,10 @@ class ResearchPipeline:
         self.agents["decompose"].set_citation_manager(self.citation_manager)
 
         decompose_result = await self.agents["decompose"].process(
-            topic=optimized_topic, num_subtopics=num_subtopics, mode=mode
+            topic=optimized_topic,
+            num_subtopics=num_subtopics,
+            mode=mode,
+            attachments=self.attachments if not planning_attachments_used else None,
         )
         self._log_progress(
             "planning",

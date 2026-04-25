@@ -111,6 +111,7 @@ class AgentCoordinator:
         difficulty: str = "",
         question_type: str = "",
         history_context: str = "",
+        attachments: list[Any] | None = None,
     ) -> dict[str, Any]:
         self._current_batch_dir = self._create_batch_dir("custom")
         requested = max(1, int(num_questions or 1))
@@ -156,6 +157,7 @@ class AgentCoordinator:
                 target_question_type=target_question_type,
                 existing_concentrations=existing_concentrations,
                 batch_number=batch_number,
+                attachments=attachments,
             )
             batch_templates = idea_result.get("templates", [])
             if not isinstance(batch_templates, list):

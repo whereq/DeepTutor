@@ -29,6 +29,7 @@ class FollowupAgent(BaseAgent):
         user_message: str,
         question_context: dict[str, Any],
         history_context: str = "",
+        attachments: list[Any] | None = None,
     ) -> str:
         system_prompt = append_language_directive(
             self.get_prompt("system", ""),
@@ -53,6 +54,7 @@ class FollowupAgent(BaseAgent):
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             stage="followup_answer",
+            attachments=attachments,
             trace_meta=build_trace_metadata(
                 call_id=new_call_id(
                     f"quiz-followup-{question_context.get('question_id', 'question')}"

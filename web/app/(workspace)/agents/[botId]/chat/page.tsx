@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Bot, Loader2, Send } from "lucide-react";
@@ -8,6 +9,17 @@ import { apiUrl, wsUrl } from "@/lib/api";
 import { firstParam } from "@/lib/route-params";
 import AssistantResponse from "@/components/common/AssistantResponse";
 import { SimpleComposerInput } from "@/components/chat/home/SimpleComposerInput";
+import { downloadChatMarkdown } from "@/lib/chat-export";
+import type { MessageItem } from "@/context/UnifiedChatContext";
+import type {
+  NotebookSaveMessage,
+  NotebookSavePayload,
+} from "@/components/notebook/SaveToNotebookModal";
+
+const SaveToNotebookModal = dynamic(
+  () => import("@/components/notebook/SaveToNotebookModal"),
+  { ssr: false },
+);
 
 interface BotInfo {
   bot_id: string;
@@ -36,6 +48,59 @@ export default function BotChatPage() {
   const wsRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const [showSaveModal, setShowSaveModal] = useState(false);
+
+  const exportTitle = useMemo(() => {
+    const firstUser = messages
+      .find((m) => m.role === "user")
+      ?.content.trim()
+      .slice(0, 80);
+    return firstUser || bot?.name || botId || "Bot Chat";
+  }, [bot?.name, botId, messages]);
+
+  const exportMessages = useMemo<MessageItem[]>(
+    () =>
+      messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    [messages],
+  );
+
+  const notebookSaveMessages = useMemo<NotebookSaveMessage[]>(
+    () =>
+      messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    [messages],
+  );
+
+  const notebookSavePayload = useMemo<NotebookSavePayload | null>(() => {
+    if (!messages.length) return null;
+    return {
+      recordType: "tutorbot",
+      title: exportTitle,
+      // SaveToNotebookModal rebuilds userQuery / output from the user's
+      // selected message subset; we just need a non-null payload here.
+      userQuery: "",
+      output: "",
+      metadata: {
+        source: "agent_chat",
+        bot_id: botId ?? null,
+        bot_name: bot?.name ?? null,
+        total_message_count: messages.length,
+      },
+    };
+  }, [bot?.name, botId, exportTitle, messages.length]);
+
+  const handleDownloadMarkdown = useCallback(() => {
+    if (!exportMessages.length) return;
+    downloadChatMarkdown(exportMessages, { title: exportTitle });
+  }, [exportMessages, exportTitle]);
+
+  const handleCloseSaveModal = useCallback(() => setShowSaveModal(false), []);
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
@@ -179,6 +244,23 @@ export default function BotChatPage() {
         {bot?.running && (
           <span className="h-2 w-2 rounded-full bg-emerald-500" />
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowSaveModal(true)}
+            disabled={!notebookSavePayload}
+            className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--border)]/50 disabled:hover:text-[var(--muted-foreground)]"
+          >
+            {t("Save to Notebook")}
+          </button>
+          <button
+            onClick={handleDownloadMarkdown}
+            disabled={!messages.length}
+            title={t("Download chat history as Markdown")}
+            className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--border)]/50 disabled:hover:text-[var(--muted-foreground)]"
+          >
+            {t("Download Markdown")}
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -280,6 +362,13 @@ export default function BotChatPage() {
           </button>
         </div>
       </div>
+
+      <SaveToNotebookModal
+        open={showSaveModal}
+        payload={notebookSavePayload}
+        messages={notebookSaveMessages}
+        onClose={handleCloseSaveModal}
+      />
     </div>
   );
 }

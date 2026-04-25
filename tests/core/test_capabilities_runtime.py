@@ -10,10 +10,12 @@ from typing import Any
 
 import pytest
 
+import deeptutor.agents.visualize.pipeline as visualize_pipeline
 from deeptutor.capabilities.chat import ChatCapability
 from deeptutor.capabilities.deep_question import DeepQuestionCapability
 from deeptutor.capabilities.deep_research import DeepResearchCapability
 from deeptutor.capabilities.deep_solve import DeepSolveCapability
+from deeptutor.capabilities.visualize import VisualizeCapability
 from deeptutor.core.context import Attachment, UnifiedContext
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.stream_bus import StreamBus
@@ -163,6 +165,7 @@ async def test_deep_solve_capability_bridges_solver_output(
         enabled_tools=enabled_tools,
         knowledge_bases=knowledge_bases,
         language="en",
+        attachments=[Attachment(type="image", base64="ZmFrZQ==", filename="graph.png")],
     )
     capability = DeepSolveCapability()
     events = await _collect_events(lambda bus: capability.run(context, bus))
@@ -170,6 +173,7 @@ async def test_deep_solve_capability_bridges_solver_output(
     assert captured["solver_init"]["enabled_tools"] == expected_tools
     assert captured["solver_init"]["kb_name"] == expected_kb
     assert captured["solver_init"]["disable_planner_retrieve"] is expected_disable
+    assert captured["solve"]["attachments"][0].filename == "graph.png"
     assert any(
         event.type == StreamEventType.PROGRESS and event.content == "solver-progress"
         for event in events
@@ -304,14 +308,81 @@ async def test_deep_question_capability_uses_user_message_as_topic(
         user_message="linear algebra fundamentals",
         config_overrides={},
         language="en",
+        attachments=[Attachment(type="image", base64="ZmFrZQ==", filename="topic.png")],
     )
     capability = DeepQuestionCapability()
     events = await _collect_events(lambda bus: capability.run(context, bus))
 
     assert captured["topic_call"]["user_topic"] == "linear algebra fundamentals"
+    assert captured["topic_call"]["attachments"][0].filename == "topic.png"
     assert any(
         event.type == StreamEventType.PROGRESS and event.stage == "ideation" for event in events
     )
+    result_event = next(event for event in events if event.type == StreamEventType.RESULT)
+    assert "Question 1" in result_event.metadata["response"]
+
+
+@pytest.mark.asyncio
+async def test_deep_question_mimic_uses_extracted_attachment_text_when_pdf_was_stripped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeCoordinator:
+        def __init__(self, **_kwargs: Any) -> None:
+            self._callback = None
+
+        def set_ws_callback(self, callback) -> None:
+            self._callback = callback
+
+        async def generate_from_exam(self, **_kwargs: Any) -> dict[str, Any]:
+            raise AssertionError("raw PDF path should not be required after document extraction")
+
+        async def generate_from_topic(self, **kwargs: Any) -> dict[str, Any]:
+            captured["topic_call"] = kwargs
+            return {
+                "results": [
+                    {
+                        "qa_pair": {
+                            "question": "Question from attached paper?",
+                            "correct_answer": "Yes",
+                            "explanation": "The extracted document text was used.",
+                        }
+                    }
+                ]
+            }
+
+    _install_module(
+        monkeypatch,
+        "deeptutor.agents.question.coordinator",
+        AgentCoordinator=FakeCoordinator,
+    )
+    _install_module(
+        monkeypatch,
+        "deeptutor.services.llm.config",
+        get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
+    )
+
+    context = UnifiedContext(
+        user_message="[Attached Documents]\n[File: paper.pdf]\nExam text\n\n[User Question]\n",
+        config_overrides={"mode": "mimic", "max_questions": 4},
+        language="en",
+        attachments=[
+            Attachment(
+                type="pdf",
+                filename="paper.pdf",
+                base64="",
+                mime_type="application/pdf",
+            )
+        ],
+    )
+
+    capability = DeepQuestionCapability()
+    events = await _collect_events(lambda bus: capability.run(context, bus))
+
+    assert "Exam text" in captured["topic_call"]["user_topic"]
+    assert captured["topic_call"]["num_questions"] == 4
+    assert captured["topic_call"]["attachments"][0].filename == "paper.pdf"
     result_event = next(event for event in events if event.type == StreamEventType.RESULT)
     assert "Question 1" in result_event.metadata["response"]
 
@@ -504,6 +575,7 @@ async def test_deep_research_capability_requires_explicit_config_and_streams_tra
         user_message="agent-native tutoring",
         enabled_tools=["rag", "web_search", "paper_search"],
         knowledge_bases=["research-kb"],
+        attachments=[Attachment(type="image", base64="ZmFrZQ==", filename="brief.png")],
         config_overrides={
             "mode": "report",
             "depth": "standard",
@@ -521,6 +593,7 @@ async def test_deep_research_capability_requires_explicit_config_and_streams_tra
     events = await _collect_events(lambda bus: capability.run(context, bus))
 
     config = captured["pipeline_init"]["config"]
+    assert captured["pipeline_init"]["attachments"][0].filename == "brief.png"
     assert config["planning"]["decompose"]["mode"] == "auto"
     assert config["planning"]["decompose"]["auto_max_subtopics"] == 4
     assert config["researching"]["max_iterations"] == 3
@@ -542,3 +615,76 @@ async def test_deep_research_capability_requires_explicit_config_and_streams_tra
     assert tool_call_event.metadata["research_stage_card"] == "evidence"
     result_event = next(event for event in events if event.type == StreamEventType.RESULT)
     assert result_event.metadata["response"] == "Report about agent-native tutoring"
+
+
+@pytest.mark.asyncio
+async def test_visualize_capability_passes_attachments_to_analysis_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeAnalysis:
+        render_type = "svg"
+        description = "A diagram"
+        data_description = "diagram data"
+
+        def model_dump(self) -> dict[str, Any]:
+            return {
+                "render_type": self.render_type,
+                "description": self.description,
+                "data_description": self.data_description,
+            }
+
+    class FakeReview:
+        optimized_code = "<svg></svg>"
+        changed = False
+        review_notes = "ok"
+
+        def model_dump(self) -> dict[str, Any]:
+            return {
+                "optimized_code": self.optimized_code,
+                "changed": self.changed,
+                "review_notes": self.review_notes,
+            }
+
+    class FakeVisualizePipeline:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["init"] = kwargs
+
+        async def run_analysis(self, **kwargs: Any) -> FakeAnalysis:
+            captured["analysis"] = kwargs
+            return FakeAnalysis()
+
+        async def run_code_generation(self, **kwargs: Any) -> str:
+            captured["code_generation"] = kwargs
+            return "<svg></svg>"
+
+        async def run_review(self, **kwargs: Any) -> FakeReview:
+            captured["review"] = kwargs
+            return FakeReview()
+
+    monkeypatch.setattr(
+        visualize_pipeline,
+        "VisualizePipeline",
+        FakeVisualizePipeline,
+    )
+    _install_module(
+        monkeypatch,
+        "deeptutor.services.llm.config",
+        get_llm_config=lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),
+    )
+
+    context = UnifiedContext(
+        user_message="make a figure",
+        active_capability="visualize",
+        config_overrides={"render_mode": "svg"},
+        language="en",
+        attachments=[Attachment(type="image", base64="ZmFrZQ==", filename="figure.png")],
+    )
+
+    capability = VisualizeCapability()
+    events = await _collect_events(lambda bus: capability.run(context, bus))
+
+    assert captured["analysis"]["attachments"][0].filename == "figure.png"
+    result_event = next(event for event in events if event.type == StreamEventType.RESULT)
+    assert result_event.metadata["render_type"] == "svg"

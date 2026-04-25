@@ -416,12 +416,25 @@ class BaseAgent(ABC):
             else:
                 self.logger.debug(f"response_format not supported for {binding}/{model}, skipping")
 
-        if messages:
-            if attachments:
-                mm_result = prepare_multimodal_messages(
-                    messages, attachments, binding=self.binding, model=model
+        # Keep non-streaming calls aligned with stream_llm/chat: when images
+        # are attached, convert the final user message to multimodal content.
+        if attachments:
+            if not messages:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
+            mm_result = prepare_multimodal_messages(
+                messages, attachments, binding=self.binding, model=model
+            )
+            messages = mm_result.messages
+            if mm_result.images_stripped:
+                self.logger.info(
+                    "Images stripped for %s/%s – model does not support vision",
+                    self.binding,
+                    model,
                 )
-                messages = mm_result.messages
+        if messages:
             kwargs["messages"] = messages
 
         # Log input

@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Bookmark,
   BookOpen,
+  Bot,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -1304,6 +1305,13 @@ function KnowledgePageContent() {
           color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
           icon: MessageSquare,
         };
+      case "tutorbot":
+        return {
+          label: t("Tutorbot"),
+          color:
+            "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+          icon: Bot,
+        };
       case "research":
         return {
           label: t("Research"),
@@ -1646,13 +1654,9 @@ function KnowledgePageContent() {
                     multiple
                     className="hidden"
                     onChange={(event) => {
-                      setNewKbFiles((prev) =>
-                        mergeSelectedFiles(
-                          prev,
-                          Array.from(event.target.files || []),
-                        ),
-                      );
+                      const picked = Array.from(event.target.files || []);
                       event.target.value = "";
+                      setNewKbFiles((prev) => mergeSelectedFiles(prev, picked));
                     }}
                   />
 
@@ -1820,13 +1824,9 @@ function KnowledgePageContent() {
                     multiple
                     className="hidden"
                     onChange={(event) => {
-                      setUploadFiles((prev) =>
-                        mergeSelectedFiles(
-                          prev,
-                          Array.from(event.target.files || []),
-                        ),
-                      );
+                      const picked = Array.from(event.target.files || []);
                       event.target.value = "";
+                      setUploadFiles((prev) => mergeSelectedFiles(prev, picked));
                     }}
                   />
 

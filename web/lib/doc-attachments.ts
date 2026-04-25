@@ -28,7 +28,9 @@ export const OFFICE_EXTS = [".pdf", ".docx", ".xlsx", ".pptx"] as const;
 
 /**
  * Text-like formats — decoded server-side with multi-encoding fallback.
- * Mirrors `FileTypeRouter.TEXT_EXTENSIONS` in the Python codebase.
+ * Mirrors `FileTypeRouter.TEXT_EXTENSIONS` in the Python codebase. Adding
+ * a new extension here without also adding it to the backend will cause
+ * the upload to be silently dropped.
  */
 export const TEXT_LIKE_EXTS = [
   // Plain text & markup
@@ -37,19 +39,39 @@ export const TEXT_LIKE_EXTS = [
   ".html", ".htm", ".xml",
   ".svg", // vector image, treated as XML source; rendered via <img> client-side
   // Data & config
-  ".json", ".yaml", ".yml", ".toml", ".csv", ".tsv",
+  ".json", ".jsonc", ".json5",
+  ".yaml", ".yml", ".toml", ".csv", ".tsv",
   ".ini", ".cfg", ".conf", ".env", ".properties",
   // Typesetting
   ".tex", ".latex", ".bib",
   // Stylesheets
   ".css", ".scss", ".sass", ".less",
-  // Code
-  ".py", ".js", ".ts", ".jsx", ".tsx",
-  ".java", ".c", ".cpp", ".h", ".hpp",
-  ".go", ".rs", ".rb", ".php",
-  ".swift", ".kt", ".scala",
-  ".r", ".sql",
-  ".sh", ".bash", ".zsh", ".ps1",
+  // JavaScript / TypeScript family
+  ".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsx", ".tsx",
+  // Web frameworks
+  ".vue", ".svelte",
+  // Python
+  ".py",
+  // JVM languages
+  ".java", ".kt", ".kts", ".scala", ".groovy", ".gradle",
+  // Systems
+  ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx",
+  ".cs", ".go", ".rs", ".zig", ".nim",
+  // Apple platforms
+  ".swift", ".m", ".mm",
+  // Scripting
+  ".rb", ".php", ".pl", ".pm", ".lua", ".r", ".jl", ".dart",
+  // Functional
+  ".hs", ".clj", ".cljs", ".cljc", ".ex", ".exs", ".erl",
+  ".ml", ".mli", ".fs", ".fsx", ".lisp", ".lsp", ".scm", ".rkt",
+  // Smart contracts
+  ".sol",
+  // Shells / editors
+  ".sh", ".bash", ".zsh", ".fish", ".ps1", ".vim",
+  // Query / IDL
+  ".sql", ".graphql", ".gql", ".proto",
+  // Build / infra
+  ".cmake", ".mk", ".tf", ".hcl", ".nginxconf", ".dockerfile",
 ] as const;
 
 export const SUPPORTED_DOC_EXTS = [
@@ -111,7 +133,7 @@ export const ATTACHMENT_ACCEPT = [
 
 export type FileKind = "image" | "doc";
 
-function extOf(filename: string): string {
+export function extOf(filename: string): string {
   const idx = filename.lastIndexOf(".");
   return idx >= 0 ? filename.slice(idx).toLowerCase() : "";
 }
@@ -160,21 +182,39 @@ export interface DocIconSpec {
 // Extension → icon category. Grouped so we get meaningful visual differentiation
 // without carrying 50 distinct icons.
 const CODE_EXTS = new Set([
-  ".py", ".js", ".ts", ".jsx", ".tsx",
-  ".java", ".c", ".cpp", ".h", ".hpp",
-  ".go", ".rs", ".rb", ".php",
-  ".swift", ".kt", ".scala",
-  ".r",
+  // JS/TS
+  ".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsx", ".tsx",
+  ".vue", ".svelte",
+  // Python
+  ".py",
+  // JVM
+  ".java", ".kt", ".kts", ".scala", ".groovy", ".gradle",
+  // Systems
+  ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx",
+  ".cs", ".go", ".rs", ".zig", ".nim",
+  // Apple
+  ".swift", ".m", ".mm",
+  // Scripting
+  ".rb", ".php", ".pl", ".pm", ".lua", ".r", ".jl", ".dart",
+  // Functional
+  ".hs", ".clj", ".cljs", ".cljc", ".ex", ".exs", ".erl",
+  ".ml", ".mli", ".fs", ".fsx", ".lisp", ".lsp", ".scm", ".rkt",
+  // Smart contracts
+  ".sol",
 ]);
-const SHELL_EXTS = new Set([".sh", ".bash", ".zsh", ".ps1", ".sql"]);
+const SHELL_EXTS = new Set([
+  ".sh", ".bash", ".zsh", ".fish", ".ps1", ".vim", ".sql",
+]);
 const CONFIG_EXTS = new Set([
   ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".env", ".properties",
+  ".tf", ".hcl", ".nginxconf", ".cmake", ".mk", ".dockerfile",
 ]);
-const JSON_EXTS = new Set([".json"]);
+const JSON_EXTS = new Set([".json", ".jsonc", ".json5"]);
 const MARKUP_EXTS = new Set([
   ".md", ".markdown", ".rst", ".asciidoc",
   ".html", ".htm", ".xml",
   ".tex", ".latex", ".bib",
+  ".graphql", ".gql", ".proto",
 ]);
 const DATA_EXTS = new Set([".csv", ".tsv"]);
 const STYLE_EXTS = new Set([".css", ".scss", ".sass", ".less"]);

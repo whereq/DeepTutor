@@ -28,6 +28,8 @@
 
 ### 📦 Releases
 
+> **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — Persistent chat attachment storage with preview/download URLs, right-side file preview drawer for PDF/images/SVG/Markdown/code/Office text, broader code-file attachment coverage, attachment-aware Deep Solve/Question/Research/Visualize pipelines, TutorBot save-to-notebook and Markdown export, Setup Tour diagnostics, and auto-scroll/upload-picker fixes.
+
 > **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — Text/code/SVG chat attachments, one-command Setup Tour with dependency installation, `uv pip` and Windows npm fixes, Markdown chat export, compact Knowledge Base management UI, Polish README, theme/popover polish, and release/update-version hardening.
 
 > **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — Document attachments in chat (PDF/DOCX/XLSX/PPTX), reasoning model thinking-block display, tri-state embedding `send_dimensions` toggle, LLM provider core refactor, Soul template editor, Co-Writer save-to-notebook, Knowledge Base drag-and-drop upload & delete resilience, and question generation language fidelity.

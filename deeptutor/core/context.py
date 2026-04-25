@@ -21,6 +21,13 @@ class Attachment:
     base64: str = ""
     filename: str = ""
     mime_type: str = ""
+    # Stable per-attachment identifier; doubles as the directory segment
+    # under which the original bytes live in the AttachmentStore.
+    id: str = ""
+    # Plain-text rendering of binary documents (PDF/DOCX/XLSX/PPTX).
+    # Populated by ``extract_documents_from_records`` so the frontend can
+    # show "what the LLM saw" when previewing office files.
+    extracted_text: str = ""
 
 
 @dataclass

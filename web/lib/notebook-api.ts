@@ -12,7 +12,8 @@ export type NotebookRecordType =
   | "question"
   | "research"
   | "chat"
-  | "co_writer";
+  | "co_writer"
+  | "tutorbot";
 
 export interface NotebookSummary {
   id: string;

@@ -326,6 +326,7 @@ class DeepResearchCapability(BaseCapability):
                 progress_callback=_progress_cb,
                 trace_callback=_trace_cb,
                 conversation_history=conversation_history,
+                attachments=context.attachments,
             )
             sub_topics_data = []
             for item in outline_items:
@@ -373,6 +374,7 @@ class DeepResearchCapability(BaseCapability):
             progress_callback=_progress_cb,
             trace_callback=_trace_cb,
             pre_confirmed_outline=pre_outline,
+            attachments=context.attachments,
         )
 
         async with stream.stage("researching", source=self.name):
@@ -480,6 +482,7 @@ class DeepResearchCapability(BaseCapability):
         progress_callback: Any,
         trace_callback: Any,
         conversation_history: list[dict[str, Any]] | None = None,
+        attachments: list[Any] | None = None,
     ) -> list[dict[str, str]]:
         """Run only the planning phase (rephrase + decompose) and return sub-topics."""
         from deeptutor.agents.research.research_pipeline import ResearchPipeline
@@ -495,6 +498,7 @@ class DeepResearchCapability(BaseCapability):
             kb_name=kb_name,
             progress_callback=progress_callback,
             trace_callback=trace_callback,
+            attachments=attachments,
         )
 
         async with stream.stage("decomposing", source=self.name):

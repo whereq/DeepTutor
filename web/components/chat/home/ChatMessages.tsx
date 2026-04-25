@@ -18,7 +18,10 @@ import { useTranslation } from "react-i18next";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import AssistantResponse from "@/components/common/AssistantResponse";
-import type { MessageRequestSnapshot } from "@/context/UnifiedChatContext";
+import type {
+  MessageAttachment,
+  MessageRequestSnapshot,
+} from "@/context/UnifiedChatContext";
 import { docIconFor } from "@/lib/doc-attachments";
 import { extractMathAnimatorResult } from "@/lib/math-animator-types";
 import { extractQuizQuestions } from "@/lib/quiz-types";
@@ -48,12 +51,7 @@ interface ChatMessageItem {
   content: string;
   capability?: string;
   events?: StreamEvent[];
-  attachments?: Array<{
-    type: string;
-    filename?: string;
-    base64?: string;
-    mime_type?: string;
-  }>;
+  attachments?: MessageAttachment[];
   requestSnapshot?: MessageRequestSnapshot;
 }
 
@@ -286,9 +284,11 @@ function RoughActionButton({
 const UserMessage = memo(function UserMessage({
   msg,
   index,
+  onPreviewAttachment,
 }: {
   msg: ChatMessageItem;
   index: number;
+  onPreviewAttachment?: (attachment: MessageAttachment) => void;
 }) {
   const { t } = useTranslation();
   if (msg.content.startsWith("[Quiz Performance]")) return null;
@@ -304,22 +304,30 @@ const UserMessage = memo(function UserMessage({
         {msg.attachments?.some((a) => a.type === "image") && (
           <div className="flex flex-wrap justify-end gap-2">
             {msg.attachments
-              .filter((a) => a.type === "image" && a.base64)
-              .map((a, ai) => (
-                <div
-                  key={`img-${ai}`}
-                  className="overflow-hidden rounded-2xl border border-[var(--border)]"
-                >
-                  <Image
-                    src={`data:image/png;base64,${a.base64}`}
-                    alt={a.filename || t("image")}
-                    width={280}
-                    height={192}
-                    unoptimized
-                    className="max-h-48 max-w-[280px] rounded-2xl object-contain"
-                  />
-                </div>
-              ))}
+              .filter((a) => a.type === "image" && (a.base64 || a.url))
+              .map((a, ai) => {
+                const src = a.url
+                  ? a.url
+                  : `data:image/png;base64,${a.base64}`;
+                return (
+                  <button
+                    key={`img-${ai}`}
+                    type="button"
+                    onClick={() => onPreviewAttachment?.(a)}
+                    title={a.filename || t("image")}
+                    className="overflow-hidden rounded-2xl border border-[var(--border)] transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
+                  >
+                    <Image
+                      src={src}
+                      alt={a.filename || t("image")}
+                      width={280}
+                      height={192}
+                      unoptimized
+                      className="max-h-48 max-w-[280px] rounded-2xl object-contain"
+                    />
+                  </button>
+                );
+              })}
           </div>
         )}
         {msg.attachments?.some((a) => a.type !== "image") && (
@@ -330,14 +338,16 @@ const UserMessage = memo(function UserMessage({
                 const filename = a.filename || t("Attachment");
                 const spec = docIconFor(filename);
                 const Icon = spec.Icon;
-                const href =
-                  a.base64 && a.mime_type
-                    ? `data:${a.mime_type};base64,${a.base64}`
-                    : null;
                 const cardClass =
-                  "flex h-14 w-[220px] items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-2.5 shadow-sm transition-colors hover:border-[var(--border)]/80";
-                const inner = (
-                  <>
+                  "flex h-14 w-[220px] items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] px-2.5 text-left shadow-sm transition-colors hover:border-[var(--primary)]/40 hover:bg-[var(--muted)]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40";
+                return (
+                  <button
+                    key={`doc-${ai}`}
+                    type="button"
+                    onClick={() => onPreviewAttachment?.(a)}
+                    title={filename}
+                    className={cardClass}
+                  >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[var(--muted)]/60">
                       <Icon
                         size={20}
@@ -353,26 +363,7 @@ const UserMessage = memo(function UserMessage({
                         {spec.label}
                       </div>
                     </div>
-                  </>
-                );
-                return href ? (
-                  <a
-                    key={`doc-${ai}`}
-                    href={href}
-                    download={filename}
-                    title={filename}
-                    className={cardClass}
-                  >
-                    {inner}
-                  </a>
-                ) : (
-                  <div
-                    key={`doc-${ai}`}
-                    title={filename}
-                    className={cardClass}
-                  >
-                    {inner}
-                  </div>
+                  </button>
                 );
               })}
           </div>
@@ -511,6 +502,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   onCopyAssistantMessage,
   onRegenerateMessage,
   onConfirmOutline,
+  onPreviewAttachment,
 }: {
   messages: ChatMessageItem[];
   isStreaming: boolean;
@@ -527,6 +519,7 @@ export const ChatMessageList = memo(function ChatMessageList({
     topic: string,
     researchConfig?: Record<string, unknown> | null,
   ) => void;
+  onPreviewAttachment?: (attachment: MessageAttachment) => void;
 }) {
   const { t } = useTranslation();
   const outlineStatusByIndex = useMemo(() => {
@@ -597,7 +590,14 @@ export const ChatMessageList = memo(function ChatMessageList({
       {messageRows.map(({ msg, originalIndex, pairedUserMessage }) => {
         const i = originalIndex;
         if (msg.role === "user") {
-          return <UserMessage key={`${msg.role}-${i}`} msg={msg} index={i} />;
+          return (
+            <UserMessage
+              key={`${msg.role}-${i}`}
+              msg={msg}
+              index={i}
+              onPreviewAttachment={onPreviewAttachment}
+            />
+          );
         }
 
         const isActiveAssistant = isStreaming && i === messages.length - 1;

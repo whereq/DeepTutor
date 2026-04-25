@@ -339,6 +339,7 @@
   "session": "session",
   "sessions": "sessions",
   "Chat": "Chat",
+  "Tutorbot": "Tutorbot",
   "No history found": "No history found",
   "Your activities will appear here": "Your activities will appear here",
   "Continue": "Continue",
@@ -1102,5 +1103,12 @@
   "lists": "lists",
   "Embedding config changed": "Embedding config changed",
   "Embedding config aligned": "Embedding config aligned",
-  "Default embedding": "Default embedding"
+  "Default embedding": "Default embedding",
+  "Remove attachment": "Remove attachment",
+  "Loading preview…": "Loading preview…",
+  "File preview: {{name}}": "File preview: {{name}}",
+  "Copy link": "Copy link",
+  "Original file is not stored (sent before preview was supported).": "Original file is not stored (sent before preview was supported).",
+  "Preview is not available for this file type.": "Preview is not available for this file type.",
+  "Showing extracted text — the same content the assistant reads. Download the original to see full formatting.": "Showing extracted text — the same content the assistant reads. Download the original to see full formatting."
 }

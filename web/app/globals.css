@@ -552,3 +552,18 @@
 .session-pulse {
   animation: session-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* ----- Chat shell ↔ file preview drawer ---------------------------------
+   Squeezes the chat column when the drawer is open. The transition
+   timing here MUST match FilePreviewDrawer's transform transition so the
+   slide-in and the squeeze animate as one motion. Stays a no-op below
+   the lg breakpoint, where the drawer overlays instead. */
+.chat-preview-shell {
+  transition: padding-right 220ms ease-out;
+  padding-right: 0;
+}
+@media (min-width: 1024px) {
+  .chat-preview-shell[data-preview-open="true"] {
+    padding-right: min(560px, 92vw);
+  }
+}

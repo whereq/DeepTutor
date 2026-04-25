@@ -74,6 +74,11 @@ export interface MessageAttachment {
   base64?: string;
   url?: string;
   mime_type?: string;
+  /** Stable per-attachment id; matches the URL segment served by /api/attachments. */
+  id?: string;
+  /** Plain-text rendering of office docs, populated by the backend extractor.
+   *  Used by the preview drawer to show "what the LLM saw" for binary docs. */
+  extracted_text?: string;
 }
 
 export interface MessageRequestSnapshot {
@@ -563,6 +568,8 @@ export function UnifiedChatProvider({
                 base64: item.base64,
                 url: item.url,
                 mime_type: item.mime_type,
+                id: item.id,
+                extracted_text: item.extracted_text,
               }))
             : [],
         }));
