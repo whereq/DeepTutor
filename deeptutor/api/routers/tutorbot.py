@@ -4,25 +4,48 @@ TutorBot management API.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, ValidationError
 
 from deeptutor.services.tutorbot import get_tutorbot_manager
-from deeptutor.services.tutorbot.manager import BotConfig
+from deeptutor.services.tutorbot.manager import (
+    BotConfig,
+    TutorBotInstance,
+    mask_channel_secrets,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# Per-bot async locks used to dedupe concurrent WebSocket-driven auto-starts.
+# `manager.start_bot` already short-circuits when the bot is already running,
+# but that check is not async-safe: two coroutines that both observe a stopped
+# bot will each run the full start sequence. Serializing on a per-bot lock
+# avoids the duplicated work and noisy logs.
+_start_locks: dict[str, asyncio.Lock] = {}
+_start_locks_mutex = asyncio.Lock()
+
+
+async def _get_start_lock(bot_id: str) -> asyncio.Lock:
+    async with _start_locks_mutex:
+        lock = _start_locks.get(bot_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            _start_locks[bot_id] = lock
+        return lock
+
+
 class CreateBotRequest(BaseModel):
     bot_id: str
     name: str | None = None
-    description: str = ""
-    persona: str = ""
-    channels: dict = {}
+    description: str | None = None
+    persona: str | None = None
+    channels: dict | None = None
     model: str | None = None
 
 
@@ -50,6 +73,7 @@ class SoulUpdateRequest(BaseModel):
 
 
 # ── Soul template library (must be before /{bot_id} routes) ───
+
 
 @router.get("/souls")
 async def list_souls():
@@ -89,6 +113,7 @@ async def delete_soul(soul_id: str):
 
 # ── Bot management (static paths before /{bot_id} parameterized routes) ──
 
+
 @router.get("")
 async def list_bots():
     return get_tutorbot_manager().list_bots()
@@ -100,36 +125,104 @@ async def recent_bots(limit: int = 3):
     return get_tutorbot_manager().get_recent_active_bots(limit=limit)
 
 
+@router.get("/channels/schema")
+async def list_channel_schemas():
+    """Return JSON-Schema metadata for every available channel.
+
+    Powers the schema-driven Channels tab in the Web UI: lets it render a
+    generic form for ANY channel (built-in or plugin) without per-channel
+    front-end code. Secret-looking fields are flagged via ``secret_fields``
+    so the UI can mask them.
+
+    Shape:
+        {
+          "channels": {
+            "telegram": {
+              "name": "telegram",
+              "display_name": "Telegram",
+              "default_config": {...},
+              "secret_fields": ["token"],
+              "json_schema": {...}
+            },
+            ...
+          },
+          "global": {"json_schema": {...}, "secret_fields": []}
+        }
+    """
+    from deeptutor.api.routers._tutorbot_channel_schema import (
+        all_channel_schemas,
+        global_channels_schema,
+    )
+
+    return {
+        "channels": all_channel_schemas(),
+        "global": global_channels_schema(),
+    }
+
+
 @router.post("")
 async def create_and_start_bot(payload: CreateBotRequest):
     mgr = get_tutorbot_manager()
-    config = BotConfig(
-        name=payload.name or payload.bot_id,
-        description=payload.description,
-        persona=payload.persona,
-        channels=payload.channels,
-        model=payload.model,
-    )
+    # Only fields the client actually sent are forwarded as overrides; this lets
+    # users explicitly clear values (e.g. ``description=""``) while *omitted*
+    # fields fall back to the on-disk config — preventing the historical bug
+    # where each restart wiped out user-configured channels.
+    overrides = payload.model_dump(exclude_unset=True, exclude={"bot_id"})
+    config = mgr.merge_bot_config(payload.bot_id, overrides)
     try:
         instance = await mgr.start_bot(payload.bot_id, config)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return instance.to_dict()
+    # Response is masked — secrets are only revealed via the explicit
+    # GET /{bot_id}?include_secrets=true edit-form route.
+    return instance.to_dict(mask_secrets=True)
+
+
+def _stopped_bot_dict(
+    bot_id: str,
+    cfg: BotConfig,
+    *,
+    include_secrets: bool = False,
+) -> dict:
+    """Serialise a stopped bot — secret fields masked unless explicitly opted-in."""
+    if include_secrets:
+        channels: object = cfg.channels
+    else:
+        channels = mask_channel_secrets(cfg.channels)
+    return {
+        "bot_id": bot_id,
+        "name": cfg.name,
+        "description": cfg.description,
+        "persona": cfg.persona,
+        "channels": channels,
+        "model": cfg.model,
+        "running": False,
+        "started_at": None,
+        "last_reload_error": None,
+    }
 
 
 @router.get("/{bot_id}")
-async def get_bot(bot_id: str):
+async def get_bot(
+    bot_id: str,
+    include_secrets: bool = Query(
+        False,
+        description=(
+            "Return raw channel secrets (tokens, passwords). Required by the "
+            "admin edit form; default response masks all secret-looking fields."
+        ),
+    ),
+):
     mgr = get_tutorbot_manager()
     instance = mgr.get_bot(bot_id)
     if instance:
-        return instance.to_dict()
-    cfg = mgr._load_bot_config(bot_id)
+        return instance.to_dict(
+            include_secrets=include_secrets,
+            mask_secrets=not include_secrets,
+        )
+    cfg = mgr.load_bot_config(bot_id)
     if cfg:
-        return {
-            "bot_id": bot_id, "name": cfg.name, "description": cfg.description,
-            "persona": cfg.persona, "channels": list(cfg.channels.keys()),
-            "model": cfg.model, "running": False, "started_at": None,
-        }
+        return _stopped_bot_dict(bot_id, cfg, include_secrets=include_secrets)
     raise HTTPException(status_code=404, detail="Bot not found")
 
 
@@ -149,29 +242,81 @@ async def destroy_bot(bot_id: str):
     return {"bot_id": bot_id, "destroyed": True}
 
 
+def _validate_channels_payload(channels: dict) -> None:
+    """Reject malformed channel configs at the API boundary (returns 422).
+
+    Without this check, the bad config would still hit disk and only blow up
+    later inside ``reload_channels`` / next ``start_bot`` — leaving a confusing
+    500 with no guidance to the caller.
+    """
+    from deeptutor.tutorbot.config.schema import ChannelsConfig
+
+    try:
+        ChannelsConfig(**channels)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Invalid channels config", "errors": exc.errors()},
+        ) from None
+    except TypeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid channels config: {exc}",
+        ) from None
+
+
+def _apply_payload(target: BotConfig | TutorBotInstance, payload: UpdateBotRequest) -> None:
+    """Apply non-None fields from ``payload`` onto a ``BotConfig`` (or instance.config)."""
+    cfg: BotConfig = target.config if isinstance(target, TutorBotInstance) else target
+    if payload.name is not None:
+        cfg.name = payload.name
+    if payload.description is not None:
+        cfg.description = payload.description
+    if payload.persona is not None:
+        cfg.persona = payload.persona
+    if payload.channels is not None:
+        cfg.channels = payload.channels
+    if payload.model is not None:
+        cfg.model = payload.model
+
+
 @router.patch("/{bot_id}")
 async def update_bot(bot_id: str, payload: UpdateBotRequest):
+    if payload.channels is not None:
+        _validate_channels_payload(payload.channels)
+
     mgr = get_tutorbot_manager()
     instance = mgr.get_bot(bot_id)
-    if not instance:
+    if instance:
+        _apply_payload(instance, payload)
+        mgr.save_bot_config(bot_id, instance.config)
+        if payload.channels is not None:
+            try:
+                await mgr.reload_channels(bot_id)
+            except Exception as exc:
+                logger.exception("reload_channels failed for bot '%s'", bot_id)
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "Channels saved but failed to restart listeners "
+                        f"({type(exc).__name__}); try stopping and starting the bot."
+                    ),
+                ) from None
+        # NOTE: response masks secrets — front-end should re-fetch with
+        # ``?include_secrets=true`` if it needs the raw token to refill its form.
+        return instance.to_dict(mask_secrets=True)
+
+    cfg = mgr.load_bot_config(bot_id)
+    if not cfg:
         raise HTTPException(status_code=404, detail="Bot not found")
 
-    if payload.name is not None:
-        instance.config.name = payload.name
-    if payload.description is not None:
-        instance.config.description = payload.description
-    if payload.persona is not None:
-        instance.config.persona = payload.persona
-    if payload.channels is not None:
-        instance.config.channels = payload.channels
-    if payload.model is not None:
-        instance.config.model = payload.model
-
-    mgr._save_bot_config(bot_id, instance.config)
-    return instance.to_dict()
+    _apply_payload(cfg, payload)
+    mgr.save_bot_config(bot_id, cfg)
+    return _stopped_bot_dict(bot_id, cfg)
 
 
 # ── Workspace file endpoints ──────────────────────────────────
+
 
 @router.get("/{bot_id}/files")
 async def list_bot_files(bot_id: str):
@@ -196,6 +341,7 @@ async def write_bot_file(bot_id: str, filename: str, payload: FileUpdateRequest)
 
 # ── Chat history & WebSocket ──────────────────────────────────
 
+
 @router.get("/{bot_id}/history")
 async def get_bot_history(bot_id: str, limit: int = 100):
     """Read chat history from the bot's per-bot JSONL session files."""
@@ -204,24 +350,60 @@ async def get_bot_history(bot_id: str, limit: int = 100):
 
 @router.websocket("/{bot_id}/ws")
 async def bot_chat_ws(ws: WebSocket, bot_id: str):
-    import asyncio
+    # `disconnected` is the single source of truth for "client is gone".
+    # Both task loops watch it so they can exit cooperatively without
+    # raising exceptions back into manager code (which has broad
+    # `except Exception:` handlers that would swallow them).
+    disconnected = asyncio.Event()
+
+    async def _safe_send(payload: dict) -> bool:
+        try:
+            await ws.send_json(payload)
+            return True
+        except (WebSocketDisconnect, RuntimeError):
+            disconnected.set()
+            return False
 
     mgr = get_tutorbot_manager()
     instance = mgr.get_bot(bot_id)
-    if not instance or not instance.running:
-        await ws.close(code=4004, reason="Bot not found or not running")
-        return
 
     await ws.accept()
+
+    if not instance or not instance.running:
+        config = mgr.load_bot_config(bot_id)
+        if config is None:
+            await _safe_send({"type": "error", "content": "Bot not found"})
+            await ws.close(code=4004, reason="Bot not found")
+            return
+        # Serialize concurrent starts of the same bot so only one
+        # WebSocket connection actually triggers `start_bot`; the rest
+        # observe the now-running instance and reuse it.
+        lock = await _get_start_lock(bot_id)
+        async with lock:
+            instance = mgr.get_bot(bot_id)
+            if not instance or not instance.running:
+                try:
+                    instance = await mgr.start_bot(bot_id, config)
+                except Exception:
+                    logger.exception("Failed to auto-start bot '%s' for websocket", bot_id)
+                    await _safe_send({"type": "error", "content": "Failed to start bot"})
+                    await ws.close(code=1011, reason="Failed to start bot")
+                    return
+
     logger.info("WebSocket connected for bot '%s'", bot_id)
 
     async def _handle_user_messages():
-        while True:
-            raw = await ws.receive_text()
+        while not disconnected.is_set():
+            try:
+                raw = await ws.receive_text()
+            except WebSocketDisconnect:
+                disconnected.set()
+                break
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
-                await ws.send_json({"type": "error", "content": "Invalid JSON"})
+                if not await _safe_send({"type": "error", "content": "Invalid JSON"}):
+                    break
                 continue
 
             content = data.get("content", "").strip()
@@ -229,41 +411,71 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
                 continue
 
             async def on_progress(text: str) -> None:
-                await ws.send_json({"type": "thinking", "content": text})
+                # Best-effort: never raise. If the client is gone, just stop
+                # forwarding progress; the surrounding loop will notice the
+                # `disconnected` event and exit. Raising here would leak
+                # WebSocketDisconnect into `mgr.send_message`, which catches
+                # `Exception` broadly and would swallow the disconnect signal,
+                # leaving the bot to finish an expensive turn for nobody.
+                await _safe_send({"type": "thinking", "content": text})
 
             try:
                 response = await mgr.send_message(
-                    bot_id, content, chat_id=data.get("chat_id", "web"),
+                    bot_id,
+                    content,
+                    chat_id=data.get("chat_id", "web"),
                     on_progress=on_progress,
                 )
-                await ws.send_json({"type": "content", "content": response})
-                await ws.send_json({"type": "done"})
+                if not await _safe_send({"type": "content", "content": response}):
+                    break
+                if not await _safe_send({"type": "done"}):
+                    break
             except RuntimeError as exc:
-                await ws.send_json({"type": "error", "content": str(exc)})
+                if not await _safe_send({"type": "error", "content": str(exc)}):
+                    break
+            except WebSocketDisconnect:
+                disconnected.set()
+                break
             except Exception:
                 logger.exception("Error processing message for bot '%s'", bot_id)
-                await ws.send_json({"type": "error", "content": "Internal error"})
+                if not await _safe_send({"type": "error", "content": "Internal error"}):
+                    break
 
     async def _handle_notifications():
-        while True:
-            content = await instance.notify_queue.get()
-            try:
-                await ws.send_json({"type": "proactive", "content": content})
-            except Exception:
+        # Race the queue read against the disconnect signal so this loop
+        # cooperates with client disconnects detected by the other task.
+        while not disconnected.is_set():
+            get_task = asyncio.create_task(instance.notify_queue.get())
+            wait_task = asyncio.create_task(disconnected.wait())
+            done, pending = await asyncio.wait(
+                {get_task, wait_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for t in pending:
+                t.cancel()
+            if get_task not in done:
+                break
+            content = get_task.result()
+            if not await _safe_send({"type": "proactive", "content": content}):
                 break
 
     user_task = asyncio.create_task(_handle_user_messages())
     notify_task = asyncio.create_task(_handle_notifications())
     try:
         done, pending = await asyncio.wait(
-            [user_task, notify_task], return_when=asyncio.FIRST_COMPLETED,
+            [user_task, notify_task],
+            return_when=asyncio.FIRST_COMPLETED,
         )
+        disconnected.set()
         for t in pending:
             t.cancel()
         for t in done:
             if t.exception() and not isinstance(t.exception(), WebSocketDisconnect):
-                logger.exception("WebSocket task error for bot '%s'", bot_id, exc_info=t.exception())
+                logger.exception(
+                    "WebSocket task error for bot '%s'", bot_id, exc_info=t.exception()
+                )
     except Exception:
+        disconnected.set()
         user_task.cancel()
         notify_task.cancel()
     logger.info("WebSocket closed for bot '%s'", bot_id)

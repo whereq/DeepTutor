@@ -4,7 +4,6 @@ NoteAgent - Recording Agent
 Responsible for information compression and summary generation, converting raw data returned by tools into usable knowledge summaries
 """
 
-import json
 from string import Template
 from typing import Any, Optional
 
@@ -106,7 +105,11 @@ class NoteAgent(BaseAgent):
 
         if (not summary or len(summary) < 50) and use_llm_fallback:
             summary = await self._generate_summary(
-                tool_type=tool_type, query=query, raw_answer=raw_answer, topic=topic, context=context
+                tool_type=tool_type,
+                query=query,
+                raw_answer=raw_answer,
+                topic=topic,
+                context=context,
             )
         elif not summary:
             summary = raw_answer[:1000]
@@ -147,8 +150,7 @@ class NoteAgent(BaseAgent):
 
     def _get_mode_contract(self, stage: str) -> str:
         return (
-            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "")
-            or ""
+            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "") or ""
         ).strip()
 
     def _get_mode_instruction_text(self, stage: str) -> str:

@@ -1,4 +1,9 @@
-export type ResearchMode = "" | "notes" | "report" | "comparison" | "learning_path";
+export type ResearchMode =
+  | ""
+  | "notes"
+  | "report"
+  | "comparison"
+  | "learning_path";
 export type ResearchDepth = "" | "quick" | "standard" | "deep" | "manual";
 export type ResearchSource = "kb" | "web" | "papers";
 
@@ -42,7 +47,10 @@ export function normalizeResearchConfig(
         ? raw.mode
         : empty.mode,
     depth:
-      raw?.depth === "quick" || raw?.depth === "standard" || raw?.depth === "deep" || raw?.depth === "manual"
+      raw?.depth === "quick" ||
+      raw?.depth === "standard" ||
+      raw?.depth === "deep" ||
+      raw?.depth === "manual"
         ? raw.depth
         : empty.depth,
     sources: Array.isArray(raw?.sources)
@@ -85,8 +93,10 @@ export function buildResearchWSConfig(
   };
 
   if (cfg.depth === "manual") {
-    if (cfg.manual_subtopics != null) result.manual_subtopics = cfg.manual_subtopics;
-    if (cfg.manual_max_iterations != null) result.manual_max_iterations = cfg.manual_max_iterations;
+    if (cfg.manual_subtopics != null)
+      result.manual_subtopics = cfg.manual_subtopics;
+    if (cfg.manual_max_iterations != null)
+      result.manual_max_iterations = cfg.manual_max_iterations;
   }
 
   const outline = confirmedOutline ?? cfg.confirmed_outline;
@@ -97,13 +107,32 @@ export function buildResearchWSConfig(
   return result;
 }
 
-export function summarizeResearchConfig(cfg: DeepResearchFormConfig): string {
+const RESEARCH_MODE_LABELS: Record<string, string> = {
+  notes: "Study Notes",
+  report: "Report",
+  comparison: "Comparison",
+  learning_path: "Learning Path",
+};
+
+const RESEARCH_DEPTH_LABELS: Record<string, string> = {
+  quick: "Quick",
+  standard: "Standard",
+  deep: "Deep",
+  manual: "Manual",
+};
+
+export function summarizeResearchConfig(
+  cfg: DeepResearchFormConfig,
+  translate?: (key: string) => string,
+): string {
   const validation = validateResearchConfig(cfg);
-  if (!validation.valid) return "Incomplete settings";
-  const sourceSummary = cfg.sources.length ? cfg.sources.join("+") : "llm-only";
-  return [
-    cfg.mode.replace("_", " "),
-    cfg.depth,
-    sourceSummary,
-  ].join(" · ");
+  const tr = translate ?? ((s: string) => s);
+  if (!validation.valid) return tr("Incomplete settings");
+  const sourceSummary = cfg.sources.length
+    ? cfg.sources.join("+")
+    : tr("llm-only");
+  const modeLabel =
+    RESEARCH_MODE_LABELS[cfg.mode] ?? cfg.mode.replace("_", " ");
+  const depthLabel = RESEARCH_DEPTH_LABELS[cfg.depth] ?? cfg.depth;
+  return [tr(modeLabel), tr(depthLabel), sourceSummary].join(" · ");
 }

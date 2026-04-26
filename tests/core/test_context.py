@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from deeptutor.core.context import Attachment, UnifiedContext
-from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.errors import (
     ConfigurationError,
     DeepTutorError,
@@ -13,13 +12,13 @@ from deeptutor.core.errors import (
     ServiceError,
     ValidationError,
 )
+from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.trace import (
     build_trace_metadata,
     derive_trace_metadata,
     merge_trace_metadata,
     new_call_id,
 )
-
 
 # ---------------------------------------------------------------------------
 # Attachment

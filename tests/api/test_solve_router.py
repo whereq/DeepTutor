@@ -11,7 +11,9 @@ pytest.importorskip("fastapi")
 FastAPI = pytest.importorskip("fastapi").FastAPI
 TestClient = pytest.importorskip("fastapi.testclient").TestClient
 router = importlib.import_module("deeptutor.api.routers.solve").router
-DeepSolveCapability = importlib.import_module("deeptutor.capabilities.deep_solve").DeepSolveCapability
+DeepSolveCapability = importlib.import_module(
+    "deeptutor.capabilities.deep_solve"
+).DeepSolveCapability
 
 
 class _DummyLogInterceptor:

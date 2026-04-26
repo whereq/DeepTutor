@@ -180,7 +180,9 @@ class AnswerConsolidator:
             response.answer = self._consolidate_with_llm(response)
             _logger.success(f"LLM consolidation completed ({len(response.answer)} chars)")
         else:
-            _logger.info(f"Consolidating {results_count} results from {response.provider} via template")
+            _logger.info(
+                f"Consolidating {results_count} results from {response.provider} via template"
+            )
             response.answer = self._consolidate_with_template(response)
             _logger.success(f"Template consolidation completed ({len(response.answer)} chars)")
 
@@ -347,7 +349,7 @@ Consolidate these results into structured grounding context."""
 
         This is used as a fallback when no provider-specific template is available.
         """
-        lines = [f"### Search Results for \"{response.query}\"", ""]
+        lines = [f'### Search Results for "{response.query}"', ""]
 
         for i, result in enumerate(response.search_results[: self.max_results], 1):
             lines.append(f"**[{i}] {result.title}**")
@@ -359,9 +361,7 @@ Consolidate these results into structured grounding context."""
             lines.append("")
 
         if response.search_results:
-            lines.append(
-                f"---\n*{len(response.search_results)} results via {response.provider}*"
-            )
+            lines.append(f"---\n*{len(response.search_results)} results via {response.provider}*")
         else:
             lines.append("*No results found.*")
 

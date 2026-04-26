@@ -89,7 +89,9 @@ class ReportingAgent(BaseAgent):
         self.enable_citation_list = self.reporting_config.get("enable_citation_list", False)
         self.enable_inline_citations = self.reporting_config.get("enable_inline_citations", False)
         self.deduplicate_enabled = self.reporting_config.get("deduplicate_enabled", False)
-        self.single_pass_threshold = int(self.reporting_config.get("report_single_pass_threshold", 0))
+        self.single_pass_threshold = int(
+            self.reporting_config.get("report_single_pass_threshold", 0)
+        )
         self.report_style = str(self.reporting_config.get("style", "report") or "report")
 
     def set_citation_manager(self, citation_manager):
@@ -104,10 +106,7 @@ class ReportingAgent(BaseAgent):
         return f"{prompt}\n\n{heading}:\n{contract}\n"
 
     def _get_mode_contract(self, stage: str) -> str:
-        return (
-            self.get_prompt("mode_contracts", f"{self.report_style}_{stage}", "")
-            or ""
-        ).strip()
+        return (self.get_prompt("mode_contracts", f"{self.report_style}_{stage}", "") or "").strip()
 
     def _get_mode_process_prompt(self, base_key: str, default: str = "") -> str:
         """Select mode-specific process template, falling back to the generic one.
@@ -333,7 +332,9 @@ class ReportingAgent(BaseAgent):
     def _create_default_outline(self, topic: str, blocks: list[TopicBlock]) -> dict[str, Any]:
         """Create a default outline with three-level heading structure"""
         intro_title = "## Introduction"
-        intro_instruction = "Present the research background, motivation, objectives, and report structure"
+        intro_instruction = (
+            "Present the research background, motivation, objectives, and report structure"
+        )
         conclusion_title = "## Conclusion and Future Directions"
         conclusion_instruction = (
             "Summarize core findings, research contributions, limitations, and future directions"
@@ -341,25 +342,33 @@ class ReportingAgent(BaseAgent):
 
         if self.report_style == "study_notes":
             intro_title = "## Study Overview"
-            intro_instruction = "Orient the learner, define the scope, and state the main learning goals"
+            intro_instruction = (
+                "Orient the learner, define the scope, and state the main learning goals"
+            )
             conclusion_title = "## Key Takeaways"
-            conclusion_instruction = "Summarize the most important concepts, mechanisms, and memory anchors"
+            conclusion_instruction = (
+                "Summarize the most important concepts, mechanisms, and memory anchors"
+            )
         elif self.report_style == "comparison":
             intro_title = "## Comparison Setup"
             intro_instruction = "Define the comparison target, criteria, and evaluation lens"
             conclusion_title = "## Recommendation by Scenario"
-            conclusion_instruction = "Summarize the trade-offs and recommend which option fits which scenario"
+            conclusion_instruction = (
+                "Summarize the trade-offs and recommend which option fits which scenario"
+            )
         elif self.report_style == "learning_path":
             intro_title = "## Learning Goal and Scope"
-            intro_instruction = "Clarify the learner profile, expected progression, and prerequisite assumptions"
+            intro_instruction = (
+                "Clarify the learner profile, expected progression, and prerequisite assumptions"
+            )
             conclusion_title = "## Milestones and Next Steps"
-            conclusion_instruction = "Summarize stage milestones, practice checkpoints, and how to keep progressing"
+            conclusion_instruction = (
+                "Summarize stage milestones, practice checkpoints, and how to keep progressing"
+            )
 
         sections = []
         for i, b in enumerate(blocks, 1):
-            section_instruction = (
-                f"Provide detailed introduction to {b.sub_topic}, including core concepts, key mechanisms, and practical applications"
-            )
+            section_instruction = f"Provide detailed introduction to {b.sub_topic}, including core concepts, key mechanisms, and practical applications"
             section_title = f"## {i}. {b.sub_topic}"
             subsections = [
                 {
@@ -373,9 +382,7 @@ class ReportingAgent(BaseAgent):
             ]
             if self.report_style == "study_notes":
                 section_title = f"## Note {i}. {b.sub_topic}"
-                section_instruction = (
-                    f"Write compact study notes for {b.sub_topic}, focusing on definitions, mechanisms, examples, and takeaways"
-                )
+                section_instruction = f"Write compact study notes for {b.sub_topic}, focusing on definitions, mechanisms, examples, and takeaways"
                 subsections = [
                     {
                         "title": f"### {i}.1 What It Means",
@@ -392,9 +399,7 @@ class ReportingAgent(BaseAgent):
                 ]
             elif self.report_style == "comparison":
                 section_title = f"## Dimension {i}. {b.sub_topic}"
-                section_instruction = (
-                    f"Compare {b.sub_topic} across key dimensions, trade-offs, strengths, weaknesses, and best-fit scenarios"
-                )
+                section_instruction = f"Compare {b.sub_topic} across key dimensions, trade-offs, strengths, weaknesses, and best-fit scenarios"
                 subsections = [
                     {
                         "title": f"### {i}.1 Side-by-Side Contrast",
@@ -411,9 +416,7 @@ class ReportingAgent(BaseAgent):
                 ]
             elif self.report_style == "learning_path":
                 section_title = f"## Stage {i}. {b.sub_topic}"
-                section_instruction = (
-                    f"Explain how {b.sub_topic} fits into a learning roadmap, including prerequisites, what to practice, and what comes next"
-                )
+                section_instruction = f"Explain how {b.sub_topic} fits into a learning roadmap, including prerequisites, what to practice, and what comes next"
                 subsections = [
                     {
                         "title": f"### {i}.1 Learn First",
@@ -1005,7 +1008,7 @@ class ReportingAgent(BaseAgent):
         sources = citation.get("sources", [])
 
         # Tool name display
-        result = f"**RAG**"
+        result = "**RAG**"
         if kb_name:
             result += f" (KB: {kb_name})"
         result += "\n\n"
@@ -1408,7 +1411,9 @@ class ReportingAgent(BaseAgent):
         )
         tmpl = self._get_mode_process_prompt("write_full_report")
         if not tmpl:
-            raise ValueError("Cannot get single-pass report prompt template, report generation failed")
+            raise ValueError(
+                "Cannot get single-pass report prompt template, report generation failed"
+            )
 
         blocks_data = [self._ser_block(block) for block in blocks]
         outline_json = _json.dumps(outline, ensure_ascii=False, indent=2)

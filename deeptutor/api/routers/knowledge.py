@@ -34,8 +34,8 @@ from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
 from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
-from deeptutor.services.rag.components.routing import FileTypeRouter
-from deeptutor.services.rag.factory import DEFAULT_PROVIDER, has_pipeline, normalize_provider_name
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER
+from deeptutor.services.rag.file_routing import FileTypeRouter
 from deeptutor.utils.document_validator import DocumentValidator
 from deeptutor.utils.error_utils import format_exception_message
 
@@ -79,6 +79,8 @@ class KnowledgeBaseInfo(BaseModel):
     name: str
     is_default: bool
     statistics: dict
+    metadata: dict | None = None
+    path: str | None = None
     status: str | None = None
     progress: dict | None = None
 
@@ -96,6 +98,15 @@ class LinkedFolderInfo(BaseModel):
     path: str
     added_at: str
     file_count: int
+
+
+class SupportedFileTypesInfo(BaseModel):
+    """Upload constraints exposed to the web client."""
+
+    extensions: list[str]
+    accept: str
+    max_file_size_bytes: int
+    max_pdf_size_bytes: int
 
 
 def _build_unique_task_id(task_type: str, task_key_prefix: str) -> str:
@@ -119,64 +130,138 @@ def _save_uploaded_files(
     """
     uploaded_files: list[str] = []
     uploaded_file_paths: list[str] = []
+    written_file_paths: list[Path] = []
 
     from deeptutor.services.pocketbase_client import is_pocketbase_enabled
 
     _pb_sync = is_pocketbase_enabled() and bool(kb_name)
 
-    for file in files:
-        file_path = None
-        original_filename = file.filename or "upload"
-        try:
-            sanitized_filename = DocumentValidator.validate_upload_safety(
-                original_filename, None, allowed_extensions=allowed_extensions
-            )
-            file.filename = sanitized_filename
+    try:
+        for file in files:
+            file_path = None
+            original_filename = file.filename or "upload"
+            try:
+                sanitized_filename = DocumentValidator.validate_upload_safety(
+                    original_filename,
+                    _get_upload_file_size(file),
+                    allowed_extensions=allowed_extensions,
+                )
+                file.filename = sanitized_filename
 
-            file_path = target_dir / sanitized_filename
-            max_size = DocumentValidator.MAX_FILE_SIZE
-            written_bytes = 0
+                file_path = target_dir / sanitized_filename
+                max_size = DocumentValidator.MAX_FILE_SIZE
+                written_bytes = 0
 
-            with open(file_path, "wb") as buffer:
-                for chunk in iter(lambda: file.file.read(8192), b""):
-                    written_bytes += len(chunk)
-                    if written_bytes > max_size:
-                        size_str = format_bytes_human_readable(max_size)
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"File '{sanitized_filename}' exceeds maximum size limit of {size_str}",
+                file.file.seek(0)
+                with open(file_path, "wb") as buffer:
+                    for chunk in iter(lambda: file.file.read(8192), b""):
+                        written_bytes += len(chunk)
+                        if written_bytes > max_size:
+                            size_str = format_bytes_human_readable(max_size)
+                            raise HTTPException(
+                                status_code=400,
+                                detail=(
+                                    f"File '{sanitized_filename}' exceeds maximum size "
+                                    f"limit of {size_str}"
+                                ),
+                            )
+                        buffer.write(chunk)
+
+                DocumentValidator.validate_upload_safety(
+                    sanitized_filename, written_bytes, allowed_extensions=allowed_extensions
+                )
+                written_file_paths.append(file_path)
+                uploaded_files.append(sanitized_filename)
+                uploaded_file_paths.append(str(file_path))
+
+                # Mirror file to PocketBase when enabled (best-effort, non-blocking).
+                if _pb_sync and kb_name:
+                    try:
+                        _upload_file_to_pb(kb_name, sanitized_filename, file_path)
+                    except Exception as pb_exc:
+                        logger.debug(
+                            "PocketBase file upload failed for '%s': %s",
+                            sanitized_filename,
+                            pb_exc,
                         )
-                    buffer.write(chunk)
+            except Exception as e:
+                if file_path and file_path.exists():
+                    try:
+                        os.unlink(file_path)
+                    except OSError:
+                        pass
 
-            DocumentValidator.validate_upload_safety(
-                sanitized_filename, written_bytes, allowed_extensions=allowed_extensions
-            )
-            uploaded_files.append(sanitized_filename)
-            uploaded_file_paths.append(str(file_path))
-
-            # Mirror file to PocketBase when enabled (best-effort, non-blocking)
-            if _pb_sync and file_path:
+                error_message = (
+                    f"Validation failed for file '{original_filename}': {format_exception_message(e)}"
+                )
+                logger.error(error_message, exc_info=True)
+                raise HTTPException(status_code=400, detail=error_message) from e
+    except Exception:
+        for written_path in written_file_paths:
+            if written_path.exists():
                 try:
-                    _upload_file_to_pb(kb_name, sanitized_filename, file_path)
-                except Exception as pb_exc:
-                    logger.debug(
-                        "PocketBase file upload failed for '%s': %s", sanitized_filename, pb_exc
-                    )
-
-        except Exception as e:
-            if file_path and file_path.exists():
-                try:
-                    os.unlink(file_path)
+                    os.unlink(written_path)
                 except OSError:
                     pass
+        raise
 
+    return uploaded_files, uploaded_file_paths
+
+
+def _get_upload_file_size(file: UploadFile) -> int | None:
+    """Best-effort byte size detection without consuming the uploaded stream."""
+    try:
+        current_position = file.file.tell()
+        file.file.seek(0, os.SEEK_END)
+        size = file.file.tell()
+        file.file.seek(current_position)
+        return size
+    except Exception:
+        return None
+
+
+def _validate_upload_batch(
+    files: list[UploadFile],
+    allowed_extensions: set[str] | None = None,
+) -> list[dict[str, int | str | None]]:
+    """Validate upload metadata before mutating KB state or writing any files."""
+    validated: list[dict[str, int | str | None]] = []
+    seen_names: set[str] = set()
+
+    for file in files:
+        original_filename = file.filename or "upload"
+        size_bytes = _get_upload_file_size(file)
+        try:
+            sanitized_filename = DocumentValidator.validate_upload_safety(
+                original_filename,
+                size_bytes,
+                allowed_extensions=allowed_extensions,
+            )
+        except Exception as e:
             error_message = (
                 f"Validation failed for file '{original_filename}': {format_exception_message(e)}"
             )
-            logger.error(error_message, exc_info=True)
             raise HTTPException(status_code=400, detail=error_message) from e
 
-    return uploaded_files, uploaded_file_paths
+        if sanitized_filename in seen_names:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Duplicate filename after sanitization: '{sanitized_filename}'. "
+                    "Rename one of the files and try again."
+                ),
+            )
+
+        seen_names.add(sanitized_filename)
+        validated.append(
+            {
+                "original_filename": original_filename,
+                "sanitized_filename": sanitized_filename,
+                "size_bytes": size_bytes,
+            }
+        )
+
+    return validated
 
 
 def _upload_file_to_pb(kb_name: str, filename: str, file_path: Path) -> None:
@@ -215,23 +300,8 @@ def _task_log(task_id: str, message: str, level: str = "info") -> None:
 
 
 def _validate_registered_provider(raw_provider: str | None) -> str:
-    candidate = (raw_provider or DEFAULT_PROVIDER).strip().lower()
-    if not candidate:
-        candidate = DEFAULT_PROVIDER
-
-    if not has_pipeline(candidate):
-        from deeptutor.services.rag.service import RAGService
-
-        available_providers = [item["id"] for item in RAGService.list_providers()]
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Unsupported RAG provider '{candidate}'. "
-                f"Available providers: {available_providers}"
-            ),
-        )
-
-    return normalize_provider_name(candidate)
+    """Always return the canonical provider; field is kept as a stub."""
+    return DEFAULT_PROVIDER
 
 
 def _load_kb_entry_or_404(manager: KnowledgeBaseManager, kb_name: str) -> dict:
@@ -475,6 +545,18 @@ async def get_rag_providers():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/supported-file-types", response_model=SupportedFileTypesInfo)
+async def get_supported_file_types():
+    """Return the current upload policy so the web client stays in sync."""
+    extensions = sorted(FileTypeRouter.get_supported_extensions())
+    return SupportedFileTypesInfo(
+        extensions=extensions,
+        accept=",".join(extensions),
+        max_file_size_bytes=DocumentValidator.MAX_FILE_SIZE,
+        max_pdf_size_bytes=DocumentValidator.MAX_PDF_SIZE,
+    )
+
+
 @router.get("/configs")
 async def get_all_kb_configs():
     """Get all knowledge base configurations from centralized config file."""
@@ -591,6 +673,8 @@ async def list_knowledge_bases():
                         name=info["name"],
                         is_default=info["is_default"],
                         statistics=info.get("statistics", {}),
+                        metadata=info.get("metadata"),
+                        path=info.get("path"),
                         status=info.get("status"),
                         progress=info.get("progress"),
                     )
@@ -613,6 +697,8 @@ async def list_knowledge_bases():
                                     "content_lists": 0,
                                     "rag_initialized": False,
                                 },
+                                metadata=None,
+                                path=str(kb_dir),
                                 status="unknown",
                                 progress=None,
                             )
@@ -711,7 +797,8 @@ async def upload_files(
                     "Update KB config first."
                 ),
             )
-        allowed_extensions = FileTypeRouter.get_extensions_for_provider(kb_provider)
+        allowed_extensions = FileTypeRouter.get_supported_extensions()
+        _validate_upload_batch(files, allowed_extensions=allowed_extensions)
         uploaded_files, uploaded_file_paths = _save_uploaded_files(
             files, raw_dir, allowed_extensions=allowed_extensions
         )
@@ -758,6 +845,8 @@ async def create_knowledge_base(
             raise HTTPException(status_code=400, detail=f"Knowledge base '{name}' already exists")
 
         rag_provider = _validate_registered_provider(rag_provider)
+        allowed_extensions = FileTypeRouter.get_supported_extensions()
+        _validate_upload_batch(files, allowed_extensions=allowed_extensions)
 
         logger.info(f"Creating KB: {name}")
         task_id = _build_unique_task_id("kb_init", name)
@@ -801,7 +890,6 @@ async def create_knowledge_base(
             logger.warning(f"KB {name} not found in config, registering manually")
             initializer._register_to_config()
 
-        allowed_extensions = FileTypeRouter.get_extensions_for_provider(rag_provider)
         uploaded_files, _ = _save_uploaded_files(
             files, initializer.raw_dir, allowed_extensions=allowed_extensions
         )

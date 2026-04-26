@@ -14,29 +14,12 @@ from __future__ import annotations
 from typing import Any
 
 from deeptutor.agents.base_agent import BaseAgent
+from deeptutor.core.context import Attachment
 from deeptutor.core.trace import build_trace_metadata, new_call_id
 
 from ..memory.scratchpad import PlanStep, Scratchpad
 from ..tool_runtime import SolveToolRuntime
 from ..utils.json_utils import extract_json_from_text
-
-
-def _build_multimodal_messages(
-    system_prompt: str,
-    user_prompt: str,
-    image_url: str,
-) -> list[dict[str, Any]]:
-    """Build OpenAI-compatible multimodal messages with an image."""
-    return [
-        {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_prompt},
-                {"type": "image_url", "image_url": {"url": image_url}},
-            ],
-        },
-    ]
 
 
 class SolverAgent(BaseAgent):
@@ -73,6 +56,7 @@ class SolverAgent(BaseAgent):
         scratchpad: Scratchpad,
         memory_context: str = "",
         image_url: str | None = None,
+        attachments: list[Any] | None = None,
         round_index: int | None = None,
     ) -> dict[str, str]:
         """Run one ReAct iteration for the given plan step.
@@ -83,6 +67,7 @@ class SolverAgent(BaseAgent):
             scratchpad: Current scratchpad state.
             memory_context: Historical memory context string.
             image_url: Optional image URL for multimodal questions.
+            attachments: Optional chat attachments for multimodal input.
 
         Returns:
             dict with keys: thought, action, action_input, self_note
@@ -122,10 +107,11 @@ class SolverAgent(BaseAgent):
             "trace_meta": trace_meta,
         }
 
+        llm_attachments = list(attachments or [])
         if image_url:
-            llm_kwargs["messages"] = _build_multimodal_messages(
-                system_prompt, user_prompt, image_url,
-            )
+            llm_attachments.append(Attachment(type="image", url=image_url))
+        if llm_attachments:
+            llm_kwargs["attachments"] = llm_attachments
 
         chunks: list[str] = []
         async for chunk in self.stream_llm(**llm_kwargs):

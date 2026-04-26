@@ -20,8 +20,8 @@ Usage::
 from __future__ import annotations
 
 import asyncio
-import json
 from contextlib import asynccontextmanager
+import json
 from typing import Any, AsyncIterator
 
 from .stream import StreamEvent, StreamEventType

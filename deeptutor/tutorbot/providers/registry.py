@@ -92,6 +92,14 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_direct=True,
     ),
     ProviderSpec(
+        name="custom_anthropic",
+        keywords=(),
+        env_key="",
+        display_name="Custom (Anthropic API)",
+        backend="anthropic",
+        is_direct=True,
+    ),
+    ProviderSpec(
         name="azure_openai",
         keywords=("azure", "azure-openai"),
         env_key="",
@@ -251,7 +259,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         env_key="MOONSHOT_API_KEY",
         display_name="Moonshot",
         backend="openai_compat",
-        default_api_base="https://api.moonshot.ai/v1",
+        default_api_base="https://api.moonshot.cn/v1",
         model_overrides=(("kimi-k2.5", {"temperature": 1.0}),),
     ),
     ProviderSpec(
@@ -260,7 +268,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         env_key="MINIMAX_API_KEY",
         display_name="MiniMax",
         backend="openai_compat",
-        default_api_base="https://api.minimax.io/v1",
+        default_api_base="https://api.minimaxi.com/v1",
     ),
     ProviderSpec(
         name="mistral",

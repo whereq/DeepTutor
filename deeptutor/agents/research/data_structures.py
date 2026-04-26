@@ -85,10 +85,7 @@ class ToolTrace:
             content_fields = ["answer", "content", "text", "chunks", "documents"]
             for field_name in content_fields:
                 if field_name in data:
-                    if (
-                        isinstance(data[field_name], str)
-                        and len(data[field_name]) > max_size // 2
-                    ):
+                    if isinstance(data[field_name], str) and len(data[field_name]) > max_size // 2:
                         data[field_name] = data[field_name][: max_size // 2] + "... [truncated]"
                     elif isinstance(data[field_name], list):
                         data[field_name] = data[field_name][:3]

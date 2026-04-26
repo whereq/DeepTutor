@@ -13,7 +13,6 @@ from deeptutor.utils.network.circuit_breaker import (
     record_call_success,
 )
 
-
 # ---------------------------------------------------------------------------
 # CircuitBreaker class
 # ---------------------------------------------------------------------------

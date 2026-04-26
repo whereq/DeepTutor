@@ -4,7 +4,6 @@ Parse PDF files using MinerU and save results to reference_papers directory
 """
 
 import argparse
-from datetime import datetime
 from pathlib import Path
 import shutil
 import subprocess

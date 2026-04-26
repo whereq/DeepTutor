@@ -25,6 +25,12 @@ WORKDIR /app/web
 # Accept build argument for backend port
 ARG BACKEND_PORT=8001
 
+# Application version (e.g. "v1.2.3"). Passed by CI from the release tag
+# and inlined into the Next.js bundle via NEXT_PUBLIC_APP_VERSION so the
+# sidebar version badge can compare it with the latest GitHub release.
+ARG APP_VERSION=""
+ENV APP_VERSION=$APP_VERSION
+
 # Copy package files first for better caching
 COPY web/package.json web/package-lock.json* ./
 
@@ -161,7 +167,6 @@ RUN mkdir -p \
     data/user/workspace/notebook \
     data/user/workspace/co-writer/audio \
     data/user/workspace/co-writer/tool_calls \
-    data/user/workspace/guide \
     data/user/workspace/chat/chat \
     data/user/workspace/chat/deep_solve \
     data/user/workspace/chat/deep_question \

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from deeptutor.core.context import Attachment
+
 from .agents import AnalysisAgent, CodeGeneratorAgent, ReviewAgent
 from .models import ReviewResult, VisualizationAnalysis
 
@@ -48,11 +50,13 @@ class VisualizePipeline:
         user_input: str,
         history_context: str,
         render_mode: str = "auto",
+        attachments: list[Attachment] | None = None,
     ) -> VisualizationAnalysis:
         return await self.analysis_agent.process(
             user_input=user_input,
             history_context=history_context,
             render_mode=render_mode,
+            attachments=attachments,
         )
 
     async def run_code_generation(

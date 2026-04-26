@@ -70,7 +70,7 @@ class CronTool(Tool):
             "required": ["action"],
         }
 
-    async def execute(
+    async def execute(  # type: ignore[override]
         self,
         action: str,
         message: str = "",

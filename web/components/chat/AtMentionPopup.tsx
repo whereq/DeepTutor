@@ -1,17 +1,20 @@
 "use client";
 
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 interface AtMentionPopupProps {
   open: boolean;
   onSelectNotebook: () => void;
   onSelectHistory: () => void;
+  onSelectQuestionBank: () => void;
 }
 
-export default function AtMentionPopup({
+export default memo(function AtMentionPopup({
   open,
   onSelectNotebook,
   onSelectHistory,
+  onSelectQuestionBank,
 }: AtMentionPopupProps) {
   const { t } = useTranslation();
 
@@ -31,6 +34,12 @@ export default function AtMentionPopup({
       >
         {t("Chat History")}
       </button>
+      <button
+        onClick={onSelectQuestionBank}
+        className="w-full rounded-xl px-3 py-2.5 text-left text-[14px] font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]/70"
+      >
+        {t("Question Bank")}
+      </button>
     </div>
   );
-}
+});

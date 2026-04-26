@@ -35,7 +35,12 @@ export function getStoredTheme(): Theme | null {
 
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "light" || stored === "dark" || stored === "glass" || stored === "snow") {
+    if (
+      stored === "light" ||
+      stored === "dark" ||
+      stored === "glass" ||
+      stored === "snow"
+    ) {
       return stored;
     }
   } catch (e) {

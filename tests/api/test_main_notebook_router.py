@@ -2,7 +2,6 @@
 
 Verifies that records can only be saved using real notebook UUIDs
 (from /api/v1/notebook/list), not question-notebook category integer IDs.
-Regression test for issue #301 (Co-Writer save to notebook).
 """
 
 from __future__ import annotations
@@ -31,7 +30,8 @@ def _build_app(manager: NotebookManager) -> FastAPI:
 def manager(tmp_path, monkeypatch) -> NotebookManager:
     instance = NotebookManager(base_dir=str(tmp_path / "notebooks"))
     monkeypatch.setattr(
-        "deeptutor.api.routers.notebook.notebook_manager", instance,
+        "deeptutor.api.routers.notebook.notebook_manager",
+        instance,
     )
     return instance
 
@@ -71,7 +71,7 @@ def test_add_record_with_valid_notebook_id(manager: NotebookManager) -> None:
             "/api/v1/notebook/add_record",
             json={
                 "notebook_ids": [nb_id],
-                "record_type": "co_writer",
+                "record_type": "chat",
                 "title": "Draft on Fourier",
                 "summary": "Existing summary",
                 "user_query": "Explain Fourier",
@@ -102,7 +102,7 @@ def test_add_record_with_numeric_category_id_saves_nothing(manager: NotebookMana
             "/api/v1/notebook/add_record",
             json={
                 "notebook_ids": ["1", "42"],
-                "record_type": "co_writer",
+                "record_type": "chat",
                 "title": "Lost draft",
                 "summary": "This should not be saved anywhere",
                 "user_query": "...",

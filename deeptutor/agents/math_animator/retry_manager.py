@@ -13,7 +13,7 @@ def _is_non_retriable_environment_error(message: str) -> bool:
     lowered = (message or "").lower()
     return (
         "no such file or directory: 'latex'" in lowered
-        or "no such file or directory: \"latex\"" in lowered
+        or 'no such file or directory: "latex"' in lowered
         or "latex could not be found" in lowered
     )
 
@@ -63,7 +63,9 @@ class CodeRetryManager:
                 )
                 if self.review_callback is not None:
                     if self.on_status is not None:
-                        await self.on_status("Reviewing rendered visuals for overlap, readability, and framing.")
+                        await self.on_status(
+                            "Reviewing rendered visuals for overlap, readability, and framing."
+                        )
                     try:
                         review_result = await asyncio.wait_for(
                             self.review_callback(code, render_result),
@@ -87,7 +89,10 @@ class CodeRetryManager:
                             attempt=attempt + 1,
                             error=(
                                 "Visual review failed: "
-                                + (review_result.summary or "Detected overlap or readability issues.")
+                                + (
+                                    review_result.summary
+                                    or "Detected overlap or readability issues."
+                                )
                                 + (
                                     f" Suggested fix: {review_result.suggested_fix}"
                                     if review_result.suggested_fix
@@ -134,9 +139,7 @@ class CodeRetryManager:
                 if self.on_retry is not None:
                     await self.on_retry(retry_attempt)
                 if self.on_status is not None:
-                    await self.on_status(
-                        f"Generating repaired code for retry #{attempt + 1}."
-                    )
+                    await self.on_status(f"Generating repaired code for retry #{attempt + 1}.")
                 try:
                     repaired = await asyncio.wait_for(
                         self.repair_callback(code, str(exc), attempt + 1),
@@ -149,9 +152,7 @@ class CodeRetryManager:
                     ) from timeout_exc
                 code = repaired.code.strip() or code
                 if self.on_status is not None:
-                    await self.on_status(
-                        f"Retry #{attempt + 1} code generated. Re-rendering now."
-                    )
+                    await self.on_status(f"Retry #{attempt + 1} code generated. Re-rendering now.")
 
         raise ManimRenderError("Math animator render loop exited unexpectedly.")
 

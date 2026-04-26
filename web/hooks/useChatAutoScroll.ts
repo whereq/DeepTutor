@@ -71,7 +71,13 @@ export function useChatAutoScroll({
         pendingRafRef.current = 0;
       }
     };
-  }, [isStreaming, lastEventCount, lastMessageContent, messageCount, scrollToBottom]);
+  }, [
+    isStreaming,
+    lastEventCount,
+    lastMessageContent,
+    messageCount,
+    scrollToBottom,
+  ]);
 
   useEffect(() => {
     if (!hasMessages || !shouldAutoScrollRef.current) return;
@@ -84,8 +90,12 @@ export function useChatAutoScroll({
   // After streaming ends, dynamically-loaded components (e.g. MathAnimatorViewer
   // via next/dynamic) may render and grow the content height. Detect that and
   // scroll to bottom so the user can see the full result.
+  // hasMessages is in deps so the observer attaches once the messages
+  // container mounts on session reopen — without it, the container ref is null
+  // on initial mount and the observer is never set up.
   useEffect(() => {
     if (isStreaming) return;
+    if (!hasMessages) return;
 
     const container = containerRef.current;
     if (!container) return;
@@ -112,7 +122,7 @@ export function useChatAutoScroll({
       mo.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [isStreaming, scrollToBottom]);
+  }, [hasMessages, isStreaming, scrollToBottom]);
 
   const handleScroll = useCallback(() => {
     const container = containerRef.current;

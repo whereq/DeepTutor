@@ -82,8 +82,16 @@ function StatusIndicator({ status }: { status?: SessionRuntimeStatus }) {
 function groupLabel(timestamp: number): string {
   const now = new Date();
   const date = new Date(timestamp * 1000);
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfItemDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  const startOfItemDay = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  ).getTime();
   const diffDays = Math.floor((startOfToday - startOfItemDay) / 86400000);
   if (diffDays <= 0) return "Today";
   if (diffDays === 1) return "Yesterday";
@@ -96,8 +104,10 @@ function relativeTime(timestamp: number): string {
   const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
   const abs = Math.abs(diffSeconds);
   if (abs < 60) return formatter.format(diffSeconds, "second");
-  if (abs < 3600) return formatter.format(Math.round(diffSeconds / 60), "minute");
-  if (abs < 86400) return formatter.format(Math.round(diffSeconds / 3600), "hour");
+  if (abs < 3600)
+    return formatter.format(Math.round(diffSeconds / 60), "minute");
+  if (abs < 86400)
+    return formatter.format(Math.round(diffSeconds / 3600), "hour");
   return formatter.format(Math.round(diffSeconds / 86400), "day");
 }
 
@@ -148,7 +158,10 @@ export default function SessionList({
       return (
         <div className="ml-5 space-y-1.5 border-l border-[var(--border)]/30 py-1 pl-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-4 w-3/4 animate-pulse rounded bg-[var(--muted)]/40" />
+            <div
+              key={i}
+              className="h-4 w-3/4 animate-pulse rounded bg-[var(--muted)]/40"
+            />
           ))}
         </div>
       );
@@ -156,7 +169,10 @@ export default function SessionList({
     return (
       <div className="space-y-2 px-1.5 py-2">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-10 animate-pulse rounded-md bg-[var(--muted)]/60" />
+          <div
+            key={i}
+            className="h-10 animate-pulse rounded-md bg-[var(--muted)]/60"
+          />
         ))}
       </div>
     );
@@ -204,9 +220,13 @@ export default function SessionList({
                       : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/40 hover:text-[var(--foreground)]"
                   }`}
                 >
-                  <span className={`block h-1.5 w-1.5 shrink-0 rounded-full ${
-                    active ? "bg-[var(--foreground)]/60" : statusColor(session.status)
-                  }`} />
+                  <span
+                    className={`block h-1.5 w-1.5 shrink-0 rounded-full ${
+                      active
+                        ? "bg-[var(--foreground)]/60"
+                        : statusColor(session.status)
+                    }`}
+                  />
                   {isEditing ? (
                     <input
                       value={draftTitle}
@@ -224,14 +244,19 @@ export default function SessionList({
                       className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-1.5 py-px text-[12px] text-[var(--foreground)] outline-none focus:ring-1 focus:ring-[var(--primary)]/40"
                     />
                   ) : (
-                    <span className={`min-w-0 flex-1 truncate text-[13px] ${active ? "font-medium" : ""}`}>
+                    <span
+                      className={`min-w-0 flex-1 truncate text-[13px] ${active ? "font-medium" : ""}`}
+                    >
                       {session.title || "Untitled chat"}
                     </span>
                   )}
                   <div className="flex shrink-0 items-center gap-px opacity-0 transition-opacity group-hover:opacity-100">
                     {isEditing ? (
                       <button
-                        onClick={(event) => { event.stopPropagation(); void commitEdit(); }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void commitEdit();
+                        }}
                         className="rounded p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                         aria-label={t("Save title")}
                       >
@@ -239,7 +264,10 @@ export default function SessionList({
                       </button>
                     ) : (
                       <button
-                        onClick={(event) => { event.stopPropagation(); startEdit(session); }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          startEdit(session);
+                        }}
                         className="rounded p-0.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                         aria-label={t("Rename chat")}
                       >
@@ -247,7 +275,10 @@ export default function SessionList({
                       </button>
                     )}
                     <button
-                      onClick={(event) => { event.stopPropagation(); void onDelete(session.session_id); }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void onDelete(session.session_id);
+                      }}
                       className="rounded p-0.5 text-[var(--muted-foreground)] hover:text-[var(--destructive)]"
                       aria-label={t("Delete chat")}
                     >
@@ -302,7 +333,9 @@ export default function SessionList({
                         <input
                           value={draftTitle}
                           autoFocus
-                          onChange={(event) => setDraftTitle(event.target.value)}
+                          onChange={(event) =>
+                            setDraftTitle(event.target.value)
+                          }
                           onBlur={() => void commitEdit()}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") void commitEdit();
@@ -328,7 +361,8 @@ export default function SessionList({
                       )}
                       {!isEditing && (
                         <div className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-[var(--muted-foreground)]">
-                          {session.last_message || relativeTime(session.updated_at)}
+                          {session.last_message ||
+                            relativeTime(session.updated_at)}
                         </div>
                       )}
                     </div>

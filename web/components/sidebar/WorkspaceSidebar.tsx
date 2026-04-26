@@ -19,7 +19,6 @@ export default function WorkspaceSidebar() {
   const router = useRouter();
   const {
     newSession,
-    loadSession,
     selectedSessionId,
     sessionStatuses,
     sidebarRefreshToken,

@@ -8,11 +8,10 @@ sources for citation.
 
 from __future__ import annotations
 
-import json
-import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from pathlib import Path
+import json
+import os
 from typing import Any
 
 # Optional tiktoken for accurate token counting
@@ -106,7 +105,9 @@ class Entry:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Entry:
         sources = [Source.from_dict(s) for s in data.get("sources", [])]
-        filtered = {k: v for k, v in data.items() if k in cls.__dataclass_fields__ and k != "sources"}
+        filtered = {
+            k: v for k, v in data.items() if k in cls.__dataclass_fields__ and k != "sources"
+        }
         return cls(sources=sources, **filtered)
 
 
@@ -259,6 +260,7 @@ class Scratchpad:
         tool_actions = [e.action for e in current_entries if e.action not in ("done", "replan", "")]
         if tool_actions:
             from collections import Counter
+
             counts = Counter(tool_actions)
             stats = ", ".join(f"{tool} ×{n}" for tool, n in counts.most_common())
             step_history += f"\n\n[Tool usage this step: {stats}]"
@@ -275,10 +277,14 @@ class Scratchpad:
                 if notes:
                     previous_parts.append(f"[{sid}] {goal_text}: {' '.join(notes)}")
 
-        previous_knowledge = "\n".join(previous_parts) if previous_parts else "(no previous steps completed)"
+        previous_knowledge = (
+            "\n".join(previous_parts) if previous_parts else "(no previous steps completed)"
+        )
 
         # Token budget check – if over budget, aggressively compress previous_knowledge
-        total = self._estimate_tokens(plan_text + current_step_text + step_history + previous_knowledge)
+        total = self._estimate_tokens(
+            plan_text + current_step_text + step_history + previous_knowledge
+        )
         if total > max_tokens and previous_parts:
             # Keep only self_notes, one line each
             compressed = []

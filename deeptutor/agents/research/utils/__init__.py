@@ -1,7 +1,6 @@
 """Research utility exports."""
 
-from deeptutor.logging import Logger, get_logger
-from deeptutor.logging import reset_logger
+from deeptutor.logging import Logger, get_logger, reset_logger
 
 from .json_utils import (
     ensure_json_dict,
@@ -12,6 +11,7 @@ from .json_utils import (
     safe_json_loads,
 )
 from .token_tracker import TokenTracker, get_token_tracker
+
 
 def get_llm_logger(research_id: str = None, log_dir: str = None, agent_name: str = None):
     name = agent_name or "Research"

@@ -4,20 +4,22 @@ Provides banner, inline arrow-key selector, confirm, text input, step
 headers, coloured log helpers, spinner, and countdown.  Designed for a
 minimal / industrial aesthetic inspired by Claude Code.
 """
+
 from __future__ import annotations
 
+from contextlib import contextmanager
 import getpass
 import os
 import shutil
 import sys
 import textwrap
 import time
-from contextlib import contextmanager
 from typing import Generator
 
 # ---------------------------------------------------------------------------
 # Colour helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_color() -> bool:
     return sys.stdout.isatty() and os.environ.get("TERM", "dumb") != "dumb"
@@ -57,6 +59,7 @@ def bold(text: str) -> str:
 # Terminal geometry
 # ---------------------------------------------------------------------------
 
+
 def term_width() -> int:
     return min(max(shutil.get_terminal_size((80, 24)).columns, 60), 100)
 
@@ -65,11 +68,12 @@ def term_width() -> int:
 # Low-level key reading (Unix / Windows)
 # ---------------------------------------------------------------------------
 
+
 def _read_key() -> str:
     """Read a single keypress.  Returns 'up', 'down', 'enter', or char."""
     try:
-        import tty
         import termios
+        import tty
 
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
@@ -113,6 +117,7 @@ def _read_key() -> str:
 # Banner
 # ---------------------------------------------------------------------------
 
+
 def banner(title: str, lines: list[str] | None = None) -> None:
     w = term_width()
     inner = w - 4  # usable chars between "│ " and " │"
@@ -136,11 +141,15 @@ def banner(title: str, lines: list[str] | None = None) -> None:
 # Inline arrow-key selector
 # ---------------------------------------------------------------------------
 
+
 def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
     """Arrow-key selector.  *options* is a list of ``(value, label, desc)``.
 
     Returns the *value* of the chosen option.  Falls back to numbered
     input when stdin is not a tty.
+
+    Long lists are rendered as a scrolling window so they always fit on
+    screen without leaving stale rows behind when redrawing.
     """
     if not sys.stdin.isatty():
         return _select_fallback(prompt, options)
@@ -148,11 +157,35 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
     idx = 0
     total = len(options)
 
+    # Reserve rows for: prompt + blank + (optional ↑) + (optional ↓) + blank + safety
+    term_rows = max(shutil.get_terminal_size((80, 24)).lines, 10)
+    max_window = max(5, min(total, term_rows - 6))
+    use_window = total > max_window
+    window_size = max_window if use_window else total
+
     print(dim(f"  {prompt}"))
+    if use_window:
+        print(dim(f"  ({total} options — use ↑/↓, Enter to confirm)"))
     print()
 
-    def _render() -> None:
-        for i, (_, label, desc) in enumerate(options):
+    rendered_lines = 0  # how many lines the last _render() emitted
+
+    def _render() -> int:
+        nonlocal rendered_lines
+        if use_window:
+            half = window_size // 2
+            start = max(0, min(idx - half, total - window_size))
+            end = start + window_size
+        else:
+            start, end = 0, total
+
+        lines = 0
+        if use_window and start > 0:
+            print(f"  {dim('  ↑ ' + str(start) + ' more above')}")
+            lines += 1
+
+        for i in range(start, end):
+            _, label, desc = options[i]
             if i == idx:
                 marker = accent("> ")
                 text = f"{bold(label)}  {dim(desc)}" if desc else bold(label)
@@ -160,6 +193,14 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
                 marker = "  "
                 text = dim(f"{label}  {desc}") if desc else dim(label)
             print(f"  {marker}{text}")
+            lines += 1
+
+        if use_window and end < total:
+            print(f"  {dim('  ↓ ' + str(total - end) + ' more below')}")
+            lines += 1
+
+        rendered_lines = lines
+        return lines
 
     _render()
 
@@ -170,9 +211,8 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
         elif key == "down":
             idx = (idx + 1) % total
         elif key == "enter":
-            # Move past the option block
-            sys.stdout.write(f"\033[{total}A")
-            sys.stdout.write(f"\033[J")
+            sys.stdout.write(f"\033[{rendered_lines}A")
+            sys.stdout.write("\033[J")
             chosen_label = options[idx][1]
             chosen_desc = options[idx][2]
             print(f"  {accent('>')} {bold(chosen_label)}  {dim(chosen_desc)}")
@@ -183,9 +223,8 @@ def select(prompt: str, options: list[tuple[str, str, str]]) -> str:
         else:
             continue
 
-        # Redraw: move cursor up by `total` lines, clear, re-render
-        sys.stdout.write(f"\033[{total}A")
-        sys.stdout.write(f"\033[J")
+        sys.stdout.write(f"\033[{rendered_lines}A")
+        sys.stdout.write("\033[J")
         _render()
 
 
@@ -207,6 +246,7 @@ def _select_fallback(prompt: str, options: list[tuple[str, str, str]]) -> str:
 # Confirm (Y/n)
 # ---------------------------------------------------------------------------
 
+
 def confirm(prompt: str, default: bool = True) -> bool:
     hint = "[Y/n]" if default else "[y/N]"
     while True:
@@ -223,6 +263,7 @@ def confirm(prompt: str, default: bool = True) -> bool:
 # ---------------------------------------------------------------------------
 # Text input
 # ---------------------------------------------------------------------------
+
 
 def text_input(prompt: str, default: str = "", secret: bool = False) -> str:
     display = f"  {prompt}"
@@ -241,6 +282,7 @@ def text_input(prompt: str, default: str = "", secret: bool = False) -> str:
 # Step header
 # ---------------------------------------------------------------------------
 
+
 def step(current: int, total: int | str, title: str) -> None:
     print()
     w = term_width()
@@ -255,6 +297,7 @@ def step(current: int, total: int | str, title: str) -> None:
 # ---------------------------------------------------------------------------
 # Log helpers
 # ---------------------------------------------------------------------------
+
 
 def log_info(msg: str) -> None:
     print(f"  {accent('·')} {msg}")
@@ -309,6 +352,7 @@ def spinner(label: str) -> Generator[None, None, None]:
 # ---------------------------------------------------------------------------
 # Countdown
 # ---------------------------------------------------------------------------
+
 
 def countdown(seconds: int, label: str = "Starting in") -> None:
     for remaining in range(seconds, 0, -1):

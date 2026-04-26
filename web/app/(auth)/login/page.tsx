@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { login, fetchAuthStatus, checkIsFirstUser } from "@/lib/auth";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/";
@@ -152,5 +152,19 @@ export default function LoginPage() {
         DeepTutor · Agent-Native Learning
       </p>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full max-w-sm text-center text-sm text-[var(--muted-foreground)]">
+          Loading sign in...
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   );
 }

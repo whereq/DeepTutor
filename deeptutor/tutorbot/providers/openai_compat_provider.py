@@ -7,12 +7,12 @@ endpoint (OpenAI, DeepSeek, Gemini, Moonshot, MiniMax, gateways, local, etc.).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 import hashlib
 import secrets
 import string
-import uuid
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
+import uuid
 
 import json_repair
 from openai import AsyncOpenAI
@@ -22,10 +22,17 @@ from deeptutor.tutorbot.providers.base import LLMProvider, LLMResponse, ToolCall
 if TYPE_CHECKING:
     from deeptutor.tutorbot.providers.registry import ProviderSpec
 
-_ALLOWED_MSG_KEYS = frozenset({
-    "role", "content", "tool_calls", "tool_call_id", "name",
-    "reasoning_content", "extra_content",
-})
+_ALLOWED_MSG_KEYS = frozenset(
+    {
+        "role",
+        "content",
+        "tool_calls",
+        "tool_call_id",
+        "name",
+        "reasoning_content",
+        "extra_content",
+    }
+)
 _ALNUM = string.ascii_letters + string.digits
 
 _DEFAULT_OPENROUTER_HEADERS = {
@@ -77,7 +84,7 @@ class OpenAICompatProvider(LLMProvider):
         api_base: str | None = None,
         default_model: str = "gpt-4o",
         extra_headers: dict[str, str] | None = None,
-        spec: ProviderSpec | None = None,
+        spec: Any = None,
         provider_name: str | None = None,
     ):
         super().__init__(api_key, api_base)
@@ -115,7 +122,9 @@ class OpenAICompatProvider(LLMProvider):
             os.environ.setdefault(spec.env_key, api_key)
         effective_base = api_base or spec.default_api_base
         for env_name, env_val in spec.env_extras:
-            resolved = env_val.replace("{api_key}", api_key).replace("{api_base}", effective_base or "")
+            resolved = env_val.replace("{api_key}", api_key).replace(
+                "{api_base}", effective_base or ""
+            )
             os.environ.setdefault(env_name, resolved)
 
     # ------------------------------------------------------------------
@@ -134,9 +143,12 @@ class OpenAICompatProvider(LLMProvider):
         def _mark(msg: dict[str, Any]) -> dict[str, Any]:
             content = msg.get("content")
             if isinstance(content, str):
-                return {**msg, "content": [
-                    {"type": "text", "text": content, "cache_control": cache_marker},
-                ]}
+                return {
+                    **msg,
+                    "content": [
+                        {"type": "text", "text": content, "cache_control": cache_marker},
+                    ],
+                }
             if isinstance(content, list) and content:
                 nc = list(content)
                 nc[-1] = {**nc[-1], "cache_control": cache_marker}
@@ -165,7 +177,7 @@ class OpenAICompatProvider(LLMProvider):
             return tool_call_id
         if len(tool_call_id) == 9 and tool_call_id.isalnum():
             return tool_call_id
-        return hashlib.sha1(tool_call_id.encode()).hexdigest()[:9]
+        return hashlib.sha256(tool_call_id.encode()).hexdigest()[:9]
 
     def _sanitize_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         sanitized = LLMProvider._sanitize_request_messages(messages, _ALLOWED_MSG_KEYS)
@@ -254,12 +266,12 @@ class OpenAICompatProvider(LLMProvider):
             if spec.name == "dashscope":
                 extra = {"enable_thinking": thinking_enabled}
             elif spec.name in (
-                "volcengine", "volcengine_coding_plan",
-                "byteplus", "byteplus_coding_plan",
+                "volcengine",
+                "volcengine_coding_plan",
+                "byteplus",
+                "byteplus_coding_plan",
             ):
-                extra = {
-                    "thinking": {"type": "enabled" if thinking_enabled else "disabled"}
-                }
+                extra = {"thinking": {"type": "enabled" if thinking_enabled else "disabled"}}
             if extra:
                 kwargs.setdefault("extra_body", {}).update(extra)
 
@@ -361,15 +373,17 @@ class OpenAICompatProvider(LLMProvider):
             args = tc.function.arguments
             if isinstance(args, str):
                 args = json_repair.loads(args)
-            tool_calls.append(ToolCallRequest(
-                id=_short_tool_id(),
-                name=tc.function.name,
-                arguments=args if isinstance(args, dict) else {},
-                provider_specific_fields=getattr(tc, "provider_specific_fields", None) or None,
-                function_provider_specific_fields=(
-                    getattr(tc.function, "provider_specific_fields", None) or None
-                ),
-            ))
+            tool_calls.append(
+                ToolCallRequest(
+                    id=_short_tool_id(),
+                    name=tc.function.name,
+                    arguments=args if isinstance(args, dict) else {},
+                    provider_specific_fields=getattr(tc, "provider_specific_fields", None) or None,
+                    function_provider_specific_fields=(
+                        getattr(tc.function, "provider_specific_fields", None) or None
+                    ),
+                )
+            )
 
         reasoning_content = getattr(msg, "reasoning_content", None) or None
         if not reasoning_content and getattr(msg, "reasoning", None):
@@ -395,9 +409,14 @@ class OpenAICompatProvider(LLMProvider):
 
         def _accum_tc(tc: Any, idx_hint: int) -> None:
             tc_index: int = _get(tc, "index") if _get(tc, "index") is not None else idx_hint
-            buf = tc_bufs.setdefault(tc_index, {
-                "id": "", "name": "", "arguments": "",
-            })
+            buf = tc_bufs.setdefault(
+                tc_index,
+                {
+                    "id": "",
+                    "name": "",
+                    "arguments": "",
+                },
+            )
             tc_id = _get(tc, "id")
             if tc_id:
                 buf["id"] = str(tc_id)
@@ -456,7 +475,9 @@ class OpenAICompatProvider(LLMProvider):
             or getattr(getattr(e, "response", None), "text", None)
         )
         body_text = body if isinstance(body, str) else str(body) if body is not None else ""
-        msg = f"Error: {body_text.strip()[:500]}" if body_text.strip() else f"Error calling LLM: {e}"
+        msg = (
+            f"Error: {body_text.strip()[:500]}" if body_text.strip() else f"Error calling LLM: {e}"
+        )
         return LLMResponse(content=msg, finish_reason="error")
 
     # ------------------------------------------------------------------
@@ -473,11 +494,14 @@ class OpenAICompatProvider(LLMProvider):
         well-formed response.
         """
         text = str(getattr(e, "body", None) or getattr(e, "message", None) or e).lower()
-        return any(kw in text for kw in (
-            "function.arguments",
-            "must be in json format",
-            "invalid.*parameter.*function",
-        ))
+        return any(
+            kw in text
+            for kw in (
+                "function.arguments",
+                "must be in json format",
+                "invalid.*parameter.*function",
+            )
+        )
 
     async def chat(
         self,
@@ -490,16 +514,26 @@ class OpenAICompatProvider(LLMProvider):
         tool_choice: str | dict[str, Any] | None = None,
     ) -> LLMResponse:
         kwargs = self._build_kwargs(
-            messages, tools, model, max_tokens, temperature,
-            reasoning_effort, tool_choice,
+            messages,
+            tools,
+            model,
+            max_tokens,
+            temperature,
+            reasoning_effort,
+            tool_choice,
         )
         try:
             return self._parse(await self._client.chat.completions.create(**kwargs))
         except Exception as e:
             if tools and self._is_tool_format_error(e):
                 return await self.chat_stream(
-                    messages, tools, model, max_tokens, temperature,
-                    reasoning_effort, tool_choice,
+                    messages,
+                    tools,
+                    model,
+                    max_tokens,
+                    temperature,
+                    reasoning_effort,
+                    tool_choice,
                 )
             return self._handle_error(e)
 
@@ -515,8 +549,13 @@ class OpenAICompatProvider(LLMProvider):
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
         kwargs = self._build_kwargs(
-            messages, tools, model, max_tokens, temperature,
-            reasoning_effort, tool_choice,
+            messages,
+            tools,
+            model,
+            max_tokens,
+            temperature,
+            reasoning_effort,
+            tool_choice,
         )
         kwargs["stream"] = True
         kwargs["stream_options"] = {"include_usage": True}

@@ -1,10 +1,10 @@
 import asyncio
+from collections import deque
+from collections.abc import AsyncGenerator
 import contextlib
 import json
 import logging
 import threading
-from collections import deque
-from collections.abc import AsyncGenerator
 from typing import Any
 
 
@@ -89,7 +89,9 @@ class KnowledgeTaskStreamManager:
             backlog = list(self._buffers[task_id])
         return queue, backlog, loop
 
-    def unsubscribe(self, task_id: str, queue: asyncio.Queue[dict[str, Any]], loop: asyncio.AbstractEventLoop):
+    def unsubscribe(
+        self, task_id: str, queue: asyncio.Queue[dict[str, Any]], loop: asyncio.AbstractEventLoop
+    ):
         with self._lock:
             subscribers = self._subscribers.get(task_id, [])
             self._subscribers[task_id] = [

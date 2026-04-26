@@ -22,7 +22,7 @@ DEFAULT_INTERFACE_SETTINGS = {
     "sidebar_description": "✨ Data Intelligence Lab @ HKU",
     "sidebar_nav_order": {
         "start": ["/", "/history", "/knowledge", "/notebook"],
-        "learnResearch": ["/question", "/solver", "/guide", "/research", "/co_writer"],
+        "learnResearch": ["/question", "/solver", "/research", "/co_writer"],
     },
 }
 
@@ -54,7 +54,6 @@ DEFAULT_MAIN_SETTINGS = {
     },
     "capabilities": {
         "question": {
-            "rag_query_count": 3,
             "max_parallel_questions": 1,
             "idea_loop": {"max_rounds": 3, "ideas_per_round": 5},
             "generation": {"max_retries": 2},
@@ -75,7 +74,6 @@ DEFAULT_MAIN_SETTINGS = {
                 "tool_max_retries": 2,
                 "paper_search_years_limit": 3,
             },
-            "rag": {},
         },
     },
 }
@@ -85,8 +83,16 @@ DEFAULT_AGENTS_SETTINGS = {
         "solve": {"temperature": 0.3, "max_tokens": 8192},
         "research": {"temperature": 0.5, "max_tokens": 12000},
         "question": {"temperature": 0.7, "max_tokens": 4096},
-        "guide": {"temperature": 0.5, "max_tokens": 16192},
         "co_writer": {"temperature": 0.7, "max_tokens": 4096},
+        "chat": {
+            "temperature": 0.2,
+            "responding": {"max_tokens": 8000},
+            "answer_now": {"max_tokens": 8000},
+            "thinking": {"max_tokens": 2000},
+            "observing": {"max_tokens": 2000},
+            "acting": {"max_tokens": 2000},
+            "react_fallback": {"max_tokens": 1500},
+        },
     },
     "tools": {
         "brainstorm": {"temperature": 0.8, "max_tokens": 2048},
@@ -120,7 +126,7 @@ def init_user_directories(project_root: Path | None = None) -> None:
 
     This function uses lazy initialization - directories are created on-demand
     when files are saved, rather than pre-creating all directories at startup.
-    
+
     Only essential configuration files (like settings/interface.json) are
     created at startup if they don't exist.
 
@@ -136,7 +142,7 @@ def init_user_directories(project_root: Path | None = None) -> None:
         ├── notebook/
         ├── memory/
         ├── co-writer/
-        ├── guide/
+        ├── book/
         └── chat/
             ├── chat/
             ├── deep_solve/
@@ -160,7 +166,7 @@ def init_user_directories(project_root: Path | None = None) -> None:
 def _ensure_essential_settings(path_service) -> None:
     """
     Ensure essential settings files exist.
-    
+
     This is the minimal initialization needed at startup.
     All other directories are created on-demand when files are saved.
     """

@@ -29,7 +29,7 @@ SETTINGS_FILE = _path_service.get_settings_file("interface")
 
 DEFAULT_SIDEBAR_NAV_ORDER = {
     "start": ["/", "/history", "/knowledge", "/notebook"],
-    "learnResearch": ["/question", "/solver", "/guide", "/research", "/co_writer"],
+    "learnResearch": ["/question", "/solver", "/research", "/co_writer"],
 }
 
 DEFAULT_UI_SETTINGS = {
@@ -102,7 +102,20 @@ def _provider_choices() -> dict[str, list[dict[str, str]]]:
     from deeptutor.services.provider_registry import PROVIDERS
 
     llm = sorted(
-        [{"value": s.name, "label": s.label, "base_url": s.default_api_base} for s in PROVIDERS],
+        [
+            {
+                "value": s.name,
+                "label": (
+                    "Custom (OpenAI API)"
+                    if s.name == "custom"
+                    else "Custom (Anthropic API)"
+                    if s.name == "custom_anthropic"
+                    else s.label
+                ),
+                "base_url": s.default_api_base,
+            }
+            for s in PROVIDERS
+        ],
         key=lambda p: p["label"].lower(),
     )
     embedding = sorted(

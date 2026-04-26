@@ -41,9 +41,11 @@ async def mimic_exam_questions(
     )
 
     if ws_callback:
+
         async def _forward(data: dict[str, Any]) -> None:
             event_type = data.get("type", "progress")
             await ws_callback(event_type, data)
+
         coordinator.set_ws_callback(_forward)
 
     if pdf_path:

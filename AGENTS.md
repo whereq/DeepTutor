@@ -68,6 +68,7 @@ deeptutor run deep_question "Linear algebra" --config num_questions=5
 
 # Interactive REPL
 deeptutor chat
+# (inside the REPL: /regenerate or /retry re-runs the last user message)
 
 # Knowledge bases
 deeptutor kb list

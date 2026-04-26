@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import sqlite3
 from pathlib import Path
+import sqlite3
 
 import pytest
 
@@ -60,21 +60,24 @@ def _make_items(*specs):
     """Build notebook entry dicts from (qid, question, is_correct) tuples."""
     items = []
     for qid, question, is_correct in specs:
-        items.append({
-            "question_id": qid,
-            "question": question,
-            "question_type": "choice",
-            "options": {"A": "opt_a", "B": "opt_b"},
-            "user_answer": "A",
-            "correct_answer": "B",
-            "explanation": "expl",
-            "difficulty": "medium",
-            "is_correct": is_correct,
-        })
+        items.append(
+            {
+                "question_id": qid,
+                "question": question,
+                "question_type": "choice",
+                "options": {"A": "opt_a", "B": "opt_b"},
+                "user_answer": "A",
+                "correct_answer": "B",
+                "explanation": "expl",
+                "difficulty": "medium",
+                "is_correct": is_correct,
+            }
+        )
     return items
 
 
 # ── Notebook entries ──────────────────────────────────────────────
+
 
 def test_upsert_notebook_entries_persists_all(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session(title="Test"))
@@ -93,10 +96,20 @@ def test_upsert_notebook_entries_updates_on_conflict(store: SQLiteSessionStore) 
     result = asyncio.run(store.list_notebook_entries())
     assert result["items"][0]["is_correct"] is False
 
-    asyncio.run(store.upsert_notebook_entries(sid, [{
-        "question_id": "q1", "question": "Q?", "user_answer": "B",
-        "correct_answer": "B", "is_correct": True,
-    }]))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            sid,
+            [
+                {
+                    "question_id": "q1",
+                    "question": "Q?",
+                    "user_answer": "B",
+                    "correct_answer": "B",
+                    "is_correct": True,
+                }
+            ],
+        )
+    )
     result = asyncio.run(store.list_notebook_entries())
     assert result["total"] == 1
     assert result["items"][0]["is_correct"] is True
@@ -121,9 +134,15 @@ def test_upsert_unknown_session_raises(store: SQLiteSessionStore) -> None:
 
 def test_list_entries_filters_bookmarked(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session())
-    asyncio.run(store.upsert_notebook_entries(session["id"], _make_items(
-        ("q1", "Q1?", False), ("q2", "Q2?", True),
-    )))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session["id"],
+            _make_items(
+                ("q1", "Q1?", False),
+                ("q2", "Q2?", True),
+            ),
+        )
+    )
     entries = asyncio.run(store.list_notebook_entries())["items"]
     asyncio.run(store.update_notebook_entry(entries[0]["id"], {"bookmarked": True}))
     bm = asyncio.run(store.list_notebook_entries(bookmarked=True))
@@ -133,9 +152,15 @@ def test_list_entries_filters_bookmarked(store: SQLiteSessionStore) -> None:
 
 def test_list_entries_filters_is_correct(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session())
-    asyncio.run(store.upsert_notebook_entries(session["id"], _make_items(
-        ("q1", "Q1?", False), ("q2", "Q2?", True),
-    )))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session["id"],
+            _make_items(
+                ("q1", "Q1?", False),
+                ("q2", "Q2?", True),
+            ),
+        )
+    )
     wrong = asyncio.run(store.list_notebook_entries(is_correct=False))
     assert wrong["total"] == 1
     assert wrong["items"][0]["question_id"] == "q1"
@@ -172,9 +197,15 @@ def test_find_notebook_entry(store: SQLiteSessionStore) -> None:
 
 def test_delete_notebook_entry(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session())
-    asyncio.run(store.upsert_notebook_entries(session["id"], _make_items(
-        ("q1", "Q1?", False), ("q2", "Q2?", False),
-    )))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session["id"],
+            _make_items(
+                ("q1", "Q1?", False),
+                ("q2", "Q2?", False),
+            ),
+        )
+    )
     eid = asyncio.run(store.list_notebook_entries())["items"][0]["id"]
     assert asyncio.run(store.delete_notebook_entry(eid)) is True
     assert asyncio.run(store.list_notebook_entries())["total"] == 1
@@ -190,6 +221,7 @@ def test_entries_cascade_on_session_delete(store: SQLiteSessionStore) -> None:
 
 
 # ── Categories ────────────────────────────────────────────────────
+
 
 def test_category_crud(store: SQLiteSessionStore) -> None:
     cat = asyncio.run(store.create_category("Math"))

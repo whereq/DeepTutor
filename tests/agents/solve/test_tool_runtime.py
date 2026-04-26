@@ -28,7 +28,9 @@ class _FakeTool:
         self._aliases = aliases or []
 
     def get_definition(self) -> ToolDefinition:
-        return ToolDefinition(name=self.name, description=f"{self.name} tool", parameters=self._parameters)
+        return ToolDefinition(
+            name=self.name, description=f"{self.name} tool", parameters=self._parameters
+        )
 
     def get_prompt_hints(self, language: str = "en") -> ToolPromptHints:  # noqa: ARG002
         return ToolPromptHints(
@@ -114,7 +116,9 @@ async def test_solve_tool_runtime_passes_event_sink_to_registry() -> None:
     registry = _FakeCoreRegistry({"rag": rag_tool})
     runtime = SolveToolRuntime(["rag"], language="en", core_registry=registry)
 
-    async def _sink(_event_type: str, _message: str = "", _metadata: dict[str, Any] | None = None) -> None:
+    async def _sink(
+        _event_type: str, _message: str = "", _metadata: dict[str, Any] | None = None
+    ) -> None:
         return None
 
     await runtime.execute("rag", "definition", kb_name="algebra", event_sink=_sink)
@@ -132,7 +136,42 @@ async def test_solve_tool_runtime_passes_event_sink_to_registry() -> None:
 
 
 @pytest.mark.asyncio
-async def test_planner_agent_skips_retrieval_when_rag_not_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_solve_tool_runtime_rag_without_kb_returns_graceful_skip() -> None:
+    """`rag` invoked without a kb_name must never reach the underlying RAG service.
+
+    The runtime should return a structured ``ToolResult`` describing the skip
+    so the ReAct loop can keep going (the LLM sees a clear observation and
+    can replan or finalise).
+    """
+    rag_tool = _FakeTool("rag", [ToolParameter(name="query", type="string")])
+    registry = _FakeCoreRegistry({"rag": rag_tool})
+    runtime = SolveToolRuntime(["rag"], language="en", core_registry=registry)
+
+    result = await runtime.execute("rag", "definition", kb_name=None)
+
+    assert result.success is False
+    assert result.metadata == {"skipped": True, "reason": "no_kb_selected"}
+    assert "no knowledge base" in result.content.lower()
+    assert registry.exec_calls == [], "rag must NOT be forwarded to the registry"
+
+
+@pytest.mark.asyncio
+async def test_solve_tool_runtime_rag_with_empty_kb_name_returns_graceful_skip() -> None:
+    rag_tool = _FakeTool("rag", [ToolParameter(name="query", type="string")])
+    registry = _FakeCoreRegistry({"rag": rag_tool})
+    runtime = SolveToolRuntime(["rag"], language="en", core_registry=registry)
+
+    result = await runtime.execute("rag", "definition", kb_name="")
+
+    assert result.success is False
+    assert result.metadata.get("reason") == "no_kb_selected"
+    assert registry.exec_calls == []
+
+
+@pytest.mark.asyncio
+async def test_planner_agent_skips_retrieval_when_rag_not_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     web_tool = _FakeTool("web_search", [ToolParameter(name="query", type="string")])
     registry = _FakeCoreRegistry({"web_search": web_tool})
     runtime = SolveToolRuntime(["web_search"], language="en", core_registry=registry)

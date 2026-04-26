@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   DeepResearchFormConfig,
@@ -8,7 +8,11 @@ import type {
   ResearchMode,
 } from "@/lib/research-types";
 import { summarizeResearchConfig } from "@/lib/research-types";
-import { Field, INPUT_CLS } from "@/components/chat/home/composer-field";
+import {
+  CollapsibleConfigSection,
+  Field,
+  INPUT_CLS,
+} from "@/components/chat/home/composer-field";
 
 interface ResearchConfigPanelProps {
   value: DeepResearchFormConfig;
@@ -18,14 +22,20 @@ interface ResearchConfigPanelProps {
   onToggleCollapsed: () => void;
 }
 
-const MODE_OPTIONS: Array<{ value: Exclude<ResearchMode, "">; label: string }> = [
-  { value: "notes", label: "Study Notes" },
-  { value: "report", label: "Report" },
-  { value: "comparison", label: "Comparison" },
-  { value: "learning_path", label: "Learning Path" },
-];
+// Note: `label` values are i18n keys resolved via `t(...)` at render time so
+// the dropdown options match the active UI language.
+const MODE_OPTIONS: Array<{ value: Exclude<ResearchMode, "">; label: string }> =
+  [
+    { value: "notes", label: "Study Notes" },
+    { value: "report", label: "Report" },
+    { value: "comparison", label: "Comparison" },
+    { value: "learning_path", label: "Learning Path" },
+  ];
 
-const DEPTH_OPTIONS: Array<{ value: Exclude<ResearchDepth, "">; label: string }> = [
+const DEPTH_OPTIONS: Array<{
+  value: Exclude<ResearchDepth, "">;
+  label: string;
+}> = [
   { value: "quick", label: "Quick" },
   { value: "standard", label: "Standard" },
   { value: "deep", label: "Deep" },
@@ -47,7 +57,9 @@ function NumberSlider({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="shrink-0 text-[10px] text-[var(--muted-foreground)]/60">{label}</span>
+      <span className="shrink-0 text-[10px] text-[var(--muted-foreground)]/60">
+        {label}
+      </span>
       <input
         type="range"
         min={min}
@@ -64,7 +76,7 @@ function NumberSlider({
   );
 }
 
-export default function ResearchConfigPanel({
+export default memo(function ResearchConfigPanel({
   value,
   errors: _errors,
   collapsed,
@@ -77,77 +89,65 @@ export default function ResearchConfigPanel({
     next: DeepResearchFormConfig[K],
   ) => onChange({ ...value, [key]: next });
 
-  const summary = summarizeResearchConfig(value);
+  const rawSummary = summarizeResearchConfig(value, t);
+  const summary =
+    rawSummary === t("Incomplete settings") ? undefined : rawSummary;
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={onToggleCollapsed}
-        className="flex w-full items-center gap-1.5 px-3.5 py-1.5 text-left transition-colors hover:opacity-80"
-      >
-        <ChevronDown
-          size={10}
-          className={`shrink-0 text-[var(--muted-foreground)]/40 transition-transform ${collapsed ? "-rotate-90" : ""}`}
-        />
-        <span className="text-[10px] font-medium text-[var(--muted-foreground)]/55">{t("Settings")}</span>
-        {collapsed && summary !== "Incomplete settings" && (
-          <span className="min-w-0 truncate text-[10px] text-[var(--muted-foreground)]/30">— {summary}</span>
-        )}
-      </button>
-
-      {!collapsed && (
-        <div className="space-y-2 px-3.5 pb-2.5">
-          <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-            <Field label="Mode" width="min-w-[130px] flex-1">
-              <select
-                value={value.mode}
-                onChange={(e) => update("mode", e.target.value as ResearchMode)}
-                className={`${INPUT_CLS} w-full`}
-              >
-                <option value="">{t("Select...")}</option>
-                {MODE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Depth" width="min-w-[130px] flex-1">
-              <select
-                value={value.depth}
-                onChange={(e) => update("depth", e.target.value as ResearchDepth)}
-                className={`${INPUT_CLS} w-full`}
-              >
-                <option value="">{t("Select...")}</option>
-                {DEPTH_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          {value.depth === "manual" && (
-            <div className="space-y-1.5 rounded-md bg-[var(--muted-foreground)]/5 px-3 py-2">
-              <NumberSlider
-                label="Sub-topics"
-                value={value.manual_subtopics ?? 3}
-                min={1}
-                max={10}
-                onChange={(n) => update("manual_subtopics", n)}
-              />
-              <NumberSlider
-                label="Iterations"
-                value={value.manual_max_iterations ?? 3}
-                min={1}
-                max={8}
-                onChange={(n) => update("manual_max_iterations", n)}
-              />
-            </div>
-          )}
+    <CollapsibleConfigSection
+      collapsed={collapsed}
+      summary={summary}
+      onToggleCollapsed={onToggleCollapsed}
+      bodyClassName="space-y-2 px-3.5 pb-2.5"
+    >
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <Field label={t("Mode")} width="min-w-[130px] flex-1">
+          <select
+            value={value.mode}
+            onChange={(e) => update("mode", e.target.value as ResearchMode)}
+            className={`${INPUT_CLS} w-full`}
+          >
+            <option value="">{t("Select...")}</option>
+            {MODE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {t(option.label)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t("Depth")} width="min-w-[130px] flex-1">
+          <select
+            value={value.depth}
+            onChange={(e) => update("depth", e.target.value as ResearchDepth)}
+            className={`${INPUT_CLS} w-full`}
+          >
+            <option value="">{t("Select...")}</option>
+            {DEPTH_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {t(option.label)}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      {value.depth === "manual" && (
+        <div className="space-y-1.5 rounded-md bg-[var(--muted-foreground)]/5 px-3 py-2">
+          <NumberSlider
+            label={t("Sub-topics")}
+            value={value.manual_subtopics ?? 3}
+            min={1}
+            max={10}
+            onChange={(n) => update("manual_subtopics", n)}
+          />
+          <NumberSlider
+            label={t("Iterations")}
+            value={value.manual_max_iterations ?? 3}
+            min={1}
+            max={8}
+            onChange={(n) => update("manual_max_iterations", n)}
+          />
         </div>
       )}
-    </div>
+    </CollapsibleConfigSection>
   );
-}
+});

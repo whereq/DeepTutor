@@ -33,15 +33,22 @@ class VisualReviewService:
             await self._emit_progress(
                 f"Preparing {len(render_result.artifacts)} rendered image(s) for visual review."
             )
-            return [self._path_to_attachment(self.artifacts_dir / artifact.filename) for artifact in render_result.artifacts]
+            return [
+                self._path_to_attachment(self.artifacts_dir / artifact.filename)
+                for artifact in render_result.artifacts
+            ]
 
-        video_artifact = next((artifact for artifact in render_result.artifacts if artifact.type == "video"), None)
+        video_artifact = next(
+            (artifact for artifact in render_result.artifacts if artifact.type == "video"), None
+        )
         if video_artifact is None:
             return []
 
         video_path = self.artifacts_dir / video_artifact.filename
         frame_paths = await self._extract_video_frames(video_path)
-        await self._emit_progress(f"Prepared {len(frame_paths)} review frame(s) from rendered video.")
+        await self._emit_progress(
+            f"Prepared {len(frame_paths)} review frame(s) from rendered video."
+        )
         return [self._path_to_attachment(path) for path in frame_paths]
 
     async def _extract_video_frames(self, video_path: Path) -> list[Path]:
@@ -76,8 +83,7 @@ class VisualReviewService:
             _stdout, stderr = await process.communicate()
             if process.returncode != 0 or not frame_path.exists():
                 raise ManimRenderError(
-                    "Failed to extract review frames: "
-                    + stderr.decode(errors="ignore").strip()
+                    "Failed to extract review frames: " + stderr.decode(errors="ignore").strip()
                 )
             frame_paths.append(frame_path)
         return frame_paths
@@ -107,7 +113,9 @@ class VisualReviewService:
         try:
             return max(float(stdout.decode().strip() or "0"), 0.0)
         except ValueError as exc:
-            raise ManimRenderError("Rendered video duration could not be parsed for visual review.") from exc
+            raise ManimRenderError(
+                "Rendered video duration could not be parsed for visual review."
+            ) from exc
 
     @staticmethod
     def _choose_timestamps(duration: float) -> list[float]:

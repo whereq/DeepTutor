@@ -1,9 +1,9 @@
 """Base LLM provider interface."""
 
-import asyncio
-import json
 from abc import ABC, abstractmethod
+import asyncio
 from dataclasses import dataclass, field
+import json
 from typing import Any
 
 from loguru import logger
@@ -12,6 +12,7 @@ from loguru import logger
 @dataclass
 class ToolCallRequest:
     """A tool call request from the LLM."""
+
     id: str
     name: str
     arguments: dict[str, Any]
@@ -20,7 +21,7 @@ class ToolCallRequest:
 
     def to_openai_tool_call(self) -> dict[str, Any]:
         """Serialize to an OpenAI-style tool_call payload."""
-        tool_call = {
+        tool_call: dict[str, Any] = {
             "id": self.id,
             "type": "function",
             "function": {
@@ -31,20 +32,23 @@ class ToolCallRequest:
         if self.provider_specific_fields:
             tool_call["provider_specific_fields"] = self.provider_specific_fields
         if self.function_provider_specific_fields:
-            tool_call["function"]["provider_specific_fields"] = self.function_provider_specific_fields
+            tool_call["function"]["provider_specific_fields"] = (
+                self.function_provider_specific_fields
+            )
         return tool_call
 
 
 @dataclass
 class LLMResponse:
     """Response from an LLM provider."""
+
     content: str | None
     tool_calls: list[ToolCallRequest] = field(default_factory=list)
     finish_reason: str = "stop"
     usage: dict[str, int] = field(default_factory=dict)
     reasoning_content: str | None = None  # Kimi, DeepSeek-R1 etc.
     thinking_blocks: list[dict] | None = None  # Anthropic extended thinking
-    
+
     @property
     def has_tool_calls(self) -> bool:
         """Check if response contains tool calls."""
@@ -69,7 +73,7 @@ class GenerationSettings:
 class LLMProvider(ABC):
     """
     Abstract base class for LLM providers.
-    
+
     Implementations should handle the specifics of each provider's API
     while maintaining a consistent interface.
     """
@@ -92,6 +96,32 @@ class LLMProvider(ABC):
 
     _SENTINEL = object()
 
+    @staticmethod
+    def _coerce_int(value: object, default: int) -> int:
+        if isinstance(value, bool):
+            return default
+        if isinstance(value, int):
+            return value
+        if isinstance(value, (str, bytes, bytearray)):
+            try:
+                return int(value)
+            except ValueError:
+                return default
+        return default
+
+    @staticmethod
+    def _coerce_float(value: object, default: float) -> float:
+        if isinstance(value, bool):
+            return default
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, (str, bytes, bytearray)):
+            try:
+                return float(value)
+            except ValueError:
+                return default
+        return default
+
     def __init__(self, api_key: str | None = None, api_base: str | None = None):
         self.api_key = api_key
         self.api_base = api_base
@@ -110,13 +140,18 @@ class LLMProvider(ABC):
 
             if isinstance(content, str) and not content:
                 clean = dict(msg)
-                clean["content"] = None if (msg.get("role") == "assistant" and msg.get("tool_calls")) else "(empty)"
+                clean["content"] = (
+                    None
+                    if (msg.get("role") == "assistant" and msg.get("tool_calls"))
+                    else "(empty)"
+                )
                 result.append(clean)
                 continue
 
             if isinstance(content, list):
                 filtered = [
-                    item for item in content
+                    item
+                    for item in content
                     if not (
                         isinstance(item, dict)
                         and item.get("type") in ("text", "input_text", "output_text")
@@ -184,7 +219,7 @@ class LLMProvider(ABC):
     ) -> LLMResponse:
         """
         Send a chat completion request.
-        
+
         Args:
             messages: List of message dicts with 'role' and 'content'.
             tools: Optional list of tool definitions.
@@ -192,7 +227,7 @@ class LLMProvider(ABC):
             max_tokens: Maximum tokens in response.
             temperature: Sampling temperature.
             tool_choice: Tool selection strategy ("auto", "required", or specific tool dict).
-        
+
         Returns:
             LLMResponse with content and/or tool calls.
         """
@@ -226,15 +261,23 @@ class LLMProvider(ABC):
         if reasoning_effort is self._SENTINEL:
             reasoning_effort = self.generation.reasoning_effort
 
+        resolved_max_tokens = self._coerce_int(max_tokens, self.generation.max_tokens)
+        resolved_temperature = self._coerce_float(temperature, self.generation.temperature)
+        resolved_reasoning_effort = (
+            reasoning_effort
+            if reasoning_effort is None or isinstance(reasoning_effort, str)
+            else None
+        )
+
         for attempt, delay in enumerate(self._CHAT_RETRY_DELAYS, start=1):
             try:
                 response = await self.chat(
                     messages=messages,
                     tools=tools,
                     model=model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    reasoning_effort=reasoning_effort,
+                    max_tokens=resolved_max_tokens,
+                    temperature=resolved_temperature,
+                    reasoning_effort=resolved_reasoning_effort,
                     tool_choice=tool_choice,
                 )
             except asyncio.CancelledError:
@@ -265,9 +308,9 @@ class LLMProvider(ABC):
                 messages=messages,
                 tools=tools,
                 model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                reasoning_effort=reasoning_effort,
+                max_tokens=resolved_max_tokens,
+                temperature=resolved_temperature,
+                reasoning_effort=resolved_reasoning_effort,
                 tool_choice=tool_choice,
             )
         except asyncio.CancelledError:

@@ -66,4 +66,3 @@ class DuckDuckGoProvider(BaseSearchProvider):
             search_results=search_results,
             metadata={"finish_reason": "stop"},
         )
-

@@ -76,7 +76,9 @@ def _assert_provider_supported(provider_name: str) -> None:
         )
     if provider_name not in SUPPORTED_SEARCH_PROVIDERS:
         allowed = ", ".join(sorted(SUPPORTED_SEARCH_PROVIDERS))
-        raise ValueError(f"Unknown search provider `{provider_name}`. Supported providers: {allowed}")
+        raise ValueError(
+            f"Unknown search provider `{provider_name}`. Supported providers: {allowed}"
+        )
 
 
 def web_search(

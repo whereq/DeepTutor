@@ -6,15 +6,14 @@ from __future__ import annotations
 
 import asyncio
 
-import typer
 from rich.console import Console
 from rich.table import Table
+import typer
 
 console = Console()
 
 
 def register(app: typer.Typer) -> None:
-
     @app.command("list")
     def bot_list() -> None:
         """List all TutorBot instances."""
@@ -90,10 +89,10 @@ def register(app: typer.Typer) -> None:
         )
         mgr = get_tutorbot_manager()
         try:
-            instance = asyncio.get_event_loop().run_until_complete(
-                mgr.start_bot(name, config)
+            instance = asyncio.get_event_loop().run_until_complete(mgr.start_bot(name, config))
+            console.print(
+                f"[green]Created and started TutorBot '{instance.config.name}' ({name})[/]"
             )
-            console.print(f"[green]Created and started TutorBot '{instance.config.name}' ({name})[/]")
         except RuntimeError as e:
             console.print(f"[red]Failed: {e}[/]")
             raise typer.Exit(1)

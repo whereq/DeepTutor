@@ -2,27 +2,28 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import {
   Brain,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Database,
+  Eye,
+  EyeOff,
+  Info,
   Loader2,
   Plus,
   Rocket,
-  RotateCcw,
   Save,
   Search,
   Terminal,
   Trash2,
   Wand2,
-  X,
 } from "lucide-react";
 
-import { writeStoredLanguage } from "@/context/AppShellContext";
-import { apiUrl, apiFetch } from "@/lib/api";
+import { useTranslation } from "react-i18next";
+
+import { writeStoredLanguage } from "@/context/app-shell-storage";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { setTheme as applyThemePreference } from "@/lib/theme";
 
 type ServiceName = "llm" | "embedding" | "search";
@@ -32,6 +33,10 @@ type CatalogModel = {
   name: string;
   model: string;
   dimension?: string;
+  send_dimensions?: boolean;
+  context_window?: string;
+  context_window_source?: string;
+  context_window_detected_at?: string;
 };
 
 type CatalogProfile = {
@@ -64,13 +69,21 @@ type Catalog = {
 };
 
 type UiSettings = {
-  theme: "light" | "dark";
+  theme: "light" | "dark" | "glass" | "snow";
   language: "en" | "zh";
+};
+
+type ProviderOption = {
+  value: string;
+  label: string;
+  base_url?: string;
+  default_dim?: string;
 };
 
 type SettingsPayload = {
   ui: UiSettings;
   catalog: Catalog;
+  providers?: Record<ServiceName, ProviderOption[]>;
 };
 
 type SystemStatus = {
@@ -78,19 +91,6 @@ type SystemStatus = {
   llm: { status: string; model?: string; error?: string };
   embeddings: { status: string; model?: string; error?: string };
   search: { status: string; provider?: string; error?: string };
-};
-
-type TourTestResult = "pass" | "fail" | "skip" | "pending";
-type TourTestResults = {
-  llm: TourTestResult;
-  embedding: TourTestResult;
-  search: TourTestResult;
-};
-type TourCompleteResponse = {
-  status: string;
-  message: string;
-  launch_at?: number;
-  redirect_at?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -158,6 +158,9 @@ function defaultCatalog(): Catalog {
 const inputClass =
   "w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40";
 
+const selectClass =
+  "w-full appearance-none rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] cursor-pointer";
+
 function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
   if (!value) return "";
   if (typeof value === "string") return value;
@@ -168,6 +171,29 @@ function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
   }
 }
 
+function formatContextWindowSource(
+  source: string | undefined,
+  t: (key: string) => string,
+): string {
+  if (source === "manual") return t("Manual");
+  if (source === "metadata") return t("Auto");
+  if (source === "default") return t("Default");
+  return t("Unset");
+}
+
+function formatContextWindowUpdatedAt(
+  value: string | undefined,
+  language: "en" | "zh",
+): string {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(language === "zh" ? "zh-CN" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Tour onboarding steps
 // ---------------------------------------------------------------------------
@@ -175,23 +201,31 @@ function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
 const TOUR_GUIDE_STEPS = [
   {
     target: "tour-llm",
-    title: "1 / 4  —  LLM",
-    desc: "Configure your language model endpoint. This powers all chat and reasoning.",
+    service: "llm" as const,
+    titleKey: "settingsTour.llm.title",
+    descKey: "settingsTour.llm.desc",
   },
   {
     target: "tour-embedding",
-    title: "2 / 4  —  Embedding",
-    desc: "Set the embedding model for knowledge retrieval.",
+    service: "embedding" as const,
+    titleKey: "settingsTour.embedding.title",
+    descKey: "settingsTour.embedding.desc",
   },
   {
     target: "tour-search",
-    title: "3 / 4  —  Search",
-    desc: "Optional: add a web search provider for real-time information.",
+    service: "search" as const,
+    titleKey: "settingsTour.search.title",
+    descKey: "settingsTour.search.desc",
   },
   {
-    target: "tour-complete",
-    title: "4 / 4  —  Complete",
-    desc: "When you are ready, click here to test and launch DeepTutor.",
+    target: "tour-save-test",
+    titleKey: "settingsTour.saveTest.title",
+    descKey: "settingsTour.saveTest.desc",
+  },
+  {
+    target: "tour-actions",
+    titleKey: "settingsTour.apply.title",
+    descKey: "settingsTour.apply.desc",
   },
 ];
 
@@ -223,6 +257,7 @@ function SpotlightOverlay({
   onNext: () => void;
   onSkip: () => void;
 }) {
+  const { t } = useTranslation();
   const [rect, setRect] = useState<DOMRect | null>(null);
   const guideStep = TOUR_GUIDE_STEPS[stepIndex];
 
@@ -266,133 +301,26 @@ function SpotlightOverlay({
         style={{ top: tooltipTop, left: tooltipLeft }}
       >
         <div className="mb-1 text-[13px] font-semibold text-[var(--foreground)]">
-          {guideStep.title}
+          {t(guideStep.titleKey)}
         </div>
         <p className="mb-4 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
-          {guideStep.desc}
+          {t(guideStep.descKey)}
         </p>
         <div className="flex items-center justify-between">
           <button
             onClick={onSkip}
             className="text-[12px] text-[var(--muted-foreground)]/60 transition-colors hover:text-[var(--muted-foreground)]"
           >
-            Skip tour
+            {t("Skip tour")}
           </button>
           <button
             onClick={onNext}
             className="inline-flex items-center gap-1 rounded-lg bg-[var(--foreground)] px-3 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-80"
           >
-            {stepIndex < TOUR_GUIDE_STEPS.length - 1 ? "Next" : "Got it"}
+            {stepIndex < TOUR_GUIDE_STEPS.length - 1 ? t("Next") : t("Got it")}
             <ChevronRight className="h-3 w-3" />
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Test results modal
-// ---------------------------------------------------------------------------
-
-function TestResultsModal({
-  results,
-  testing,
-  onConfirm,
-  onCancel,
-}: {
-  results: TourTestResults;
-  testing: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const hasCriticalFailure =
-    results.llm === "fail" || results.embedding === "fail";
-  const allDone =
-    !testing && results.llm !== "pending" && results.embedding !== "pending";
-
-  const dot = (r: TourTestResult) => {
-    if (r === "pass") return "bg-emerald-500";
-    if (r === "fail") return "bg-red-400";
-    if (r === "skip") return "bg-[var(--border)]";
-    return "bg-amber-400 animate-pulse";
-  };
-
-  const label = (r: TourTestResult) => {
-    if (r === "pass") return "Passed";
-    if (r === "fail") return "Failed";
-    if (r === "skip") return "Skipped";
-    return "Testing...";
-  };
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
-      <div className="w-[400px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[16px] font-semibold text-[var(--foreground)]">
-            {testing ? "Running tests..." : "Test Results"}
-          </h2>
-          {!testing && (
-            <button
-              onClick={onCancel}
-              className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        <div className="mb-6 space-y-3">
-          {(["llm", "embedding", "search"] as const).map((svc) => (
-            <div
-              key={svc}
-              className="flex items-center justify-between rounded-lg border border-[var(--border)]/50 px-4 py-3"
-            >
-              <div className="flex items-center gap-2.5">
-                {serviceIcon(svc)}
-                <span className="text-[13px] font-medium text-[var(--foreground)]">
-                  {svc.toUpperCase()}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${dot(results[svc])}`}
-                />
-                <span className="text-[12px] text-[var(--muted-foreground)]">
-                  {label(results[svc])}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {allDone && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onCancel}
-              className="flex-1 rounded-lg border border-[var(--border)] px-4 py-2 text-[13px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--foreground)]/20 hover:text-[var(--foreground)]"
-            >
-              Back to editing
-            </button>
-            <button
-              onClick={onConfirm}
-              className={`flex-1 rounded-lg px-4 py-2 text-[13px] font-medium transition-opacity hover:opacity-80 ${
-                hasCriticalFailure
-                  ? "bg-red-500 text-white"
-                  : "bg-[var(--foreground)] text-[var(--background)]"
-              }`}
-            >
-              {hasCriticalFailure ? "Launch anyway" : "Confirm & Launch"}
-            </button>
-          </div>
-        )}
-
-        {testing && (
-          <div className="flex items-center justify-center gap-2 py-2 text-[13px] text-[var(--muted-foreground)]">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Please wait...
-          </div>
-        )}
       </div>
     </div>
   );
@@ -403,11 +331,12 @@ function TestResultsModal({
 // ═══════════════════════════════════════════════════════════════════════════
 
 function SettingsPageContent() {
-  const searchParams = useSearchParams();
-  const isTourMode = searchParams.get("tour") === "true";
+  const { t } = useTranslation();
 
   const [status, setStatus] = useState<SystemStatus | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark" | "glass" | "snow">(
+    "light",
+  );
   const [language, setLanguage] = useState<"en" | "zh">("en");
   const [catalog, setCatalog] = useState<Catalog>(defaultCatalog());
   const [draft, setDraft] = useState<Catalog>(defaultCatalog());
@@ -416,23 +345,16 @@ function SettingsPageContent() {
   const [testRunning, setTestRunning] = useState<ServiceName | null>(null);
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [toast, setToast] = useState<string>("");
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [providers, setProviders] = useState<
+    Record<ServiceName, ProviderOption[]>
+  >({ llm: [], embedding: [], search: [] });
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Tour-specific state
-  const [tourGuideStep, setTourGuideStep] = useState(isTourMode ? 0 : -1);
-  const [tourTestPhase, setTourTestPhase] = useState<
-    "idle" | "testing" | "results"
-  >("idle");
-  const [tourTestResults, setTourTestResults] = useState<TourTestResults>({
-    llm: "pending",
-    embedding: "pending",
-    search: "pending",
-  });
-  const [tourCompleted, setTourCompleted] = useState(false);
-  const [tourRedirectAt, setTourRedirectAt] = useState<number | null>(null);
-  const [redirectCountdown, setRedirectCountdown] = useState(-1);
+  const [tourGuideStep, setTourGuideStep] = useState(-1);
 
   // -- Data loading -------------------------------------------------------
 
@@ -440,26 +362,25 @@ function SettingsPageContent() {
     const load = async () => {
       try {
         const settingsResponse = await apiFetch(apiUrl("/api/v1/settings"));
-        if (!settingsResponse.ok)
+        if (!settingsResponse.ok) {
           throw new Error(`Settings fetch failed: ${settingsResponse.status}`);
+        }
         const settingsPayload =
           (await settingsResponse.json()) as SettingsPayload;
-        if (settingsPayload?.catalog) {
-          setCatalog(settingsPayload.catalog);
-          setDraft(cloneCatalog(settingsPayload.catalog));
-        }
-        if (settingsPayload?.ui) {
-          setTheme(settingsPayload.ui.theme);
-          setLanguage(settingsPayload.ui.language);
-        }
+        setCatalog(settingsPayload.catalog);
+        setDraft(cloneCatalog(settingsPayload.catalog));
+        setTheme(settingsPayload.ui.theme);
+        setLanguage(settingsPayload.ui.language);
+        if (settingsPayload.providers) setProviders(settingsPayload.providers);
       } catch (err) {
         console.error("Failed to load settings:", err);
       }
 
       try {
         const statusResponse = await apiFetch(apiUrl("/api/v1/system/status"));
-        if (!statusResponse.ok)
+        if (!statusResponse.ok) {
           throw new Error(`Status fetch failed: ${statusResponse.status}`);
+        }
         const statusPayload = (await statusResponse.json()) as SystemStatus;
         setStatus(statusPayload);
       } catch (err) {
@@ -478,34 +399,13 @@ function SettingsPageContent() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // -- Redirect countdown after tour complete -----------------------------
-
-  useEffect(() => {
-    if (!tourCompleted || !tourRedirectAt) return;
-    const tick = () => {
-      const secondsLeft = Math.max(
-        0,
-        Math.ceil(tourRedirectAt - Date.now() / 1000),
-      );
-      setRedirectCountdown(secondsLeft);
-    };
-    tick();
-    const timer = setInterval(tick, 250);
-    return () => clearInterval(timer);
-  }, [tourCompleted, tourRedirectAt]);
-
-  useEffect(() => {
-    if (redirectCountdown === 0 && tourCompleted) {
-      window.location.href = "/";
-    }
-  }, [redirectCountdown, tourCompleted]);
-
   // -- Tour guide auto-switch active service tab --------------------------
 
   useEffect(() => {
-    if (tourGuideStep === 0) setActiveService("llm");
-    else if (tourGuideStep === 1) setActiveService("embedding");
-    else if (tourGuideStep === 2) setActiveService("search");
+    const currentStep = TOUR_GUIDE_STEPS[tourGuideStep];
+    if (currentStep?.service) {
+      setActiveService(currentStep.service);
+    }
   }, [tourGuideStep]);
 
   // -- Derived ------------------------------------------------------------
@@ -529,10 +429,14 @@ function SettingsPageContent() {
     searchProviderRaw === "perplexity" &&
     !String(activeProfile?.api_key || "").trim();
 
+  useEffect(() => {
+    setShowApiKey(false);
+  }, [activeService, activeProfile?.id]);
+
   // -- UI preference helpers ----------------------------------------------
 
   const persistUi = async (
-    nextTheme: "light" | "dark",
+    nextTheme: "light" | "dark" | "glass" | "snow",
     nextLanguage: "en" | "zh",
   ) => {
     await apiFetch(apiUrl("/api/v1/settings/ui"), {
@@ -542,7 +446,9 @@ function SettingsPageContent() {
     });
   };
 
-  const updateTheme = async (nextTheme: "light" | "dark") => {
+  const updateTheme = async (
+    nextTheme: "light" | "dark" | "glass" | "snow",
+  ) => {
     setTheme(nextTheme);
     applyThemePreference(nextTheme);
     await persistUi(nextTheme, language);
@@ -562,6 +468,13 @@ function SettingsPageContent() {
       mutator(next);
       return next;
     });
+  };
+
+  const embeddingDefaultDim = (binding?: string) => {
+    const match = (providers.embedding || []).find(
+      (p) => p.value === (binding || "openai"),
+    );
+    return match?.default_dim || "3072";
   };
 
   const addProfile = () => {
@@ -586,7 +499,9 @@ function SettingsPageContent() {
           id: modelId,
           name: "New Model",
           model: "",
-          ...(activeService === "embedding" ? { dimension: "3072" } : {}),
+          ...(activeService === "embedding"
+            ? { dimension: embeddingDefaultDim(), send_dimensions: true }
+            : {}),
         });
         service.active_model_id = modelId;
       }
@@ -622,7 +537,12 @@ function SettingsPageContent() {
         id: modelId,
         name: "New Model",
         model: "",
-        ...(activeService === "embedding" ? { dimension: "3072" } : {}),
+        ...(activeService === "embedding"
+          ? {
+              dimension: embeddingDefaultDim(profile.binding),
+              send_dimensions: true,
+            }
+          : {}),
       });
       service.active_model_id = modelId;
     });
@@ -661,6 +581,36 @@ function SettingsPageContent() {
     });
   };
 
+  const updateContextWindowField = (value: string) => {
+    if (activeService !== "llm") return;
+    const normalized = value.replace(/[^\d]/g, "");
+    mutateCatalog((next) => {
+      const model = getActiveModel(next, activeService);
+      if (!model) return;
+      if (normalized) {
+        model.context_window = normalized;
+        model.context_window_source = "manual";
+        delete model.context_window_detected_at;
+      } else {
+        delete model.context_window;
+        delete model.context_window_source;
+        delete model.context_window_detected_at;
+      }
+    });
+  };
+
+  const updateModelBoolField = (
+    field: keyof CatalogModel,
+    value: boolean,
+  ) => {
+    if (activeService === "search") return;
+    mutateCatalog((next) => {
+      const model = getActiveModel(next, activeService);
+      if (!model) return;
+      (model[field] as boolean | undefined) = value;
+    });
+  };
+
   // -- Save / Apply -------------------------------------------------------
 
   const saveCatalog = async () => {
@@ -674,7 +624,7 @@ function SettingsPageContent() {
       const payload = await response.json();
       setCatalog(payload.catalog);
       setDraft(cloneCatalog(payload.catalog));
-      setToast("Draft saved");
+      setToast(t("Draft saved"));
     } finally {
       setSaving(false);
     }
@@ -691,7 +641,7 @@ function SettingsPageContent() {
       const payload = await response.json();
       setCatalog(payload.catalog);
       setDraft(cloneCatalog(payload.catalog));
-      setToast("Applied to .env");
+      setToast(t("Applied to .env"));
       const statusResponse = await apiFetch(apiUrl("/api/v1/system/status"));
       setStatus((await statusResponse.json()) as SystemStatus);
     } finally {
@@ -709,7 +659,7 @@ function SettingsPageContent() {
     setLogs(`Preparing ${activeService} diagnostics...\n`);
     setTestRunning(activeService);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         apiUrl(`/api/v1/settings/tests/${activeService}/start`),
         {
           method: "POST",
@@ -734,8 +684,13 @@ function SettingsPageContent() {
         const entry = JSON.parse(event.data) as {
           type: string;
           message: string;
+          catalog?: Catalog;
         };
         setLogs((current) => `${current}[${entry.type}] ${entry.message}\n`);
+        if (entry.catalog) {
+          setCatalog(entry.catalog);
+          setDraft(cloneCatalog(entry.catalog));
+        }
         if (entry.type === "completed" || entry.type === "failed") {
           source.close();
           eventSourceRef.current = null;
@@ -750,7 +705,7 @@ function SettingsPageContent() {
         setLogs(
           (current) => `${current}[failed] Diagnostics stream disconnected.\n`,
         );
-        setToast("Diagnostics stream disconnected");
+        setToast(t("Diagnostics stream disconnected"));
       };
     } catch (error) {
       const message =
@@ -761,149 +716,11 @@ function SettingsPageContent() {
     }
   };
 
-  // -- Tour: run a single service test and return pass/fail ---------------
+  // -- Tour ---------------------------------------------------------------
 
-  const runSingleTest = useCallback(
-    async (
-      svc: ServiceName,
-      catalogSnapshot: Catalog,
-    ): Promise<"pass" | "fail"> => {
-      try {
-        const response = await fetch(
-          apiUrl(`/api/v1/settings/tests/${svc}/start`),
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ catalog: catalogSnapshot }),
-          },
-        );
-        const payload = (await response.json()) as { run_id?: string };
-        if (!response.ok || !payload.run_id) return "fail";
-
-        return new Promise((resolve) => {
-          const source = new EventSource(
-            apiUrl(`/api/v1/settings/tests/${svc}/${payload.run_id}/events`),
-          );
-          const timeout = setTimeout(() => {
-            source.close();
-            resolve("fail");
-          }, 30000);
-          source.onmessage = (event) => {
-            const entry = JSON.parse(event.data) as { type: string };
-            if (entry.type === "completed") {
-              clearTimeout(timeout);
-              source.close();
-              resolve("pass");
-            } else if (entry.type === "failed") {
-              clearTimeout(timeout);
-              source.close();
-              resolve("fail");
-            }
-          };
-          source.onerror = () => {
-            clearTimeout(timeout);
-            source.close();
-            resolve("fail");
-          };
-        });
-      } catch {
-        return "fail";
-      }
-    },
-    [],
-  );
-
-  // -- Tour: Complete & Launch flow ---------------------------------------
-
-  const startTourComplete = async () => {
-    setTourTestPhase("testing");
-    const results: TourTestResults = {
-      llm: "pending",
-      embedding: "pending",
-      search: "pending",
-    };
-    setTourTestResults({ ...results });
-
-    // Apply catalog first so backend picks up config
-    await apiFetch(apiUrl("/api/v1/settings/apply"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ catalog: draft }),
-    });
-
-    const catalogSnapshot = cloneCatalog(draft);
-
-    // Test LLM
-    results.llm = await runSingleTest("llm", catalogSnapshot);
-    setTourTestResults({ ...results });
-
-    // Test Embedding
-    results.embedding = await runSingleTest("embedding", catalogSnapshot);
-    setTourTestResults({ ...results });
-
-    // Test Search (skip if no provider configured)
-    const searchProfile = getActiveProfile(catalogSnapshot, "search");
-    const hasSearchProvider =
-      searchProfile?.provider && searchProfile.provider.trim() !== "";
-    if (hasSearchProvider) {
-      results.search = await runSingleTest("search", catalogSnapshot);
-    } else {
-      results.search = "skip";
-    }
-    setTourTestResults({ ...results });
-
-    setTourTestPhase("results");
-  };
-
-  const confirmTourComplete = async () => {
-    setTourTestPhase("idle");
-    try {
-      const response = await apiFetch(
-        apiUrl("/api/v1/settings/tour/complete"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            catalog: draft,
-            test_results: tourTestResults,
-          }),
-        },
-      );
-      if (response.ok) {
-        const payload = (await response.json()) as TourCompleteResponse;
-        setTourCompleted(true);
-        setTourRedirectAt(
-          payload.redirect_at ?? Math.floor(Date.now() / 1000) + 5,
-        );
-      } else {
-        setToast("Failed to complete tour");
-      }
-    } catch {
-      setToast("Failed to complete tour");
-    }
-  };
-
-  const cancelTourTest = () => {
-    setTourTestPhase("idle");
-  };
-
-  // -- Reopen tour --------------------------------------------------------
-
-  const reopenTour = async () => {
-    const response = await apiFetch(apiUrl("/api/v1/settings/tour/reopen"), {
-      method: "POST",
-    });
-    const payload = (await response.json()) as {
-      command?: string;
-      message?: string;
-    };
-    setToast(
-      payload.command
-        ? `Run ${payload.command} in your terminal.`
-        : payload.message ||
-            "Run python scripts/start_tour.py in your terminal.",
-    );
-  };
+  const runTour = useCallback(() => {
+    setTourGuideStep(0);
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════════
   // Render
@@ -912,55 +729,11 @@ function SettingsPageContent() {
   return (
     <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto max-w-[960px] px-6 py-8">
-        {/* ── Tour Banner ── */}
-        {isTourMode && !tourCompleted && (
-          <div className="mb-6 flex items-center justify-between rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 px-5 py-4">
-            <div>
-              <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--foreground)]">
-                <Rocket className="h-4 w-4 text-[var(--primary)]" />
-                Setup Tour
-              </div>
-              <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-                Configure your endpoints below, run tests, then launch
-                DeepTutor.
-              </p>
-            </div>
-            <button
-              data-tour="tour-complete"
-              onClick={startTourComplete}
-              disabled={tourTestPhase === "testing"}
-              className="ml-4 inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--foreground)] px-4 py-2 text-[13px] font-medium text-[var(--background)] transition-opacity hover:opacity-80 disabled:opacity-40"
-            >
-              {tourTestPhase === "testing" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5" />
-              )}
-              Complete & Launch
-            </button>
-          </div>
-        )}
-
-        {/* Tour completed banner with countdown */}
-        {isTourMode && tourCompleted && (
-          <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-center">
-            <div className="flex items-center justify-center gap-2 text-[14px] font-semibold text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-4 w-4" />
-              Configuration saved
-            </div>
-            <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-              {redirectCountdown > 0
-                ? `Redirecting to DeepTutor in ${redirectCountdown}s...`
-                : "Redirecting..."}
-            </p>
-          </div>
-        )}
-
         {/* ── Header ── */}
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-[24px] font-semibold tracking-tight text-[var(--foreground)]">
-              Settings
+              {t("Settings")}
             </h1>
             {toast ? (
               <p className="mt-1 text-[13px] text-[var(--primary)] animate-fade-in">
@@ -969,13 +742,21 @@ function SettingsPageContent() {
             ) : (
               <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
                 {hasUnsavedChanges
-                  ? "Draft has unsaved changes"
-                  : "All changes saved"}
+                  ? t("Draft has unsaved changes")
+                  : t("All changes saved")}
               </p>
             )}
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={runTour}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
+            >
+              <Rocket className="h-3 w-3" />
+              {t("Tour")}
+            </button>
+            <button
+              data-tour="tour-save-test"
               onClick={saveCatalog}
               disabled={saving}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
@@ -985,24 +766,20 @@ function SettingsPageContent() {
               ) : (
                 <Save className="h-3 w-3" />
               )}
-              Save Draft
+              {t("Save Draft")}
             </button>
             <button
+              data-tour="tour-actions"
               onClick={applyCatalog}
-              disabled={applying || isTourMode}
-              title={isTourMode ? "Complete the tour first" : undefined}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-opacity disabled:opacity-40 ${
-                isTourMode
-                  ? "cursor-not-allowed border border-[var(--border)]/30 bg-[var(--muted)] text-[var(--muted-foreground)]"
-                  : "bg-[var(--foreground)] text-[var(--background)] hover:opacity-80"
-              }`}
+              disabled={applying}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--foreground)] px-3 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-80 disabled:opacity-40"
             >
               {applying ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
                 <Wand2 className="h-3 w-3" />
               )}
-              Apply
+              {t("Apply")}
             </button>
           </div>
         </div>
@@ -1011,10 +788,10 @@ function SettingsPageContent() {
         <div className="mb-8 flex flex-wrap items-center gap-x-8 gap-y-3 border-b border-[var(--border)]/50 pb-6">
           <div className="flex items-center gap-2">
             <span className="text-[12px] text-[var(--muted-foreground)]">
-              Theme
+              {t("Theme")}
             </span>
             <div className="flex gap-0.5 rounded-lg bg-[var(--muted)] p-0.5">
-              {(["light", "dark"] as const).map((v) => (
+              {(["snow", "light", "dark", "glass"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => updateTheme(v)}
@@ -1024,7 +801,13 @@ function SettingsPageContent() {
                       : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   }`}
                 >
-                  {v === "light" ? "Light" : "Dark"}
+                  {v === "snow"
+                    ? t("Snow")
+                    : v === "light"
+                      ? t("Light")
+                      : v === "dark"
+                        ? t("Dark")
+                        : t("Glass")}
                 </button>
               ))}
             </div>
@@ -1032,7 +815,7 @@ function SettingsPageContent() {
 
           <div className="flex items-center gap-2">
             <span className="text-[12px] text-[var(--muted-foreground)]">
-              Language
+              {t("Language")}
             </span>
             <div className="flex gap-0.5 rounded-lg bg-[var(--muted)] p-0.5">
               {(["en", "zh"] as const).map((v) => (
@@ -1045,7 +828,7 @@ function SettingsPageContent() {
                       : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   }`}
                 >
-                  {v === "en" ? "English" : "中文"}
+                  {v === "en" ? t("language.english") : t("language.chinese")}
                 </button>
               ))}
             </div>
@@ -1056,13 +839,13 @@ function SettingsPageContent() {
               <span
                 className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(status?.backend.status === "online", false)}`}
               />
-              Backend
+              {t("Backend")}
             </span>
             <span className="flex items-center gap-1.5">
               <span
                 className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.llm.model), Boolean(status?.llm.error))}`}
               />
-              LLM
+              {t("LLM")}
               {status?.llm.model && (
                 <span className="text-[var(--muted-foreground)]/50">
                   · {status.llm.model}
@@ -1073,13 +856,13 @@ function SettingsPageContent() {
               <span
                 className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.embeddings.model), Boolean(status?.embeddings.error))}`}
               />
-              Emb
+              {t("Emb")}
             </span>
             <span className="flex items-center gap-1.5">
               <span
                 className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.search.provider), false)}`}
               />
-              Search
+              {t("Search")}
             </span>
           </div>
         </div>
@@ -1113,7 +896,7 @@ function SettingsPageContent() {
                 className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
               >
                 <Plus className="h-3 w-3" />
-                Profile
+                {t("Profile")}
               </button>
               {activeService !== "search" && (
                 <button
@@ -1121,7 +904,7 @@ function SettingsPageContent() {
                   className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
                 >
                   <Plus className="h-3 w-3" />
-                  Model
+                  {t("Model")}
                 </button>
               )}
             </div>
@@ -1155,7 +938,7 @@ function SettingsPageContent() {
                       {profile.name}
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
-                      {profile.base_url || "No endpoint"}
+                      {profile.base_url || t("No endpoint")}
                     </div>
                   </button>
                 ))}
@@ -1165,7 +948,7 @@ function SettingsPageContent() {
                   className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] text-[var(--muted-foreground)]/40 transition-colors hover:text-red-500 disabled:opacity-30"
                 >
                   <Trash2 className="h-3 w-3" />
-                  Delete profile
+                  {t("Delete profile")}
                 </button>
               </div>
 
@@ -1173,12 +956,12 @@ function SettingsPageContent() {
               <div className="space-y-5">
                 <div className="rounded-xl border border-[var(--border)] p-5">
                   <div className="mb-4 text-[13px] font-medium text-[var(--foreground)]">
-                    Profile
+                    {t("Profile")}
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        Name
+                        {t("Name")}
                       </div>
                       <input
                         className={inputClass}
@@ -1190,27 +973,46 @@ function SettingsPageContent() {
                     </div>
                     <div>
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        {activeService === "search"
-                          ? "Provider"
-                          : "Provider Hint / Binding"}
+                        {t("Provider")}
                       </div>
-                      <input
-                        className={inputClass}
-                        value={
-                          activeService === "search"
-                            ? activeProfile.provider || ""
-                            : activeProfile.binding || ""
-                        }
-                        onChange={(e) =>
-                          updateProfileField(
-                            activeService === "search" ? "provider" : "binding",
-                            e.target.value,
-                          )
-                        }
-                        placeholder={
-                          activeService === "search" ? "brave" : "openai"
-                        }
-                      />
+                      <div className="relative">
+                        <select
+                          className={selectClass}
+                          value={
+                            activeService === "search"
+                              ? activeProfile.provider || ""
+                              : activeProfile.binding || ""
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const field =
+                              activeService === "search"
+                                ? "provider"
+                                : "binding";
+                            updateProfileField(field, val);
+                            const match = (providers[activeService] || []).find(
+                              (p) => p.value === val,
+                            );
+                            if (match?.base_url) {
+                              updateProfileField("base_url", match.base_url);
+                            }
+                            if (
+                              activeService === "embedding" &&
+                              match?.default_dim
+                            ) {
+                              updateModelField("dimension", match.default_dim);
+                            }
+                          }}
+                        >
+                          <option value="">{t("Select provider...")}</option>
+                          {(providers[activeService] || []).map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                      </div>
                       {showSearchProviderWarning && (
                         <p
                           className={`mt-1.5 text-[11px] ${
@@ -1223,17 +1025,23 @@ function SettingsPageContent() {
                         >
                           {isSupportedSearchProvider
                             ? isPerplexityMissingKey
-                              ? "Perplexity requires API key. It will fail hard without credentials."
-                              : "Supported provider."
+                              ? t(
+                                  "Perplexity requires API key. It will fail hard without credentials.",
+                                )
+                              : t("Supported provider.")
                             : isDeprecatedSearchProvider
-                              ? "Deprecated provider. Switch to brave/tavily/jina/searxng/duckduckgo/perplexity."
-                              : "Unsupported provider. Use brave/tavily/jina/searxng/duckduckgo/perplexity."}
+                              ? t(
+                                  "Deprecated provider. Switch to brave/tavily/jina/searxng/duckduckgo/perplexity.",
+                                )
+                              : t(
+                                  "Unsupported provider. Use brave/tavily/jina/searxng/duckduckgo/perplexity.",
+                                )}
                         </p>
                       )}
                     </div>
                     <div className="sm:col-span-2">
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        Base URL
+                        {t("Base URL")}
                       </div>
                       <input
                         className={inputClass}
@@ -1246,20 +1054,42 @@ function SettingsPageContent() {
                     </div>
                     <div className="sm:col-span-2">
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        API Key
+                        {t("API Key")}
                       </div>
-                      <input
-                        className={inputClass}
-                        value={activeProfile.api_key}
-                        onChange={(e) =>
-                          updateProfileField("api_key", e.target.value)
-                        }
-                        placeholder="sk-..."
-                      />
+                      <div className="relative">
+                        <input
+                          type={showApiKey ? "text" : "password"}
+                          autoComplete="new-password"
+                          spellCheck={false}
+                          className={`${inputClass} pr-10 font-mono`}
+                          value={activeProfile.api_key}
+                          onChange={(e) =>
+                            updateProfileField("api_key", e.target.value)
+                          }
+                          placeholder="sk-..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey((prev) => !prev)}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                          aria-label={
+                            showApiKey ? t("Hide API key") : t("Show API key")
+                          }
+                          title={
+                            showApiKey ? t("Hide API key") : t("Show API key")
+                          }
+                        >
+                          {showApiKey ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        API Version
+                        {t("API Version")}
                       </div>
                       <input
                         className={inputClass}
@@ -1267,13 +1097,13 @@ function SettingsPageContent() {
                         onChange={(e) =>
                           updateProfileField("api_version", e.target.value)
                         }
-                        placeholder="Optional"
+                        placeholder={t("Optional")}
                       />
                     </div>
                     {activeService === "search" ? (
                       <div>
                         <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                          Proxy
+                          {t("Proxy")}
                         </div>
                         <input
                           className={inputClass}
@@ -1287,7 +1117,7 @@ function SettingsPageContent() {
                     ) : (
                       <div className="sm:col-span-2">
                         <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                          Extra Headers (JSON)
+                          {t("Extra Headers (JSON)")}
                         </div>
                         <textarea
                           className={`${inputClass} min-h-[84px] resize-y`}
@@ -1308,7 +1138,7 @@ function SettingsPageContent() {
                   <div className="rounded-xl border border-[var(--border)] p-5">
                     <div className="mb-4 flex items-center justify-between">
                       <div className="text-[13px] font-medium text-[var(--foreground)]">
-                        Models
+                        {t("Models")}
                       </div>
                       <button
                         onClick={removeActiveModel}
@@ -1316,7 +1146,7 @@ function SettingsPageContent() {
                         className="inline-flex items-center gap-1 text-[11px] text-[var(--muted-foreground)]/40 transition-colors hover:text-red-500 disabled:opacity-30"
                       >
                         <Trash2 className="h-3 w-3" />
-                        Delete
+                        {t("Delete")}
                       </button>
                     </div>
                     {activeProfile.models.length > 0 && (
@@ -1346,7 +1176,7 @@ function SettingsPageContent() {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
                           <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            Label
+                            {t("Label")}
                           </div>
                           <input
                             className={inputClass}
@@ -1358,7 +1188,7 @@ function SettingsPageContent() {
                         </div>
                         <div>
                           <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            Model ID
+                            {t("Model ID")}
                           </div>
                           <input
                             className={inputClass}
@@ -1369,17 +1199,111 @@ function SettingsPageContent() {
                             placeholder="gpt-4o"
                           />
                         </div>
+                        {activeService === "llm" && (
+                          <>
+                            <div>
+                              <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                {t("Context Window")}
+                              </div>
+                              <input
+                                className={inputClass}
+                                inputMode="numeric"
+                                value={activeModel.context_window || ""}
+                                onChange={(e) =>
+                                  updateContextWindowField(e.target.value)
+                                }
+                                placeholder="65536"
+                              />
+                            </div>
+                            <div className="rounded-xl border border-[var(--border)]/70 bg-[var(--muted)]/30 px-3.5 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]/70">
+                                  {t("Source")}
+                                </div>
+                                <span className="rounded-full border border-[var(--border)]/70 bg-[var(--card)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
+                                  {formatContextWindowSource(
+                                    activeModel.context_window_source,
+                                    t,
+                                  )}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
+                                {activeModel.context_window_source ===
+                                "metadata"
+                                  ? t(
+                                      "Detected from the provider during the latest LLM test and saved into model_catalog.json.",
+                                    )
+                                  : activeModel.context_window_source ===
+                                      "default"
+                                    ? t(
+                                        "The provider did not expose a context window, so the runtime fallback was saved during the latest LLM test.",
+                                      )
+                                    : activeModel.context_window_source ===
+                                        "manual"
+                                      ? t(
+                                          "Manual override from Settings. Save Draft to persist your edit.",
+                                        )
+                                      : t(
+                                          "Run the LLM test to auto-fill this field, or enter a value manually.",
+                                        )}
+                              </p>
+                              {activeModel.context_window_detected_at && (
+                                <div className="mt-2 text-[11px] text-[var(--muted-foreground)]/70">
+                                  {t("Detected at")}:{" "}
+                                  {formatContextWindowUpdatedAt(
+                                    activeModel.context_window_detected_at,
+                                    language,
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
                         {activeService === "embedding" && (
                           <div>
-                            <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                              Dimension
+                            <div className="mb-1.5 flex items-center justify-between gap-2">
+                              <span className="text-[12px] text-[var(--muted-foreground)]">
+                                {t("Dimension")}
+                              </span>
+                              <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] select-none">
+                                <input
+                                  type="checkbox"
+                                  className="h-3 w-3 cursor-pointer accent-[var(--foreground)]"
+                                  checked={activeModel.send_dimensions !== false}
+                                  onChange={(e) =>
+                                    updateModelBoolField(
+                                      "send_dimensions",
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                                <span>{t("Send dimensions")}</span>
+                                <span
+                                  tabIndex={0}
+                                  className="group/info relative inline-flex cursor-help focus:outline-none"
+                                >
+                                  <Info className="h-3 w-3 opacity-50 transition-opacity group-hover/info:opacity-100 group-focus/info:opacity-100" />
+                                  <span
+                                    role="tooltip"
+                                    className="pointer-events-none absolute top-full left-1/2 z-20 mt-1.5 w-64 -translate-x-1/2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-2.5 text-[11px] leading-relaxed text-[var(--foreground)] opacity-0 shadow-lg transition-opacity duration-75 group-hover/info:opacity-100 group-focus/info:opacity-100"
+                                  >
+                                    {t(
+                                      "Some embedding models (e.g. Qwen text-embedding-v4) reject the `dimensions` request param. Turn this off if your provider returns HTTP 400.",
+                                    )}
+                                  </span>
+                                </span>
+                              </label>
                             </div>
                             <input
                               className={inputClass}
-                              value={activeModel.dimension || "3072"}
+                              value={
+                                activeModel.dimension ||
+                                embeddingDefaultDim(activeProfile?.binding)
+                              }
                               onChange={(e) =>
                                 updateModelField("dimension", e.target.value)
                               }
+                              disabled={activeModel.send_dimensions === false}
                             />
                           </div>
                         )}
@@ -1391,7 +1315,7 @@ function SettingsPageContent() {
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-[var(--border)] py-12 text-center text-[13px] text-[var(--muted-foreground)]">
-              No profiles configured. Add a profile to start.
+              {t("No profiles configured. Add a profile to start.")}
             </div>
           )}
         </div>
@@ -1407,7 +1331,7 @@ function SettingsPageContent() {
             >
               <Terminal className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
               <span className="text-[13px] font-medium text-[var(--foreground)]">
-                Diagnostics
+                {t("Diagnostics")}
               </span>
               {testRunning && (
                 <Loader2 className="h-3 w-3 animate-spin text-[var(--primary)]" />
@@ -1424,7 +1348,7 @@ function SettingsPageContent() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
               >
                 {serviceIcon(activeService)}
-                Run test
+                {t("Run test")}
               </button>
               <button
                 type="button"
@@ -1432,8 +1356,8 @@ function SettingsPageContent() {
                 className="text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
                 aria-label={
                   diagnosticsOpen
-                    ? "Collapse diagnostics"
-                    : "Expand diagnostics"
+                    ? t("Collapse diagnostics")
+                    : t("Expand diagnostics")
                 }
                 aria-expanded={diagnosticsOpen}
               >
@@ -1446,12 +1370,10 @@ function SettingsPageContent() {
           {diagnosticsOpen && (
             <div className="border-t border-[var(--border)] px-5 py-4">
               <p className="mb-3 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
-                Streams config snapshot, request target, response summary, and
-                service-specific validation for the active{" "}
-                <span className="font-medium text-[var(--foreground)]">
-                  {activeService}
-                </span>{" "}
-                profile.
+                {t(
+                  "Streams config snapshot, request target, response summary, and service-specific validation for the active {{service}} profile.",
+                  { service: activeService },
+                )}
               </p>
               <pre className="max-h-[360px] overflow-y-auto rounded-lg bg-[#0f0f0f] p-4 font-mono text-[12px] leading-6 text-[#777] dark:bg-[#0a0a0a]">
                 {logs}
@@ -1460,28 +1382,16 @@ function SettingsPageContent() {
           )}
         </div>
 
-        {/* ── Footer ── */}
-        <div className="flex items-center justify-between border-t border-[var(--border)]/30 pt-4 pb-2">
-          {!isTourMode && (
-            <button
-              onClick={reopenTour}
-              className="inline-flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]/40 transition-colors hover:text-[var(--muted-foreground)]"
-            >
-              <RotateCcw className="h-3 w-3" />
-              Run Terminal Tour
-            </button>
-          )}
-          <span className="text-[11px] text-[var(--muted-foreground)]/30 ml-auto">
-            v{draft.version}
-          </span>
-        </div>
+        {/* ── Footer note ── */}
+        <p className="mt-2 pb-4 text-[11px] leading-relaxed text-[var(--muted-foreground)]/40">
+          {t("settings.configNote")}
+        </p>
       </div>
 
       {/* ── Spotlight overlay (tour onboarding) ── */}
-      {isTourMode &&
-        tourGuideStep >= 0 &&
+      {tourGuideStep >= 0 &&
         tourGuideStep < TOUR_GUIDE_STEPS.length &&
-        !tourCompleted && (
+        (
           <SpotlightOverlay
             stepIndex={tourGuideStep}
             onNext={() => {
@@ -1494,26 +1404,17 @@ function SettingsPageContent() {
             onSkip={() => setTourGuideStep(-1)}
           />
         )}
-
-      {/* ── Test results modal (tour) ── */}
-      {isTourMode && tourTestPhase !== "idle" && (
-        <TestResultsModal
-          results={tourTestResults}
-          testing={tourTestPhase === "testing"}
-          onConfirm={confirmTourComplete}
-          onCancel={cancelTourTest}
-        />
-      )}
     </div>
   );
 }
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   return (
     <Suspense
       fallback={
         <div className="min-h-[50vh] flex items-center justify-center text-[13px] text-[var(--muted-foreground)]">
-          Loading settings...
+          {t("Loading settings...")}
         </div>
       }
     >

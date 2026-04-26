@@ -18,7 +18,8 @@ const variantStyles = {
     "bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:bg-[var(--muted)]",
   danger:
     "bg-[var(--destructive)] text-[var(--destructive-foreground)] hover:opacity-90 shadow-md shadow-[var(--destructive)]/15",
-  ghost: "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]",
+  ghost:
+    "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]",
 };
 
 const sizeStyles = {

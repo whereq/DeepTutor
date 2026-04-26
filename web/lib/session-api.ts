@@ -15,6 +15,8 @@ export interface SessionMessage {
     base64?: string;
     url?: string;
     mime_type?: string;
+    id?: string;
+    extracted_text?: string;
   }>;
   created_at: number;
 }

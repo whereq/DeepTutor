@@ -56,7 +56,9 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             yield StreamEvent(type=StreamEventType.DONE, source="chat")
 
     monkeypatch.setattr("deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace())
-    monkeypatch.setattr("deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder)
+    monkeypatch.setattr(
+        "deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder
+    )
     monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
@@ -121,8 +123,7 @@ async def test_turn_runtime_bootstraps_question_followup_context_once(
             captured["history_messages"] = messages
             return SimpleNamespace(
                 conversation_history=[
-                    {"role": item["role"], "content": item["content"]}
-                    for item in messages
+                    {"role": item["role"], "content": item["content"]} for item in messages
                 ],
                 conversation_summary="",
                 context_text="",
@@ -145,7 +146,9 @@ async def test_turn_runtime_bootstraps_question_followup_context_once(
             yield StreamEvent(type=StreamEventType.DONE, source="chat")
 
     monkeypatch.setattr("deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace())
-    monkeypatch.setattr("deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder)
+    monkeypatch.setattr(
+        "deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder
+    )
     monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
@@ -260,7 +263,9 @@ async def test_turn_runtime_persists_deep_research_session_preference(
             yield StreamEvent(type=StreamEventType.DONE, source="deep_research")
 
     monkeypatch.setattr("deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace())
-    monkeypatch.setattr("deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder)
+    monkeypatch.setattr(
+        "deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder
+    )
     monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
@@ -325,7 +330,9 @@ async def test_turn_runtime_injects_memory_and_refreshes_after_completion(
         async def handle(self, context):
             captured["conversation_history"] = context.conversation_history
             captured["memory_context"] = context.memory_context
-            captured["conversation_context_text"] = context.metadata.get("conversation_context_text")
+            captured["conversation_context_text"] = context.metadata.get(
+                "conversation_context_text"
+            )
             yield StreamEvent(
                 type=StreamEventType.CONTENT,
                 source="chat",
@@ -342,7 +349,9 @@ async def test_turn_runtime_injects_memory_and_refreshes_after_completion(
         return None
 
     monkeypatch.setattr("deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace())
-    monkeypatch.setattr("deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder)
+    monkeypatch.setattr(
+        "deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder
+    )
     monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",

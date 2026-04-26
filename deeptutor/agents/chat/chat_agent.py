@@ -400,6 +400,7 @@ class ChatAgent(BaseAgent):
         )
 
         if stream:
+
             async def stream_generator():
                 full_response = ""
                 async for chunk in self.generate_stream(messages, attachments=attachments):

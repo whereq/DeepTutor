@@ -18,6 +18,7 @@ router = APIRouter()
 
 # ── Models ────────────────────────────────────────────────────────
 
+
 class NotebookEntryItem(BaseModel):
     id: int
     session_id: str
@@ -82,6 +83,7 @@ class UpsertEntryRequest(BaseModel):
 
 # ── Entry endpoints ──────────────────────────────────────────────
 
+
 @router.post("/entries/upsert")
 async def upsert_single_entry(payload: UpsertEntryRequest):
     store = get_sqlite_session_store()
@@ -93,6 +95,7 @@ async def upsert_single_entry(payload: UpsertEntryRequest):
     if entry is None:
         raise HTTPException(status_code=500, detail="Upsert failed")
     return entry
+
 
 @router.get("/entries", response_model=NotebookEntryListResponse)
 async def list_entries(
@@ -157,6 +160,7 @@ async def delete_entry(entry_id: int):
 
 # ── Entry ↔ Category linking ────────────────────────────────────
 
+
 @router.post("/entries/{entry_id}/categories")
 async def add_entry_to_category(entry_id: int, payload: CategoryAddRequest):
     store = get_sqlite_session_store()
@@ -179,6 +183,7 @@ async def remove_entry_from_category(entry_id: int, category_id: int):
 
 
 # ── Category CRUD ────────────────────────────────────────────────
+
 
 @router.get("/categories", response_model=list[CategoryItem])
 async def list_categories():

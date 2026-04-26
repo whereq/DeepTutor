@@ -1,7 +1,7 @@
 """Base class for agent tools."""
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, TypeAlias
 
 
 class Tool(ABC):
@@ -12,7 +12,9 @@ class Tool(ABC):
     the environment, such as reading files, executing commands, etc.
     """
 
-    _TYPE_MAP = {
+    _ClassInfo: TypeAlias = type[Any] | tuple[type[Any], ...]
+
+    _TYPE_MAP: dict[str, _ClassInfo] = {
         "string": str,
         "integer": int,
         "number": (int, float),
@@ -84,7 +86,12 @@ class Tool(ABC):
             return val
         if target_type == "integer" and isinstance(val, int) and not isinstance(val, bool):
             return val
-        if target_type in self._TYPE_MAP and target_type not in ("boolean", "integer", "array", "object"):
+        if target_type in self._TYPE_MAP and target_type not in (
+            "boolean",
+            "integer",
+            "array",
+            "object",
+        ):
             expected = self._TYPE_MAP[target_type]
             if isinstance(val, expected):
                 return val
@@ -134,11 +141,13 @@ class Tool(ABC):
         t, label = schema.get("type"), path or "parameter"
         if t == "integer" and (not isinstance(val, int) or isinstance(val, bool)):
             return [f"{label} should be integer"]
-        if t == "number" and (
-            not isinstance(val, self._TYPE_MAP[t]) or isinstance(val, bool)
-        ):
+        if t == "number" and (not isinstance(val, self._TYPE_MAP[t]) or isinstance(val, bool)):
             return [f"{label} should be number"]
-        if t in self._TYPE_MAP and t not in ("integer", "number") and not isinstance(val, self._TYPE_MAP[t]):
+        if (
+            t in self._TYPE_MAP
+            and t not in ("integer", "number")
+            and not isinstance(val, self._TYPE_MAP[t])
+        ):
             return [f"{label} should be {t}"]
 
         errors = []

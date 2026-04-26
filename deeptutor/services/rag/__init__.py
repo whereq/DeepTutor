@@ -3,14 +3,11 @@
 from .factory import (
     DEFAULT_PROVIDER,
     get_pipeline,
-    has_pipeline,
     list_pipelines,
     normalize_provider_name,
-    register_pipeline,
 )
-from .pipeline import RAGPipeline
+from .file_routing import DocumentType, FileClassification, FileTypeRouter
 from .service import RAGService
-from .types import Chunk, Document, SearchResult
 
 
 def __getattr__(name: str):
@@ -24,14 +21,11 @@ def __getattr__(name: str):
 
 __all__ = [
     "RAGService",
-    "Document",
-    "Chunk",
-    "SearchResult",
-    "RAGPipeline",
+    "FileTypeRouter",
+    "FileClassification",
+    "DocumentType",
     "get_pipeline",
     "list_pipelines",
-    "register_pipeline",
-    "has_pipeline",
     "normalize_provider_name",
     "DEFAULT_PROVIDER",
     "LlamaIndexPipeline",

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """DeepTutor Web Launcher — starts backend + frontend from the active .env."""
+
 from __future__ import annotations
 
 import os
@@ -18,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 def _load_runtime_deps():
     from _cli_kit import accent, banner, bold, dim, log_error, log_info, log_success, warn
+
     from deeptutor.services.config import get_env_store
 
     return accent, banner, bold, dim, log_error, log_info, log_success, warn, get_env_store
@@ -31,6 +33,7 @@ accent, banner, bold, dim, log_error, log_info, log_success, warn, get_env_store
 # ---------------------------------------------------------------------------
 # Process management (unchanged logic)
 # ---------------------------------------------------------------------------
+
 
 def _stream_output(prefix: str, process: subprocess.Popen[str]) -> None:
     assert process.stdout is not None
@@ -90,6 +93,7 @@ def _spawn(
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     summary = get_env_store().as_summary()

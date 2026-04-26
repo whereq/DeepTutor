@@ -11,7 +11,6 @@ from typing import Dict, List, Optional
 
 # Import RAGService as the single entry point
 from deeptutor.services.rag.service import RAGService
-from deeptutor.services.rag.factory import DEFAULT_PROVIDER as DEFAULT_RAG_PROVIDER
 
 
 async def rag_search(

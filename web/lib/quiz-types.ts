@@ -2,6 +2,8 @@
  * Shared types for Quiz Generation (deep_question capability).
  */
 
+import { normalizeQuizQuestionType } from "./quiz-question-type";
+
 export type DeepQuestionMode = "custom" | "mimic";
 
 export interface DeepQuestionFormConfig {
@@ -72,7 +74,7 @@ export function extractQuizQuestions(
     const question: QuizQuestion = {
       question_id: String(qa.question_id ?? ""),
       question: String(qa.question ?? ""),
-      question_type: (qa.question_type as QuizQuestion["question_type"]) ?? "written",
+      question_type: normalizeQuizQuestionType(qa.question_type),
       options: qa.options as Record<string, string> | undefined,
       correct_answer: String(qa.correct_answer ?? ""),
       explanation: String(qa.explanation ?? ""),
@@ -89,7 +91,9 @@ export function extractQuizQuestions(
     return question;
   });
 
-  return parsed.filter((question): question is QuizQuestion => question !== null);
+  return parsed.filter(
+    (question): question is QuizQuestion => question !== null,
+  );
 }
 
 export function buildQuizFollowupConfig(
@@ -116,6 +120,37 @@ export function buildQuizFollowupConfig(
   return {
     followup_question_context: context,
   };
+}
+
+function titleCase(value: string): string {
+  if (!value) return "";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/**
+ * One-line summary of the quiz form, shown next to the collapsed `Settings`
+ * chevron in the composer. Pass `translate` (`t` from `react-i18next`) so the
+ * summary follows the active UI language.
+ */
+export function summarizeQuizConfig(
+  cfg: DeepQuestionFormConfig,
+  translate?: (key: string) => string,
+): string {
+  const tr = translate ?? ((s: string) => s);
+  if (cfg.mode === "mimic") {
+    const target = cfg.paper_path.trim() || tr("no paper");
+    return [
+      tr("Mimic Paper"),
+      target,
+      `${tr("Max")} ${cfg.max_questions}`,
+    ].join(" · ");
+  }
+  return [
+    tr("Custom"),
+    `${cfg.num_questions} ${tr("questions")}`,
+    tr(titleCase(cfg.difficulty || "auto")),
+    tr(titleCase(cfg.question_type || "auto")),
+  ].join(" · ");
 }
 
 /**

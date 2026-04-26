@@ -37,7 +37,9 @@ interface QuestionFollowupPanelProps {
 }
 
 function titleCase(value: string) {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export default function QuestionFollowupPanel({
@@ -49,7 +51,9 @@ export default function QuestionFollowupPanel({
   onSend,
 }: QuestionFollowupPanelProps) {
   const { t } = useTranslation();
-  const visibleMessages = thread.messages.filter((message) => message.role !== "system");
+  const visibleMessages = thread.messages.filter(
+    (message) => message.role !== "system",
+  );
 
   return (
     <div className="border-t border-[var(--border)] bg-[var(--card)]/30 px-3 py-2">
@@ -59,8 +63,8 @@ export default function QuestionFollowupPanel({
           className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-[var(--muted)]/14"
         >
           <div className="min-w-0 flex items-center gap-2 text-[12px] font-medium text-[var(--foreground)]">
-              <MessageSquarePlus size={13} className="text-[var(--primary)]" />
-              <span>{t("Follow-up Chat")}</span>
+            <MessageSquarePlus size={13} className="text-[var(--primary)]" />
+            <span>{t("Follow-up Chat")}</span>
           </div>
           <div className="ml-auto flex min-w-0 items-center gap-1.5">
             <span className="rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
@@ -77,7 +81,10 @@ export default function QuestionFollowupPanel({
               </span>
             )}
             {thread.isStreaming && (
-              <Loader2 size={11} className="animate-spin text-[var(--primary)]" />
+              <Loader2
+                size={11}
+                className="animate-spin text-[var(--primary)]"
+              />
             )}
             <ChevronDown
               size={14}
@@ -98,14 +105,20 @@ export default function QuestionFollowupPanel({
                     {t("Ask anything about this question")}
                   </div>
                   <div>
-                    {t("Try: why this answer is correct, where your reasoning went wrong, or ask for a cleaner explanation.")}
+                    {t(
+                      "Try: why this answer is correct, where your reasoning went wrong, or ask for a cleaner explanation.",
+                    )}
                   </div>
                 </div>
               ) : (
                 visibleMessages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}
-                    className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
+                    className={
+                      message.role === "user"
+                        ? "flex justify-end"
+                        : "flex justify-start"
+                    }
                   >
                     <div
                       className={`max-w-[88%] rounded-[16px] px-3 py-2 text-[13px] leading-[1.7] ${
@@ -115,9 +128,14 @@ export default function QuestionFollowupPanel({
                       }`}
                     >
                       {message.role === "assistant" ? (
-                        <MarkdownRenderer content={message.content} variant="compact" />
+                        <MarkdownRenderer
+                          content={message.content}
+                          variant="compact"
+                        />
                       ) : (
-                        <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                        <div className="whitespace-pre-wrap break-words">
+                          {message.content}
+                        </div>
                       )}
                     </div>
                   </div>

@@ -12,7 +12,9 @@ except Exception:  # pragma: no cover - optional dependency in lightweight envs
     FastAPI = None
     TestClient = None
 
-pytestmark = pytest.mark.skipif(FastAPI is None or TestClient is None, reason="fastapi not installed")
+pytestmark = pytest.mark.skipif(
+    FastAPI is None or TestClient is None, reason="fastapi not installed"
+)
 
 if FastAPI is not None and TestClient is not None:
     knowledge_router_module = importlib.import_module("deeptutor.api.routers.knowledge")
@@ -76,6 +78,10 @@ def _upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
     return [("files", ("demo.txt", b"hello", "text/plain"))]
 
 
+def _invalid_upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
+    return [("files", ("archive.zip", b"PK\x03\x04", "application/zip"))]
+
+
 def test_rag_providers_returns_llamaindex_only() -> None:
     with TestClient(_build_app()) as client:
         response = client.get("/api/v1/knowledge/rag-providers")
@@ -93,11 +99,28 @@ def test_rag_providers_returns_llamaindex_only() -> None:
     }
 
 
+def test_supported_file_types_returns_upload_policy() -> None:
+    with TestClient(_build_app()) as client:
+        response = client.get("/api/v1/knowledge/supported-file-types")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert ".pdf" in payload["extensions"]
+    assert ".md" in payload["extensions"]
+    assert payload["max_file_size_bytes"] > payload["max_pdf_size_bytes"] > 0
+    assert ".pdf" in payload["accept"]
+
+
 def test_create_kb_does_not_require_llm_precheck(monkeypatch, tmp_path: Path) -> None:
     manager = _FakeKBManager(tmp_path / "knowledge_bases")
     monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
     monkeypatch.setattr(knowledge_router_module, "KnowledgeBaseInitializer", _FakeInitializer)
-    monkeypatch.setattr(knowledge_router_module, "get_llm_config", lambda: (_ for _ in ()).throw(RuntimeError("should not be called")), raising=False)
+    monkeypatch.setattr(
+        knowledge_router_module,
+        "get_llm_config",
+        lambda: (_ for _ in ()).throw(RuntimeError("should not be called")),
+        raising=False,
+    )
 
     async def _noop_init_task(*_args, **_kwargs):
         return None
@@ -120,7 +143,31 @@ def test_create_kb_does_not_require_llm_precheck(monkeypatch, tmp_path: Path) ->
     assert manager.config["knowledge_bases"]["kb-new"]["needs_reindex"] is False
 
 
-def test_create_rejects_unregistered_provider(monkeypatch, tmp_path: Path) -> None:
+def test_create_coerces_legacy_provider_to_llamaindex(monkeypatch, tmp_path: Path) -> None:
+    """`rag_provider` is now a stub: legacy values silently normalize to llamaindex."""
+    manager = _FakeKBManager(tmp_path / "knowledge_bases")
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+
+    async def _noop_init_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(knowledge_router_module, "run_initialization_task", _noop_init_task)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
+
+    with TestClient(_build_app()) as client:
+        response = client.post(
+            "/api/v1/knowledge/create",
+            data={"name": "kb-legacy", "rag_provider": "lightrag"},
+            files=_upload_payload(),
+        )
+
+    assert response.status_code == 200
+    assert manager.config["knowledge_bases"]["kb-legacy"]["rag_provider"] == "llamaindex"
+
+
+def test_create_rejects_invalid_files_before_registering_kb(
+    monkeypatch, tmp_path: Path
+) -> None:
     manager = _FakeKBManager(tmp_path / "knowledge_bases")
     monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
     monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
@@ -128,12 +175,13 @@ def test_create_rejects_unregistered_provider(monkeypatch, tmp_path: Path) -> No
     with TestClient(_build_app()) as client:
         response = client.post(
             "/api/v1/knowledge/create",
-            data={"name": "kb-invalid", "rag_provider": "lightrag"},
-            files=_upload_payload(),
+            data={"name": "kb-invalid", "rag_provider": "llamaindex"},
+            files=_invalid_upload_payload(),
         )
 
     assert response.status_code == 400
-    assert "Unsupported RAG provider" in response.json()["detail"]
+    assert "unsupported file type" in response.json()["detail"].lower()
+    assert "kb-invalid" not in manager.config["knowledge_bases"]
 
 
 def test_upload_returns_409_when_kb_needs_reindex(monkeypatch, tmp_path: Path) -> None:
@@ -177,8 +225,13 @@ def test_upload_ready_kb_returns_task_id(monkeypatch, tmp_path: Path) -> None:
     assert isinstance(body.get("task_id"), str) and body["task_id"]
 
 
-def test_update_config_rejects_unregistered_provider() -> None:
+def test_update_config_coerces_legacy_provider_to_llamaindex() -> None:
+    """Legacy `rag_provider` values are accepted and normalized to llamaindex."""
+
     class _FakeConfigService:
+        def __init__(self) -> None:
+            self.config: dict = {}
+
         def set_kb_config(self, kb_name: str, config: dict) -> None:
             self.kb_name = kb_name
             self.config = config
@@ -199,5 +252,5 @@ def test_update_config_rejects_unregistered_provider() -> None:
                 json={"rag_provider": "raganything"},
             )
 
-    assert response.status_code == 400
-    assert "Unsupported RAG provider" in response.json()["detail"]
+    assert response.status_code in {200, 204}
+    assert fake_service.config.get("rag_provider") == "llamaindex"

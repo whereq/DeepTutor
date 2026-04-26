@@ -164,6 +164,109 @@ def test_llm_local_fallback(tmp_path: Path) -> None:
     assert resolved.api_key == "sk-no-key-required"
 
 
+def test_llm_minimax_binding_uses_minimaxi_endpoint(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "minimax",
+            "base_url": "",
+            "api_key": "minimax-key",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "llm-m", "name": "m", "model": "MiniMax-M2.7"}],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=_empty_env(tmp_path))
+    assert resolved.provider_name == "minimax"
+    assert resolved.provider_mode == "standard"
+    assert resolved.effective_url == "https://api.minimaxi.com/v1"
+
+
+def test_llm_minimax_anthropic_binding_uses_anthropic_endpoint(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "minimax_anthropic",
+            "base_url": "",
+            "api_key": "minimax-key",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "llm-m", "name": "c", "model": "claude-sonnet-4-20250514"}],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=_empty_env(tmp_path))
+    assert resolved.provider_name == "minimax_anthropic"
+    assert resolved.provider_mode == "standard"
+    assert resolved.effective_url == "https://api.minimaxi.com/anthropic"
+
+
+def test_llm_custom_anthropic_binding_stays_direct(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "custom_anthropic",
+            "base_url": "https://claude-proxy.example/v1/messages",
+            "api_key": "anthropic-key",
+            "api_version": "",
+            "extra_headers": {"x-tenant": "lab"},
+            "models": [{"id": "llm-m", "name": "c", "model": "claude-sonnet-4-20250514"}],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=_empty_env(tmp_path))
+    assert resolved.provider_name == "custom_anthropic"
+    assert resolved.provider_mode == "direct"
+    assert resolved.binding == "custom_anthropic"
+    assert resolved.effective_url == "https://claude-proxy.example/v1/messages"
+    assert resolved.extra_headers == {"x-tenant": "lab"}
+
+
+def test_llm_lm_studio_alias_resolves_to_local_provider(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "lm-studio",
+            "base_url": "",
+            "api_key": "",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "llm-m", "name": "m", "model": "llama-3.2"}],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=_empty_env(tmp_path))
+    assert resolved.provider_name == "lm_studio"
+    assert resolved.provider_mode == "local"
+    assert resolved.effective_url == "http://localhost:1234/v1"
+    assert resolved.api_key == "sk-no-key-required"
+
+
+def test_llm_context_window_passes_through_from_catalog(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "api_key": "sk-test",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [
+                {
+                    "id": "llm-m",
+                    "name": "GPT 4o mini",
+                    "model": "gpt-4o-mini",
+                    "context_window": 128000,
+                }
+            ],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=_empty_env(tmp_path))
+    assert resolved.context_window == 128000
+
+
 def test_search_fallback_to_duckduckgo_without_key(tmp_path: Path) -> None:
     catalog = _build_catalog(
         search_profile={

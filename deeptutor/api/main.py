@@ -164,10 +164,11 @@ async def selective_access_log(request, call_next):
     response = await call_next(request)
     if response.status_code != 200:
         _access_logger.info(
-            '%s - "%s %s" %d',
+            '%s - "%s %s HTTP/%s" %d',
             request.client.host if request.client else "-",
             request.method,
             request.url.path,
+            request.scope.get("http_version", "1.1"),
             response.status_code,
         )
     return response
@@ -221,18 +222,21 @@ app.mount(
 # Some router modules load YAML settings at import time.
 from deeptutor.api.routers import (
     agent_config,
+    attachments,
     auth,
+    book,
     chat,
     co_writer,
     dashboard,
-    guide,
     knowledge,
     memory,
     notebook,
     plugins_api,
     question,
+    question_notebook,
     sessions,
     settings,
+    skills,
     solve,
     system,
     tutorbot,
@@ -266,14 +270,21 @@ app.include_router(
 app.include_router(
     notebook.router, prefix="/api/v1/notebook", tags=["notebook"], dependencies=_auth
 )
-app.include_router(guide.router, prefix="/api/v1/guide", tags=["guide"], dependencies=_auth)
+app.include_router(book.router, prefix="/api/v1/book", tags=["book"], dependencies=_auth)
 app.include_router(memory.router, prefix="/api/v1/memory", tags=["memory"], dependencies=_auth)
 app.include_router(
     sessions.router, prefix="/api/v1/sessions", tags=["sessions"], dependencies=_auth
 )
 app.include_router(
+    question_notebook.router,
+    prefix="/api/v1/question-notebook",
+    tags=["question-notebook"],
+    dependencies=_auth,
+)
+app.include_router(
     settings.router, prefix="/api/v1/settings", tags=["settings"], dependencies=_auth
 )
+app.include_router(skills.router, prefix="/api/v1/skills", tags=["skills"], dependencies=_auth)
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"], dependencies=_auth)
 app.include_router(
     plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"], dependencies=_auth
@@ -286,6 +297,12 @@ app.include_router(
 )
 app.include_router(
     tutorbot.router, prefix="/api/v1/tutorbot", tags=["tutorbot"], dependencies=_auth
+)
+app.include_router(
+    attachments.router,
+    prefix="/api/attachments",
+    tags=["attachments"],
+    dependencies=_auth,
 )
 
 # Unified WebSocket endpoint — auth is checked inside the handler (WebSockets

@@ -70,6 +70,10 @@ class BaseEmbeddingAdapter(ABC):
                 - base_url: API endpoint URL
                 - model: Model name to use
                 - dimensions: Embedding vector dimensions
+                - send_dimensions: Tri-state opt-in for the `dimensions`
+                  request param. ``True`` always sends, ``False`` never
+                  sends, ``None`` lets the adapter decide based on the
+                  model family (default).
                 - request_timeout: Request timeout in seconds
         """
         self.api_key = config.get("api_key")
@@ -77,6 +81,7 @@ class BaseEmbeddingAdapter(ABC):
         self.api_version = config.get("api_version")
         self.model = config.get("model")
         self.dimensions = config.get("dimensions")
+        self.send_dimensions: Optional[bool] = config.get("send_dimensions")
         self.request_timeout = config.get("request_timeout", 60)
         self.extra_headers = config.get("extra_headers") or {}
 

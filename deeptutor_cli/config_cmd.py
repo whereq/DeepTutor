@@ -7,14 +7,13 @@ View and update DeepTutor configuration.
 
 from __future__ import annotations
 
-import typer
 from rich.console import Console
+import typer
 
 console = Console()
 
 
 def register(app: typer.Typer) -> None:
-
     @app.command("show")
     def config_show() -> None:
         """Show current configuration."""

@@ -19,6 +19,192 @@ function stripInvisibleCharacters(value: string): string {
   return value.replace(ZERO_WIDTH_REGEX, "");
 }
 
+// Tags that the renderer (rehype-raw + react-markdown) is allowed to render
+// as actual HTML/SVG/MathML elements. Any other `<word>` looking token
+// (e.g. LLM-pseudo-tags like <mem>, <think>, <tool_call>, <answer>, <search>)
+// is escaped into inline code so the browser does not warn about unknown
+// custom elements with lowercase names.
+const ALLOWED_HTML_TAGS = new Set<string>([
+  // structural
+  "p",
+  "div",
+  "span",
+  "section",
+  "article",
+  "aside",
+  "header",
+  "footer",
+  "main",
+  "nav",
+  "address",
+  "dialog",
+  // text-level
+  "a",
+  "em",
+  "strong",
+  "b",
+  "i",
+  "u",
+  "s",
+  "del",
+  "ins",
+  "small",
+  "sub",
+  "sup",
+  "mark",
+  "kbd",
+  "code",
+  "samp",
+  "var",
+  "q",
+  "cite",
+  "abbr",
+  "time",
+  "wbr",
+  "ruby",
+  "rt",
+  "rp",
+  "bdi",
+  "bdo",
+  // line-level
+  "br",
+  "hr",
+  // lists
+  "ol",
+  "ul",
+  "li",
+  "dl",
+  "dt",
+  "dd",
+  // headings
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  // block quotes / pre
+  "blockquote",
+  "pre",
+  "figure",
+  "figcaption",
+  // tables
+  "table",
+  "thead",
+  "tbody",
+  "tfoot",
+  "tr",
+  "th",
+  "td",
+  "caption",
+  "col",
+  "colgroup",
+  // media
+  "img",
+  "video",
+  "audio",
+  "source",
+  "picture",
+  "track",
+  "iframe",
+  "canvas",
+  "embed",
+  "object",
+  "param",
+  "map",
+  "area",
+  // disclosure / forms (we keep these even if they are usually stripped)
+  "details",
+  "summary",
+  "progress",
+  "meter",
+  "input",
+  "textarea",
+  "select",
+  "button",
+  "label",
+  "fieldset",
+  "legend",
+  "form",
+  "option",
+  "optgroup",
+  "datalist",
+  "output",
+  // svg
+  "svg",
+  "g",
+  "path",
+  "rect",
+  "circle",
+  "ellipse",
+  "line",
+  "polyline",
+  "polygon",
+  "text",
+  "tspan",
+  "use",
+  "defs",
+  "lineargradient",
+  "radialgradient",
+  "stop",
+  "marker",
+  "pattern",
+  "mask",
+  "clippath",
+  "symbol",
+  "title",
+  "desc",
+  "foreignobject",
+  // mathml
+  "math",
+  "mi",
+  "mn",
+  "mo",
+  "ms",
+  "mtext",
+  "mrow",
+  "mfrac",
+  "msup",
+  "msub",
+  "msubsup",
+  "munder",
+  "mover",
+  "munderover",
+  "mroot",
+  "msqrt",
+  "menclose",
+  "mspace",
+  "mtable",
+  "mtr",
+  "mtd",
+]);
+
+const HTML_LIKE_TAG_REGEX = /<\/?([A-Za-z][A-Za-z0-9_-]*)\b[^<>]*?\/?>/g;
+const PROTECTED_SPAN_REGEX = /```[\s\S]*?```|`[^`\n]*`/g;
+const PROTECTED_PLACEHOLDER_REGEX = /\u0000PROTECTED_(\d+)\u0000/g;
+
+function escapeUnknownHtmlTags(content: string): string {
+  if (!content || (!content.includes("<") && !content.includes(">"))) {
+    return content;
+  }
+  const protectedSpans: string[] = [];
+  const masked = content.replace(PROTECTED_SPAN_REGEX, (match) => {
+    protectedSpans.push(match);
+    return `\u0000PROTECTED_${protectedSpans.length - 1}\u0000`;
+  });
+  const escaped = masked.replace(HTML_LIKE_TAG_REGEX, (match, name: string) => {
+    const lower = String(name).toLowerCase();
+    if (ALLOWED_HTML_TAGS.has(lower)) return match;
+    // Already wrapped in backticks (would happen if the source already
+    // protected a similar token earlier in the string).
+    return `\`${match}\``;
+  });
+  return escaped.replace(
+    PROTECTED_PLACEHOLDER_REGEX,
+    (_, idx: string) => protectedSpans[Number(idx)] ?? "",
+  );
+}
+
 function stripDisplaySyntax(value: string): string {
   return stripInvisibleCharacters(String(value))
     .replace(/&nbsp;/gi, " ")
@@ -40,7 +226,9 @@ function isMarkdownTableSeparator(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed.includes("|")) return false;
   const cells = splitMarkdownTableCells(trimmed);
-  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+  return (
+    cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()))
+  );
 }
 
 function isMarkdownTableStart(lines: string[], index: number): boolean {
@@ -48,11 +236,19 @@ function isMarkdownTableStart(lines: string[], index: number): boolean {
 
   const header = lines[index]?.trim() || "";
   const separator = lines[index + 1]?.trim() || "";
-  if (!header || !separator || !header.includes("|") || !isMarkdownTableSeparator(separator)) {
+  if (
+    !header ||
+    !separator ||
+    !header.includes("|") ||
+    !isMarkdownTableSeparator(separator)
+  ) {
     return false;
   }
 
-  return splitMarkdownTableCells(header).length === splitMarkdownTableCells(separator).length;
+  return (
+    splitMarkdownTableCells(header).length ===
+    splitMarkdownTableCells(separator).length
+  );
 }
 
 function isMarkdownTableBodyRow(line: string, columnCount: number): boolean {
@@ -64,14 +260,18 @@ function isMarkdownTableBodyRow(line: string, columnCount: number): boolean {
 function isEmptyMarkdownTable(lines: string[]): boolean {
   return lines
     .filter((_, index) => index !== 1)
-    .every((line) => splitMarkdownTableCells(line).every((cell) => stripDisplaySyntax(cell).length === 0));
+    .every((line) =>
+      splitMarkdownTableCells(line).every(
+        (cell) => stripDisplaySyntax(cell).length === 0,
+      ),
+    );
 }
 
 function removeEmptyMarkdownTables(content: string): string {
   const lines = content.split("\n");
   const cleaned: string[] = [];
 
-  for (let index = 0; index < lines.length;) {
+  for (let index = 0; index < lines.length; ) {
     if (!isMarkdownTableStart(lines, index)) {
       cleaned.push(lines[index]);
       index += 1;
@@ -80,7 +280,10 @@ function removeEmptyMarkdownTables(content: string): string {
 
     const columnCount = splitMarkdownTableCells(lines[index]).length;
     let end = index + 2;
-    while (end < lines.length && isMarkdownTableBodyRow(lines[end], columnCount)) {
+    while (
+      end < lines.length &&
+      isMarkdownTableBodyRow(lines[end], columnCount)
+    ) {
       end += 1;
     }
 
@@ -95,7 +298,9 @@ function removeEmptyMarkdownTables(content: string): string {
 }
 
 function removeEmptyHtmlTables(content: string): string {
-  return content.replace(HTML_TABLE_REGEX, (block) => (stripDisplaySyntax(block) ? block : ""));
+  return content.replace(HTML_TABLE_REGEX, (block) =>
+    stripDisplaySyntax(block) ? block : "",
+  );
 }
 
 const PREFIXED_CIT = String.raw`(?:web|rag|code|src)-\d+`;
@@ -109,14 +314,20 @@ const INLINE_CITATION_REGEX = new RegExp(
 );
 
 const ESCAPED_CITATION_LINK_REGEX = new RegExp(
-  String.raw`\\?\[(${SINGLE_CIT})\\?\]\s*\(#references\s+["` + "\u201c" + String.raw`]citation["` + "\u201d" + String.raw`]\)`,
+  String.raw`\\?\[(${SINGLE_CIT})\\?\]\s*\(#references\s+["` +
+    "\u201c" +
+    String.raw`]citation["` +
+    "\u201d" +
+    String.raw`]\)`,
   "g",
 );
 
 function unwrapBacktickedCitations(content: string): string {
   return content.replace(
     new RegExp(
-      "`(\\[" + MULTI_CIT + "\\](?:\\s*\\(#references\\s+[\"\\u201c]citation[\"\\u201d]\\))?)`",
+      "`(\\[" +
+        MULTI_CIT +
+        '\\](?:\\s*\\(#references\\s+["\\u201c]citation["\\u201d]\\))?)`',
       "g",
     ),
     "$1",
@@ -170,8 +381,11 @@ export function normalizeMarkdownForDisplay(content: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .replace(/^\n+|\n+$/g, "");
 
-  const cleaned = removeEmptyMarkdownTables(removeEmptyHtmlTables(normalized)).replace(/\n{3,}/g, "\n\n");
-  return linkifyCitations(unwrapBacktickedCitations(cleaned));
+  const cleaned = removeEmptyMarkdownTables(
+    removeEmptyHtmlTables(normalized),
+  ).replace(/\n{3,}/g, "\n\n");
+  const safe = escapeUnknownHtmlTags(cleaned);
+  return linkifyCitations(unwrapBacktickedCitations(safe));
 }
 
 export function hasVisibleMarkdownContent(content: string): boolean {

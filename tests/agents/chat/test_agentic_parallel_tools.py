@@ -9,9 +9,9 @@ import pytest
 from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream import StreamEvent, StreamEventType
-from deeptutor.core.trace import build_trace_metadata
 from deeptutor.core.stream_bus import StreamBus
 from deeptutor.core.tool_protocol import ToolResult
+from deeptutor.core.trace import build_trace_metadata
 
 
 async def _collect_bus_events(bus: StreamBus) -> tuple[list[StreamEvent], asyncio.Task[Any]]:
@@ -27,10 +27,14 @@ async def _collect_bus_events(bus: StreamBus) -> tuple[list[StreamEvent], asynci
 
 
 @pytest.mark.asyncio
-async def test_native_tool_loop_executes_parallel_tool_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_native_tool_loop_executes_parallel_tool_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         "deeptutor.agents.chat.agentic_pipeline.get_llm_config",
-        lambda: SimpleNamespace(binding="openai", model="gpt-test", api_key="k", base_url="u", api_version=None),
+        lambda: SimpleNamespace(
+            binding="openai", model="gpt-test", api_key="k", base_url="u", api_version=None
+        ),
     )
 
     class FakeRegistry:
@@ -60,7 +64,9 @@ async def test_native_tool_loop_executes_parallel_tool_calls(monkeypatch: pytest
             )
 
     registry = FakeRegistry()
-    monkeypatch.setattr("deeptutor.agents.chat.agentic_pipeline.get_tool_registry", lambda: registry)
+    monkeypatch.setattr(
+        "deeptutor.agents.chat.agentic_pipeline.get_tool_registry", lambda: registry
+    )
 
     pipeline = AgenticChatPipeline(language="en")
     pipeline.registry = registry
@@ -150,17 +156,22 @@ async def test_native_tool_loop_executes_parallel_tool_calls(monkeypatch: pytest
     assert tool_result_events[0].metadata["tool_index"] == 0
     assert tool_result_events[1].metadata["tool_index"] == 1
     acting_thinking_events = [
-        event for event in events
+        event
+        for event in events
         if event.type == StreamEventType.THINKING and event.stage == "acting"
     ]
     assert acting_thinking_events == []
 
 
 @pytest.mark.asyncio
-async def test_execute_tool_call_streams_retrieve_progress_for_rag(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_execute_tool_call_streams_retrieve_progress_for_rag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         "deeptutor.agents.chat.agentic_pipeline.get_llm_config",
-        lambda: SimpleNamespace(binding="openai", model="gpt-test", api_key="k", base_url="u", api_version=None),
+        lambda: SimpleNamespace(
+            binding="openai", model="gpt-test", api_key="k", base_url="u", api_version=None
+        ),
     )
 
     class FakeRegistry:
@@ -170,7 +181,9 @@ async def test_execute_tool_call_streams_retrieve_progress_for_rag(monkeypatch: 
         async def execute(self, name: str, **kwargs):
             event_sink = kwargs.get("event_sink")
             if event_sink is not None:
-                await event_sink("status", "Selecting provider: llamaindex", {"provider": "llamaindex"})
+                await event_sink(
+                    "status", "Selecting provider: llamaindex", {"provider": "llamaindex"}
+                )
                 await event_sink("status", "Retrieving chunks...", {"mode": "hybrid"})
             return ToolResult(
                 content=f"{name} => grounded answer",
@@ -180,7 +193,9 @@ async def test_execute_tool_call_streams_retrieve_progress_for_rag(monkeypatch: 
             )
 
     registry = FakeRegistry()
-    monkeypatch.setattr("deeptutor.agents.chat.agentic_pipeline.get_tool_registry", lambda: registry)
+    monkeypatch.setattr(
+        "deeptutor.agents.chat.agentic_pipeline.get_tool_registry", lambda: registry
+    )
 
     pipeline = AgenticChatPipeline(language="en")
     pipeline.registry = registry
@@ -244,7 +259,9 @@ async def test_native_tool_loop_caps_parallel_tool_calls_at_eight(
 ) -> None:
     monkeypatch.setattr(
         "deeptutor.agents.chat.agentic_pipeline.get_llm_config",
-        lambda: SimpleNamespace(binding="openai", model="gpt-test", api_key="k", base_url="u", api_version=None),
+        lambda: SimpleNamespace(
+            binding="openai", model="gpt-test", api_key="k", base_url="u", api_version=None
+        ),
     )
 
     class FakeRegistry:
@@ -270,7 +287,9 @@ async def test_native_tool_loop_caps_parallel_tool_calls_at_eight(
             )
 
     registry = FakeRegistry()
-    monkeypatch.setattr("deeptutor.agents.chat.agentic_pipeline.get_tool_registry", lambda: registry)
+    monkeypatch.setattr(
+        "deeptutor.agents.chat.agentic_pipeline.get_tool_registry", lambda: registry
+    )
 
     pipeline = AgenticChatPipeline(language="en")
     pipeline.registry = registry

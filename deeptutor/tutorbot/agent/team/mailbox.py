@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import uuid
 from pathlib import Path
+import uuid
 
 from deeptutor.tutorbot.agent.team._filelock import lock, unlock
 from deeptutor.tutorbot.agent.team.state import Mail
@@ -45,13 +45,15 @@ def _locked_update(team_dir: Path, update):
 
 def send(team_dir: Path, from_agent: str, to_agent: str, content: str) -> str:
     def _update(mails: list[Mail]) -> str:
-        mails.append(Mail(
-            id=str(uuid.uuid4())[:8],
-            from_agent=from_agent,
-            to_agent=to_agent,
-            content=content,
-            timestamp=timestamp(),
-        ))
+        mails.append(
+            Mail(
+                id=str(uuid.uuid4())[:8],
+                from_agent=from_agent,
+                to_agent=to_agent,
+                content=content,
+                timestamp=timestamp(),
+            )
+        )
         return f"Sent message to {to_agent}"
 
     return _locked_update(team_dir, _update)
@@ -76,8 +78,7 @@ def read_unread(team_dir: Path, agent_name: str) -> list[Mail]:
 
 def recent_for(team_dir: Path, agent_name: str, n: int = 5) -> list[Mail]:
     return [
-        m for m in _load(team_dir)
-        if m.to_agent in {agent_name, "*"} or m.from_agent == agent_name
+        m for m in _load(team_dir) if m.to_agent in {agent_name, "*"} or m.from_agent == agent_name
     ][-n:]
 
 

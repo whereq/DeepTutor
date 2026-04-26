@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from deeptutor.services.config import model_catalog as model_catalog_module
 from deeptutor.services.config.env_store import EnvStore
 from deeptutor.services.config.model_catalog import ModelCatalogService
 
@@ -40,14 +41,16 @@ def test_load_hydrates_empty_catalog_from_env(tmp_path: Path, monkeypatch):
     )
 
     env_store = EnvStore(path=env_path)
-    monkeypatch.setattr("deeptutor.services.config.model_catalog.get_env_store", lambda: env_store)
+    monkeypatch.setattr(model_catalog_module, "get_env_store", lambda: env_store)
 
     service = ModelCatalogService(path=catalog_path)
     catalog = service.load()
 
     assert catalog["services"]["llm"]["profiles"][0]["binding"] == "google"
     assert catalog["services"]["llm"]["profiles"][0]["extra_headers"] == {}
-    assert catalog["services"]["llm"]["profiles"][0]["models"][0]["model"] == "gemini-3-flash-preview"
+    assert (
+        catalog["services"]["llm"]["profiles"][0]["models"][0]["model"] == "gemini-3-flash-preview"
+    )
     assert catalog["services"]["embedding"]["profiles"][0]["models"][0]["dimension"] == "3072"
     assert catalog["services"]["search"]["profiles"][0]["provider"] == "perplexity"
     assert catalog["services"]["search"]["profiles"][0]["proxy"] == ""
@@ -126,7 +129,7 @@ def test_load_syncs_existing_active_profiles_from_env(tmp_path: Path, monkeypatc
     )
 
     env_store = EnvStore(path=env_path)
-    monkeypatch.setattr("deeptutor.services.config.model_catalog.get_env_store", lambda: env_store)
+    monkeypatch.setattr(model_catalog_module, "get_env_store", lambda: env_store)
 
     service = ModelCatalogService(path=catalog_path)
     catalog = service.load()

@@ -5,12 +5,16 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 import json
 import os
-from threading import Lock
 import threading
+from threading import Lock
 import time
 from typing import Any
 from uuid import uuid4
 
+from deeptutor.services.llm.client import reset_llm_client
+from deeptutor.services.llm.config import clear_llm_config_cache
+
+from .context_window_detection import detect_context_window
 from .env_store import get_env_store
 from .model_catalog import get_model_catalog_service
 from .provider_runtime import (
@@ -30,17 +34,17 @@ def _redact(value: str) -> str:
 
 @contextmanager
 def temporary_env(values: dict[str, str]):
-    original = {key: os.environ.get(key) for key in values}
+    original: dict[str, str | None] = {key: os.environ.get(key) for key in values}
     try:
         for key, value in values.items():
             os.environ[key] = value
         yield
     finally:
-        for key, value in original.items():
-            if value is None:
+        for key, original_value in original.items():
+            if original_value is None:
                 os.environ.pop(key, None)
             else:
-                os.environ[key] = value
+                os.environ[key] = original_value
 
 
 @dataclass
@@ -133,9 +137,29 @@ class ConfigTestRunner:
             run.status = "failed"
             run.emit("failed", str(exc))
 
+    def _persist_llm_context_window(
+        self,
+        *,
+        catalog: dict[str, Any],
+        context_window: int,
+        source: str,
+        detected_at: str,
+    ) -> dict[str, Any]:
+        service = get_model_catalog_service()
+        llm_model = service.get_active_model(catalog, "llm")
+        if llm_model is None:
+            return catalog
+        llm_model["context_window"] = str(context_window)
+        llm_model["context_window_source"] = source
+        llm_model["context_window_detected_at"] = detected_at
+        saved = service.save(catalog)
+        clear_llm_config_cache()
+        reset_llm_client()
+        return saved
+
     async def _test_llm(self, run: TestRun, catalog: dict[str, Any]) -> None:
-        from deeptutor.services.llm import clear_llm_config_cache, complete as llm_complete
-        from deeptutor.services.llm import get_token_limit_kwargs
+        from deeptutor.services.llm import clear_llm_config_cache, get_token_limit_kwargs
+        from deeptutor.services.llm import complete as llm_complete
         from deeptutor.services.llm.config import LLMConfig
 
         clear_llm_config_cache()
@@ -153,15 +177,20 @@ class ConfigTestRunner:
             extra_headers=resolved.extra_headers,
             reasoning_effort=resolved.reasoning_effort,
         )
-        run.emit("info", f"Resolved model `{llm_config.model}` with binding `{llm_config.binding}`.")
+        run.emit(
+            "info", f"Resolved model `{llm_config.model}` with binding `{llm_config.binding}`."
+        )
         run.emit("info", f"Request target: {llm_config.base_url}")
         # Reasoning models spend part of the budget on internal thinking;
         # too tight a cap makes them return empty content. Configurable
         # via diagnostics.llm_probe.max_tokens in agents.yaml.
         from .loader import get_agent_params
+
         probe_params = get_agent_params("llm_probe")
         max_tokens = max(1, int(probe_params.get("max_tokens", 1024)))
-        token_kwargs = get_token_limit_kwargs(llm_config.model, max_tokens=max_tokens)
+        token_kwargs: dict[str, Any] = get_token_limit_kwargs(
+            llm_config.model, max_tokens=max_tokens
+        )
         run.emit("info", f"Token options: {json.dumps(token_kwargs)}")
         response = await llm_complete(
             model=llm_config.model,
@@ -179,7 +208,37 @@ class ConfigTestRunner:
         if not snippet:
             raise ValueError("LLM returned an empty response.")
 
-    async def _test_embedding(self, run: TestRun, model: dict[str, Any], catalog: dict[str, Any]) -> None:
+        run.emit("info", "Detecting model context window.")
+        detection = await detect_context_window(
+            llm_config,
+            on_log=lambda message: run.emit("info", message),
+        )
+        run.emit(
+            "context_window",
+            (
+                f"Context window set to {detection.context_window} tokens "
+                f"({detection.source})."
+            ),
+            context_window=detection.context_window,
+            source=detection.source,
+            detail=detection.detail,
+            detected_at=detection.detected_at,
+        )
+        saved_catalog = self._persist_llm_context_window(
+            catalog=catalog,
+            context_window=detection.context_window,
+            source=detection.source,
+            detected_at=detection.detected_at,
+        )
+        run.emit(
+            "catalog",
+            "Saved updated model metadata to model_catalog.json.",
+            catalog=saved_catalog,
+        )
+
+    async def _test_embedding(
+        self, run: TestRun, model: dict[str, Any], catalog: dict[str, Any]
+    ) -> None:
         from deeptutor.services.embedding.client import EmbeddingClient
         from deeptutor.services.embedding.config import EmbeddingConfig
 
@@ -200,7 +259,9 @@ class ConfigTestRunner:
             batch_size=max(1, resolved.batch_size),
             batch_delay=max(0.0, resolved.batch_delay),
         )
-        run.emit("info", f"Resolved embedding model `{config.model}` with binding `{config.binding}`.")
+        run.emit(
+            "info", f"Resolved embedding model `{config.model}` with binding `{config.binding}`."
+        )
         run.emit("info", f"Request target: {config.base_url}")
         client = EmbeddingClient(config)
         vectors = await client.embed(["DeepTutor embedding smoke test"])

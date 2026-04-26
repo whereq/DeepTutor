@@ -2,9 +2,9 @@
 
 import asyncio
 import json
-import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+import uuid
 
 from loguru import logger
 
@@ -14,6 +14,9 @@ from deeptutor.tutorbot.bus.queue import MessageBus
 from deeptutor.tutorbot.config.schema import ExecToolConfig
 from deeptutor.tutorbot.providers.base import LLMProvider
 from deeptutor.tutorbot.utils.helpers import build_assistant_message
+
+if TYPE_CHECKING:
+    from deeptutor.tutorbot.config.schema import ExecToolConfig, WebSearchConfig
 
 
 class SubagentManager:
@@ -56,9 +59,7 @@ class SubagentManager:
         display_label = label or task[:30] + ("..." if len(task) > 30 else "")
         origin = {"channel": origin_channel, "chat_id": origin_chat_id}
 
-        bg_task = asyncio.create_task(
-            self._run_subagent(task_id, task, display_label, origin)
-        )
+        bg_task = asyncio.create_task(self._run_subagent(task_id, task, display_label, origin))
         self._running_tasks[task_id] = bg_task
         if session_key:
             self._session_tasks.setdefault(session_key, set()).add(task_id)
@@ -117,28 +118,34 @@ class SubagentManager:
                 )
 
                 if response.has_tool_calls:
-                    tool_call_dicts = [
-                        tc.to_openai_tool_call()
-                        for tc in response.tool_calls
-                    ]
-                    messages.append(build_assistant_message(
-                        response.content or "",
-                        tool_calls=tool_call_dicts,
-                        reasoning_content=response.reasoning_content,
-                        thinking_blocks=response.thinking_blocks,
-                    ))
+                    tool_call_dicts = [tc.to_openai_tool_call() for tc in response.tool_calls]
+                    messages.append(
+                        build_assistant_message(
+                            response.content or "",
+                            tool_calls=tool_call_dicts,
+                            reasoning_content=response.reasoning_content,
+                            thinking_blocks=response.thinking_blocks,
+                        )
+                    )
 
                     # Execute tools
                     for tool_call in response.tool_calls:
                         args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
-                        logger.debug("Subagent [{}] executing: {} with arguments: {}", task_id, tool_call.name, args_str)
+                        logger.debug(
+                            "Subagent [{}] executing: {} with arguments: {}",
+                            task_id,
+                            tool_call.name,
+                            args_str,
+                        )
                         result = await tools.execute(tool_call.name, tool_call.arguments)
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "name": tool_call.name,
-                            "content": result,
-                        })
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "name": tool_call.name,
+                                "content": result,
+                            }
+                        )
                 else:
                     final_result = response.content
                     break
@@ -184,15 +191,18 @@ Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not men
         )
 
         await self.bus.publish_inbound(msg)
-        logger.debug("Subagent [{}] announced result to {}:{}", task_id, origin['channel'], origin['chat_id'])
-    
+        logger.debug(
+            "Subagent [{}] announced result to {}:{}", task_id, origin["channel"], origin["chat_id"]
+        )
+
     def _build_subagent_prompt(self) -> str:
         """Build a focused system prompt for the subagent."""
         from deeptutor.tutorbot.agent.context import ContextBuilder
         from deeptutor.tutorbot.agent.skills import SkillsLoader
 
         time_ctx = ContextBuilder._build_runtime_context(None, None)
-        parts = [f"""# Subagent
+        parts = [
+            f"""# Subagent
 
 {time_ctx}
 
@@ -200,18 +210,24 @@ You are a subagent spawned by the main agent to complete a specific task.
 Stay focused on the assigned task. Your final response will be reported back to the main agent.
 
 ## Workspace
-{self.workspace}"""]
+{self.workspace}"""
+        ]
 
         skills_summary = SkillsLoader(self.workspace).build_skills_summary()
         if skills_summary:
-            parts.append(f"## Skills\n\nRead SKILL.md with read_file to use a skill.\n\n{skills_summary}")
+            parts.append(
+                f"## Skills\n\nRead SKILL.md with read_file to use a skill.\n\n{skills_summary}"
+            )
 
         return "\n\n".join(parts)
 
     async def cancel_by_session(self, session_key: str) -> int:
         """Cancel all subagents for the given session. Returns count cancelled."""
-        tasks = [self._running_tasks[tid] for tid in self._session_tasks.get(session_key, [])
-                 if tid in self._running_tasks and not self._running_tasks[tid].done()]
+        tasks = [
+            self._running_tasks[tid]
+            for tid in self._session_tasks.get(session_key, [])
+            if tid in self._running_tasks and not self._running_tasks[tid].done()
+        ]
         for t in tasks:
             t.cancel()
         if tasks:

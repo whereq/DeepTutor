@@ -18,9 +18,9 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from deeptutor.logging import ConsoleFormatter
 from deeptutor.runtime.registry.capability_registry import get_capability_registry
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
-from deeptutor.logging import ConsoleFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -220,8 +220,9 @@ async def _execute_stream(tool_name: str, params: dict[str, Any]) -> AsyncGenera
 
             stdout_stream._stream = sys.stdout
             stderr_stream._stream = sys.stderr
-            with contextlib.redirect_stdout(stdout_stream), contextlib.redirect_stderr(
-                stderr_stream
+            with (
+                contextlib.redirect_stdout(stdout_stream),
+                contextlib.redirect_stderr(stderr_stream),
             ):
                 result = await tool.execute(**params)
             result_holder["data"] = {
@@ -333,8 +334,9 @@ async def _execute_capability_stream(
 
             stdout_stream._stream = sys.stdout
             stderr_stream._stream = sys.stderr
-            with contextlib.redirect_stdout(stdout_stream), contextlib.redirect_stderr(
-                stderr_stream
+            with (
+                contextlib.redirect_stdout(stdout_stream),
+                contextlib.redirect_stderr(stderr_stream),
             ):
                 async for event in orch.handle(ctx):
                     if event.type.value == "result":

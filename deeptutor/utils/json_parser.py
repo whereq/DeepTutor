@@ -14,10 +14,17 @@ import logging
 import re
 from typing import Any
 
+_repair_json_fn: Any = None
+
 try:
-    from json_repair import repair_json
+    from json_repair import repair_json as _repair_json_import
 except ImportError:
-    repair_json = None
+    pass
+else:
+    _repair_json_fn = _repair_json_import
+
+# Keep a public alias so tests and callers can patch the repair hook directly.
+repair_json = _repair_json_fn
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +33,7 @@ _UNSET = object()
 
 def parse_json_response(
     response: str,
-    logger_instance: logging.Logger | None = None,
+    logger_instance: Any = None,
     fallback: Any = _UNSET,
 ) -> Any:
     """

@@ -8,7 +8,7 @@ interface MermaidProps {
   className?: string;
 }
 
-let mermaidLoader: Promise<typeof import("mermaid")["default"]> | null = null;
+let mermaidLoader: Promise<(typeof import("mermaid"))["default"]> | null = null;
 
 async function loadMermaid() {
   if (!mermaidLoader) {
@@ -91,7 +91,9 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
       } catch (err) {
         cleanupMermaidOrphans(id);
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to render diagram");
+          setError(
+            err instanceof Error ? err.message : t("Failed to render diagram"),
+          );
         }
       }
     };
@@ -100,7 +102,7 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
     return () => {
       cancelled = true;
     };
-  }, [stable, chart, id]);
+  }, [stable, chart, id, t]);
 
   if (error) {
     return (
@@ -125,7 +127,9 @@ export const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
 
   if (!stable && !svg) {
     return (
-      <div className={`my-4 rounded-xl border border-[var(--border)] bg-[var(--muted)]/50 px-4 py-3 text-sm text-[var(--muted-foreground)] ${className}`}>
+      <div
+        className={`my-4 rounded-xl border border-[var(--border)] bg-[var(--muted)]/50 px-4 py-3 text-sm text-[var(--muted-foreground)] ${className}`}
+      >
         {t("Rendering diagram...")}
       </div>
     );
