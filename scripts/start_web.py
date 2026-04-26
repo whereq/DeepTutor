@@ -78,6 +78,8 @@ def _spawn(
         "stderr": subprocess.STDOUT,
         "text": True,
         "bufsize": 1,
+        "encoding": "utf-8",
+        "errors": "replace",
     }
     if os.name == "nt":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
