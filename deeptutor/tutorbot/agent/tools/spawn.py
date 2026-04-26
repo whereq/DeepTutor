@@ -52,7 +52,7 @@ class SpawnTool(Tool):
             "required": ["task"],
         }
 
-    async def execute(self, task: str, label: str | None = None, **kwargs: Any) -> str:
+    async def execute(self, task: str, label: str | None = None, **kwargs: Any) -> str:  # type: ignore[override]
         """Spawn a subagent to execute the given task."""
         return await self._manager.spawn(
             task=task,

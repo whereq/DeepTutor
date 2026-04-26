@@ -10,7 +10,8 @@ export function useMeasuredHeight<T extends HTMLElement>() {
     const element = ref.current;
     if (!element || typeof ResizeObserver === "undefined") return;
 
-    const updateHeight = () => setHeight(element.getBoundingClientRect().height);
+    const updateHeight = () =>
+      setHeight(element.getBoundingClientRect().height);
     updateHeight();
 
     const observer = new ResizeObserver(() => updateHeight());

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from deeptutor.agents.base_agent import BaseAgent
+from deeptutor.core.context import Attachment
 from deeptutor.core.trace import build_trace_metadata, new_call_id
 
 from ..models import VisualizationAnalysis
@@ -32,10 +33,16 @@ class AnalysisAgent(BaseAgent):
         user_input: str,
         history_context: str,
         render_mode: str = "auto",
+        attachments: list[Attachment] | None = None,
     ) -> VisualizationAnalysis:
-        if render_mode in ("svg", "chartjs", "mermaid"):
+        if render_mode in ("svg", "chartjs", "mermaid", "html"):
             system_prompt = self.get_prompt("system_fixed")
             user_template = self.get_prompt("user_template_fixed")
+        elif render_mode == "figure":
+            # Constrained-auto mode: LLM picks one of svg/chartjs/mermaid
+            # (html is excluded). Used by the Book figure block.
+            system_prompt = self.get_prompt("system_figure")
+            user_template = self.get_prompt("user_template_figure")
         else:
             system_prompt = self.get_prompt("system")
             user_template = self.get_prompt("user_template")
@@ -46,7 +53,7 @@ class AnalysisAgent(BaseAgent):
             "user_input": user_input.strip(),
             "history_context": history_context.strip() or "(none)",
         }
-        if render_mode in ("svg", "chartjs", "mermaid"):
+        if render_mode in ("svg", "chartjs", "mermaid", "html"):
             format_kwargs["render_type"] = render_mode
 
         user_prompt = user_template.format(**format_kwargs)
@@ -57,6 +64,7 @@ class AnalysisAgent(BaseAgent):
             system_prompt=system_prompt,
             response_format={"type": "json_object"},
             stage="analyzing",
+            attachments=attachments,
             trace_meta=build_trace_metadata(
                 call_id=new_call_id("viz-analysis"),
                 phase="analyzing",
@@ -69,6 +77,13 @@ class AnalysisAgent(BaseAgent):
             chunks.append(chunk)
         response = "".join(chunks)
         result = VisualizationAnalysis.model_validate(extract_json_object(response))
-        if render_mode in ("svg", "chartjs", "mermaid"):
+        if render_mode in ("svg", "chartjs", "mermaid", "html"):
             result.render_type = render_mode  # type: ignore[assignment]
+        elif render_mode == "figure" and result.render_type not in (
+            "svg",
+            "chartjs",
+            "mermaid",
+        ):
+            # Defensive: if the LLM ignored the constraint, force a safe default.
+            result.render_type = "svg"  # type: ignore[assignment]
         return result

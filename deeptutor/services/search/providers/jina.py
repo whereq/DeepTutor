@@ -76,10 +76,10 @@ class JinaProvider(BaseSearchProvider):
         encoded_query = urllib.parse.quote(query)
         url = f"{self.BASE_URL}/{encoded_query}"
 
-        request_kwargs: dict[str, Any] = {"headers": headers, "timeout": timeout}
+        request_kwargs: dict[str, Any] = {"headers": headers}
         if self.proxy:
             request_kwargs["proxies"] = {"http": self.proxy, "https": self.proxy}
-        response = requests.get(url, **request_kwargs)
+        response = requests.get(url, timeout=timeout, **request_kwargs)
 
         if response.status_code != 200:
             self.logger.error(f"Jina API error: {response.status_code}")

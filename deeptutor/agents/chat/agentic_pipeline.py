@@ -21,27 +21,74 @@ from deeptutor.core.trace import (
     new_call_id,
 )
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
+from deeptutor.services.config import get_chat_params
 from deeptutor.services.llm import (
     clean_thinking_tags,
-    complete as llm_complete,
     get_llm_config,
     get_token_limit_kwargs,
     prepare_multimodal_messages,
-    stream as llm_stream,
     supports_response_format,
     supports_tools,
 )
+from deeptutor.services.llm import (
+    stream as llm_stream,
+)
+from deeptutor.services.prompt import get_prompt_manager
 from deeptutor.tools.builtin import BUILTIN_TOOL_NAMES
 from deeptutor.utils.json_parser import parse_json_response
 
 logger = logging.getLogger(__name__)
 
 CHAT_EXCLUDED_TOOLS = {"geogebra_analysis"}
-CHAT_OPTIONAL_TOOLS = [
-    name for name in BUILTIN_TOOL_NAMES if name not in CHAT_EXCLUDED_TOOLS
-]
+CHAT_OPTIONAL_TOOLS = [name for name in BUILTIN_TOOL_NAMES if name not in CHAT_EXCLUDED_TOOLS]
 MAX_PARALLEL_TOOL_CALLS = 8
 MAX_TOOL_RESULT_CHARS = 4000
+
+CHAT_STAGE_KEYS: tuple[str, ...] = (
+    "responding",
+    "answer_now",
+    "thinking",
+    "observing",
+    "acting",
+    "react_fallback",
+)
+
+
+@dataclass
+class _ChatLimits:
+    """Per-stage ``max_tokens`` resolved from ``capabilities.chat`` in agents.yaml."""
+
+    responding: int
+    answer_now: int
+    thinking: int
+    observing: int
+    acting: int
+    react_fallback: int
+
+    @classmethod
+    def from_config(cls, cfg: dict[str, Any]) -> "_ChatLimits":
+        # Defaults below mirror DEFAULT_CHAT_PARAMS so the pipeline still works
+        # if the YAML block is missing entirely (e.g. minimal/legacy installs).
+        fallback = {
+            "responding": 8000,
+            "answer_now": 8000,
+            "thinking": 2000,
+            "observing": 2000,
+            "acting": 2000,
+            "react_fallback": 1500,
+        }
+        resolved: dict[str, int] = {}
+        for key in CHAT_STAGE_KEYS:
+            stage_cfg = cfg.get(key) if isinstance(cfg, dict) else None
+            if isinstance(stage_cfg, dict):
+                value = stage_cfg.get("max_tokens", fallback[key])
+            else:
+                value = fallback[key]
+            try:
+                resolved[key] = int(value)
+            except (TypeError, ValueError):
+                resolved[key] = fallback[key]
+        return cls(**resolved)
 
 
 @dataclass
@@ -67,6 +114,33 @@ class AgenticChatPipeline:
         self.api_version = getattr(self.llm_config, "api_version", None)
         self.registry = get_tool_registry()
         self._usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
+        # capabilities.chat in agents.yaml drives token budgets and temperature
+        # for every LLM call below; falls back to DEFAULT_CHAT_PARAMS if the
+        # block is missing.
+        try:
+            chat_cfg = get_chat_params()
+        except Exception as exc:
+            logger.warning("Failed to load chat params, using defaults: %s", exc)
+            chat_cfg = {}
+        try:
+            self._chat_temperature = float(chat_cfg.get("temperature", 0.2))
+        except (TypeError, ValueError):
+            self._chat_temperature = 0.2
+        self._chat_limits = _ChatLimits.from_config(chat_cfg)
+        # Prompts live in deeptutor/agents/chat/prompts/{zh,en}/agentic_chat.yaml
+        # so all user-visible / LLM-facing copy is editable without touching code.
+        try:
+            self._prompts: dict[str, Any] = (
+                get_prompt_manager().load_prompts(
+                    module_name="chat",
+                    agent_name="agentic_chat",
+                    language=self.language,
+                )
+                or {}
+            )
+        except Exception as exc:
+            logger.warning("Failed to load agentic_chat prompts: %s", exc)
+            self._prompts = {}
 
     def _accumulate_usage(self, response: Any) -> None:
         usage = getattr(response, "usage", None)
@@ -161,7 +235,7 @@ class AgenticChatPipeline:
         trace_meta = build_trace_metadata(
             call_id=new_call_id("chat-thinking"),
             phase="thinking",
-            label=self._text(zh="Reasoning", en="Reasoning"),
+            label=self._t("labels.reasoning", default="Reasoning"),
             call_kind="llm_reasoning",
             trace_id="chat-thinking",
             trace_role="thought",
@@ -177,10 +251,14 @@ class AgenticChatPipeline:
                     {"trace_kind": "call_status", "call_state": "running"},
                 ),
             )
+            thinking_user = self._t(
+                "thinking.user",
+                user_message=context.user_message,
+            )
             messages = self._build_messages(
                 context=context,
                 system_prompt=self._thinking_system_prompt(enabled_tools, context),
-                user_content=context.user_message,
+                user_content=thinking_user or context.user_message,
             )
             messages, images_stripped = self._prepare_messages_with_attachments(
                 messages,
@@ -195,7 +273,9 @@ class AgenticChatPipeline:
                 )
 
             chunks: list[str] = []
-            async for chunk in self._stream_messages(messages, max_tokens=1200):
+            async for chunk in self._stream_messages(
+                messages, max_tokens=self._chat_limits.thinking
+            ):
                 if not chunk:
                     continue
                 chunks.append(chunk)
@@ -226,10 +306,7 @@ class AgenticChatPipeline:
         async with stream.stage("acting", source="chat"):
             if not enabled_tools:
                 await stream.progress(
-                    self._text(
-                        zh="当前没有启用任何工具，本轮跳过工具调用。",
-                        en="No tools are enabled for this turn, so tool execution was skipped.",
-                    ),
+                    self._t("notices.no_tools_enabled"),
                     source="chat",
                     stage="acting",
                 )
@@ -244,10 +321,7 @@ class AgenticChatPipeline:
                 )
 
             await stream.progress(
-                self._text(
-                    zh="当前模型不支持原生工具调用，已切换到 ReAct 文本编排。",
-                    en="The current model does not support native tool calling, so ReAct text orchestration is used.",
-                ),
+                self._t("notices.react_fallback_switch"),
                 source="chat",
                 stage="acting",
             )
@@ -269,7 +343,7 @@ class AgenticChatPipeline:
         trace_meta = build_trace_metadata(
             call_id=new_call_id("chat-observing"),
             phase="observing",
-            label=self._text(zh="Observation", en="Observation"),
+            label=self._t("labels.observation", default="Observation"),
             call_kind="llm_observation",
             trace_id="chat-observing",
             trace_role="observe",
@@ -285,17 +359,7 @@ class AgenticChatPipeline:
                     {"trace_kind": "call_status", "call_state": "running"},
                 ),
             )
-            observation_prompt = self._text(
-                zh=(
-                    "请整理本轮推理与工具执行得到的关键信息，输出给 tutor 自己看的观察总结。"
-                    "聚焦：已确认事实、仍不确定的点、最终回答应强调什么。不要直接写给学生。"
-                ),
-                en=(
-                    "Summarize what was learned from the reasoning and tool execution for the tutor's internal observation note. "
-                    "Focus on confirmed facts, remaining uncertainty, and what the final answer should emphasize. "
-                    "Do not address the student directly."
-                ),
-            )
+            observation_prompt = self._t("observing.user_intro")
             messages = self._build_messages(
                 context=context,
                 system_prompt=self._observing_system_prompt(enabled_tools),
@@ -307,7 +371,9 @@ class AgenticChatPipeline:
             )
 
             chunks: list[str] = []
-            async for chunk in self._stream_messages(messages, max_tokens=1200):
+            async for chunk in self._stream_messages(
+                messages, max_tokens=self._chat_limits.observing
+            ):
                 if not chunk:
                     continue
                 chunks.append(chunk)
@@ -340,7 +406,7 @@ class AgenticChatPipeline:
         trace_meta = build_trace_metadata(
             call_id=new_call_id("chat-responding"),
             phase="responding",
-            label=self._text(zh="Final response", en="Final response"),
+            label=self._t("labels.final_response", default="Final response"),
             call_kind="llm_final_response",
             trace_id="chat-responding",
             trace_role="response",
@@ -356,29 +422,23 @@ class AgenticChatPipeline:
                     {"trace_kind": "call_status", "call_state": "running"},
                 ),
             )
-            user_prompt = self._text(
-                zh=(
-                    f"用户问题：\n{context.user_message}\n\n"
-                    f"{self._labeled_block('Observation', observation)}\n\n"
-                    f"{self._labeled_block('Tool Trace', self._format_tool_traces(tool_traces))}\n\n"
-                    "请基于以上内容，直接给出正式回答。不要暴露内部 pipeline、thinking、observing 等字样。"
-                ),
-                en=(
-                    f"User request:\n{context.user_message}\n\n"
-                    f"{self._labeled_block('Observation', observation)}\n\n"
-                    f"{self._labeled_block('Tool Trace', self._format_tool_traces(tool_traces))}\n\n"
-                    "Use this material to produce the final answer for the user. "
-                    "Do not mention the internal pipeline, thinking, or observing stages."
-                ),
+            user_prompt = self._t(
+                "responding.user",
+                user_message=context.user_message,
+                observation=observation.strip() if observation.strip() else "(empty)",
+                tool_trace=self._format_tool_traces(tool_traces),
             )
             messages = self._build_messages(
                 context=context,
                 system_prompt=self._responding_system_prompt(enabled_tools),
                 user_content=user_prompt,
             )
+            messages, _ = self._prepare_messages_with_attachments(messages, context)
 
             chunks: list[str] = []
-            async for chunk in self._stream_messages(messages, max_tokens=1800):
+            async for chunk in self._stream_messages(
+                messages, max_tokens=self._chat_limits.responding
+            ):
                 if not chunk:
                     continue
                 chunks.append(chunk)
@@ -397,7 +457,49 @@ class AgenticChatPipeline:
                     {"trace_kind": "call_status", "call_state": "complete"},
                 ),
             )
-            return clean_thinking_tags("".join(chunks), self.binding, self.model), trace_meta
+            final_response = clean_thinking_tags("".join(chunks), self.binding, self.model)
+            if not final_response.strip():
+                # The provider returned an empty stream (zero non-empty chunks)
+                # or only whitespace. This typically means: model hit a token
+                # limit, was filtered, or treated the observation as the final
+                # answer. Surface a non-terminal warning so the operator sees
+                # the cause in logs and the UI can hint a Regenerate.
+                prompt_chars = sum(len(str(m.get("content") or "")) for m in messages)
+                logger.warning(
+                    "[%s] responding stage returned empty response "
+                    "(model=%s, chunks=%d, prompt_chars=%d, max_tokens=%d, observation_chars=%d)",
+                    trace_meta.get("call_id"),
+                    self.model,
+                    len(chunks),
+                    prompt_chars,
+                    self._chat_limits.responding,
+                    len(observation or ""),
+                )
+                await stream.error(
+                    self._t(
+                        "notices.empty_response",
+                        default=(
+                            "The model returned an empty response. "
+                            "Try Regenerate or rephrase the question."
+                        ),
+                    ),
+                    source="chat",
+                    stage="responding",
+                    metadata=merge_trace_metadata(
+                        trace_meta,
+                        {
+                            "trace_kind": "warning",
+                            "warning_kind": "empty_response",
+                            "chunks": len(chunks),
+                            "prompt_chars": prompt_chars,
+                            "max_tokens": self._chat_limits.responding,
+                            # Explicitly mark as non-terminal so the runtime
+                            # does not flip the turn to ``failed``.
+                            "turn_terminal": False,
+                        },
+                    ),
+                )
+            return final_response, trace_meta
 
     async def _stage_answer_now(
         self,
@@ -430,23 +532,13 @@ class AgenticChatPipeline:
             ).strip()
             partial_response = str(answer_now_context.get("partial_response") or "").strip()
             trace_summary = self._format_answer_now_events(answer_now_context.get("events"))
-            user_prompt = self._text(
-                zh=(
-                    f"用户原始问题：\n{original_user_message}\n\n"
-                    f"{self._labeled_block('Current Draft', partial_response)}\n\n"
-                    f"{self._labeled_block('Execution Trace', trace_summary)}\n\n"
-                    "请基于当前已经完成的内容，立刻直接生成给用户的最终答复。"
-                    "不要继续规划或调用工具，不要提到内部阶段。"
-                    "如果信息仍有缺口，请诚实说明不确定之处，但仍尽可能先给出当前最有用的回答。"
-                ),
-                en=(
-                    f"Original user request:\n{original_user_message}\n\n"
-                    f"{self._labeled_block('Current Draft', partial_response)}\n\n"
-                    f"{self._labeled_block('Execution Trace', trace_summary)}\n\n"
-                    "Using only the material already gathered so far, produce the final user-facing answer now. "
-                    "Do not continue planning or call tools, and do not mention internal stages. "
-                    "If something is still uncertain, be explicit about the uncertainty while still giving the most useful answer you can."
-                ),
+            user_prompt = self._t(
+                "answer_now.user",
+                original_user_message=original_user_message,
+                partial_response=partial_response.strip()
+                if partial_response.strip()
+                else "(empty)",
+                trace_summary=trace_summary,
             )
             messages = self._build_messages(
                 context=context,
@@ -455,7 +547,9 @@ class AgenticChatPipeline:
             )
 
             chunks: list[str] = []
-            async for chunk in self._stream_messages(messages, max_tokens=1800):
+            async for chunk in self._stream_messages(
+                messages, max_tokens=self._chat_limits.answer_now
+            ):
                 if not chunk:
                     continue
                 chunks.append(chunk)
@@ -489,12 +583,13 @@ class AgenticChatPipeline:
             system_prompt=self._acting_system_prompt(enabled_tools, context),
             user_content=self._acting_user_prompt(context, thinking_text),
         )
+        messages, _ = self._prepare_messages_with_attachments(messages, context)
         tool_traces: list[ToolTrace] = []
         client = self._build_openai_client()
         trace_meta = build_trace_metadata(
             call_id=new_call_id("chat-acting"),
             phase="acting",
-            label=self._text(zh="Tool call", en="Tool call"),
+            label=self._t("labels.tool_call", default="Tool call"),
             call_kind="tool_planning",
             trace_id="chat-acting",
             trace_role="tool",
@@ -514,7 +609,7 @@ class AgenticChatPipeline:
             messages=messages,
             tools=tool_schemas,
             tool_choice="auto",
-            **self._completion_kwargs(max_tokens=1500),
+            **self._completion_kwargs(max_tokens=self._chat_limits.acting),
         )
         self._accumulate_usage(response)
         if not response.choices:
@@ -535,10 +630,7 @@ class AgenticChatPipeline:
 
         if not raw_tool_calls:
             await stream.progress(
-                self._text(
-                    zh="本轮不需要调用工具。",
-                    en="No tool call was needed for this turn.",
-                ),
+                self._t("notices.no_tool_call_needed"),
                 source="chat",
                 stage="acting",
                 metadata=merge_trace_metadata(trace_meta, {"trace_kind": "progress"}),
@@ -557,12 +649,10 @@ class AgenticChatPipeline:
         pending_calls: list[tuple[str, str, dict[str, Any]]] = []
         if len(raw_tool_calls) > MAX_PARALLEL_TOOL_CALLS:
             await stream.progress(
-                self._text(
-                    zh=f"模型请求了 {len(raw_tool_calls)} 个工具，本轮最多并行执行 {MAX_PARALLEL_TOOL_CALLS} 个，已截断。",
-                    en=(
-                        f"The model requested {len(raw_tool_calls)} tools. "
-                        f"At most {MAX_PARALLEL_TOOL_CALLS} can run in parallel in one turn, so the list was truncated."
-                    ),
+                self._t(
+                    "notices.too_many_tool_calls",
+                    requested=len(raw_tool_calls),
+                    limit=MAX_PARALLEL_TOOL_CALLS,
                 ),
                 source="chat",
                 stage="acting",
@@ -674,14 +764,8 @@ class AgenticChatPipeline:
             control_actions=[
                 {
                     "name": "done",
-                    "when_to_use": self._text(
-                        zh="当已有信息足够，且不需要继续调用工具时使用。",
-                        en="Use when the available information is sufficient and no more tools are needed.",
-                    ),
-                    "input_format": self._text(
-                        zh="空字符串。",
-                        en="Empty string.",
-                    ),
+                    "when_to_use": self._t("react_fallback.done_when_to_use"),
+                    "input_format": self._t("react_fallback.done_input_format"),
                 }
             ],
         )
@@ -689,7 +773,7 @@ class AgenticChatPipeline:
         trace_meta = build_trace_metadata(
             call_id=new_call_id("chat-react"),
             phase="acting",
-            label=self._text(zh="Tool call", en="Tool call"),
+            label=self._t("labels.tool_call", default="Tool call"),
             call_kind="tool_planning",
             trace_id="chat-react",
             trace_role="tool",
@@ -718,7 +802,7 @@ class AgenticChatPipeline:
             response_format={"type": "json_object"}
             if supports_response_format(self.binding, self.model)
             else None,
-            **self._completion_kwargs(max_tokens=800),
+            **self._completion_kwargs(max_tokens=self._chat_limits.react_fallback),
         ):
             _chunks.append(_c)
         response = "".join(_chunks)
@@ -747,10 +831,7 @@ class AgenticChatPipeline:
                     metadata=merge_trace_metadata(trace_meta, {"trace_kind": "llm_output"}),
                 )
             await stream.progress(
-                self._text(
-                    zh="本轮不需要调用工具。",
-                    en="No tool call was needed for this turn.",
-                ),
+                self._t("notices.no_tool_call_needed"),
                 source="chat",
                 stage="acting",
                 metadata=merge_trace_metadata(trace_meta, {"trace_kind": "progress"}),
@@ -805,10 +886,7 @@ class AgenticChatPipeline:
             metadata = result["metadata"]
         except Exception:
             logger.error("Fallback tool %s failed", action, exc_info=True)
-            result_text = self._text(
-                zh=f"执行工具 {action} 时发生未知错误。",
-                en=f"An unknown error occurred while executing {action}.",
-            )
+            result_text = self._t("notices.tool_unknown_error", tool=action)
             success = False
             sources = []
             metadata = {"error": result_text}
@@ -854,10 +932,10 @@ class AgenticChatPipeline:
         system_parts = [system_prompt]
         if context.memory_context:
             system_parts.append(context.memory_context)
+        if context.skills_context:
+            system_parts.append(context.skills_context)
 
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": "\n\n".join(system_parts)}
-        ]
+        messages: list[dict[str, Any]] = [{"role": "system", "content": "\n\n".join(system_parts)}]
         for item in context.conversation_history:
             role = item.get("role")
             content = item.get("content")
@@ -925,7 +1003,7 @@ class AgenticChatPipeline:
         )
 
     def _completion_kwargs(self, max_tokens: int) -> dict[str, Any]:
-        kwargs: dict[str, Any] = {"temperature": 0.2}
+        kwargs: dict[str, Any] = {"temperature": self._chat_temperature}
         if self.model:
             kwargs.update(get_token_limit_kwargs(self.model, max_tokens))
         return kwargs
@@ -933,7 +1011,14 @@ class AgenticChatPipeline:
     def _can_use_native_tool_calling(self) -> bool:
         if not supports_tools(self.binding, self.model):
             return False
-        return self.binding not in {"anthropic", "claude", "ollama", "lm_studio", "vllm", "llama_cpp"}
+        return self.binding not in {
+            "anthropic",
+            "claude",
+            "ollama",
+            "lm_studio",
+            "vllm",
+            "llama_cpp",
+        }
 
     def _normalize_enabled_tools(self, enabled_tools: list[str] | None) -> list[str]:
         selected = enabled_tools or []
@@ -945,13 +1030,11 @@ class AgenticChatPipeline:
 
     @staticmethod
     def _extract_answer_now_context(context: UnifiedContext) -> dict[str, Any] | None:
-        raw = context.config_overrides.get("answer_now_context")
-        if not isinstance(raw, dict):
-            return None
-        original_user_message = str(raw.get("original_user_message") or "").strip()
-        if not original_user_message:
-            return None
-        return raw
+        # Delegate to the shared helper so every capability uses the
+        # exact same gate (presence + non-empty original_user_message).
+        from deeptutor.capabilities._answer_now import extract_answer_now_context
+
+        return extract_answer_now_context(context)
 
     async def _execute_tool_call(
         self,
@@ -982,7 +1065,7 @@ class AgenticChatPipeline:
         if stream is not None and retrieve_meta is not None:
             query = str(retrieve_meta.get("query") or tool_args.get("query") or "").strip()
             await stream.progress(
-                f"Query: {query}" if query else self._text(zh="开始检索", en="Starting retrieval"),
+                f"Query: {query}" if query else self._t("notices.start_retrieval"),
                 source="chat",
                 stage="acting",
                 metadata=derive_trace_metadata(
@@ -1009,11 +1092,7 @@ class AgenticChatPipeline:
                     ),
                 )
             return {
-                "result_text": result.content
-                or self._text(
-                    zh="工具执行完成，但没有返回文本内容。",
-                    en="The tool completed without returning text output.",
-                ),
+                "result_text": result.content or self._t("notices.empty_tool_result"),
                 "success": result.success,
                 "sources": result.sources,
                 "metadata": result.metadata,
@@ -1077,7 +1156,7 @@ class AgenticChatPipeline:
         return derive_trace_metadata(
             trace_meta,
             call_id=new_call_id(f"chat-retrieve-{tool_index + 1}"),
-            label=self._text(zh="Retrieve", en="Retrieve"),
+            label=self._t("labels.retrieve", default="Retrieve"),
             call_kind="rag_retrieval",
             trace_role="retrieve",
             trace_group="retrieve",
@@ -1140,58 +1219,15 @@ class AgenticChatPipeline:
             format="aliases",
             language=self.language,
         )
-        return self._text(
-            zh=(
-                "你是 DeepTutor 的工具调用代理。你的任务是根据用户问题和前序 thinking，"
-                "从当前已启用的工具中自主选择必要工具并调用。"
-                "\n\n规则：\n"
-                "1. 先完整审视所有已启用工具，再决定最有帮助的工具组合；不要只盯住单个工具。\n"
-                "2. 对于需要定义、事实核验、外部资料、论文、计算、推理等不同信息面的复杂问题，优先并行调用多个互补工具来覆盖这些信息面。\n"
-                "3. 只调用真正有帮助的工具，但只要工具能显著提升答案质量，就应充分调用。\n"
-                "4. 参数要具体、可执行，优先使用用户原问题中的关键信息，必要时针对不同工具改写成最适合它的查询。\n"
-                "5. 如果信息已经足够，可以不调用工具。\n"
-                "6. 不要输出最终回答给学生；这里只负责工具选择与调用。\n"
-                f"7. 单轮最多并行调用 {MAX_PARALLEL_TOOL_CALLS} 个工具；如果有多个互补工具都相关，优先在同一轮一起调用。\n\n"
-                f"当前可用工具：\n{tool_list or '- 无'}\n\n"
-                f"工具使用提示：\n{tool_aliases or '- 无'}"
-            ),
-            en=(
-                "You are DeepTutor's tool-using agent. Based on the user request and prior thinking, "
-                "autonomously choose and call only the enabled tools that are truly helpful."
-                "\n\nRules:\n"
-                "1. Review the full enabled tool list before deciding; do not fixate on a single tool too early.\n"
-                "2. For complex questions that need definitions, grounding, outside evidence, papers, calculation, or deeper reasoning, prefer calling multiple complementary tools in parallel so each one covers a distinct information need.\n"
-                "3. Call tools only when they add value, but when they materially improve answer quality you should use them fully.\n"
-                "4. Use concrete, executable arguments grounded in the user's request, and adapt the wording when different tools need different query styles.\n"
-                "5. If enough evidence already exists, you may skip tool use.\n"
-                "6. Do not produce the final student-facing answer here; this stage is only for tool use.\n"
-                f"7. At most {MAX_PARALLEL_TOOL_CALLS} tools may run in parallel in one turn; if several complementary tools are relevant, prefer issuing them together in the same turn.\n\n"
-                f"Enabled tools:\n{tool_list or '- none'}\n\n"
-                f"Tool usage notes:\n{tool_aliases or '- none'}"
-            ),
+        return self._t(
+            "acting.system",
+            tool_list=tool_list or self._fallback_empty_tool_list(),
+            tool_aliases=tool_aliases or self._fallback_empty_tool_list(),
+            max_parallel_tools=MAX_PARALLEL_TOOL_CALLS,
         )
 
     def _react_fallback_system_prompt(self, tool_table: str) -> str:
-        return self._text(
-            zh=(
-                "你是 DeepTutor 的 ReAct 工具代理。你必须只输出一个 JSON 对象，不要输出其他文本。\n\n"
-                "JSON 格式：\n"
-                '{\n  "action": "<tool_name_or_done>",\n  "action_input": { ... }\n}\n\n'
-                "可选动作如下：\n"
-                f"{tool_table}\n\n"
-                "先基于用户问题和可用工具列表判断是否真的需要工具；若需要，请选择最能补足关键信息缺口的那个工具。"
-                "如果不需要工具，请输出 action=done。"
-            ),
-            en=(
-                "You are DeepTutor's ReAct tool agent. Output exactly one JSON object and nothing else.\n\n"
-                "JSON format:\n"
-                '{\n  "action": "<tool_name_or_done>",\n  "action_input": { ... }\n}\n\n'
-                "Available actions:\n"
-                f"{tool_table}\n\n"
-                "Decide from the user request and the full enabled tool list whether tool use is truly needed; if it is, choose the single tool that best closes the most important information gap. "
-                "If no tool is needed, set action=done."
-            ),
-        )
+        return self._t("react_fallback.system", tool_table=tool_table)
 
     def _thinking_system_prompt(self, enabled_tools: list[str], context: UnifiedContext) -> str:
         kb_name = context.knowledge_bases[0] if context.knowledge_bases else ""
@@ -1201,26 +1237,12 @@ class AgenticChatPipeline:
             language=self.language,
             kb_name=kb_name,
         )
-        return self._text(
-            zh=(
-                "你是 DeepTutor 的 thinking 阶段。请先分析用户问题，判断目标、已知条件、缺失信息，"
-                "并思考是否需要后续工具调用。这里输出的是 tutor 的内部思路，不是最终回复。"
-                "\n\n要求：\n"
-                "1. 流式、简洁、自然地输出思考过程。\n"
-                "2. 可以明确指出你预计会使用哪些工具，但此阶段不要真正调用工具。\n"
-                "3. 如果用户开启了工具，请结合可用工具来规划。\n\n"
-                f"当前启用工具：\n{tool_list or '- 无'}"
-            ),
-            en=(
-                "You are DeepTutor's thinking stage. Analyze the user's request, identify goals, constraints, "
-                "missing information, and whether later tool use is needed. This is the tutor's internal reasoning, "
-                "not the final answer.\n\n"
-                "Requirements:\n"
-                "1. Stream concise, natural reasoning.\n"
-                "2. You may mention which tools seem useful, but do not call tools in this stage.\n"
-                "3. If tools are enabled, factor them into your plan.\n\n"
-                f"Enabled tools:\n{tool_list or '- none'}"
-            ),
+        has_kb = "rag" in enabled_tools and bool(context.knowledge_bases)
+        kb_hint = self._t("thinking.kb_hint") if has_kb else ""
+        return self._t(
+            "thinking.system",
+            tool_list=tool_list or self._fallback_empty_tool_list(),
+            kb_hint=kb_hint,
         )
 
     def _observing_system_prompt(self, enabled_tools: list[str]) -> str:
@@ -1229,25 +1251,12 @@ class AgenticChatPipeline:
             format="list",
             language=self.language,
         )
-        return self._text(
-            zh=(
-                "你是 DeepTutor 的 observing 阶段。请基于 thinking 和 acting 阶段的输出，"
-                "整理一份内部观察总结，供最终回答阶段使用。不要直接回答学生。"
-                "\n\n优先总结：\n"
-                "1. 已确认的事实与结论\n"
-                "2. 工具结果带来的关键证据\n"
-                "3. 仍需在最终回答中解释清楚的点\n\n"
-                f"本轮可用工具背景：\n{tool_list or '- 无'}"
-            ),
-            en=(
-                "You are DeepTutor's observing stage. Based on the outputs from the thinking and acting stages, "
-                "prepare an internal synthesis for the final answer stage. Do not answer the student directly.\n\n"
-                "Prioritize:\n"
-                "1. confirmed facts and conclusions\n"
-                "2. key evidence from tool outputs\n"
-                "3. what the final answer must explain clearly\n\n"
-                f"Tool context for this turn:\n{tool_list or '- none'}"
-            ),
+        has_rag = "rag" in enabled_tools
+        rag_hint = self._t("observing.rag_hint") if has_rag else ""
+        return self._t(
+            "observing.system",
+            tool_list=tool_list or self._fallback_empty_tool_list(),
+            rag_hint=rag_hint,
         )
 
     def _responding_system_prompt(self, enabled_tools: list[str]) -> str:
@@ -1256,49 +1265,28 @@ class AgenticChatPipeline:
             format="list",
             language=self.language,
         )
-        return self._text(
-            zh=(
-                "你是 DeepTutor 的最终回答阶段。请根据 observation 和工具结果，"
-                "给用户一个清晰、直接、结构良好的正式答复。"
-                "\n\n要求：\n"
-                "1. 只输出面向用户的正式回答。\n"
-                "2. 不要暴露内部链路、思考过程或工具编排。\n"
-                "3. 若工具结果提供了证据或限制，请自然融入答案。\n\n"
-                f"本轮工具背景：\n{tool_list or '- 无'}"
-            ),
-            en=(
-                "You are DeepTutor's final response stage. Use the observation and tool evidence to provide a clear, "
-                "direct, well-structured answer to the user.\n\n"
-                "Requirements:\n"
-                "1. Output only the final user-facing answer.\n"
-                "2. Do not reveal the internal chain, reasoning, or tool orchestration.\n"
-                "3. Naturally integrate evidence or limits surfaced by the tools.\n\n"
-                f"Tool context for this turn:\n{tool_list or '- none'}"
-            ),
+        has_rag = "rag" in enabled_tools
+        rag_hint = self._t("responding.rag_hint") if has_rag else ""
+        return self._t(
+            "responding.system",
+            tool_list=tool_list or self._fallback_empty_tool_list(),
+            rag_hint=rag_hint,
         )
 
     def _acting_user_prompt(self, context: UnifiedContext, thinking_text: str) -> str:
-        return self._text(
-            zh=(
-                f"用户问题：\n{context.user_message}\n\n"
-                f"{self._labeled_block('Thinking', thinking_text)}\n\n"
-                "请先基于问题与全部可用工具，判断有哪些信息缺口需要工具补足。"
-                f"如果需要，请尽量在同一轮并行调用多个互补工具，但总数不要超过 {MAX_PARALLEL_TOOL_CALLS} 个。"
-            ),
-            en=(
-                f"User request:\n{context.user_message}\n\n"
-                f"{self._labeled_block('Thinking', thinking_text)}\n\n"
-                "First reason about which information gaps require tools, using the full enabled tool list. "
-                f"If tool use is needed, prefer calling multiple complementary tools in the same turn, up to {MAX_PARALLEL_TOOL_CALLS} total."
-            ),
+        return self._t(
+            "acting.user",
+            user_message=context.user_message,
+            thinking=thinking_text.strip() if thinking_text.strip() else "(empty)",
+            max_parallel_tools=MAX_PARALLEL_TOOL_CALLS,
         )
+
+    def _fallback_empty_tool_list(self) -> str:
+        return "- 无" if self.language == "zh" else "- none"
 
     def _format_tool_traces(self, tool_traces: list[ToolTrace]) -> str:
         if not tool_traces:
-            return self._text(
-                zh="本轮没有实际工具调用。",
-                en="No tools were actually called in this turn.",
-            )
+            return self._t("empty.no_tool_traces")
 
         blocks: list[str] = []
         for idx, trace in enumerate(tool_traces, start=1):
@@ -1316,10 +1304,7 @@ class AgenticChatPipeline:
 
     def _format_answer_now_events(self, events: Any) -> str:
         if not isinstance(events, list) or not events:
-            return self._text(
-                zh="没有可用的中间执行记录。",
-                en="No intermediate execution trace was provided.",
-            )
+            return self._t("empty.no_intermediate_trace")
 
         lines: list[str] = []
         for index, event in enumerate(events, start=1):
@@ -1342,10 +1327,7 @@ class AgenticChatPipeline:
             lines.append(line)
 
         if not lines:
-            return self._text(
-                zh="没有可用的中间执行记录。",
-                en="No intermediate execution trace was provided.",
-            )
+            return self._t("empty.no_intermediate_trace")
         return "\n".join(lines)
 
     @staticmethod
@@ -1369,14 +1351,7 @@ class AgenticChatPipeline:
         return cleaned[: limit - 3].rstrip() + "..."
 
     def _images_stripped_notice(self) -> str:
-        return self._text(
-            zh=(
-                f"当前模型 `{self.model}` 不支持图像输入，thinking 阶段已忽略本轮图片附件。"
-            ),
-            en=(
-                f"The current model `{self.model}` does not support image input, so image attachments were ignored in the thinking stage."
-            ),
-        )
+        return self._t("notices.images_stripped", model=self.model or "")
 
     @staticmethod
     def _labeled_block(label: str, content: str) -> str:
@@ -1384,3 +1359,25 @@ class AgenticChatPipeline:
 
     def _text(self, *, zh: str, en: str) -> str:
         return zh if self.language == "zh" else en
+
+    def _t(self, key: str, default: str = "", **kwargs: Any) -> str:
+        """Look up a YAML-loaded prompt by dotted key (e.g. ``thinking.system``).
+
+        - Returns ``default`` if the key is missing or value is not a string.
+        - When ``kwargs`` are passed, the string is rendered via ``str.format``;
+          missing placeholders fall back to the unrendered template instead of
+          crashing the pipeline.
+        """
+        value: Any = self._prompts
+        for part in key.split("."):
+            if not isinstance(value, dict) or part not in value:
+                return default
+            value = value[part]
+        if not isinstance(value, str):
+            return default
+        if kwargs:
+            try:
+                return value.format(**kwargs)
+            except (KeyError, IndexError, ValueError):
+                return value
+        return value

@@ -20,6 +20,13 @@ const fontSerif = Lora({
 export const metadata: Metadata = {
   title: "DeepTutor",
   description: "Agent-native intelligent learning companion",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -28,15 +35,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${fontSans.variable} ${fontSerif.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      data-scroll-behavior="smooth"
+      className={`${fontSans.variable} ${fontSerif.variable}`}
+    >
       <head>
         <ThemeScript />
       </head>
       <body className="font-sans bg-[var(--background)] text-[var(--foreground)]">
         <AppShellProvider>
-          <I18nClientBridge>
-            {children}
-          </I18nClientBridge>
+          <I18nClientBridge>{children}</I18nClientBridge>
         </AppShellProvider>
       </body>
     </html>

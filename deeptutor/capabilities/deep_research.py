@@ -29,23 +29,58 @@ class DeepResearchCapability(BaseCapability):
     )
 
     async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
-        from deeptutor.agents.research.research_pipeline import ResearchPipeline
         from deeptutor.agents.research.request_config import (
             build_research_runtime_config,
             validate_research_request_config,
         )
+        from deeptutor.agents.research.research_pipeline import ResearchPipeline
+        from deeptutor.capabilities._answer_now import extract_answer_now_context
         from deeptutor.services.config import load_config_with_main
         from deeptutor.services.llm.config import get_llm_config
+
+        answer_now_payload = extract_answer_now_context(context)
+        if answer_now_payload is not None:
+            await self._run_answer_now(context, stream, answer_now_payload)
+            return
 
         llm_config = get_llm_config()
         kb_name = context.knowledge_bases[0] if context.knowledge_bases else None
         topic = context.user_message
         enabled_tools = set(
-            self.manifest.tools_used
-            if context.enabled_tools is None
-            else context.enabled_tools
+            self.manifest.tools_used if context.enabled_tools is None else context.enabled_tools
         )
         request_config = validate_research_request_config(context.config_overrides)
+
+        # Consistency normalization: if "kb" is selected as a research source
+        # but no knowledge base is actually attached, drop "kb" from the
+        # effective sources. This avoids any code path falling through to a
+        # placeholder KB at the pipeline layer. If after the downgrade no
+        # source is left at all, surface a clear error to the user.
+        if "kb" in request_config.sources and not kb_name:
+            request_config = request_config.model_copy(
+                update={
+                    "sources": [src for src in request_config.sources if src != "kb"],
+                }
+            )
+            await stream.progress(
+                message=(
+                    "Knowledge base source was selected, but no knowledge "
+                    "base is attached; KB retrieval is disabled for this "
+                    "research run."
+                ),
+                source=self.name,
+                stage="rephrasing",
+                metadata={"trace_kind": "warning", "reason": "kb_without_kb_name"},
+            )
+            if not request_config.sources:
+                await stream.error(
+                    "Deep research requires at least one source. Please "
+                    "either attach a knowledge base or enable web/papers "
+                    "sources.",
+                    source=self.name,
+                )
+                return
+
         config = build_research_runtime_config(
             base_config=load_config_with_main("main.yaml"),
             request_config=request_config,
@@ -157,7 +192,9 @@ class DeepResearchCapability(BaseCapability):
 
         async def _trace_cb(update: dict[str, Any]) -> None:
             event = str(update.get("event", "") or "")
-            stage = _normalize_stage(str(update.get("phase") or update.get("stage") or "researching"))
+            stage = _normalize_stage(
+                str(update.get("phase") or update.get("stage") or "researching")
+            )
             raw_stage = str(update.get("stage") or "")
             base_metadata = {
                 key: value
@@ -289,12 +326,12 @@ class DeepResearchCapability(BaseCapability):
                 progress_callback=_progress_cb,
                 trace_callback=_trace_cb,
                 conversation_history=conversation_history,
+                attachments=context.attachments,
             )
-            sub_topics_data = (
-                [item.model_dump() for item in outline_items]
-                if hasattr(outline_items[0], "model_dump")
-                else outline_items
-            )
+            sub_topics_data = []
+            for item in outline_items:
+                model_dump = getattr(item, "model_dump", None)
+                sub_topics_data.append(model_dump() if callable(model_dump) else item)
 
             outline_md = self._outline_to_markdown(topic, sub_topics_data)
             await stream.content(outline_md, source=self.name, stage="decomposing")
@@ -308,8 +345,16 @@ class DeepResearchCapability(BaseCapability):
                         "mode": request_config.mode,
                         "depth": request_config.depth,
                         "sources": list(request_config.sources),
-                        **({"manual_subtopics": request_config.manual_subtopics} if request_config.manual_subtopics is not None else {}),
-                        **({"manual_max_iterations": request_config.manual_max_iterations} if request_config.manual_max_iterations is not None else {}),
+                        **(
+                            {"manual_subtopics": request_config.manual_subtopics}
+                            if request_config.manual_subtopics is not None
+                            else {}
+                        ),
+                        **(
+                            {"manual_max_iterations": request_config.manual_max_iterations}
+                            if request_config.manual_max_iterations is not None
+                            else {}
+                        ),
                     },
                 },
                 source=self.name,
@@ -317,23 +362,25 @@ class DeepResearchCapability(BaseCapability):
             return
 
         pre_outline = [
-            {"title": item.title, "overview": item.overview}
-            for item in confirmed_outline
+            {"title": item.title, "overview": item.overview} for item in confirmed_outline
         ]
 
         pipeline = ResearchPipeline(
             config=config,
             api_key=llm_config.api_key,
-            base_url=llm_config.base_url,
+            base_url=llm_config.base_url or "",
             api_version=llm_config.api_version,
             kb_name=kb_name,
             progress_callback=_progress_cb,
             trace_callback=_trace_cb,
             pre_confirmed_outline=pre_outline,
+            attachments=context.attachments,
         )
 
         async with stream.stage("researching", source=self.name):
-            await stream.thinking(f"Researching topic: {topic}", source=self.name, stage="researching")
+            await stream.thinking(
+                f"Researching topic: {topic}", source=self.name, stage="researching"
+            )
             result = await pipeline.run(topic=topic)
 
         report = result.get("report", "")
@@ -346,10 +393,75 @@ class DeepResearchCapability(BaseCapability):
             source=self.name,
         )
 
+    async def _run_answer_now(
+        self,
+        context: UnifiedContext,
+        stream: StreamBus,
+        payload: dict[str, Any],
+    ) -> None:
+        """
+        Fast-path for ``deep_research``: skip the rephrase/decompose/research
+        loop and synthesize the report directly from whatever evidence the
+        partial trace already contains.
+        """
+        from deeptutor.capabilities._answer_now import (
+            build_answer_now_trace_metadata,
+            format_trace_summary,
+            join_chunks,
+            labeled_block,
+            load_answer_now_prompts,
+            make_skip_notice,
+            stream_synthesis,
+        )
+
+        original = str(payload.get("original_user_message") or context.user_message).strip()
+        partial = str(payload.get("partial_response") or "").strip()
+        trace_summary = format_trace_summary(payload.get("events"), language=context.language)
+
+        prompts = load_answer_now_prompts("research", context.language)
+        system_prompt = str(prompts.get("system", "")).strip()
+        user_prompt = str(prompts.get("user_template", "")).format(
+            original=original,
+            current_draft=labeled_block("Current Draft", partial),
+            research_trace=labeled_block("Research Trace", trace_summary),
+        )
+
+        trace_meta = build_answer_now_trace_metadata(
+            capability=self.name, phase="reporting", label="Answer now"
+        )
+        notice = make_skip_notice(
+            capability=self.name,
+            language=context.language,
+            stages_skipped=["rephrasing", "decomposing", "researching"],
+        )
+
+        async with stream.stage("reporting", source=self.name, metadata=trace_meta):
+            if notice:
+                await stream.content(notice + "\n\n", source=self.name, stage="reporting")
+            chunks: list[str] = []
+            async for chunk in stream_synthesis(
+                stream=stream,
+                source=self.name,
+                stage="reporting",
+                trace_meta=trace_meta,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=3200,
+            ):
+                chunks.append(chunk)
+
+        report = join_chunks(chunks)
+        full = (notice + "\n\n" + report).strip() if notice else report
+        await stream.result(
+            {
+                "response": full,
+                "metadata": {"answer_now": True},
+            },
+            source=self.name,
+        )
+
     @staticmethod
-    def _outline_to_markdown(
-        topic: str, sub_topics: list[dict[str, str]]
-    ) -> str:
+    def _outline_to_markdown(topic: str, sub_topics: list[dict[str, str]]) -> str:
         """Serialize an outline to Markdown so it is persisted in session history."""
         lines = [f"**Research Outline — {topic}**\n"]
         for i, item in enumerate(sub_topics, 1):
@@ -370,6 +482,7 @@ class DeepResearchCapability(BaseCapability):
         progress_callback: Any,
         trace_callback: Any,
         conversation_history: list[dict[str, Any]] | None = None,
+        attachments: list[Any] | None = None,
     ) -> list[dict[str, str]]:
         """Run only the planning phase (rephrase + decompose) and return sub-topics."""
         from deeptutor.agents.research.research_pipeline import ResearchPipeline
@@ -385,6 +498,7 @@ class DeepResearchCapability(BaseCapability):
             kb_name=kb_name,
             progress_callback=progress_callback,
             trace_callback=trace_callback,
+            attachments=attachments,
         )
 
         async with stream.stage("decomposing", source=self.name):

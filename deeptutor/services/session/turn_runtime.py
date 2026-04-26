@@ -36,6 +36,78 @@ def _clip_text(value: str, limit: int = 4000) -> str:
     return text[:limit].rstrip() + "\n...[truncated]"
 
 
+def _format_question_bank_entry(entry: dict[str, Any]) -> str:
+    """Render a single Question Bank entry as a structured Markdown block."""
+    lines: list[str] = []
+    title = str(entry.get("session_title", "") or "Untitled session")
+    difficulty = str(entry.get("difficulty", "") or "").strip()
+    qtype = str(entry.get("question_type", "") or "").strip()
+    is_correct = bool(entry.get("is_correct"))
+
+    badges: list[str] = []
+    if qtype:
+        badges.append(qtype)
+    if difficulty:
+        badges.append(difficulty)
+    badges.append("correct" if is_correct else "incorrect")
+    badge_text = " · ".join(badges)
+
+    lines.append(f"### Question (from {title}) [{badge_text}]")
+    lines.append(_clip_text(str(entry.get("question", "") or ""), limit=2000))
+
+    options = entry.get("options") or {}
+    if isinstance(options, dict) and options:
+        lines.append("")
+        lines.append("**Options:**")
+        for key in sorted(options.keys()):
+            lines.append(f"- {key}. {options[key]}")
+
+    user_answer = str(entry.get("user_answer", "") or "").strip()
+    correct_answer = str(entry.get("correct_answer", "") or "").strip()
+    if user_answer:
+        lines.append("")
+        lines.append(f"**User's Answer:** {_clip_text(user_answer, limit=1000)}")
+    if correct_answer:
+        lines.append(f"**Reference Answer:** {_clip_text(correct_answer, limit=1500)}")
+
+    explanation = str(entry.get("explanation", "") or "").strip()
+    if explanation:
+        lines.append("")
+        lines.append("**Explanation:**")
+        lines.append(_clip_text(explanation, limit=2000))
+
+    return "\n".join(lines)
+
+
+async def _build_question_bank_context(
+    store: SessionStoreProtocol,
+    entry_ids: list[Any],
+) -> str:
+    """Fetch the requested Question Bank entries and render them as context."""
+    get_entry = getattr(store, "get_notebook_entry", None)
+    if not callable(get_entry):
+        return ""
+
+    seen: set[int] = set()
+    blocks: list[str] = []
+    for raw in entry_ids:
+        try:
+            entry_id = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if entry_id in seen:
+            continue
+        seen.add(entry_id)
+        try:
+            entry = await get_entry(entry_id)
+        except Exception:
+            entry = None
+        if not entry:
+            continue
+        blocks.append(_format_question_bank_entry(entry))
+    return "\n\n---\n\n".join(blocks)
+
+
 def _extract_followup_question_context(
     config: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
@@ -83,6 +155,17 @@ def _extract_persist_user_message(config: dict[str, Any] | None) -> bool:
         return raw
     if isinstance(raw, str):
         return raw.strip().lower() not in {"false", "0", "no"}
+    return bool(raw)
+
+
+def _extract_regenerate_flag(config: dict[str, Any] | None) -> bool:
+    if not isinstance(config, dict):
+        return False
+    raw = config.pop("_regenerate", False)
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"true", "1", "yes"}
     return bool(raw)
 
 
@@ -204,7 +287,14 @@ class TurnRuntimeManager:
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         capability = str(payload.get("capability") or "chat")
         raw_config = dict(payload.get("config", {}) or {})
-        runtime_only_keys = ("_persist_user_message", "followup_question_context")
+        runtime_only_keys = (
+            "_persist_user_message",
+            "_regenerate",
+            "_regenerated_from_message_id",
+            "_superseded_turn_id",
+            "followup_question_context",
+            "answer_now_context",
+        )
         runtime_only_config = {
             key: raw_config.pop(key) for key in runtime_only_keys if key in raw_config
         }
@@ -236,18 +326,122 @@ class TurnRuntimeManager:
             capability=capability,
             payload=dict(payload),
         )
+        session_metadata: dict[str, Any] = {
+            "session_id": session["id"],
+            "turn_id": turn["id"],
+        }
+        regenerated_from = runtime_only_config.get("_regenerated_from_message_id")
+        if regenerated_from is not None:
+            session_metadata["regenerated_from_message_id"] = regenerated_from
+        superseded_turn_id = runtime_only_config.get("_superseded_turn_id")
+        if superseded_turn_id:
+            session_metadata["superseded_turn_id"] = str(superseded_turn_id)
+        if runtime_only_config.get("_regenerate"):
+            session_metadata["regenerate"] = True
         await self._persist_and_publish(
             execution,
             StreamEvent(
                 type=StreamEventType.SESSION,
                 source="turn_runtime",
-                metadata={"session_id": session["id"], "turn_id": turn["id"]},
+                metadata=session_metadata,
             ),
         )
         async with self._lock:
             self._executions[turn["id"]] = execution
             execution.task = asyncio.create_task(self._run_turn(execution))
         return session, turn
+
+    async def regenerate_last_turn(
+        self,
+        session_id: str,
+        overrides: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Re-run the prior user message in ``session_id``.
+
+        Deletes the trailing assistant message (if any), then dispatches a new
+        turn with ``_persist_user_message=False`` and ``_regenerate=True`` so
+        the runtime knows not to duplicate the user row or refresh long-term
+        memory a second time. The original user message stays in place.
+        """
+        session_id = str(session_id or "").strip()
+        if not session_id:
+            raise RuntimeError("nothing_to_regenerate")
+
+        session = await self.store.get_session(session_id)
+        if session is None:
+            raise RuntimeError("nothing_to_regenerate")
+
+        active = await self.store.get_active_turn(session_id)
+        if active is not None:
+            raise RuntimeError("regenerate_busy")
+
+        last_user = await self.store.get_last_message(session_id, role="user")
+        if last_user is None:
+            raise RuntimeError("nothing_to_regenerate")
+
+        last_message = await self.store.get_last_message(session_id)
+        previous_turn_id: str | None = None
+        if last_message is not None and last_message.get("role") == "assistant":
+            for event in last_message.get("events") or []:
+                turn_id = str((event or {}).get("turn_id") or "")
+                if turn_id:
+                    previous_turn_id = turn_id
+                    break
+            await self.store.delete_message(int(last_message["id"]))
+
+        preferences = session.get("preferences") or {}
+        overrides = overrides or {}
+
+        capability = str(
+            overrides.get("capability")
+            or last_user.get("capability")
+            or preferences.get("capability")
+            or "chat"
+        )
+        tools = list(
+            overrides.get("tools")
+            if overrides.get("tools") is not None
+            else preferences.get("tools") or []
+        )
+        knowledge_bases = list(
+            overrides.get("knowledge_bases")
+            if overrides.get("knowledge_bases") is not None
+            else preferences.get("knowledge_bases") or []
+        )
+        language = str(overrides.get("language") or preferences.get("language") or "en")
+
+        config: dict[str, Any] = dict(overrides.get("config") or {})
+        config.update(
+            {
+                "_persist_user_message": False,
+                "_regenerate": True,
+                "_regenerated_from_message_id": int(last_user["id"]),
+            }
+        )
+        if previous_turn_id:
+            config["_superseded_turn_id"] = previous_turn_id
+
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "capability": capability,
+            "content": str(last_user.get("content", "") or ""),
+            "tools": tools,
+            "knowledge_bases": knowledge_bases,
+            "language": language,
+            "attachments": list(last_user.get("attachments") or []),
+            "notebook_references": list(
+                overrides.get("notebook_references")
+                if overrides.get("notebook_references") is not None
+                else preferences.get("notebook_references") or []
+            ),
+            "history_references": list(
+                overrides.get("history_references")
+                if overrides.get("history_references") is not None
+                else preferences.get("history_references") or []
+            ),
+            "config": config,
+        }
+        return await self.start_turn(payload)
 
     async def cancel_turn(self, turn_id: str) -> bool:
         async with self._lock:
@@ -342,15 +536,26 @@ class TurnRuntimeManager:
             from deeptutor.services.memory import get_memory_service
             from deeptutor.services.notebook import notebook_manager
             from deeptutor.services.session.context_builder import ContextBuilder
+            from deeptutor.services.skill import get_skill_service
 
             request_config = dict(payload.get("config", {}) or {})
             followup_question_context = _extract_followup_question_context(request_config)
             persist_user_message = _extract_persist_user_message(request_config)
+            is_regenerate = _extract_regenerate_flag(request_config)
+            request_config.pop("_regenerated_from_message_id", None)
+            request_config.pop("_superseded_turn_id", None)
             raw_user_content = str(payload.get("content", "") or "")
             notebook_references = payload.get("notebook_references", []) or []
             history_references = payload.get("history_references", []) or []
+            question_notebook_references = payload.get("question_notebook_references", []) or []
             notebook_context = ""
             history_context = ""
+            question_bank_context = ""
+
+            import base64 as _b64
+            import uuid as _uuid
+
+            from deeptutor.services.storage import get_attachment_store
 
             for item in payload.get("attachments", []):
                 record = {
@@ -359,9 +564,74 @@ class TurnRuntimeManager:
                     "base64": item.get("base64", ""),
                     "filename": item.get("filename", ""),
                     "mime_type": item.get("mime_type", ""),
+                    "id": item.get("id", "") or _uuid.uuid4().hex[:12],
                 }
                 attachment_records.append(record)
-                attachments.append(Attachment(**record))
+
+            # Persist original bytes to the attachment store before extraction
+            # so the frontend preview drawer can fetch the file later. The
+            # extractor will clear base64 on documents to keep DB rows lean,
+            # but the URL we record here outlives that pruning. Upload errors
+            # are non-fatal — extraction still runs from the in-memory base64.
+            attachment_store = get_attachment_store()
+            for record in attachment_records:
+                if record.get("url"):
+                    continue  # already hosted (e.g. legacy URL)
+                b64 = record.get("base64") or ""
+                if not b64:
+                    continue
+                try:
+                    raw_bytes = _b64.b64decode(b64, validate=False)
+                except Exception as exc:
+                    logger.warning(
+                        "skipping attachment upload for %r: invalid base64 (%s)",
+                        record.get("filename"),
+                        exc,
+                    )
+                    continue
+                try:
+                    record["url"] = await attachment_store.put(
+                        session_id=session_id,
+                        attachment_id=record["id"],
+                        filename=record.get("filename", "") or "file",
+                        data=raw_bytes,
+                        mime_type=record.get("mime_type", "") or "",
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "attachment store rejected %r: %s",
+                        record.get("filename"),
+                        exc,
+                    )
+
+            from deeptutor.utils.document_extractor import extract_documents_from_records
+
+            document_texts, attachment_records = extract_documents_from_records(
+                attachment_records
+            )
+            attachments = [
+                Attachment(
+                    type=r.get("type", "file"),
+                    url=r.get("url", ""),
+                    base64=r.get("base64", ""),
+                    filename=r.get("filename", ""),
+                    mime_type=r.get("mime_type", ""),
+                    id=r.get("id", ""),
+                    extracted_text=r.get("extracted_text", ""),
+                )
+                for r in attachment_records
+            ]
+            # DB persistence copy: drop base64 unconditionally now that the
+            # original bytes live in the attachment store. Image attachments
+            # used to keep base64 here (which bloated message rows); the URL
+            # is now the stable source for previews.
+            persisted_attachment_records = [
+                {
+                    **{k: v for k, v in r.items() if k != "base64"},
+                    "base64": "",
+                }
+                for r in attachment_records
+            ]
 
             if followup_question_context:
                 existing_messages = await self.store.get_messages_for_context(session_id)
@@ -378,14 +648,28 @@ class TurnRuntimeManager:
 
             llm_config = get_llm_config()
             builder = ContextBuilder(self.store)
+
+            async def _emit_context_event(event: StreamEvent) -> None:
+                await self._persist_and_publish(execution, event)
+
             history_result = await builder.build(
                 session_id=session_id,
                 llm_config=llm_config,
                 language=payload.get("language", "en"),
-                on_event=lambda event: self._persist_and_publish(execution, event),  # type: ignore[arg-type, return-value]
+                on_event=_emit_context_event,
             )
             memory_service = get_memory_service()
             memory_context = memory_service.build_memory_context()
+
+            skill_service = get_skill_service()
+            requested_skills = list(payload.get("skills") or [])
+            if not requested_skills or requested_skills == ["auto"]:
+                resolved_skills = skill_service.auto_select(raw_user_content)
+            else:
+                resolved_skills = [
+                    s for s in requested_skills if isinstance(s, str) and s != "auto"
+                ]
+            skills_context = skill_service.load_for_context(resolved_skills)
 
             if notebook_references:
                 referenced_records = notebook_manager.get_records_by_references(notebook_references)
@@ -396,7 +680,7 @@ class TurnRuntimeManager:
                     notebook_context = await analysis_agent.analyze(
                         user_question=raw_user_content,
                         records=referenced_records,
-                        emit=lambda event: self._persist_and_publish(execution, event),  # type: ignore[arg-type, return-value]
+                        emit=_emit_context_event,
                     )
 
             if history_references:
@@ -456,7 +740,7 @@ class TurnRuntimeManager:
                     history_context = await analysis_agent.analyze(
                         user_question=raw_user_content,
                         records=history_records,
-                        emit=lambda event: self._persist_and_publish(execution, event),  # type: ignore[arg-type, return-value]
+                        emit=_emit_context_event,
                     )
                     if not history_context.strip():
                         MAX_FALLBACK_CHARS = 8000
@@ -476,12 +760,21 @@ class TurnRuntimeManager:
                             total += len(part)
                         history_context = "\n\n".join(parts)
 
+            if question_notebook_references:
+                question_bank_context = await _build_question_bank_context(
+                    self.store, question_notebook_references
+                )
+
             effective_user_message = raw_user_content
             context_parts: list[str] = []
+            if document_texts:
+                context_parts.append("[Attached Documents]\n" + "\n\n".join(document_texts))
             if notebook_context:
                 context_parts.append(f"[Notebook Context]\n{notebook_context}")
             if history_context:
                 context_parts.append(f"[History Context]\n{history_context}")
+            if question_bank_context:
+                context_parts.append(f"[Question Bank Context]\n{question_bank_context}")
             if context_parts:
                 context_parts.append(f"[User Question]\n{raw_user_content}")
                 effective_user_message = "\n\n".join(context_parts)
@@ -495,7 +788,7 @@ class TurnRuntimeManager:
                     role="user",
                     content=raw_user_content,
                     capability=capability_name,
-                    attachments=attachment_records,
+                    attachments=persisted_attachment_records,
                 )
 
             context = UnifiedContext(
@@ -511,6 +804,7 @@ class TurnRuntimeManager:
                 notebook_context=notebook_context,
                 history_context=history_context,
                 memory_context=memory_context,
+                skills_context=skills_context,
                 metadata={
                     "conversation_summary": history_result.conversation_summary,
                     "conversation_context_text": conversation_context_text,
@@ -520,7 +814,10 @@ class TurnRuntimeManager:
                     "question_followup_context": followup_question_context or {},
                     "notebook_references": notebook_references,
                     "history_references": history_references,
+                    "question_notebook_references": question_notebook_references,
+                    "question_bank_context": question_bank_context,
                     "memory_context": memory_context,
+                    "active_skills": resolved_skills,
                 },
             )
 
@@ -542,16 +839,17 @@ class TurnRuntimeManager:
                 events=assistant_events,
             )
             await self.store.update_turn_status(turn_id, "completed")
-            try:
-                await memory_service.refresh_from_turn(
-                    user_message=raw_user_content,
-                    assistant_message=assistant_content,
-                    session_id=session_id,
-                    capability=capability_name or "chat",
-                    language=str(payload.get("language", "en") or "en"),
-                )
-            except Exception:
-                logger.debug("Failed to refresh lightweight memory", exc_info=True)
+            if not is_regenerate:
+                try:
+                    await memory_service.refresh_from_turn(
+                        user_message=raw_user_content,
+                        assistant_message=assistant_content,
+                        session_id=session_id,
+                        capability=capability_name or "chat",
+                        language=str(payload.get("language", "en") or "en"),
+                    )
+                except Exception:
+                    logger.debug("Failed to refresh lightweight memory", exc_info=True)
         except asyncio.CancelledError:
             await self.store.update_turn_status(turn_id, "cancelled", "Turn cancelled")
             await self._persist_and_publish(

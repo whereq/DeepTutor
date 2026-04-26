@@ -7,17 +7,14 @@ List and inspect registered plugins (tools, capabilities, playground).
 
 from __future__ import annotations
 
-from typing import Optional
-
-import typer
 from rich.console import Console
 from rich.table import Table
+import typer
 
 console = Console()
 
 
 def register(app: typer.Typer) -> None:
-
     @app.command("list")
     def plugin_list() -> None:
         """List all registered tools and capabilities."""
@@ -59,13 +56,18 @@ def register(app: typer.Typer) -> None:
 
         cap = cr.get(name)
         if cap:
-            console.print_json(json.dumps({
-                "name": cap.manifest.name,
-                "description": cap.manifest.description,
-                "stages": cap.manifest.stages,
-                "tools_used": cap.manifest.tools_used,
-                "config_defaults": cap.manifest.config_defaults,
-            }, indent=2))
+            console.print_json(
+                json.dumps(
+                    {
+                        "name": cap.manifest.name,
+                        "description": cap.manifest.description,
+                        "stages": cap.manifest.stages,
+                        "tools_used": cap.manifest.tools_used,
+                        "config_defaults": cap.manifest.config_defaults,
+                    },
+                    indent=2,
+                )
+            )
             return
 
         console.print(f"[red]'{name}' not found.[/]")

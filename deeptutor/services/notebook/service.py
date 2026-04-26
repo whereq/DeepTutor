@@ -11,7 +11,6 @@ from enum import Enum
 import json
 from pathlib import Path
 import time
-from typing import Any
 import uuid
 
 from pydantic import BaseModel
@@ -25,9 +24,9 @@ class RecordType(str, Enum):
     SOLVE = "solve"
     QUESTION = "question"
     RESEARCH = "research"
-    CO_WRITER = "co_writer"
     CHAT = "chat"
-    GUIDED_LEARNING = "guided_learning"
+    CO_WRITER = "co_writer"
+    TUTORBOT = "tutorbot"
 
 
 class NotebookRecord(BaseModel):
@@ -239,7 +238,9 @@ class NotebookManager:
         record_id = str(uuid.uuid4())[:8]
         now = time.time()
         # Accept both enum instances and plain string values from callers.
-        resolved_type = record_type if isinstance(record_type, RecordType) else RecordType(str(record_type))
+        resolved_type = (
+            record_type if isinstance(record_type, RecordType) else RecordType(str(record_type))
+        )
 
         record = {
             "id": record_id,
@@ -378,9 +379,8 @@ class NotebookManager:
             "solve": 0,
             "question": 0,
             "research": 0,
-            "co_writer": 0,
             "chat": 0,
-            "guided_learning": 0,
+            "co_writer": 0,
         }
 
         for nb_info in notebooks:

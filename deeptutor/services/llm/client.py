@@ -55,6 +55,7 @@ class LLMClient:
 
             if self.config.base_url:
                 from .utils import sanitize_url as _sanitize
+
                 clean_url = _sanitize(self.config.base_url)
                 os.environ["OPENAI_BASE_URL"] = clean_url
                 self.logger.debug(f"Set OPENAI_BASE_URL env var to {clean_url}")

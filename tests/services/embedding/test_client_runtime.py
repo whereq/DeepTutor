@@ -24,12 +24,16 @@ class _FakeAdapter:
             "Resp",
             (),
             {
-                "embeddings": [[float(i)] * (request.dimensions or 2) for i, _ in enumerate(request.texts)],
+                "embeddings": [
+                    [float(i)] * (request.dimensions or 2) for i, _ in enumerate(request.texts)
+                ],
             },
         )()
 
 
-def _build_config(binding: str) -> EmbeddingConfig:
+def _build_config(
+    binding: str, *, send_dimensions: bool | None = None
+) -> EmbeddingConfig:
     return EmbeddingConfig(
         model="text-embedding-3-small",
         api_key="sk-test",
@@ -39,6 +43,7 @@ def _build_config(binding: str) -> EmbeddingConfig:
         provider_name=binding,
         provider_mode="standard",
         dim=8,
+        send_dimensions=send_dimensions,
         batch_size=2,
         request_timeout=30,
     )
@@ -47,7 +52,9 @@ def _build_config(binding: str) -> EmbeddingConfig:
 @pytest.mark.asyncio
 async def test_embedding_client_batches_requests(monkeypatch) -> None:
     _FakeAdapter.instances = []
-    monkeypatch.setattr("deeptutor.services.embedding.client._resolve_adapter_class", lambda _b: _FakeAdapter)
+    monkeypatch.setattr(
+        "deeptutor.services.embedding.client._resolve_adapter_class", lambda _b: _FakeAdapter
+    )
     client = EmbeddingClient(_build_config("openai"))
     vectors = await client.embed(["a", "b", "c"])
     assert len(vectors) == 3
@@ -73,6 +80,19 @@ def test_resolve_adapter_class_rejects_unknown_provider() -> None:
         _resolve_adapter_class("huggingface")
 
 
+@pytest.mark.parametrize("flag", [True, False, None])
+def test_embedding_client_propagates_send_dimensions_to_adapter(
+    monkeypatch, flag: bool | None
+) -> None:
+    """``EmbeddingConfig.send_dimensions`` must reach the adapter's config dict."""
+    _FakeAdapter.instances = []
+    monkeypatch.setattr(
+        "deeptutor.services.embedding.client._resolve_adapter_class", lambda _b: _FakeAdapter
+    )
+    EmbeddingClient(_build_config("openai", send_dimensions=flag))
+    assert _FakeAdapter.instances[-1].config["send_dimensions"] is flag
+
+
 def test_every_registered_provider_has_adapter() -> None:
     """All EMBEDDING_PROVIDERS entries must resolve to a valid adapter class."""
     from deeptutor.services.config.provider_runtime import EMBEDDING_PROVIDERS
@@ -80,4 +100,3 @@ def test_every_registered_provider_has_adapter() -> None:
     for name in EMBEDDING_PROVIDERS:
         cls = _resolve_adapter_class(name)
         assert cls is not None, f"Provider '{name}' has no adapter"
-

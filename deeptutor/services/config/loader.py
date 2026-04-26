@@ -29,6 +29,7 @@ def get_runtime_settings_dir(project_root: Path | None = None) -> Path:
     root = project_root or PROJECT_ROOT
     return root / "data" / "user" / "settings"
 
+
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """
     Deep merge two dictionaries, values in override will override values in base
@@ -73,7 +74,6 @@ def _inject_runtime_paths(config: dict[str, Any]) -> dict[str, Any]:
         "knowledge_bases_dir": str(path_service.project_root / "data" / "knowledge_bases"),
         "user_log_dir": str(path_service.get_logs_dir()),
         "performance_log_dir": str(path_service.get_logs_dir() / "performance"),
-        "guide_output_dir": str(path_service.get_guide_dir()),
         "question_output_dir": str(path_service.get_chat_feature_dir("deep_question")),
         "research_output_dir": str(path_service.get_research_dir()),
         "research_reports_dir": str(path_service.get_research_reports_dir()),
@@ -108,8 +108,7 @@ def resolve_config_path(
     if config_path.exists():
         return config_path, False
     raise FileNotFoundError(
-        f"Configuration file not found: {config_file} "
-        f"(expected under {settings_dir})"
+        f"Configuration file not found: {config_file} (expected under {settings_dir})"
     )
 
 
@@ -209,7 +208,6 @@ def get_agent_params(module_name: str) -> dict:
 
     Args:
         module_name: Module name, one of:
-            - "guide": Guide module agents
             - "solve": Solve module agents
             - "research": Research module agents
             - "question": Question module agents
@@ -224,8 +222,8 @@ def get_agent_params(module_name: str) -> dict:
             - max_tokens: int, default 4096
 
     Example:
-        >>> params = get_agent_params("guide")
-        >>> params["temperature"]  # 0.5
+        >>> params = get_agent_params("solve")
+        >>> params["temperature"]  # 0.3
         >>> params["max_tokens"]   # 8192
     """
     defaults = {
@@ -236,7 +234,6 @@ def get_agent_params(module_name: str) -> dict:
         "solve": ("capabilities", "solve"),
         "research": ("capabilities", "research"),
         "question": ("capabilities", "question"),
-        "guide": ("capabilities", "guide"),
         "co_writer": ("capabilities", "co_writer"),
         "brainstorm": ("tools", "brainstorm"),
         "vision_solver": ("plugins", "vision_solver"),
@@ -260,6 +257,39 @@ def get_agent_params(module_name: str) -> dict:
     }
 
 
+DEFAULT_CHAT_PARAMS: dict[str, Any] = {
+    "temperature": 0.2,
+    "responding": {"max_tokens": 8000},
+    "answer_now": {"max_tokens": 8000},
+    "thinking": {"max_tokens": 2000},
+    "observing": {"max_tokens": 2000},
+    "acting": {"max_tokens": 2000},
+    "react_fallback": {"max_tokens": 1500},
+}
+
+
+def get_chat_params() -> dict[str, Any]:
+    """
+    Read ``capabilities.chat`` from agents.yaml with deep-merged defaults.
+
+    Unlike :func:`get_agent_params`, the chat capability has per-stage
+    sub-sections (``responding``, ``answer_now``, ``thinking``, ``observing``,
+    ``acting``, ``react_fallback``), each with its own ``max_tokens``. A single
+    ``temperature`` is shared across all stages.
+
+    Returns:
+        dict: Deep-merged chat configuration. Always contains every stage key
+        from :data:`DEFAULT_CHAT_PARAMS` so callers can index without checks.
+    """
+    path = get_runtime_settings_dir(PROJECT_ROOT) / "agents.yaml"
+    cfg: dict[str, Any] = {}
+    if path.exists():
+        with open(path, encoding="utf-8") as f:
+            agents_config = yaml.safe_load(f) or {}
+        cfg = (agents_config.get("capabilities", {}) or {}).get("chat", {}) or {}
+    return _deep_merge(DEFAULT_CHAT_PARAMS, cfg)
+
+
 __all__ = [
     "PROJECT_ROOT",
     "get_runtime_settings_dir",
@@ -267,5 +297,7 @@ __all__ = [
     "get_path_from_config",
     "parse_language",
     "get_agent_params",
+    "get_chat_params",
+    "DEFAULT_CHAT_PARAMS",
     "_deep_merge",
 ]

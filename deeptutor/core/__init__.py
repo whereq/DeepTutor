@@ -4,7 +4,6 @@ from .capability_protocol import BaseCapability, CapabilityManifest
 from .context import Attachment, UnifiedContext
 from .stream import StreamEvent, StreamEventType
 from .stream_bus import StreamBus
-from .trace import build_trace_metadata, merge_trace_metadata, new_call_id
 from .tool_protocol import (
     BaseTool,
     ToolAlias,
@@ -13,6 +12,7 @@ from .tool_protocol import (
     ToolPromptHints,
     ToolResult,
 )
+from .trace import build_trace_metadata, merge_trace_metadata, new_call_id
 
 __all__ = [
     "StreamEvent",

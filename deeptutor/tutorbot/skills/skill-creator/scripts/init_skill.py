@@ -13,9 +13,9 @@ Examples:
 """
 
 import argparse
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 
 MAX_SKILL_NAME_LENGTH = 64
 ALLOWED_RESOURCES = {"scripts", "references", "assets"}

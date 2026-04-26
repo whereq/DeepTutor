@@ -11,9 +11,9 @@ from string import Template
 from typing import Any
 
 from deeptutor.agents.base_agent import BaseAgent
+from deeptutor.agents.research.data_structures import DynamicTopicQueue, TopicBlock
 from deeptutor.core.trace import build_trace_metadata, new_call_id
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
-from deeptutor.agents.research.data_structures import DynamicTopicQueue, TopicBlock
 
 from ..utils.json_utils import extract_json_from_text
 
@@ -106,8 +106,7 @@ class ResearchAgent(BaseAgent):
 
     def _get_mode_contract(self, stage: str) -> str:
         return (
-            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "")
-            or ""
+            self.get_prompt("mode_contracts", f"{self._research_style}_{stage}", "") or ""
         ).strip()
 
     def _generate_available_tools_text(self) -> str:
@@ -244,7 +243,8 @@ Only output JSON:
                 iteration=iteration,
                 query=query,
                 current_knowledge=current_knowledge[:3000] if current_knowledge else "(none)",
-                mode_instruction=self._get_mode_contract("research") or "(no extra mode instruction)",
+                mode_instruction=self._get_mode_contract("research")
+                or "(no extra mode instruction)",
             )
 
         _chunks: list[str] = []
@@ -420,7 +420,9 @@ Tools already used: {", ".join(used_tools) if used_tools else "None"}
             topics_text = "\n".join([f"- {t}" for t in existing_topics])
 
         online_search_instruction = self._generate_online_search_instruction()
-        research_depth_guidance = self._generate_research_depth_guidance(iteration, used_tools or [])
+        research_depth_guidance = self._generate_research_depth_guidance(
+            iteration, used_tools or []
+        )
         iteration_mode_criteria = self._generate_iteration_mode_criteria(iteration)
         available_tools_text = self._generate_available_tools_text()
         tool_phase_guidance = self._generate_tool_phase_guidance()

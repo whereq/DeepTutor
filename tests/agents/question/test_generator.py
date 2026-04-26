@@ -21,7 +21,7 @@ async def test_generator_repairs_coding_question_that_looks_like_multiple_choice
             "question_type": "coding",
             "question": "Write pseudocode that alternates answer order across iterations to mitigate positional bias.",
             "options": None,
-            "correct_answer": "for i in range(total_iterations):\n    if i % 2 == 0:\n        prompt = f\"{query} Answer 1: {answer1} Answer 2: {answer2}\"\n    else:\n        prompt = f\"{query} Answer 1: {answer2} Answer 2: {answer1}\"\n    evaluate(prompt)",
+            "correct_answer": 'for i in range(total_iterations):\n    if i % 2 == 0:\n        prompt = f"{query} Answer 1: {answer1} Answer 2: {answer2}"\n    else:\n        prompt = f"{query} Answer 1: {answer2} Answer 2: {answer1}"\n    evaluate(prompt)',
             "explanation": "Alternate the two answers deterministically so each appears in each position equally often.",
         }
     )

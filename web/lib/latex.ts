@@ -20,9 +20,12 @@ export function convertLatexDelimiters(content: string): string {
 
   // editor.md examples sometimes wrap \( ... \) inside $$ ... $$.
   // In that case the inner delimiters should be stripped rather than rewrapped.
-  result = result.replace(/\$\$\s*\\\(([\s\S]*?)\\\)\s*\$\$/g, (_match, expr) => {
-    return `\n$$\n${expr}\n$$\n`;
-  });
+  result = result.replace(
+    /\$\$\s*\\\(([\s\S]*?)\\\)\s*\$\$/g,
+    (_match, expr) => {
+      return `\n$$\n${expr}\n$$\n`;
+    },
+  );
 
   // Convert \[...\] to $$...$$ (block math).
   // Use a regex that handles multiline content
@@ -100,9 +103,11 @@ function normalizeEditorMdInlineMath(content: string): string {
     }
 
     // editor.md commonly uses $...$ for inline math.
-    result.push(line.replace(/\$\$([^$\n]+?)\$\$/g, (_match, expr: string) => {
-      return `$${expr.trim()}$`;
-    }));
+    result.push(
+      line.replace(/\$\$([^$\n]+?)\$\$/g, (_match, expr: string) => {
+        return `$${expr.trim()}$`;
+      }),
+    );
   }
 
   return result.join("\n");
@@ -231,7 +236,10 @@ function convertFlowFenceToMermaid(source: string): string | null {
 
     if (!line.includes("->")) continue;
 
-    const parts = line.split("->").map((part) => part.trim()).filter(Boolean);
+    const parts = line
+      .split("->")
+      .map((part) => part.trim())
+      .filter(Boolean);
     for (let i = 0; i < parts.length - 1; i += 1) {
       const fromMatch = /^([A-Za-z][\w-]*)(?:\(([^)]+)\))?$/.exec(parts[i]);
       const toMatch = /^([A-Za-z][\w-]*)(?:\(([^)]+)\))?$/.exec(parts[i + 1]);
@@ -263,7 +271,9 @@ function convertSequenceFenceToMermaid(source: string): string | null {
       /^(title|autonumber|activate|deactivate|loop|rect|opt|alt|par|critical|break|box|create|destroy)\b/i.test(
         line,
       ) ||
-      /^([A-Za-z][\w.-]*)(?:-{1,2}>>?|--?>)([A-Za-z][\w.-]*)\s*:\s*.+$/.test(line)
+      /^([A-Za-z][\w.-]*)(?:-{1,2}>>?|--?>)([A-Za-z][\w.-]*)\s*:\s*.+$/.test(
+        line,
+      )
     );
   };
 

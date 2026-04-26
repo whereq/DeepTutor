@@ -9,10 +9,10 @@ Supports publish/subscribe pattern with non-blocking event delivery.
 from __future__ import annotations
 
 import asyncio
-import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import logging
 from typing import Any, Callable, Coroutine
 from uuid import uuid4
 

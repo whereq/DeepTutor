@@ -6,8 +6,8 @@ Controls whether DeepTutor is running as a CLI application or an API server.
 Modules can check the mode to conditionally import server-only dependencies.
 """
 
-import os
 from enum import Enum
+import os
 
 
 class RunMode(str, Enum):

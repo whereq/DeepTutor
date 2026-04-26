@@ -10,7 +10,6 @@ import pytest
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.stream_bus import StreamBus
 
-
 # ---------------------------------------------------------------------------
 # Basic emit / subscribe
 # ---------------------------------------------------------------------------

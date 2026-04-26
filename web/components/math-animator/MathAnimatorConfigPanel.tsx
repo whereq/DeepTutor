@@ -1,17 +1,29 @@
 "use client";
 
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import type { MathAnimatorFormConfig } from "@/lib/math-animator-types";
-import { Field, INPUT_CLS } from "@/components/chat/home/composer-field";
+import {
+  summarizeMathAnimatorConfig,
+  type MathAnimatorFormConfig,
+} from "@/lib/math-animator-types";
+import {
+  CollapsibleConfigSection,
+  Field,
+  INPUT_CLS,
+} from "@/components/chat/home/composer-field";
 
 interface MathAnimatorConfigPanelProps {
   value: MathAnimatorFormConfig;
   onChange: (next: MathAnimatorFormConfig) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
-export default function MathAnimatorConfigPanel({
+export default memo(function MathAnimatorConfigPanel({
   value,
   onChange,
+  collapsed,
+  onToggleCollapsed,
 }: MathAnimatorConfigPanelProps) {
   const { t } = useTranslation();
   const update = <K extends keyof MathAnimatorFormConfig>(
@@ -20,11 +32,21 @@ export default function MathAnimatorConfigPanel({
   ) => onChange({ ...value, [key]: val });
 
   return (
-    <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 py-2.5">
-      <Field label="Output" width="w-[100px]">
+    <CollapsibleConfigSection
+      collapsed={collapsed}
+      summary={summarizeMathAnimatorConfig(value, t)}
+      onToggleCollapsed={onToggleCollapsed}
+      bodyClassName="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 pb-2.5"
+    >
+      <Field label={t("Output")} width="w-[100px]">
         <select
           value={value.output_mode}
-          onChange={(e) => update("output_mode", e.target.value as MathAnimatorFormConfig["output_mode"])}
+          onChange={(e) =>
+            update(
+              "output_mode",
+              e.target.value as MathAnimatorFormConfig["output_mode"],
+            )
+          }
           className={`${INPUT_CLS} w-full`}
         >
           <option value="video">{t("Video")}</option>
@@ -32,10 +54,15 @@ export default function MathAnimatorConfigPanel({
         </select>
       </Field>
 
-      <Field label="Quality" width="w-[100px]">
+      <Field label={t("Quality")} width="w-[100px]">
         <select
           value={value.quality}
-          onChange={(e) => update("quality", e.target.value as MathAnimatorFormConfig["quality"])}
+          onChange={(e) =>
+            update(
+              "quality",
+              e.target.value as MathAnimatorFormConfig["quality"],
+            )
+          }
           className={`${INPUT_CLS} w-full`}
         >
           <option value="low">{t("Low")}</option>
@@ -44,7 +71,7 @@ export default function MathAnimatorConfigPanel({
         </select>
       </Field>
 
-      <Field label="Style Hint" width="min-w-[160px] flex-1">
+      <Field label={t("Style Hint")} width="min-w-[160px] flex-1">
         <input
           type="text"
           value={value.style_hint}
@@ -53,7 +80,6 @@ export default function MathAnimatorConfigPanel({
           className={`${INPUT_CLS} w-full`}
         />
       </Field>
-    </div>
+    </CollapsibleConfigSection>
   );
-}
-
+});

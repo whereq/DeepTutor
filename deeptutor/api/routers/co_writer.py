@@ -1,7 +1,8 @@
 import asyncio
-import traceback
-from datetime import datetime
 from dataclasses import asdict
+from datetime import datetime
+import json
+import traceback
 from typing import AsyncGenerator, Literal
 import uuid
 
@@ -9,9 +10,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-import json
-
-from deeptutor.agents.co_writer.edit_agent import (
+from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
+from deeptutor.co_writer.edit_agent import (
     TOOL_CALLS_DIR,
     EditAgent,
     load_history,
@@ -19,7 +19,11 @@ from deeptutor.agents.co_writer.edit_agent import (
     save_history,
     save_tool_call,
 )
-from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
+from deeptutor.co_writer.storage import (
+    CoWriterDocument,
+    CoWriterDocumentSummary,
+    get_co_writer_storage,
+)
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
 from deeptutor.logging import get_logger
@@ -194,7 +198,11 @@ def _prepare_react_edit_request(
 
     selected_text = request.selected_text.strip("\n")
     if not selected_text.strip():
-        detail = "请先选中一段文本。" if language.startswith("zh") else "Please select a text passage first."
+        detail = (
+            "请先选中一段文本。"
+            if language.startswith("zh")
+            else "Please select a text passage first."
+        )
         raise HTTPException(status_code=400, detail=detail)
 
     knowledge_bases = [request.kb_name] if request.kb_name and "rag" in tools else []
@@ -213,8 +221,8 @@ async def _run_react_edit(
     language: str,
     stream: StreamBus | None = None,
 ) -> dict[str, object]:
-    selected_text, instruction, tools, knowledge_bases, prompt = (
-        _prepare_react_edit_request(request, language)
+    selected_text, instruction, tools, knowledge_bases, prompt = _prepare_react_edit_request(
+        request, language
     )
     operation_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
 
@@ -258,7 +266,9 @@ async def _run_react_edit(
         if language.startswith("zh"):
             final_prompt += f"\n内部推理摘要（不要暴露给用户）:\n{thinking_text.strip()}\n"
         else:
-            final_prompt += f"\nInternal reasoning summary (do not reveal):\n{thinking_text.strip()}\n"
+            final_prompt += (
+                f"\nInternal reasoning summary (do not reveal):\n{thinking_text.strip()}\n"
+            )
     if tool_traces:
         formatted_traces = pipeline._format_tool_traces(tool_traces)
         if language.startswith("zh"):
@@ -503,3 +513,125 @@ async def export_markdown(content: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Document CRUD (multi-project Co-Writer)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class CreateDocumentRequest(BaseModel):
+    title: str | None = None
+    content: str = ""
+
+
+class UpdateDocumentRequest(BaseModel):
+    title: str | None = None
+    content: str | None = None
+
+
+class DocumentResponse(BaseModel):
+    id: str
+    title: str
+    content: str
+    created_at: float
+    updated_at: float
+
+    @classmethod
+    def from_model(cls, doc: CoWriterDocument) -> "DocumentResponse":
+        return cls(
+            id=doc.id,
+            title=doc.title,
+            content=doc.content,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        )
+
+
+class DocumentSummaryResponse(BaseModel):
+    id: str
+    title: str
+    created_at: float
+    updated_at: float
+    preview: str = ""
+
+    @classmethod
+    def from_summary(cls, summary: CoWriterDocumentSummary) -> "DocumentSummaryResponse":
+        return cls(
+            id=summary.id,
+            title=summary.title,
+            created_at=summary.created_at,
+            updated_at=summary.updated_at,
+            preview=summary.preview,
+        )
+
+
+@router.get("/documents")
+async def list_documents() -> dict[str, list[DocumentSummaryResponse]]:
+    """List all Co-Writer documents (summary view, sorted by recency)."""
+    try:
+        storage = get_co_writer_storage()
+        summaries = storage.list_documents()
+        return {"documents": [DocumentSummaryResponse.from_summary(s) for s in summaries]}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/documents", response_model=DocumentResponse)
+async def create_document(request: CreateDocumentRequest) -> DocumentResponse:
+    """Create a new Co-Writer document."""
+    try:
+        storage = get_co_writer_storage()
+        document = storage.create_document(title=request.title, content=request.content)
+        return DocumentResponse.from_model(document)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/documents/{doc_id}", response_model=DocumentResponse)
+async def get_document(doc_id: str) -> DocumentResponse:
+    """Get a single Co-Writer document by id."""
+    try:
+        storage = get_co_writer_storage()
+        document = storage.load_document(doc_id)
+        if document is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return DocumentResponse.from_model(document)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/documents/{doc_id}", response_model=DocumentResponse)
+async def update_document(doc_id: str, request: UpdateDocumentRequest) -> DocumentResponse:
+    """Update a Co-Writer document (title and/or content)."""
+    try:
+        storage = get_co_writer_storage()
+        document = storage.update_document(doc_id, title=request.title, content=request.content)
+        if document is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return DocumentResponse.from_model(document)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/documents/{doc_id}")
+async def delete_document(doc_id: str) -> dict[str, bool]:
+    """Delete a Co-Writer document."""
+    try:
+        storage = get_co_writer_storage()
+        if not storage.doc_exists(doc_id):
+            raise HTTPException(status_code=404, detail="Document not found")
+        success = storage.delete_document(doc_id)
+        return {"deleted": success}
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

@@ -13,11 +13,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import sys
 from pathlib import Path
+import sys
 
-import httpx
 from dotenv import load_dotenv
+import httpx
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -92,7 +92,9 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="Quick embedding smoke test")
     parser.add_argument("--text", default="hello world", help="Input text for embedding")
     parser.add_argument("--repeat", type=int, default=1, help="How many inputs to send")
-    parser.add_argument("--show-config", action="store_true", help="Print effective embedding config before testing")
+    parser.add_argument(
+        "--show-config", action="store_true", help="Print effective embedding config before testing"
+    )
     parser.add_argument(
         "--direct",
         action="store_true",

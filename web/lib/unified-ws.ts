@@ -64,6 +64,8 @@ export interface StartTurnMessage {
     record_ids: string[];
   }[];
   history_references?: string[];
+  question_notebook_references?: number[];
+  skills?: string[];
 }
 
 export interface SubscribeTurnMessage {
@@ -95,13 +97,20 @@ export interface CancelTurnMessage {
   turn_id: string;
 }
 
+export interface RegenerateMessage {
+  type: "regenerate";
+  session_id: string;
+  overrides?: Record<string, unknown>;
+}
+
 export type ChatMessage =
   | StartTurnMessage
   | SubscribeTurnMessage
   | SubscribeSessionMessage
   | ResumeTurnMessage
   | UnsubscribeMessage
-  | CancelTurnMessage;
+  | CancelTurnMessage
+  | RegenerateMessage;
 
 // ---- Connection manager ----
 

@@ -27,10 +27,11 @@ def parse_config_items(items: list[str]) -> dict[str, Any]:
 
 
 def parse_json_object(raw: str | None) -> dict[str, Any]:
-    if not raw:
+    normalized = (raw or "").strip()
+    if not normalized:
         return {}
     try:
-        value = json.loads(raw)
+        value = json.loads(normalized)
     except json.JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON config: {exc.msg}") from exc
     if not isinstance(value, dict):
@@ -46,9 +47,7 @@ def parse_notebook_references(items: list[str]) -> list[dict[str, Any]]:
         if not resolved_notebook_id:
             raise ValueError(f"Invalid notebook reference `{item}`.")
         record_ids = [
-            record_id.strip()
-            for record_id in record_part.split(",")
-            if record_id.strip()
+            record_id.strip() for record_id in record_part.split(",") if record_id.strip()
         ]
         refs.append({"notebook_id": resolved_notebook_id, "record_ids": record_ids})
     return refs
@@ -70,6 +69,41 @@ async def run_turn_and_render(
     await render_turn_stream(app=app, turn_id=turn["id"])
     console.print(
         f"[dim]session={session['id']} turn={turn['id']} capability={request.capability}[/]",
+        highlight=False,
+    )
+    return session, turn
+
+
+async def regenerate_and_render(
+    *,
+    app: DeepTutorApp,
+    session_id: str,
+    capability: str = "chat",
+    fmt: str = "rich",
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    try:
+        session, turn = await app.regenerate_last_turn(session_id)
+    except RuntimeError as exc:
+        reason = str(exc)
+        if reason == "regenerate_busy":
+            console.print(
+                "[yellow]Cannot regenerate while another turn is running. "
+                "Wait for it to finish or cancel it first.[/]"
+            )
+        elif reason == "nothing_to_regenerate":
+            console.print("[yellow]Nothing to regenerate yet — send a message first.[/]")
+        else:
+            console.print(f"[red]Regenerate failed:[/] {reason}")
+        return None
+
+    if fmt == "json":
+        async for item in app.stream_turn(turn["id"]):
+            console.print(json.dumps(item, ensure_ascii=False))
+        return session, turn
+
+    await render_turn_stream(app=app, turn_id=turn["id"])
+    console.print(
+        f"[dim]session={session['id']} turn={turn['id']} capability={capability} (regenerated)[/]",
         highlight=False,
     )
     return session, turn

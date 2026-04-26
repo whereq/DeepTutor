@@ -15,7 +15,15 @@ from deeptutor.agents.research.request_config import (
     validate_research_request_config,
 )
 
-_RUNTIME_ONLY_KEYS = {"_persist_user_message", "followup_question_context"}
+_RUNTIME_ONLY_KEYS = {
+    "_persist_user_message",
+    "followup_question_context",
+    # "answer_now" is a universal escape hatch: the orchestrator re-routes
+    # any capability to chat when this is present. It is never declared on
+    # any per-capability ``RequestConfig`` schema, so we strip it before
+    # pydantic validation and re-attach it on the runtime-only side.
+    "answer_now_context",
+}
 
 
 class ChatRequestConfig(BaseModel):
@@ -44,7 +52,7 @@ class DeepQuestionRequestConfig(BaseModel):
 class VisualizeRequestConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    render_mode: Literal["auto", "svg", "chartjs", "mermaid"] = "auto"
+    render_mode: Literal["auto", "svg", "chartjs", "mermaid", "html"] = "auto"
 
 
 def _clean_public_config(raw_config: dict[str, Any] | None) -> dict[str, Any]:
@@ -120,7 +128,9 @@ CAPABILITY_REQUEST_SCHEMAS: dict[str, dict[str, Any]] = {
 }
 
 
-def validate_capability_config(capability: str, raw_config: dict[str, Any] | None) -> dict[str, Any]:
+def validate_capability_config(
+    capability: str, raw_config: dict[str, Any] | None
+) -> dict[str, Any]:
     validator = CAPABILITY_CONFIG_VALIDATORS.get(capability)
     if validator is None:
         return _clean_public_config(raw_config)

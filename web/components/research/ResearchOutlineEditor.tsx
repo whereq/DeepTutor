@@ -24,11 +24,21 @@ export default function ResearchOutlineEditor({
   const [items, setItems] = useState<OutlineItem[]>(initialOutline);
   const [localConfirmed, setLocalConfirmed] = useState(false);
 
-  const locked = externalStatus === "researching" || externalStatus === "done" || localConfirmed;
+  const locked =
+    externalStatus === "researching" ||
+    externalStatus === "done" ||
+    localConfirmed;
 
-  const updateItem = useCallback((index: number, field: keyof OutlineItem, value: string) => {
-    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
-  }, []);
+  const updateItem = useCallback(
+    (index: number, field: keyof OutlineItem, value: string) => {
+      setItems((prev) =>
+        prev.map((item, i) =>
+          i === index ? { ...item, [field]: value } : item,
+        ),
+      );
+    },
+    [],
+  );
 
   const removeItem = useCallback((index: number) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
@@ -45,11 +55,14 @@ export default function ResearchOutlineEditor({
     onConfirm(valid);
   }, [items, onConfirm]);
 
-  const validItems = locked ? initialOutline.filter((i) => i.title.trim()) : items;
+  const validItems = locked
+    ? initialOutline.filter((i) => i.title.trim())
+    : items;
 
   const statusLabel = (() => {
     if (externalStatus === "done") return "Research Complete";
-    if (externalStatus === "researching" || localConfirmed) return "Researching…";
+    if (externalStatus === "researching" || localConfirmed)
+      return "Researching…";
     return null;
   })();
 
@@ -74,8 +87,8 @@ export default function ResearchOutlineEditor({
         </div>
         {!locked && (
           <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]/60">
-            Review and edit the sub-topics below, then start the research. You can also type in the
-            chat to regenerate the outline.
+            Review and edit the sub-topics below, then start the research. You
+            can also type in the chat to regenerate the outline.
           </p>
         )}
       </div>
@@ -112,7 +125,9 @@ export default function ResearchOutlineEditor({
                   />
                   <textarea
                     value={item.overview ?? ""}
-                    onChange={(e) => updateItem(index, "overview", e.target.value)}
+                    onChange={(e) =>
+                      updateItem(index, "overview", e.target.value)
+                    }
                     placeholder={t("Research direction and focus...")}
                     rows={2}
                     className="w-full resize-none bg-transparent text-[11px] leading-relaxed text-[var(--muted-foreground)]/70 outline-none placeholder:text-[var(--muted-foreground)]/25"

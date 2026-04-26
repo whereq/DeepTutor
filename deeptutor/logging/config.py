@@ -8,7 +8,7 @@ A single `level` parameter controls all logging (including RAG modules).
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 
 @dataclass
@@ -25,9 +25,6 @@ class LoggingConfig:
     # Log directory (relative to project root or absolute)
     log_dir: Optional[str] = None
 
-    # RAG module logger name mapping
-    rag_logger_names: Optional[Dict[str, str]] = None
-
     # File rotation settings
     max_bytes: int = 10 * 1024 * 1024  # 10MB
     backup_count: int = 5
@@ -36,7 +33,7 @@ class LoggingConfig:
 def get_default_log_dir() -> Path:
     """Get the default log directory."""
     from deeptutor.services.path_service import get_path_service
-    
+
     path_service = get_path_service()
     return path_service.get_logs_dir()
 
@@ -64,7 +61,11 @@ def load_logging_config() -> LoggingConfig:
         LoggingConfig instance with loaded or default values.
     """
     try:
-        from deeptutor.services.config import PROJECT_ROOT, get_path_from_config, load_config_with_main
+        from deeptutor.services.config import (
+            PROJECT_ROOT,
+            get_path_from_config,
+            load_config_with_main,
+        )
 
         config = load_config_with_main("main.yaml", PROJECT_ROOT)
 
@@ -76,7 +77,6 @@ def load_logging_config() -> LoggingConfig:
             console_output=logging_config.get("console_output", True),
             file_output=logging_config.get("save_to_file", True),
             log_dir=get_path_from_config(config, "user_log_dir"),
-            rag_logger_names=logging_config.get("rag_logger_names"),
         )
     except Exception:
         return LoggingConfig()

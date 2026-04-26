@@ -8,7 +8,6 @@ This is the canonical backend source for user-selected UI language/theme stored 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from deeptutor.services.path_service import get_path_service

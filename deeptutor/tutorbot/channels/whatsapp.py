@@ -1,13 +1,12 @@
 """WhatsApp channel implementation using Node.js bridge."""
 
 import asyncio
+from collections import OrderedDict
 import json
 import mimetypes
-from collections import OrderedDict
 from typing import Any
 
 from loguru import logger
-
 from pydantic import Field
 
 from deeptutor.tutorbot.bus.events import OutboundMessage
@@ -64,7 +63,9 @@ class WhatsAppChannel(BaseChannel):
                     self._ws = ws
                     # Send auth token if configured
                     if self.config.bridge_token:
-                        await ws.send(json.dumps({"type": "auth", "token": self.config.bridge_token}))
+                        await ws.send(
+                            json.dumps({"type": "auth", "token": self.config.bridge_token})
+                        )
                     self._connected = True
                     logger.info("Connected to WhatsApp bridge")
 
@@ -102,11 +103,7 @@ class WhatsAppChannel(BaseChannel):
             return
 
         try:
-            payload = {
-                "type": "send",
-                "to": msg.chat_id,
-                "text": msg.content
-            }
+            payload = {"type": "send", "to": msg.chat_id, "text": msg.content}
             await self._ws.send(json.dumps(payload, ensure_ascii=False))
         except Exception as e:
             logger.error("Error sending WhatsApp message: {}", e)
@@ -144,7 +141,10 @@ class WhatsAppChannel(BaseChannel):
 
             # Handle voice transcription if it's a voice message
             if content == "[Voice Message]":
-                logger.info("Voice message received from {}, but direct download from bridge is not yet supported.", sender_id)
+                logger.info(
+                    "Voice message received from {}, but direct download from bridge is not yet supported.",
+                    sender_id,
+                )
                 content = "[Voice Message: Transcription not available for WhatsApp yet]"
 
             # Extract media paths (images/documents/videos downloaded by the bridge)
@@ -166,8 +166,8 @@ class WhatsAppChannel(BaseChannel):
                 metadata={
                     "message_id": message_id,
                     "timestamp": data.get("timestamp"),
-                    "is_group": data.get("isGroup", False)
-                }
+                    "is_group": data.get("isGroup", False),
+                },
             )
 
         elif msg_type == "status":
@@ -185,4 +185,4 @@ class WhatsAppChannel(BaseChannel):
             logger.info("Scan QR code in the bridge terminal to connect WhatsApp")
 
         elif msg_type == "error":
-            logger.error("WhatsApp bridge error: {}", data.get('error'))
+            logger.error("WhatsApp bridge error: {}", data.get("error"))

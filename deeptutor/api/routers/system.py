@@ -51,7 +51,6 @@ async def get_runtime_topology():
             {"router": "research", "mode": "legacy_specialized"},
         ],
         "isolated_subsystems": [
-            {"router": "guide", "mode": "independent_subsystem"},
             {"router": "co_writer", "mode": "independent_subsystem"},
             {"router": "plugins_api", "mode": "playground_transport"},
         ],
@@ -292,7 +291,9 @@ async def test_search_connection():
         )
 
     except ValueError as e:
-        return TestResponse(success=False, message=f"Search configuration error: {e!s}", error=str(e))
+        return TestResponse(
+            success=False, message=f"Search configuration error: {e!s}", error=str(e)
+        )
     except Exception as e:
         response_time = (time.time() - start_time) * 1000
         return TestResponse(

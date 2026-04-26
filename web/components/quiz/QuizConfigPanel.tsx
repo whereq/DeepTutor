@@ -1,23 +1,35 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { DeepQuestionFormConfig, DeepQuestionMode } from "@/lib/quiz-types";
-import { Field, INPUT_CLS } from "@/components/chat/home/composer-field";
+import {
+  summarizeQuizConfig,
+  type DeepQuestionFormConfig,
+  type DeepQuestionMode,
+} from "@/lib/quiz-types";
+import {
+  CollapsibleConfigSection,
+  Field,
+  INPUT_CLS,
+} from "@/components/chat/home/composer-field";
 
 interface QuizConfigPanelProps {
   value: DeepQuestionFormConfig;
   onChange: (next: DeepQuestionFormConfig) => void;
   uploadedPdf: File | null;
   onUploadPdf: (file: File | null) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
-export default function QuizConfigPanel({
+export default memo(function QuizConfigPanel({
   value,
   onChange,
   uploadedPdf,
   onUploadPdf,
+  collapsed,
+  onToggleCollapsed,
 }: QuizConfigPanelProps) {
   const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -31,7 +43,12 @@ export default function QuizConfigPanel({
   const setMode = (m: DeepQuestionMode) => update("mode", m);
 
   return (
-    <div className="px-3.5 py-2.5 space-y-2.5">
+    <CollapsibleConfigSection
+      collapsed={collapsed}
+      summary={summarizeQuizConfig(value, t)}
+      onToggleCollapsed={onToggleCollapsed}
+      bodyClassName="px-3.5 pb-2.5 space-y-2.5"
+    >
       <div className="inline-flex rounded-lg border border-[var(--border)]/25 p-0.5">
         {(["custom", "mimic"] as const).map((m) => (
           <button
@@ -51,20 +68,23 @@ export default function QuizConfigPanel({
 
       {value.mode === "custom" ? (
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-          <Field label="Count" width="w-[60px]">
+          <Field label={t("Count")} width="w-[60px]">
             <input
               type="number"
               min={1}
               max={50}
               value={value.num_questions}
               onChange={(e) =>
-                update("num_questions", Math.max(1, Number(e.target.value) || 1))
+                update(
+                  "num_questions",
+                  Math.max(1, Number(e.target.value) || 1),
+                )
               }
               className={`${INPUT_CLS} w-full`}
             />
           </Field>
 
-          <Field label="Difficulty" width="w-[100px]">
+          <Field label={t("Difficulty")} width="w-[100px]">
             <select
               value={value.difficulty}
               onChange={(e) => update("difficulty", e.target.value)}
@@ -77,7 +97,7 @@ export default function QuizConfigPanel({
             </select>
           </Field>
 
-          <Field label="Type" width="w-[110px]">
+          <Field label={t("Type")} width="w-[110px]">
             <select
               value={value.question_type}
               onChange={(e) => update("question_type", e.target.value)}
@@ -90,7 +110,7 @@ export default function QuizConfigPanel({
             </select>
           </Field>
 
-          <Field label="Preference" width="min-w-[140px] flex-1">
+          <Field label={t("Preference")} width="min-w-[140px] flex-1">
             <input
               type="text"
               value={value.preference}
@@ -102,11 +122,16 @@ export default function QuizConfigPanel({
         </div>
       ) : (
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-          <Field label="Paper" width="min-w-[180px] flex-[1.3]">
+          <Field label={t("Paper")} width="min-w-[180px] flex-[1.3]">
             {uploadedPdf ? (
               <div className="flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border)]/30 bg-[var(--background)]/50 px-2.5 text-[12px]">
-                <FileText size={12} className="shrink-0 text-[var(--primary)]/60" />
-                <span className="min-w-0 truncate text-[var(--foreground)]">{uploadedPdf.name}</span>
+                <FileText
+                  size={12}
+                  className="shrink-0 text-[var(--primary)]/60"
+                />
+                <span className="min-w-0 truncate text-[var(--foreground)]">
+                  {uploadedPdf.name}
+                </span>
                 <button
                   type="button"
                   onClick={() => onUploadPdf(null)}
@@ -158,7 +183,7 @@ export default function QuizConfigPanel({
             )}
           </Field>
 
-          <Field label="Parsed Dir" width="min-w-[120px] flex-1">
+          <Field label={t("Parsed Dir")} width="min-w-[120px] flex-1">
             <input
               type="text"
               value={value.paper_path}
@@ -171,21 +196,23 @@ export default function QuizConfigPanel({
             />
           </Field>
 
-          <Field label="Max" width="w-[60px]">
+          <Field label={t("Max")} width="w-[60px]">
             <input
               type="number"
               min={1}
               max={100}
               value={value.max_questions}
               onChange={(e) =>
-                update("max_questions", Math.max(1, Number(e.target.value) || 1))
+                update(
+                  "max_questions",
+                  Math.max(1, Number(e.target.value) || 1),
+                )
               }
               className={`${INPUT_CLS} w-full`}
             />
           </Field>
         </div>
       )}
-    </div>
+    </CollapsibleConfigSection>
   );
-}
-
+});

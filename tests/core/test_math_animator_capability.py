@@ -49,7 +49,9 @@ async def test_math_animator_capability_emits_summary_and_result(
             return SimpleNamespace(model_dump=lambda: {"title": "Parabola animation"})
 
         async def run_code_generation(self, **_kwargs):
-            return SimpleNamespace(code="from manim import *\n\nclass MainScene(Scene):\n    pass\n")
+            return SimpleNamespace(
+                code="from manim import *\n\nclass MainScene(Scene):\n    pass\n"
+            )
 
         async def run_render(self, **_kwargs):
             return (
@@ -67,7 +69,9 @@ async def test_math_animator_capability_emits_summary_and_result(
                         )
                     ],
                     retry_attempts=1,
-                    retry_history=[SimpleNamespace(model_dump=lambda: {"attempt": 1, "error": "boom"})],
+                    retry_history=[
+                        SimpleNamespace(model_dump=lambda: {"attempt": 1, "error": "boom"})
+                    ],
                     source_code_path="/tmp/scene.py",
                 ),
             )
@@ -83,7 +87,9 @@ async def test_math_animator_capability_emits_summary_and_result(
                 },
             )
 
-    monkeypatch.setattr("deeptutor.agents.math_animator.pipeline.MathAnimatorPipeline", FakePipeline)
+    monkeypatch.setattr(
+        "deeptutor.agents.math_animator.pipeline.MathAnimatorPipeline", FakePipeline
+    )
     monkeypatch.setattr(
         "deeptutor.services.llm.config.get_llm_config",
         lambda: SimpleNamespace(api_key="k", base_url="u", api_version="v1"),

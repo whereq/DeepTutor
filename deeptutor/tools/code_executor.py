@@ -26,9 +26,24 @@ DEFAULT_WORKSPACE_NAME = "_detached_code_execution"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_SAFE_IMPORTS = [
-    "math", "numpy", "pandas", "matplotlib", "plt", "seaborn",
-    "scipy", "statsmodels", "json", "datetime", "re", "collections",
-    "itertools", "functools", "random", "time", "statistics", "sympy",
+    "math",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "plt",
+    "seaborn",
+    "scipy",
+    "statsmodels",
+    "json",
+    "datetime",
+    "re",
+    "collections",
+    "itertools",
+    "functools",
+    "random",
+    "time",
+    "statistics",
+    "sympy",
 ]
 DISALLOWED_CALL_NAMES = {
     "open",
@@ -388,9 +403,7 @@ def _resolve_task_workspace(
         return None
 
     identifier = (
-        str(task_id or "").strip()
-        or str(turn_id or "").strip()
-        or str(session_id or "").strip()
+        str(task_id or "").strip() or str(turn_id or "").strip() or str(session_id or "").strip()
     )
     if not identifier:
         return None

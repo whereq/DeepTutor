@@ -12,15 +12,13 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import sys
+from typing import Any
 
 from deeptutor.logging import get_logger
-from deeptutor.services.rag.components.routing import FileTypeRouter
-from deeptutor.services.rag.factory import (
-    DEFAULT_PROVIDER,
-    LEGACY_PROVIDER_ALIASES,
-    normalize_provider_name,
-)
+from deeptutor.services.rag.factory import DEFAULT_PROVIDER, normalize_provider_name
+from deeptutor.services.rag.file_routing import FileTypeRouter
 
 logger = get_logger("KnowledgeBaseManager")
 
@@ -167,15 +165,14 @@ class KnowledgeBaseManager:
                         continue
 
                     raw_provider = kb_entry.get("rag_provider")
-                    normalized_provider = normalize_provider_name(raw_provider or DEFAULT_PROVIDER)
-                    if kb_entry.get("rag_provider") != normalized_provider:
-                        kb_entry["rag_provider"] = normalized_provider
+                    if kb_entry.get("rag_provider") != DEFAULT_PROVIDER:
+                        kb_entry["rag_provider"] = DEFAULT_PROVIDER
                         config_changed = True
 
-                    if (
-                        isinstance(raw_provider, str)
-                        and raw_provider.strip().lower() in LEGACY_PROVIDER_ALIASES
-                    ):
+                    if isinstance(raw_provider, str) and raw_provider.strip().lower() not in {
+                        "",
+                        DEFAULT_PROVIDER,
+                    }:
                         if not kb_entry.get("needs_reindex", False):
                             kb_entry["needs_reindex"] = True
                             config_changed = True
@@ -290,15 +287,14 @@ class KnowledgeBaseManager:
         kb_config["status"] = status
         kb_config["updated_at"] = datetime.now().isoformat()
 
-        if progress is not None:
+        if status == "ready":
+            # Ready KBs should look like stable resources in the UI instead of
+            # permanently carrying a "completed" progress banner.
+            kb_config.pop("progress", None)
+            if progress is not None:
+                kb_config["last_completed_at"] = progress.get("timestamp") or datetime.now().isoformat()
+        elif progress is not None:
             kb_config["progress"] = progress
-        elif status == "ready":
-            # Clear progress when ready
-            kb_config["progress"] = {
-                "stage": "completed",
-                "message": "Ready",
-                "percent": 100,
-            }
 
         if status == "ready":
             fp = _get_embedding_fingerprint()
@@ -374,7 +370,7 @@ class KnowledgeBaseManager:
         kb_dir = self.base_dir / name
 
         # Default values
-        kb_entry = {
+        kb_entry: dict[str, Any] = {
             "path": name,
             "description": f"Knowledge base: {name}",
             "status": "ready",  # Existing KB with storage is considered ready
@@ -393,8 +389,8 @@ class KnowledgeBaseManager:
                 if metadata.get("rag_provider"):
                     raw_provider = str(metadata["rag_provider"]).strip().lower()
                     kb_entry["rag_provider"] = normalize_provider_name(raw_provider)
-                    if str(raw_provider).strip().lower() in LEGACY_PROVIDER_ALIASES:
-                        kb_entry["needs_reindex"] = True  # type: ignore[assignment]
+                    if raw_provider not in {"", DEFAULT_PROVIDER}:
+                        kb_entry["needs_reindex"] = True
                 if metadata.get("created_at"):
                     kb_entry["created_at"] = metadata["created_at"]
                 if metadata.get("last_updated"):
@@ -410,7 +406,7 @@ class KnowledgeBaseManager:
                 kb_entry["rag_provider"] = DEFAULT_PROVIDER
             elif rag_storage.exists():
                 kb_entry["rag_provider"] = DEFAULT_PROVIDER
-                kb_entry["needs_reindex"] = True  # type: ignore[assignment]
+                kb_entry["needs_reindex"] = True
 
         # Add to config
         if "knowledge_bases" not in self.config:
@@ -548,7 +544,7 @@ class KnowledgeBaseManager:
             metadata = {
                 "name": kb_name,
                 "description": kb_config.get("description", f"Knowledge base: {kb_name}"),
-                "rag_provider": normalize_provider_name(kb_config.get("rag_provider")),
+                "rag_provider": DEFAULT_PROVIDER,
                 "needs_reindex": bool(kb_config.get("needs_reindex", False)),
                 "created_at": kb_config.get("created_at"),
                 "last_updated": kb_config.get("updated_at"),
@@ -584,7 +580,7 @@ class KnowledgeBaseManager:
         status = kb_config.get("status")
         progress = kb_config.get("progress")
         description = kb_config.get("description", f"Knowledge base: {kb_name}")
-        rag_provider = normalize_provider_name(kb_config.get("rag_provider"))
+        rag_provider = DEFAULT_PROVIDER
         needs_reindex = bool(kb_config.get("needs_reindex", False))
         created_at = kb_config.get("created_at")
         updated_at = kb_config.get("updated_at")
@@ -647,24 +643,20 @@ class KnowledgeBaseManager:
 
         if dir_exists:
             try:
-                raw_count = (
-                    len([f for f in raw_dir.iterdir() if f.is_file()]) if raw_dir.exists() else 0
-                )
+                raw_count = len([f for f in raw_dir.iterdir() if f.is_file()]) if raw_dir else 0
             except Exception:
                 pass
 
             try:
                 images_count = (
-                    len([f for f in images_dir.iterdir() if f.is_file()])
-                    if images_dir.exists()
-                    else 0
+                    len([f for f in images_dir.iterdir() if f.is_file()]) if images_dir else 0
                 )
             except Exception:
                 pass
 
             try:
                 content_lists_count = (
-                    len(list(content_list_dir.glob("*.json"))) if content_list_dir.exists() else 0
+                    len(list(content_list_dir.glob("*.json"))) if content_list_dir else 0
                 )
             except Exception:
                 pass
@@ -705,7 +697,11 @@ class KnowledgeBaseManager:
         if name not in self.list_knowledge_bases():
             raise ValueError(f"Knowledge base not found: {name}")
 
-        kb_dir = self.get_knowledge_base_path(name)
+        # Resolve the directory directly to stay idempotent: if the on-disk
+        # folder was already removed (e.g. manually rm-rf'd) we still want to
+        # purge the orphaned entry from kb_config.json instead of failing.
+        kb_dir = self.base_dir / name
+        dir_exists = kb_dir.exists()
 
         if not confirm:
             # Ask for confirmation in CLI
@@ -716,8 +712,33 @@ class KnowledgeBaseManager:
                 print("Deletion cancelled.")
                 return False
 
-        # Delete the directory
-        shutil.rmtree(kb_dir)
+        if dir_exists:
+
+            def _on_rmtree_error(func, path, exc_info):
+                exc = exc_info[1]
+                if isinstance(exc, FileNotFoundError):
+                    # Race: something else removed the entry between walk and unlink.
+                    return
+                # On Windows (and some bind-mounted filesystems) a read-only bit
+                # or a stale handle from a failed RAG init can block removal.
+                # Clear the read-only bit and retry once; if it still fails, log
+                # and continue so the config entry gets cleaned up regardless —
+                # leaving the KB stuck in the list is worse than orphan files on
+                # disk (issue #370).
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                except Exception as retry_exc:
+                    logger.warning(
+                        f"Could not remove '{path}' while deleting KB '{name}': "
+                        f"{retry_exc}. Continuing; orphan files may remain on disk."
+                    )
+
+            shutil.rmtree(kb_dir, onerror=_on_rmtree_error)
+        else:
+            logger.warning(
+                f"KB directory '{kb_dir}' missing on disk; cleaning up orphaned config entry."
+            )
 
         # Remove from config
         if name in self.config.get("knowledge_bases", {}):
@@ -725,8 +746,8 @@ class KnowledgeBaseManager:
 
         # Update default if this was the default
         if self.config.get("default") == name:
-            remaining = self.list_knowledge_bases()
-            self.config["default"] = remaining[0] if remaining else None
+            remaining = [n for n in self.config.get("knowledge_bases", {}).keys() if n != name]
+            self.config["default"] = sorted(remaining)[0] if remaining else None
 
         self._save_config()
         return True
@@ -795,13 +816,7 @@ class KnowledgeBaseManager:
         if not folder.is_dir():
             raise ValueError(f"Path is not a directory: {folder}")
 
-        # Get RAG provider from kb_config.json to determine supported extensions
-        self.config = self._load_config()
-        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
-        provider = normalize_provider_name(kb_config.get("rag_provider") or DEFAULT_PROVIDER)
-
-        # Get supported files in folder based on provider
-        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
+        supported_extensions = FileTypeRouter.get_supported_extensions()
         files: list[Path] = []
         for ext in supported_extensions:
             files.extend(folder.glob(f"**/*{ext}"))
@@ -932,7 +947,7 @@ class KnowledgeBaseManager:
         if not folder.exists() or not folder.is_dir():
             return []
 
-        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
+        supported_extensions = FileTypeRouter.get_supported_extensions()
         files = []
 
         for ext in supported_extensions:
@@ -977,13 +992,7 @@ class KnowledgeBaseManager:
             except Exception:
                 pass
 
-        # Get RAG provider from kb_config.json to determine supported extensions
-        self.config = self._load_config()
-        kb_config = self.config.get("knowledge_bases", {}).get(kb_name, {})
-        provider = normalize_provider_name(kb_config.get("rag_provider") or DEFAULT_PROVIDER)
-
-        # Scan current files based on provider's supported extensions
-        supported_extensions = FileTypeRouter.get_extensions_for_provider(provider)
+        supported_extensions = FileTypeRouter.get_supported_extensions()
         new_files = []
         modified_files = []
 
