@@ -1,8 +1,11 @@
 # ============================================
 # DeepTutor Server — Full Dependencies (CLI + Web)
 # ============================================
-# Install: pip install -r requirements/server.txt && pip install -e .
-# Everything needed to run the API server and web frontend.
+# Mirrors pyproject.toml `[project.optional-dependencies].server`.
+# Keep in sync with pyproject.toml when adding/updating dependencies.
+#
+# Preferred install (from a source clone): pip install -e ".[server]"
+# Use this file for Docker/CI when pyproject.toml/source code aren't yet available.
 
 -r cli.txt
 

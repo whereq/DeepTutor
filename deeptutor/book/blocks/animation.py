@@ -31,7 +31,8 @@ class AnimationGenerator(BlockGenerator):
         if importlib.util.find_spec("manim") is None:
             raise GenerationFailure(
                 "AnimationGenerator requires the optional math-animator extras. "
-                "Install with `pip install -r requirements/math-animator.txt`."
+                "Install with `pip install -e '.[math-animator]'` "
+                "or `pip install -r requirements/math-animator.txt`."
             )
 
         params = ctx.block.params

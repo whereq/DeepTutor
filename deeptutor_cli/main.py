@@ -124,7 +124,7 @@ def serve(
     except ImportError:
         console.print(
             "[bold red]Error:[/] API server dependencies not installed.\n"
-            "Run: pip install -r requirements/server.txt"
+            "Run: pip install -e '.[server]'"
         )
         raise typer.Exit(code=1)
 

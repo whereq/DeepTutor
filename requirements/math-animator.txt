@@ -1,8 +1,12 @@
 # ============================================
 # DeepTutor Math Animator — Addon
 # ============================================
-# Install: pip install -r requirements/math-animator.txt
-# Addon for `deeptutor animate`. Install alongside cli.txt or server.txt.
+# Mirrors pyproject.toml `[project.optional-dependencies].math-animator`.
+# Keep in sync with pyproject.toml when adding/updating dependencies.
+#
+# Preferred install (from a source clone): pip install -e ".[math-animator]"
+# Use this file for Docker/CI when pyproject.toml/source code aren't yet available.
+# Install alongside `.[cli]` or `.[server]`.
 #
 # System prerequisites (installed outside pip):
 # - LaTeX runtime (`latex`) for Tex/MathTex rendering

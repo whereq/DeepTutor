@@ -105,7 +105,7 @@ class DeepTutorApp:
                 install_hint=(
                     ""
                     if available
-                    else "Install with `pip install deeptutor-cli[math-animator]` "
+                    else "Install with `pip install -e '.[math-animator]'` "
                     "or `pip install -r requirements/math-animator.txt`."
                 ),
             )

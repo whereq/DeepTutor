@@ -8,14 +8,16 @@ Agent-first 的命令行界面。两条核心路径：
 ## 安装
 
 ```bash
-# 仅 CLI
-pip install -r requirements/cli.txt && pip install -e .
+# 仅 CLI（含 RAG / 文档解析 / 各家 LLM provider SDK）
+pip install -e ".[cli]"
 
 # CLI + Web/API 服务
-pip install -r requirements/server.txt && pip install -e .
+pip install -e ".[server]"
 
-# 数学动画（可选）
-pip install -r requirements/math-animator.txt
+# 可选附加组件
+pip install -e ".[tutorbot]"       # TutorBot 智能体引擎 + 各渠道 SDK
+pip install -e ".[math-animator]"  # 数学动画（另需系统 LaTeX/ffmpeg）
+pip install -e ".[all]"            # 全部依赖（含开发工具）
 ```
 
 ---

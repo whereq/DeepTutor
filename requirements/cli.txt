@@ -1,8 +1,11 @@
 # ============================================
 # DeepTutor CLI — Full Dependencies
 # ============================================
-# Install: pip install -r requirements/cli.txt && pip install -e .
-# Everything needed to run the CLI with all tools (RAG, code execution, etc.)
+# Mirrors pyproject.toml `[project.optional-dependencies].cli` plus core deps.
+# Keep in sync with pyproject.toml when adding/updating dependencies.
+#
+# Preferred install (from a source clone): pip install -e ".[cli]"
+# Use this file for Docker/CI when pyproject.toml/source code aren't yet available.
 
 # --- Config & templating ---
 python-dotenv>=1.0.0

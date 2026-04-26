@@ -156,7 +156,13 @@ cd DeepTutor
 conda create -n deeptutor python=3.11 && conda activate deeptutor
 
 # 安装 DeepTutor（后端 + Web 服务依赖）
+# 已包含 RAG、文档解析以及内置的全部 LLM 提供商 SDK
 pip install -e ".[server]"
+
+# 可选附加组件 —— 按需安装：
+#   pip install -e ".[tutorbot]"       # TutorBot 智能体引擎 + 各渠道 SDK
+#   pip install -e ".[math-animator]"  # Manim 数学动画（另需系统 LaTeX 与 ffmpeg）
+#   pip install -e ".[all]"            # 上述全部 + 开发工具
 
 # 安装前端依赖（需要 Node.js 18+）
 cd web && npm install && cd ..
@@ -414,6 +420,8 @@ docker compose up -d     # 或 docker compose -f docker-compose.ghcr.yml up -d
 若只要 CLI、不要 Web 前端：
 
 ```bash
+# 已包含 RAG、文档解析、内置全部 LLM 提供商 SDK
+# 与方案 B 的区别仅在于不安装 FastAPI/uvicorn
 pip install -e ".[cli]"
 ```
 

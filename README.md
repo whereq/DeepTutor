@@ -160,7 +160,13 @@ cd DeepTutor
 conda create -n deeptutor python=3.11 && conda activate deeptutor
 
 # Install DeepTutor with backend + web server dependencies
+# (includes RAG, document parsing, and all built-in LLM provider SDKs)
 pip install -e ".[server]"
+
+# Optional add-ons — install only the ones you need:
+#   pip install -e ".[tutorbot]"       # TutorBot agent engine + channel SDKs
+#   pip install -e ".[math-animator]"  # Manim (also requires LaTeX & ffmpeg)
+#   pip install -e ".[all]"            # Everything above + dev tools
 
 # Install frontend dependencies (requires Node.js 18+)
 cd web && npm install && cd ..
@@ -419,6 +425,8 @@ These directories survive `docker compose down` and are reused on the next `dock
 If you just want the CLI without the web frontend:
 
 ```bash
+# Includes RAG, document parsing, and all built-in LLM provider SDKs.
+# Same set as Option B minus FastAPI/uvicorn.
 pip install -e ".[cli]"
 ```
 
