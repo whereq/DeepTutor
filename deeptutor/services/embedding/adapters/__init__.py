@@ -10,12 +10,14 @@ from .cohere import CohereEmbeddingAdapter
 from .jina import JinaEmbeddingAdapter
 from .ollama import OllamaEmbeddingAdapter
 from .openai_compatible import OpenAICompatibleEmbeddingAdapter
+from .openai_sdk import OpenAISDKEmbeddingAdapter
 
 __all__ = [
     "BaseEmbeddingAdapter",
     "EmbeddingRequest",
     "EmbeddingResponse",
     "OpenAICompatibleEmbeddingAdapter",
+    "OpenAISDKEmbeddingAdapter",
     "JinaEmbeddingAdapter",
     "CohereEmbeddingAdapter",
     "OllamaEmbeddingAdapter",

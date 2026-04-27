@@ -21,8 +21,24 @@ from deeptutor.services.config.provider_runtime import _coerce_optional_bool
 
 @pytest.fixture(autouse=True)
 def _clean_send_dimensions_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``EnvStore`` mutates ``os.environ`` on load/write — isolate each test."""
+    """``EnvStore`` mutates ``os.environ`` on load/write — isolate each test.
+
+    monkeypatch's ``delenv`` reverts only what it deleted; if the test then
+    has ``EnvStore.write()`` set ``EMBEDDING_SEND_DIMENSIONS`` again, that
+    value leaks into subsequent test files. Snapshot the current value here
+    and use a yield-style teardown to restore it.
+    """
+    import os
+
+    sentinel = object()
+    original = os.environ.get("EMBEDDING_SEND_DIMENSIONS", sentinel)
     monkeypatch.delenv("EMBEDDING_SEND_DIMENSIONS", raising=False)
+    yield
+    # Restore the pre-test value so EnvStore.write() side-effects don't leak.
+    if original is sentinel:
+        os.environ.pop("EMBEDDING_SEND_DIMENSIONS", None)
+    else:
+        os.environ["EMBEDDING_SEND_DIMENSIONS"] = original  # type: ignore[assignment]
 
 
 def _embedding_catalog(send_dimensions: object | None) -> dict:

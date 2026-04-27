@@ -161,6 +161,7 @@ pip install -e ".[server]"
 
 # 可选附加组件 —— 按需安装：
 #   pip install -e ".[tutorbot]"       # TutorBot 智能体引擎 + 各渠道 SDK
+#   pip install -e ".[matrix]"         # TutorBot 的 Matrix 渠道（需安装 libolm）
 #   pip install -e ".[math-animator]"  # Manim 数学动画（另需系统 LaTeX 与 ffmpeg）
 #   pip install -e ".[all]"            # 上述全部 + 开发工具
 

@@ -44,6 +44,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_streaming": True,
         "supports_tools": True,
         "supports_vision": True,
+        "vision_url_supported": False,  # Our adapter only emits base64 image source
         "system_in_messages": False,  # System is a separate parameter
         "has_thinking_tags": False,
     },
@@ -52,6 +53,7 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_streaming": True,
         "supports_tools": True,
         "supports_vision": True,
+        "vision_url_supported": False,
         "system_in_messages": False,
         "has_thinking_tags": False,
     },
@@ -103,6 +105,18 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "supports_vision": True,
         "system_in_messages": True,
     },
+    # Moonshot / Kimi — vision is per-model (see MODEL_OVERRIDES below).
+    # Per the official docs the image input must be base64-encoded inline; URL
+    # form is rejected. We therefore force the multimodal layer to resolve any
+    # url-only attachment to bytes before sending.
+    "moonshot": {
+        "supports_response_format": True,
+        "supports_streaming": True,
+        "supports_tools": True,
+        "supports_vision": False,
+        "vision_url_supported": False,
+        "system_in_messages": True,
+    },
     # Local providers (generally OpenAI-compatible)
     "ollama": {
         "supports_response_format": True,  # Ollama supports JSON mode
@@ -140,6 +154,7 @@ DEFAULT_CAPABILITIES: dict[str, object] = {
     "supports_streaming": True,
     "supports_tools": False,
     "supports_vision": False,
+    "vision_url_supported": True,  # Most OpenAI-compat providers accept image_url URLs
     "system_in_messages": True,
     "has_thinking_tags": False,
     "forced_temperature": None,  # None means no forced value, use requested temperature
@@ -198,6 +213,13 @@ MODEL_OVERRIDES: dict[str, dict[str, object]] = {
     "moondream": {"supports_vision": True},
     "minicpm-v": {"supports_vision": True},
     "gpt-3.5": {"supports_vision": False},
+    # Moonshot / Kimi vision models
+    # https://platform.kimi.com/docs/guide/use-kimi-vision-model
+    "moonshot-v1-8k-vision": {"supports_vision": True},
+    "moonshot-v1-32k-vision": {"supports_vision": True},
+    "moonshot-v1-128k-vision": {"supports_vision": True},
+    "kimi-k2.5": {"supports_vision": True},
+    "kimi-k2.6": {"supports_vision": True},
 }
 
 
@@ -373,6 +395,18 @@ def supports_vision(binding: str, model: str | None = None) -> bool:
         True if the model can accept image content in messages
     """
     value = get_capability(binding, "supports_vision", model, default=False)
+    return bool(value)
+
+
+def supports_vision_url(binding: str, model: str | None = None) -> bool:
+    """Whether the provider accepts remote URL image references.
+
+    Some providers (Moonshot, our Anthropic adapter) only accept inline
+    base64-encoded image bytes. The multimodal layer consults this flag to
+    decide whether url-only attachments need to be resolved to bytes before
+    being forwarded.
+    """
+    value = get_capability(binding, "vision_url_supported", model, default=True)
     return bool(value)
 
 

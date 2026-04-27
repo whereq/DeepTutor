@@ -289,6 +289,30 @@ class FileTypeRouter:
         return cls.PARSER_EXTENSIONS | cls.TEXT_EXTENSIONS
 
     @classmethod
+    def has_supported_extension(cls, file_path: str | Path) -> bool:
+        """Return True when ``file_path`` has a supported extension.
+
+        The check is case-insensitive so files such as ``Report.PDF`` are
+        discovered consistently across upload, CLI, folder sync, and reindex.
+        """
+        return Path(file_path).suffix.lower() in cls.get_supported_extensions()
+
+    @classmethod
+    def collect_supported_files(
+        cls, directory: str | Path, recursive: bool = False
+    ) -> list[Path]:
+        """Collect supported files from a directory with case-insensitive suffix matching."""
+        root = Path(directory)
+        if not root.exists() or not root.is_dir():
+            return []
+
+        paths = root.rglob("*") if recursive else root.iterdir()
+        return sorted(
+            (path for path in paths if path.is_file() and cls.has_supported_extension(path)),
+            key=lambda path: str(path).lower(),
+        )
+
+    @classmethod
     def get_glob_patterns(cls) -> list[str]:
         """Get glob patterns for file searching."""
         return [f"*{ext}" for ext in sorted(cls.get_supported_extensions())]

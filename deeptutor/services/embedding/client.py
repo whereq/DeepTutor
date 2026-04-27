@@ -9,16 +9,20 @@ from deeptutor.services.config.provider_runtime import EMBEDDING_PROVIDERS
 
 from .adapters.base import BaseEmbeddingAdapter, EmbeddingRequest
 from .adapters.cohere import CohereEmbeddingAdapter
+from .adapters.dashscope_native import DashScopeMultiModalEmbeddingAdapter
 from .adapters.jina import JinaEmbeddingAdapter
 from .adapters.ollama import OllamaEmbeddingAdapter
 from .adapters.openai_compatible import OpenAICompatibleEmbeddingAdapter
+from .adapters.openai_sdk import OpenAISDKEmbeddingAdapter
 from .config import EmbeddingConfig, get_embedding_config
 
 _ADAPTER_MAP: dict[str, type[BaseEmbeddingAdapter]] = {
     "openai_compat": OpenAICompatibleEmbeddingAdapter,
+    "openai_sdk": OpenAISDKEmbeddingAdapter,
     "cohere": CohereEmbeddingAdapter,
     "jina": JinaEmbeddingAdapter,
     "ollama": OllamaEmbeddingAdapter,
+    "dashscope_native": DashScopeMultiModalEmbeddingAdapter,
 }
 
 
@@ -68,41 +72,65 @@ class EmbeddingClient:
 
         import asyncio
 
-        batch_size = max(1, self.config.batch_size)
+        # Clamp configured batch size against the provider's per-request item
+        # cap. SiliconFlow Qwen3 family caps at 32; DashScope at 20; others
+        # have generous defaults. Without this clamp, indexing a doc with many
+        # chunks fails on the second batch even when "Test connection" passes.
+        spec = EMBEDDING_PROVIDERS.get(self.config.binding)
+        provider_max = spec.max_batch_items if spec else 256
+        batch_size = max(1, min(self.config.batch_size, provider_max))
+        if batch_size < self.config.batch_size:
+            self.logger.info(
+                f"Clamped batch_size {self.config.batch_size} -> {batch_size} "
+                f"(provider '{self.config.binding}' max={provider_max})"
+            )
         all_embeddings: List[List[float]] = []
         batch_delay = self.config.batch_delay
 
-        try:
-            total_batches = (len(texts) + batch_size - 1) // batch_size
-            for i, start in enumerate(range(0, len(texts), batch_size)):
-                batch = texts[start : start + batch_size]
-                request = EmbeddingRequest(
-                    texts=batch,
-                    model=self.config.model,
-                    dimensions=self.config.dim,
-                )
-                response = await self.adapter.embed(request)
-                all_embeddings.extend(response.embeddings)
-
-                # Report progress after each batch
-                if progress_callback:
-                    try:
-                        progress_callback(i + 1, total_batches)
-                    except Exception:
-                        pass
-
-                # Delay between batches to avoid rate limiting
-                if i < total_batches - 1 and batch_delay > 0:
-                    await asyncio.sleep(batch_delay)
-
-            self.logger.debug(
-                f"Generated {len(all_embeddings)} embeddings using "
-                f"{self.config.binding} (batch_size={batch_size})"
+        total_batches = (len(texts) + batch_size - 1) // batch_size
+        for i, start in enumerate(range(0, len(texts), batch_size)):
+            batch = texts[start : start + batch_size]
+            request = EmbeddingRequest(
+                texts=batch,
+                model=self.config.model,
+                dimensions=self.config.dim or None,
             )
-            return all_embeddings
-        except Exception as exc:
-            self.logger.error(f"Embedding request failed: {exc}")
-            raise
+            try:
+                response = await self.adapter.embed(request)
+            except Exception as exc:
+                # Capture batch context so the task log stream / KB diagnostics
+                # show actionable info instead of a bare exception string.
+                import traceback
+
+                first_chunk_chars = len(batch[0]) if batch else 0
+                longest_chunk_chars = max((len(t) for t in batch), default=0)
+                self.logger.error(
+                    f"Embedding batch failed "
+                    f"(binding={self.config.binding}, model={self.config.model}, "
+                    f"batch_index={i + 1}/{total_batches}, batch_items={len(batch)}, "
+                    f"first_chunk_chars={first_chunk_chars}, "
+                    f"longest_chunk_chars={longest_chunk_chars}): {exc}\n"
+                    f"{traceback.format_exc()}"
+                )
+                raise
+            all_embeddings.extend(response.embeddings)
+
+            # Report progress after each batch
+            if progress_callback:
+                try:
+                    progress_callback(i + 1, total_batches)
+                except Exception:
+                    pass
+
+            # Delay between batches to avoid rate limiting
+            if i < total_batches - 1 and batch_delay > 0:
+                await asyncio.sleep(batch_delay)
+
+        self.logger.debug(
+            f"Generated {len(all_embeddings)} embeddings using "
+            f"{self.config.binding} (batch_size={batch_size})"
+        )
+        return all_embeddings
 
     def embed_sync(self, texts: List[str]) -> List[List[float]]:
         import asyncio

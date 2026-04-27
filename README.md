@@ -28,6 +28,8 @@
 
 ### 📦 Releases
 
+> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — Versioned Knowledge Base indexes with re-index workflow, rebuilt Knowledge management workspace with raw-file preview and index-version status, embedding dimension auto-discovery and new SiliconFlow/Aliyun/OpenAI SDK adapters, reasoning-stream and vision-attachment robustness, Space hub for Notebooks/Question Bank/Skills/Memory, TutorBot/channel dependency cleanup, Matrix extra, and Windows startup/debugging fixes.
+
 > **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — Persistent chat attachment storage with preview/download URLs, right-side file preview drawer for PDF/images/SVG/Markdown/code/Office text, broader code-file attachment coverage, attachment-aware Deep Solve/Question/Research/Visualize pipelines, TutorBot save-to-notebook and Markdown export, Setup Tour diagnostics, and auto-scroll/upload-picker fixes.
 
 > **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — Text/code/SVG chat attachments, one-command Setup Tour with dependency installation, `uv pip` and Windows npm fixes, Markdown chat export, compact Knowledge Base management UI, Polish README, theme/popover polish, and release/update-version hardening.
@@ -48,6 +50,9 @@
 
 > **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — URL-based bookmarkable sessions, Snow theme, WebSocket heartbeat & auto-reconnect, ChatComposer performance fix, embedding provider registry overhaul, and Serper search provider.
 
+<details>
+<summary><b>Past releases</b></summary>
+
 > **[2026.4.13]** [v1.0.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.3) — Question Notebook with bookmarks & categories, Mermaid in Visualize, embedding mismatch detection, Qwen/vLLM compatibility, LM Studio & llama.cpp support, and Glass theme.
 
 > **[2026.4.11]** [v1.0.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.2) — Search consolidation with SearXNG fallback, provider switch fix, and frontend resource leak fixes.
@@ -61,9 +66,6 @@
 > **[2026.4.7]** [v1.0.0-beta.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.2) — Hot settings reload, MinerU nested output, WebSocket fix, and Python 3.11+ minimum.
 
 > **[2026.4.4]** [v1.0.0-beta.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.1) — Agent-native architecture rewrite (~200k lines): Tools + Capabilities plugin model, CLI & SDK, TutorBot, Co-Writer, Guided Learning, and persistent memory.
-
-<details>
-<summary><b>Past releases</b></summary>
 
 > **[2026.1.23]** [v0.6.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.6.0) — Session persistence, incremental document upload, flexible RAG pipeline import, and full Chinese localization.
 
@@ -165,6 +167,7 @@ pip install -e ".[server]"
 
 # Optional add-ons — install only the ones you need:
 #   pip install -e ".[tutorbot]"       # TutorBot agent engine + channel SDKs
+#   pip install -e ".[matrix]"         # Matrix channel for TutorBot (requires libolm)
 #   pip install -e ".[math-animator]"  # Manim (also requires LaTeX & ffmpeg)
 #   pip install -e ".[all]"            # Everything above + dev tools
 

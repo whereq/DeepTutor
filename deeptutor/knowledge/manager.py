@@ -79,30 +79,81 @@ def _get_embedding_fingerprint() -> tuple[str, int] | None:
         return None
 
 
-def _reconcile_embedding_flags(knowledge_bases: dict) -> bool:
-    """Flag KBs whose stored embedding fingerprint differs from the active config.
+def _reconcile_embedding_flags(knowledge_bases: dict, base_dir: Path | None = None) -> bool:
+    """Reconcile per-KB embedding flags against the on-disk index versions.
 
-    Compares both model name and dimension.  Auto-clears the flag when the
-    user reverts to the original model.  Returns *True* when any entry changed.
+    For each KB we check the flat ``version-N`` directories (plus legacy
+    layouts) for a version matching the active embedding signature:
+
+    * Match found → clear ``needs_reindex`` and ``embedding_mismatch`` (the
+      user has switched back to a previously-indexed configuration).
+    * No match, but the KB has a stored ``embedding_model`` that differs
+      from the active fingerprint → set both flags so the UI surfaces a
+      "Re-index" CTA.
+
+    Returns ``True`` when any entry changed.
     """
-    fp = _get_embedding_fingerprint()
-    if not fp:
-        return False
+    from deeptutor.services.rag.index_versioning import (
+        find_matching_version,
+        list_kb_versions,
+        signature_from_embedding_config,
+    )
 
-    current_model, current_dim = fp
+    fp = _get_embedding_fingerprint()
+    signature = signature_from_embedding_config()
     changed = False
 
-    for kb_entry in knowledge_bases.values():
+    if signature is None and not fp:
+        return False
+
+    for kb_name, kb_entry in knowledge_bases.items():
         if not isinstance(kb_entry, dict):
             continue
-        stored_model = kb_entry.get("embedding_model")
-        if not stored_model:
+
+        kb_dir = (base_dir / kb_name) if base_dir is not None else None
+        matched = False
+        if kb_dir is not None and signature is not None:
+            matched = find_matching_version(kb_dir, signature) is not None
+
+        if matched:
+            mutated_local = False
+            if kb_entry.get("needs_reindex"):
+                kb_entry["needs_reindex"] = False
+                mutated_local = True
+            if kb_entry.get("embedding_mismatch"):
+                kb_entry.pop("embedding_mismatch", None)
+                mutated_local = True
+            if mutated_local:
+                changed = True
+            # Refresh the surfaced version list either way so the UI sees
+            # accurate state.
+            if kb_dir is not None:
+                kb_entry["index_versions"] = list_kb_versions(kb_dir)
             continue
 
+        # No matching index version on disk.
+        stored_model = kb_entry.get("embedding_model")
+        # If we have a stored fingerprint and it disagrees with the active one,
+        # OR there are no versions on disk for the active signature at all,
+        # mark needs_reindex so the UI shows the CTA. Skip KBs that have no
+        # stored fingerprint AND no on-disk versions (they're brand-new).
+        has_any_version = False
+        if kb_dir is not None:
+            has_any_version = bool(list_kb_versions(kb_dir))
+            kb_entry["index_versions"] = list_kb_versions(kb_dir)
+
+        if not has_any_version and not stored_model:
+            continue
+
+        current_model = fp[0] if fp else ""
+        current_dim = fp[1] if fp else 0
         stored_dim = kb_entry.get("embedding_dim")
-        mismatch = stored_model != current_model or (
-            stored_dim is not None and stored_dim != current_dim
+        mismatch = (stored_model and stored_model != current_model) or (
+            stored_dim is not None and current_dim and stored_dim != current_dim
         )
+        # If versions exist but none match active signature, that's also a mismatch.
+        if has_any_version:
+            mismatch = True
 
         if mismatch and not kb_entry.get("embedding_mismatch"):
             kb_entry["embedding_mismatch"] = True
@@ -110,7 +161,7 @@ def _reconcile_embedding_flags(knowledge_bases: dict) -> bool:
                 kb_entry["needs_reindex"] = True
             changed = True
         elif not mismatch and kb_entry.get("embedding_mismatch"):
-            del kb_entry["embedding_mismatch"]
+            kb_entry.pop("embedding_mismatch", None)
             changed = True
 
     return changed
@@ -151,6 +202,8 @@ class KnowledgeBaseManager:
 
                 # Migration: normalize legacy providers to llamaindex and
                 # mark legacy index-only KBs as needs_reindex.
+                from deeptutor.services.rag.index_versioning import list_kb_versions
+
                 knowledge_bases = config.get("knowledge_bases", {})
                 config_changed = False
                 for kb_name, kb_entry in knowledge_bases.items():
@@ -172,17 +225,19 @@ class KnowledgeBaseManager:
 
                     kb_dir = self.base_dir / kb_name
                     legacy_storage = kb_dir / "rag_storage"
-                    llamaindex_storage = kb_dir / "llamaindex_storage"
+                    has_llamaindex_index = any(
+                        bool(version.get("ready")) for version in list_kb_versions(kb_dir)
+                    )
                     if (
                         legacy_storage.exists()
                         and legacy_storage.is_dir()
-                        and not (llamaindex_storage.exists() and llamaindex_storage.is_dir())
+                        and not has_llamaindex_index
                     ):
                         if not kb_entry.get("needs_reindex", False):
                             kb_entry["needs_reindex"] = True
                             config_changed = True
 
-                if _reconcile_embedding_flags(knowledge_bases):
+                if _reconcile_embedding_flags(knowledge_bases, self.base_dir):
                     config_changed = True
 
                 if config_changed:
@@ -261,6 +316,22 @@ class KnowledgeBaseManager:
             fp = _get_embedding_fingerprint()
             if fp:
                 kb_config["embedding_model"], kb_config["embedding_dim"] = fp
+            # Record the active signature + the on-disk version registry so
+            # the UI can render version chips without recomputing.
+            try:
+                from deeptutor.services.rag.index_versioning import (
+                    list_kb_versions,
+                    signature_from_embedding_config,
+                )
+
+                sig = signature_from_embedding_config()
+                if sig is not None:
+                    kb_config["embedding_signature"] = sig.hash()
+                kb_dir = self.base_dir / name
+                if kb_dir.is_dir():
+                    kb_config["index_versions"] = list_kb_versions(kb_dir)
+            except Exception:  # pragma: no cover - best-effort metadata
+                pass
 
         self._save_config()
 
@@ -282,7 +353,7 @@ class KnowledgeBaseManager:
         This method:
         1. Loads registered KBs from kb_config.json
         2. Scans the directory for existing KBs not yet registered
-        3. Auto-registers any discovered KBs with valid structure (rag_storage or llamaindex_storage)
+        3. Auto-registers discovered KBs with valid raw/index structure
         """
         # Always reload config from file to ensure we have the latest data
         self.config = self._load_config()
@@ -303,11 +374,13 @@ class KnowledgeBaseManager:
                 if item.name in kb_list:
                     continue
 
-                # Check if this is a valid KB directory (legacy rag_storage or llamaindex_storage)
+                # Check if this is a valid KB directory (flat versions or legacy stores)
+                from deeptutor.services.rag.index_versioning import list_kb_versions
+
                 rag_storage = item / "rag_storage"
-                llamaindex_storage = item / "llamaindex_storage"
-                is_valid_kb = (rag_storage.exists() and rag_storage.is_dir()) or (
-                    llamaindex_storage.exists() and llamaindex_storage.is_dir()
+                is_valid_kb = (
+                    any(bool(version.get("ready")) for version in list_kb_versions(item))
+                    or (rag_storage.exists() and rag_storage.is_dir())
                 )
 
                 if is_valid_kb:
@@ -360,9 +433,10 @@ class KnowledgeBaseManager:
 
         # Detect rag_provider from storage type if not set
         if "rag_provider" not in kb_entry:
+            from deeptutor.services.rag.index_versioning import list_kb_versions
+
             rag_storage = kb_dir / "rag_storage"
-            llamaindex_storage = kb_dir / "llamaindex_storage"
-            if llamaindex_storage.exists():
+            if any(bool(version.get("ready")) for version in list_kb_versions(kb_dir)):
                 kb_entry["rag_provider"] = DEFAULT_PROVIDER
             elif rag_storage.exists():
                 kb_entry["rag_provider"] = DEFAULT_PROVIDER
@@ -408,10 +482,15 @@ class KnowledgeBaseManager:
     def get_rag_storage_path(self, name: str | None = None) -> Path:
         """Get active index storage path for a knowledge base."""
         kb_dir = self.get_knowledge_base_path(name)
-        llamaindex_storage = kb_dir / "llamaindex_storage"
+        from deeptutor.services.rag.index_versioning import (
+            resolve_storage_dir_for_read,
+            signature_from_embedding_config,
+        )
+
+        active_storage = resolve_storage_dir_for_read(kb_dir, signature_from_embedding_config())
         legacy_storage = kb_dir / "rag_storage"
-        if llamaindex_storage.exists():
-            return llamaindex_storage
+        if active_storage is not None:
+            return active_storage
         if legacy_storage.exists():
             return legacy_storage
         raise ValueError(f"Index storage not found for knowledge base: {name or 'default'}")
@@ -547,14 +626,22 @@ class KnowledgeBaseManager:
 
         # KB might not have a directory yet if still initializing
         dir_exists = kb_dir.exists()
+        index_versions: list[dict[str, Any]] = []
+        has_ready_llamaindex = False
+        if dir_exists:
+            from deeptutor.services.rag.index_versioning import list_kb_versions
+
+            index_versions = list_kb_versions(kb_dir)
+            has_ready_llamaindex = any(
+                bool(version.get("ready")) for version in index_versions
+            )
 
         # For old KBs without status field, determine status from rag_storage
         if needs_reindex:
             status = "needs_reindex"
         elif not status and dir_exists:
             rag_storage_dir = kb_dir / "rag_storage"
-            llamaindex_storage_dir = kb_dir / "llamaindex_storage"
-            if llamaindex_storage_dir.exists() and any(llamaindex_storage_dir.iterdir()):
+            if has_ready_llamaindex:
                 status = "ready"
             elif rag_storage_dir.exists() and any(rag_storage_dir.iterdir()):
                 status = "needs_reindex"
@@ -594,8 +681,6 @@ class KnowledgeBaseManager:
         raw_dir = kb_dir / "raw" if dir_exists else None
         images_dir = kb_dir / "images" if dir_exists else None
         content_list_dir = kb_dir / "content_list" if dir_exists else None
-        rag_storage_dir = kb_dir / "rag_storage" if dir_exists else None
-        llamaindex_storage_dir = kb_dir / "llamaindex_storage" if dir_exists else None
 
         raw_count = 0
         images_count = 0
@@ -621,12 +706,20 @@ class KnowledgeBaseManager:
             except Exception:
                 pass
 
-        # Check rag_initialized (llamaindex storage only)
-        rag_initialized = (
-            dir_exists
-            and llamaindex_storage_dir
-            and llamaindex_storage_dir.exists()
-            and llamaindex_storage_dir.is_dir()
+        # Check rag_initialized: flat versions OR legacy single-store/nested stores.
+        from deeptutor.services.rag.index_versioning import (
+            find_matching_version,
+            signature_from_embedding_config,
+        )
+
+        kb_dir = self.base_dir / kb_name if dir_exists else None
+        rag_initialized = has_ready_llamaindex
+
+        active_signature = signature_from_embedding_config()
+        active_match = (
+            find_matching_version(kb_dir, active_signature) is not None
+            if (kb_dir and active_signature)
+            else False
         )
 
         info["statistics"] = {
@@ -636,6 +729,9 @@ class KnowledgeBaseManager:
             "rag_initialized": rag_initialized,
             "rag_provider": rag_provider,
             "needs_reindex": needs_reindex,
+            "index_versions": index_versions,
+            "active_signature": active_signature.hash() if active_signature else None,
+            "active_match": active_match,
             # Include status and progress in statistics for backward compatibility
             "status": status,
             "progress": progress,
@@ -725,16 +821,36 @@ class KnowledgeBaseManager:
         """
         kb_name = name or self.get_default()
         kb_dir = self.get_knowledge_base_path(kb_name)
-        llamaindex_storage_dir = kb_dir / "llamaindex_storage"
+        from deeptutor.services.rag.index_versioning import (
+            LEGACY_VERSION_DIRNAME,
+            VERSION_PREFIX,
+        )
+
+        legacy_llamaindex_storage_dir = kb_dir / "llamaindex_storage"
+        legacy_versions_dir = kb_dir / LEGACY_VERSION_DIRNAME
         legacy_storage_dir = kb_dir / "rag_storage"
 
-        if not llamaindex_storage_dir.exists() and not legacy_storage_dir.exists():
+        flat_version_dirs = [
+            path for path in kb_dir.iterdir()
+            if path.is_dir() and path.name.startswith(VERSION_PREFIX)
+        ]
+
+        if (
+            not flat_version_dirs
+            and not legacy_versions_dir.exists()
+            and not legacy_llamaindex_storage_dir.exists()
+            and not legacy_storage_dir.exists()
+        ):
             logger.info(f"Index storage does not exist for '{kb_name}'")
             return False
 
         targets = []
-        if llamaindex_storage_dir.exists():
-            targets.append(("llamaindex_storage", llamaindex_storage_dir))
+        for version_dir in flat_version_dirs:
+            targets.append((version_dir.name, version_dir))
+        if legacy_versions_dir.exists():
+            targets.append((LEGACY_VERSION_DIRNAME, legacy_versions_dir))
+        if legacy_llamaindex_storage_dir.exists():
+            targets.append(("llamaindex_storage", legacy_llamaindex_storage_dir))
         if legacy_storage_dir.exists():
             targets.append(("rag_storage", legacy_storage_dir))
 
@@ -746,7 +862,6 @@ class KnowledgeBaseManager:
                 logger.info(f"Backed up {label} to: {backup_dir}")
 
             shutil.rmtree(target)
-            target.mkdir(parents=True, exist_ok=True)
             logger.info(f"Cleaned {label} for '{kb_name}'")
 
         return True
@@ -776,10 +891,7 @@ class KnowledgeBaseManager:
         if not folder.is_dir():
             raise ValueError(f"Path is not a directory: {folder}")
 
-        supported_extensions = FileTypeRouter.get_supported_extensions()
-        files: list[Path] = []
-        for ext in supported_extensions:
-            files.extend(folder.glob(f"**/*{ext}"))
+        files = FileTypeRouter.collect_supported_files(folder, recursive=True)
 
         # Generate folder ID
 
@@ -907,12 +1019,10 @@ class KnowledgeBaseManager:
         if not folder.exists() or not folder.is_dir():
             return []
 
-        supported_extensions = FileTypeRouter.get_supported_extensions()
-        files = []
-
-        for ext in supported_extensions:
-            for file_path in folder.glob(f"**/*{ext}"):
-                files.append(str(file_path))
+        files = [
+            str(file_path)
+            for file_path in FileTypeRouter.collect_supported_files(folder, recursive=True)
+        ]
 
         return sorted(files)
 
@@ -952,27 +1062,25 @@ class KnowledgeBaseManager:
             except Exception:
                 pass
 
-        supported_extensions = FileTypeRouter.get_supported_extensions()
         new_files = []
         modified_files = []
 
-        for ext in supported_extensions:
-            for file_path in folder_path.glob(f"**/*{ext}"):
-                file_str = str(file_path)
-                file_mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
+        for file_path in FileTypeRouter.collect_supported_files(folder_path, recursive=True):
+            file_str = str(file_path)
+            file_mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
 
-                if file_str in synced_files:
-                    # Check if modified since last sync
-                    prev_mtime_str = synced_files[file_str]
-                    try:
-                        prev_mtime = datetime.fromisoformat(prev_mtime_str)
-                        if file_mtime > prev_mtime:
-                            modified_files.append(file_str)
-                    except Exception:
+            if file_str in synced_files:
+                # Check if modified since last sync
+                prev_mtime_str = synced_files[file_str]
+                try:
+                    prev_mtime = datetime.fromisoformat(prev_mtime_str)
+                    if file_mtime > prev_mtime:
                         modified_files.append(file_str)
-                else:
-                    # New file (not in synced files)
-                    new_files.append(file_str)
+                except Exception:
+                    modified_files.append(file_str)
+            else:
+                # New file (not in synced files)
+                new_files.append(file_str)
 
         return {
             "new_files": sorted(new_files),

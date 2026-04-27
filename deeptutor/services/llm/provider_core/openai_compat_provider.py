@@ -294,6 +294,15 @@ class OpenAICompatProvider(LLMProvider):
                     kwargs.update(overrides)
                     break
 
+        if (
+            reasoning_effort is None
+            and spec
+            and spec.reasoning_model_patterns
+        ):
+            model_lower = model_name.lower()
+            if any(p.lower() in model_lower for p in spec.reasoning_model_patterns):
+                reasoning_effort = "high"
+
         semantic_effort: str | None = None
         if isinstance(reasoning_effort, str):
             semantic_effort = reasoning_effort.lower()
@@ -746,6 +755,7 @@ class OpenAICompatProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         **extra_kwargs: Any,
     ) -> LLMResponse:
         request_kwargs = self._build_kwargs(
@@ -787,7 +797,11 @@ class OpenAICompatProvider(LLMProvider):
                                 break
 
                     content, tool_calls, finish_reason, usage, reasoning_content = (
-                        await consume_sdk_stream(_timed_stream(), on_content_delta)
+                        await consume_sdk_stream(
+                            _timed_stream(),
+                            on_content_delta,
+                            on_reasoning_delta=on_reasoning_delta,
+                        )
                     )
                     self._record_responses_success(model, reasoning_effort)
                     return LLMResponse(
@@ -831,10 +845,18 @@ class OpenAICompatProvider(LLMProvider):
                 except StopAsyncIteration:
                     break
                 chunks.append(chunk)
-                if on_content_delta and chunk.choices:
-                    text = getattr(chunk.choices[0].delta, "content", None)
-                    if text:
-                        await on_content_delta(text)
+                if chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if on_reasoning_delta and delta is not None:
+                        reasoning_text = getattr(delta, "reasoning_content", None) or getattr(
+                            delta, "reasoning", None
+                        )
+                        if reasoning_text:
+                            await on_reasoning_delta(reasoning_text)
+                    if on_content_delta and delta is not None:
+                        text = getattr(delta, "content", None)
+                        if text:
+                            await on_content_delta(text)
             return self._parse_chunks(chunks)
         except asyncio.TimeoutError:
             return LLMResponse(

@@ -34,6 +34,9 @@ type CatalogModel = {
   model: string;
   dimension?: string;
   send_dimensions?: boolean;
+  // CSV of dims supported natively by the current model — refreshed by the
+  // backend on every successful "Run test" for an embedding service.
+  supported_dimensions?: string;
   context_window?: string;
   context_window_source?: string;
   context_window_detected_at?: string;
@@ -326,6 +329,201 @@ function SpotlightOverlay({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Embedding dimension field — dropdown when supported list is known, free
+// input otherwise, with a "Detected: Xd · Use this" affordance after a test.
+// ---------------------------------------------------------------------------
+
+const CUSTOM_DIM_SENTINEL = "__custom__";
+const AUTO_DIM_SENTINEL = "";
+
+function parseSupportedCsv(csv: string | undefined): number[] {
+  if (!csv) return [];
+  return csv
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => Number(s))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+type EmbeddingCapabilities = {
+  detected_dim?: number;
+  default_dim?: number;
+  supported_dimensions?: number[];
+  supports_variable_dimensions?: boolean;
+  model_known?: boolean;
+  active_dim?: number;
+  active_dim_source?: string;
+};
+
+function sourceBadge(
+  source: string | undefined,
+  t: (key: string) => string,
+): { label: string; tone: "muted" | "ok" | "warn" } | null {
+  // The probe is the single source of truth: a successful test always emits
+  // ``"detected"``. Other codes are legacy and no longer produced.
+  if (source === "detected") {
+    return { label: t("Source: detected from API probe"), tone: "ok" };
+  }
+  return null;
+}
+
+function DimensionField({
+  activeModel,
+  activeBinding,
+  capabilities,
+  embeddingDefaultDim,
+  inputClass,
+  onChangeDimension,
+}: {
+  activeModel: CatalogModel;
+  activeBinding?: string;
+  capabilities: EmbeddingCapabilities | null;
+  embeddingDefaultDim: (binding?: string) => string;
+  inputClass: string;
+  onChangeDimension: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const fallback = embeddingDefaultDim(activeBinding);
+  // Raw catalog state — empty string means "not yet configured / auto on
+  // next test". We never substitute the fallback into the input value, only
+  // into the placeholder, so the user can fully clear the field.
+  const rawValue = activeModel.dimension ?? "";
+  const isEmpty = rawValue === "";
+  const currentNum = isEmpty ? NaN : Number(rawValue);
+
+  // Live capabilities (from current run) override the cached CSV on disk.
+  const liveSupported = capabilities?.supported_dimensions;
+  const cachedSupported = parseSupportedCsv(activeModel.supported_dimensions);
+  const supported =
+    liveSupported && liveSupported.length > 0 ? liveSupported : cachedSupported;
+  const supportsVariable =
+    capabilities?.supports_variable_dimensions ?? supported.length > 1;
+
+  const useDropdown = supported.length > 1 && supportsVariable;
+  const currentInList =
+    Number.isFinite(currentNum) && supported.includes(currentNum);
+  // True when the user explicitly opted out of the dropdown by picking
+  // "Custom…". Stays true until they click "Use a supported value" or pick
+  // a real value from the dropdown again.
+  const [customRequested, setCustomRequested] = useState<boolean>(false);
+  // Force custom mode when the catalog has a non-empty value that isn't in
+  // the list — that's a sign the user typed something custom and we should
+  // respect it. Empty catalog stays in dropdown mode (showing "Auto").
+  const customMode =
+    customRequested || (useDropdown && !isEmpty && !currentInList);
+
+  const detected = capabilities?.detected_dim;
+  const showDetectedBadge =
+    typeof detected === "number" &&
+    detected > 0 &&
+    detected !== currentNum &&
+    !isEmpty;
+
+  const sourceInfo = sourceBadge(capabilities?.active_dim_source, t);
+
+  const disabled = activeModel.send_dimensions === false;
+
+  const handleSelect = (value: string) => {
+    if (value === CUSTOM_DIM_SENTINEL) {
+      setCustomRequested(true);
+      return;
+    }
+    setCustomRequested(false);
+    // AUTO_DIM_SENTINEL is "" — clears the catalog, triggers auto-fill on
+    // the next test. Real numeric values flow through unchanged.
+    onChangeDimension(value);
+  };
+
+  const dropdownValue = isEmpty
+    ? AUTO_DIM_SENTINEL
+    : currentInList
+      ? String(currentNum)
+      : CUSTOM_DIM_SENTINEL;
+
+  return (
+    <div className="space-y-1.5">
+      {useDropdown && !customMode ? (
+        <select
+          className={inputClass}
+          value={dropdownValue}
+          onChange={(e) => handleSelect(e.target.value)}
+          disabled={disabled}
+        >
+          <option value={AUTO_DIM_SENTINEL}>
+            {t("Auto (probe on next test)")}
+          </option>
+          {supported.map((dim) => (
+            <option key={dim} value={String(dim)}>
+              {dim}
+            </option>
+          ))}
+          <option value={CUSTOM_DIM_SENTINEL}>{t("Custom…")}</option>
+        </select>
+      ) : (
+        <input
+          className={inputClass}
+          value={rawValue}
+          placeholder={fallback}
+          onChange={(e) => onChangeDimension(e.target.value)}
+          disabled={disabled}
+          inputMode="numeric"
+        />
+      )}
+      {useDropdown && customMode && (
+        <button
+          type="button"
+          onClick={() => {
+            setCustomRequested(false);
+            if (isEmpty) {
+              return;
+            }
+            // Snap to the closest supported value to keep the catalog honest.
+            const closest = supported.reduce((acc, dim) =>
+              Math.abs(dim - currentNum) < Math.abs(acc - currentNum)
+                ? dim
+                : acc,
+            );
+            onChangeDimension(String(closest));
+          }}
+          className="text-[11px] text-[var(--muted-foreground)] underline-offset-2 hover:underline"
+        >
+          {t("Use a supported value")}
+        </button>
+      )}
+      {sourceInfo && (
+        <div
+          className={`text-[11px] ${
+            sourceInfo.tone === "warn"
+              ? "text-amber-600 dark:text-amber-400"
+              : sourceInfo.tone === "ok"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-[var(--muted-foreground)]"
+          }`}
+        >
+          {sourceInfo.label}
+        </div>
+      )}
+      {showDetectedBadge && (
+        <div className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+          <span>
+            {t("Detected")}: <strong>{detected}d</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => onChangeDimension(String(detected))}
+            className="rounded-md border border-[var(--border)]/60 px-1.5 py-0.5 text-[10px] text-[var(--foreground)] transition-colors hover:border-[var(--border)]"
+            disabled={disabled}
+          >
+            {t("Use this")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════
@@ -351,6 +549,12 @@ function SettingsPageContent() {
   const [providers, setProviders] = useState<
     Record<ServiceName, ProviderOption[]>
   >({ llm: [], embedding: [], search: [] });
+  // Most-recent capabilities snapshot from the embedding test run. Cleared
+  // when the user kicks off another run, populated when the backend emits
+  // the `capabilities` SSE event. Drives the source badge + "Detected: Xd"
+  // affordance.
+  const [embeddingCapabilities, setEmbeddingCapabilities] =
+    useState<EmbeddingCapabilities | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Tour-specific state
@@ -384,6 +588,16 @@ function SettingsPageContent() {
     const timer = setTimeout(() => setToast(""), 3500);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  // Reset stale ``embeddingCapabilities`` whenever the active embedding
+  // profile or model changes. Without this, a 4096d detection on profile A
+  // bleeds into profile B's "Detected: …" affordance after a switch.
+  useEffect(() => {
+    setEmbeddingCapabilities(null);
+  }, [
+    draft.services.embedding.active_profile_id,
+    draft.services.embedding.active_model_id,
+  ]);
 
   // -- Tour guide auto-switch active service tab --------------------------
 
@@ -644,6 +858,9 @@ function SettingsPageContent() {
     }
     setLogs(`Preparing ${activeService} diagnostics...\n`);
     setTestRunning(activeService);
+    if (activeService === "embedding") {
+      setEmbeddingCapabilities(null);
+    }
     try {
       const response = await fetch(
         apiUrl(`/api/v1/settings/tests/${activeService}/start`),
@@ -671,8 +888,26 @@ function SettingsPageContent() {
           type: string;
           message: string;
           catalog?: Catalog;
+          detected_dim?: number;
+          default_dim?: number;
+          supported_dimensions?: number[];
+          supports_variable_dimensions?: boolean;
+          model_known?: boolean;
+          active_dim?: number;
+          active_dim_source?: string;
         };
         setLogs((current) => `${current}[${entry.type}] ${entry.message}\n`);
+        if (entry.type === "capabilities") {
+          setEmbeddingCapabilities({
+            detected_dim: entry.detected_dim,
+            default_dim: entry.default_dim,
+            supported_dimensions: entry.supported_dimensions,
+            supports_variable_dimensions: entry.supports_variable_dimensions,
+            model_known: entry.model_known,
+            active_dim: entry.active_dim,
+            active_dim_source: entry.active_dim_source,
+          });
+        }
         if (entry.catalog) {
           setCatalog(entry.catalog);
           setDraft(cloneCatalog(entry.catalog));
@@ -1035,7 +1270,11 @@ function SettingsPageContent() {
                         onChange={(e) =>
                           updateProfileField("base_url", e.target.value)
                         }
-                        placeholder="https://api.openai.com/v1"
+                        placeholder={
+                          activeService === "embedding"
+                            ? "https://api.openai.com/v1/embeddings"
+                            : "https://api.openai.com/v1"
+                        }
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -1280,16 +1519,15 @@ function SettingsPageContent() {
                                 </span>
                               </label>
                             </div>
-                            <input
-                              className={inputClass}
-                              value={
-                                activeModel.dimension ||
-                                embeddingDefaultDim(activeProfile?.binding)
+                            <DimensionField
+                              activeModel={activeModel}
+                              activeBinding={activeProfile?.binding}
+                              capabilities={embeddingCapabilities}
+                              embeddingDefaultDim={embeddingDefaultDim}
+                              inputClass={inputClass}
+                              onChangeDimension={(value) =>
+                                updateModelField("dimension", value)
                               }
-                              onChange={(e) =>
-                                updateModelField("dimension", e.target.value)
-                              }
-                              disabled={activeModel.send_dimensions === false}
                             />
                           </div>
                         )}

@@ -108,7 +108,8 @@ class TestPayloadNormalizationOnLoad:
     def test_modern_storage_dir_does_not_trigger_reindex(self, tmp_path: Path) -> None:
         config_path = tmp_path / "kb_config.json"
         kb_dir = tmp_path / "modern-kb"
-        (kb_dir / "llamaindex_storage").mkdir(parents=True)
+        (kb_dir / "version-1").mkdir(parents=True)
+        (kb_dir / "version-1" / "docstore.json").write_text("{}", encoding="utf-8")
         (kb_dir / "rag_storage").mkdir(parents=True)  # legacy dir co-existing
 
         _write_kb_config(

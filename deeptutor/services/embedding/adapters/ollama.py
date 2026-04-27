@@ -2,6 +2,7 @@
 
 import logging
 from typing import Any, Dict
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -19,21 +20,40 @@ class OllamaEmbeddingAdapter(BaseEmbeddingAdapter):
         "snowflake-arctic-embed": 1024,
     }
 
+    def _should_send_dimensions(self) -> bool:
+        # Ollama models historically ignore the param, so default to NOT
+        # sending unless the user explicitly opts in.
+        return self.send_dimensions is True
+
+    def _tags_url(self) -> str:
+        # Probe `/api/tags` on the same host as the configured embed URL,
+        # regardless of which embed path the user chose.
+        parsed = urlparse(self.base_url)
+        if parsed.scheme and parsed.netloc:
+            return urljoin(f"{parsed.scheme}://{parsed.netloc}", "/api/tags")
+        return urljoin(self.base_url, "/api/tags")
+
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
+        if request.contents:
+            raise ValueError(
+                "Ollama embedding adapter does not support multimodal `contents` input."
+            )
+
         payload = {
             "model": request.model or self.model,
             "input": request.texts,
         }
 
-        if request.dimensions or self.dimensions:
-            payload["dimensions"] = request.dimensions or self.dimensions
+        dim_value = request.dimensions or self.dimensions
+        if dim_value and self._should_send_dimensions():
+            payload["dimensions"] = dim_value
 
         if request.truncate is not None:
             payload["truncate"] = request.truncate
 
         payload["keep_alive"] = "5m"
 
-        url = f"{self.base_url}/api/embed"
+        url = self.base_url
 
         logger.debug(f"Sending embedding request to {url} with {len(request.texts)} texts")
 
@@ -47,7 +67,7 @@ class OllamaEmbeddingAdapter(BaseEmbeddingAdapter):
 
                 if response.status_code == 404:
                     try:
-                        health_check = await client.get(f"{self.base_url}/api/tags")
+                        health_check = await client.get(self._tags_url())
                         if health_check.status_code == 200:
                             available_models = [
                                 m.get("name", "") for m in health_check.json().get("models", [])

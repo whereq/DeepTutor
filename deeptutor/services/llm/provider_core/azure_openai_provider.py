@@ -138,6 +138,7 @@ class AzureOpenAIProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         **extra_kwargs: Any,
     ) -> LLMResponse:
         body = self._build_body(
@@ -167,6 +168,7 @@ class AzureOpenAIProvider(LLMProvider):
             content, tool_calls, finish_reason, usage, reasoning_content = await consume_sdk_stream(
                 _timed_stream(),
                 on_content_delta,
+                on_reasoning_delta=on_reasoning_delta,
             )
             return LLMResponse(
                 content=content or None,

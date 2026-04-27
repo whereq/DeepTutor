@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 from typing import Optional
 
+from deeptutor.knowledge.naming import validate_knowledge_base_name
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
 from deeptutor.logging import get_logger
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
@@ -33,16 +34,18 @@ class KnowledgeBaseInitializer:
         progress_tracker: ProgressTracker | None = None,
         rag_provider: str | None = None,
     ):
-        self.kb_name = kb_name
+        self.kb_name = validate_knowledge_base_name(kb_name)
         self.base_dir = Path(base_dir)
-        self.kb_dir = self.base_dir / kb_name
+        self.kb_dir = self.base_dir / self.kb_name
 
         self.raw_dir = self.kb_dir / "raw"
         self.llamaindex_storage_dir = self.kb_dir / "llamaindex_storage"
 
         self.api_key = api_key
         self.base_url = base_url
-        self.progress_tracker = progress_tracker or ProgressTracker(kb_name, self.base_dir)
+        self.progress_tracker = progress_tracker or ProgressTracker(
+            self.kb_name, self.base_dir
+        )
         self.rag_provider = DEFAULT_PROVIDER
 
     def _register_to_config(self) -> None:
@@ -105,7 +108,6 @@ class KnowledgeBaseInitializer:
 
         for dir_path in [
             self.raw_dir,
-            self.llamaindex_storage_dir,
         ]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
@@ -149,9 +151,7 @@ class KnowledgeBaseInitializer:
             total=0,
         )
 
-        doc_files: list[Path] = []
-        for pattern in FileTypeRouter.get_glob_patterns():
-            doc_files.extend(list(self.raw_dir.glob(pattern)))
+        doc_files = FileTypeRouter.collect_supported_files(self.raw_dir)
 
         if not doc_files:
             self.progress_tracker.update(
@@ -229,12 +229,15 @@ class KnowledgeBaseInitializer:
     async def display_statistics_generic(self) -> None:
         """Display basic statistics."""
         raw_files = list(self.raw_dir.glob("*")) if self.raw_dir.exists() else []
+        from deeptutor.services.rag.index_versioning import list_kb_versions
+
+        index_versions = list_kb_versions(self.kb_dir)
 
         logger.info("=" * 50)
         logger.info("Knowledge Base Statistics")
         logger.info("=" * 50)
         logger.info(f"Raw documents: {len(raw_files)}")
-        logger.info(f"LlamaIndex storage exists: {self.llamaindex_storage_dir.exists()}")
+        logger.info(f"Index versions: {len(index_versions)}")
         logger.info(f"Provider used: {DEFAULT_PROVIDER}")
         logger.info("=" * 50)
 
@@ -317,8 +320,9 @@ async def main() -> None:
     if args.docs_dir:
         docs_dir = Path(args.docs_dir)
         if docs_dir.exists() and docs_dir.is_dir():
-            for pattern in FileTypeRouter.get_glob_patterns():
-                doc_files.extend([str(f) for f in docs_dir.glob(pattern)])
+            doc_files.extend(
+                str(f) for f in FileTypeRouter.collect_supported_files(docs_dir)
+            )
 
     initializer = KnowledgeBaseInitializer(
         kb_name=args.name,

@@ -148,6 +148,7 @@ lists in `requirements/*.txt` for Docker/CI installs without source code.
 .[cli]            — CLI full (LLM + RAG + providers + document parsing)
 .[server]         — .[cli] + FastAPI/uvicorn (for Web/API)
 .[tutorbot]       — .[server] + TutorBot agent engine + channel SDKs
+.[matrix]         — Matrix channel for TutorBot (matrix-nio[e2e]; needs libolm)
 .[math-animator]  — Manim addon (for `deeptutor animate`)
 .[dev]            — .[server] + test/lint tools
 .[all]            — Everything above

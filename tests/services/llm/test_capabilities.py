@@ -5,6 +5,7 @@ from deeptutor.services.llm.capabilities import (
     get_effective_temperature,
     has_thinking_tags,
     supports_response_format,
+    supports_vision,
 )
 
 
@@ -38,3 +39,19 @@ def test_effective_temperature_override() -> None:
     """Forced temperature overrides should be applied for reasoning models."""
     assert get_effective_temperature("openai", "gpt-5") == 1.0
     assert get_effective_temperature("openai", "gpt-4o", requested_temp=0.4) == 0.4
+
+
+def test_moonshot_vision_models() -> None:
+    """Per Kimi docs the five vision-capable IDs flip supports_vision to True;
+    other Moonshot models stay at the binding default (False).
+
+    https://platform.kimi.com/docs/guide/use-kimi-vision-model
+    """
+    assert supports_vision("moonshot", "moonshot-v1-8k-vision-preview") is True
+    assert supports_vision("moonshot", "moonshot-v1-32k-vision-preview") is True
+    assert supports_vision("moonshot", "moonshot-v1-128k-vision-preview") is True
+    assert supports_vision("moonshot", "kimi-k2.5") is True
+    assert supports_vision("moonshot", "kimi-k2.6") is True
+    # Text-only Moonshot models stay False
+    assert supports_vision("moonshot", "moonshot-v1-8k") is False
+    assert supports_vision("moonshot", "kimi-latest") is False

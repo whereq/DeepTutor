@@ -8,8 +8,8 @@ import { useAppShell } from "@/context/AppShellContext";
 import {
   BookOpen,
   Bot,
-  Brain,
   Github,
+  LayoutGrid,
   Library,
   MessageSquare,
   PanelLeftClose,
@@ -22,8 +22,6 @@ import {
 import { useTranslation } from "react-i18next";
 import SessionList from "@/components/SessionList";
 import { TutorBotRecent } from "@/components/sidebar/TutorBotRecent";
-import { BookRecent } from "@/components/sidebar/BookRecent";
-import { CoWriterRecent } from "@/components/sidebar/CoWriterRecent";
 import { VersionBadge } from "@/components/sidebar/VersionBadge";
 import type { SessionSummary } from "@/lib/session-api";
 
@@ -39,7 +37,7 @@ const PRIMARY_NAV: NavEntry[] = [
   { href: "/co-writer", label: "Co-Writer", icon: PenLine },
   { href: "/book", label: "Book", icon: Library },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen },
-  { href: "/memory", label: "Memory", icon: Brain },
+  { href: "/space", label: "Space", icon: LayoutGrid },
 ];
 
 const SECONDARY_NAV: NavEntry[] = [
@@ -241,8 +239,6 @@ export function SidebarShell({
               onRenameSession &&
               onDeleteSession;
             const hasBots = item.href === "/agents";
-            const hasBooks = item.href === "/book";
-            const hasCoWriterDocs = item.href === "/co-writer";
             return (
               <div key={item.href}>
                 <Link
@@ -272,8 +268,6 @@ export function SidebarShell({
                   </div>
                 )}
                 {hasBots && <TutorBotRecent />}
-                {hasCoWriterDocs && <CoWriterRecent />}
-                {hasBooks && <BookRecent />}
               </div>
             );
           })}

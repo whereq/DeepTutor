@@ -370,21 +370,42 @@ async def stream(
 
     queue: asyncio.Queue[str | BaseException | None] = asyncio.Queue()
     saw_output = False
+    in_think_block = False
+
+    async def _on_reasoning_delta(chunk: str) -> None:
+        nonlocal saw_output, in_think_block
+        if not chunk:
+            return
+        saw_output = True
+        if not in_think_block:
+            in_think_block = True
+            await queue.put("<think>")
+        await queue.put(chunk)
 
     async def _on_content_delta(chunk: str) -> None:
-        nonlocal saw_output
+        nonlocal saw_output, in_think_block
+        if not chunk:
+            return
         saw_output = True
+        if in_think_block:
+            in_think_block = False
+            await queue.put("</think>")
         await queue.put(chunk)
 
     async def _runner() -> None:
+        nonlocal in_think_block
         try:
             response = await provider.chat_stream_with_retry(
                 messages=request_messages,
                 model=config.model,
                 on_content_delta=_on_content_delta,
+                on_reasoning_delta=_on_reasoning_delta,
                 retry_delays=retry_delays,
                 **extra_kwargs,
             )
+            if in_think_block:
+                in_think_block = False
+                await queue.put("</think>")
             if response.finish_reason == "error" and not saw_output:
                 await queue.put(
                     map_error(

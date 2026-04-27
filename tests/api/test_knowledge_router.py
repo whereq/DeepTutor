@@ -82,6 +82,10 @@ def _invalid_upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
     return [("files", ("archive.zip", b"PK\x03\x04", "application/zip"))]
 
 
+def _uppercase_upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
+    return [("files", ("报告.PDF", b"%PDF-1.4\n", "application/pdf"))]
+
+
 def test_rag_providers_returns_llamaindex_only() -> None:
     with TestClient(_build_app()) as client:
         response = client.get("/api/v1/knowledge/rag-providers")
@@ -182,6 +186,50 @@ def test_create_rejects_invalid_files_before_registering_kb(
     assert response.status_code == 400
     assert "unsupported file type" in response.json()["detail"].lower()
     assert "kb-invalid" not in manager.config["knowledge_bases"]
+
+
+def test_create_rejects_invalid_kb_name_before_registering_kb(
+    monkeypatch, tmp_path: Path
+) -> None:
+    manager = _FakeKBManager(tmp_path / "knowledge_bases")
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
+
+    with TestClient(_build_app()) as client:
+        response = client.post(
+            "/api/v1/knowledge/create",
+            data={"name": "bad/name", "rag_provider": "llamaindex"},
+            files=_upload_payload(),
+        )
+
+    assert response.status_code == 400
+    assert "reserved characters" in response.json()["detail"].lower()
+    assert manager.config["knowledge_bases"] == {}
+
+
+def test_create_normalizes_uploaded_extension_to_lowercase(
+    monkeypatch, tmp_path: Path
+) -> None:
+    manager = _FakeKBManager(tmp_path / "knowledge_bases")
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    monkeypatch.setattr(knowledge_router_module, "KnowledgeBaseInitializer", _FakeInitializer)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
+
+    async def _noop_init_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(knowledge_router_module, "run_initialization_task", _noop_init_task)
+
+    with TestClient(_build_app()) as client:
+        response = client.post(
+            "/api/v1/knowledge/create",
+            data={"name": "kb-uppercase", "rag_provider": "llamaindex"},
+            files=_uppercase_upload_payload(),
+        )
+
+    assert response.status_code == 200
+    assert response.json()["files"] == ["报告.pdf"]
+    assert (tmp_path / "knowledge_bases" / "kb-uppercase" / "raw" / "报告.pdf").exists()
 
 
 def test_upload_returns_409_when_kb_needs_reindex(monkeypatch, tmp_path: Path) -> None:

@@ -57,20 +57,22 @@ cli = [
 ]
 
 # Web/API server (CLI + FastAPI). Mirrors requirements/server.txt.
+# loguru / json-repair live here (not in [tutorbot]) because provider_core
+# imports them unconditionally — needed by every server install path.
 server = [
     "deeptutor[cli]",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.24.0",
     "websockets>=12.0",
     "python-multipart>=0.0.6",
+    "loguru>=0.7.3,<1.0.0",
+    "json-repair>=0.57.0,<1.0.0",
 ]
 
 # TutorBot agent engine + channel SDKs. Mirrors requirements/tutorbot.txt.
 tutorbot = [
     "deeptutor[server]",
-    "loguru>=0.7.3,<1.0.0",
     "croniter>=6.0.0,<7.0.0",
-    "json-repair>=0.57.0,<1.0.0",
     "tiktoken>=0.12.0,<1.0.0",
     "chardet>=3.0.2,<6.0.0",
     "mcp>=1.26.0,<2.0.0",
@@ -88,6 +90,14 @@ tutorbot = [
     "websocket-client>=1.9.0,<2.0.0",
 ]
 
+# Matrix (Element) channel for TutorBot. Mirrors requirements/matrix.txt.
+# Kept as a separate extra because matrix-nio[e2e] requires libolm (native dep).
+matrix = [
+    "matrix-nio[e2e]>=0.25.2,<1.0.0",
+    "mistune>=3.0.0,<4.0.0",
+    "nh3>=0.2.18,<1.0.0",
+]
+
 # Math Animator addon (Manim). Mirrors requirements/math-animator.txt.
 # System prerequisites (installed outside pip): LaTeX, pkg-config, cairo, cmake, ffmpeg.
 math-animator = ["manim>=0.19.0"]
@@ -102,9 +112,10 @@ dev = [
     "bandit>=1.8.0",
 ]
 
-# Everything: server + tutorbot + math-animator + dev tools.
+# Everything: server + tutorbot + matrix + math-animator + dev tools.
 all = [
     "deeptutor[tutorbot]",
+    "deeptutor[matrix]",
     "deeptutor[math-animator]",
     "deeptutor[dev]",
 ]

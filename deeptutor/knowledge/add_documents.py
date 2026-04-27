@@ -17,6 +17,8 @@ from dotenv import load_dotenv
 
 from deeptutor.logging import get_logger
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
+from deeptutor.services.rag.file_routing import FileTypeRouter
+from deeptutor.services.rag.index_versioning import list_kb_versions
 from deeptutor.services.rag.pipelines.llamaindex import LlamaIndexPipeline
 
 logger = get_logger("KnowledgeInit")
@@ -48,12 +50,16 @@ class DocumentAdder:
         self.legacy_rag_storage_dir = self.kb_dir / "rag_storage"
         self.metadata_file = self.kb_dir / "metadata.json"
 
-        if not self.llamaindex_storage_dir.exists() and self.legacy_rag_storage_dir.exists():
+        has_llamaindex_index = any(
+            bool(version.get("ready")) for version in list_kb_versions(self.kb_dir)
+        )
+
+        if not has_llamaindex_index and self.legacy_rag_storage_dir.exists():
             raise ValueError(
                 f"Knowledge base '{kb_name}' uses legacy index format and requires reindex before incremental add"
             )
 
-        if not self.llamaindex_storage_dir.exists():
+        if not has_llamaindex_index:
             raise ValueError(f"Knowledge base not initialized (llamaindex): {kb_name}")
 
         if rag_provider and rag_provider != DEFAULT_PROVIDER:
@@ -311,8 +317,7 @@ async def main() -> None:
         doc_files.extend(args.docs)
     if args.docs_dir:
         p = Path(args.docs_dir)
-        for ext in ["*.pdf", "*.txt", "*.md", "*.json", "*.csv"]:
-            doc_files.extend([str(f) for f in p.glob(ext)])
+        doc_files.extend(str(f) for f in FileTypeRouter.collect_supported_files(p))
 
     if not doc_files:
         logger.error("No documents provided.")

@@ -22,6 +22,13 @@ from llama_index.core.bridge.pydantic import PrivateAttr
 from deeptutor.logging import get_logger
 from deeptutor.services.embedding import get_embedding_client, get_embedding_config
 from deeptutor.services.rag.file_routing import FileTypeRouter
+from deeptutor.services.rag.index_versioning import (
+    find_matching_version,
+    resolve_storage_dir_for_read,
+    resolve_storage_dir_for_write,
+    signature_from_embedding_config,
+    write_version_meta,
+)
 
 # Default knowledge base directory
 DEFAULT_KB_BASE_DIR = str(
@@ -190,6 +197,33 @@ class LlamaIndexPipeline:
                 f"Cannot reach embedding API. Please check your embedding configuration. Error: {e}"
             ) from e
 
+    def _cleanup_failed_version_dir(
+        self, storage_dir: Path, signature: Optional[Any]
+    ) -> None:
+        """Remove a flat version dir that we created but never populated."""
+        _ = signature
+        try:
+            version_dir = storage_dir
+            if not version_dir.is_dir():
+                return
+            if not version_dir.name.startswith("version-"):
+                return
+            storage_empty = not any(
+                child for child in version_dir.iterdir() if child.name != "meta.json"
+            )
+            meta_path = version_dir / "meta.json"
+            if storage_empty and not meta_path.exists():
+                import shutil
+
+                shutil.rmtree(version_dir, ignore_errors=True)
+                self.logger.info(
+                    f"Removed empty version dir after failed pipeline run: {version_dir}"
+                )
+        except Exception as cleanup_exc:  # pragma: no cover - best-effort
+            self.logger.warning(
+                f"Could not clean up failed version dir for {storage_dir}: {cleanup_exc}"
+            )
+
     async def initialize(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
         """
         Initialize KB using real LlamaIndex components.
@@ -209,8 +243,11 @@ class LlamaIndexPipeline:
         )
 
         kb_dir = Path(self.kb_base_dir) / kb_name
-        storage_dir = kb_dir / "llamaindex_storage"
-        storage_dir.mkdir(parents=True, exist_ok=True)
+        # Per-(profile, model) flat version storage so that switching the active
+        # embedding model does not destroy a prior version's index — and
+        # switching back lets us reuse it without reindexing.
+        signature = signature_from_embedding_config()
+        storage_dir = resolve_storage_dir_for_write(kb_dir, signature)
 
         try:
             # Verify embedding API is reachable before doing any heavy work
@@ -280,6 +317,8 @@ class LlamaIndexPipeline:
             # Persist index
             index.storage_context.persist(persist_dir=str(storage_dir))
             self.logger.info(f"Index persisted to {storage_dir}")
+            if signature is not None:
+                write_version_meta(kb_dir, signature, storage_dir=storage_dir)
 
             self.logger.info(f"KB '{kb_name}' initialized successfully with LlamaIndex")
             return True
@@ -289,7 +328,12 @@ class LlamaIndexPipeline:
             import traceback
 
             self.logger.error(traceback.format_exc())
-            return False
+            # Remove the empty version dir we eagerly created so it doesn't
+            # show up in the UI as a phantom "active" pill, and re-raise so
+            # the caller (run_reindex_task) can surface the actual error
+            # instead of a generic "pipeline returned failure" wrapper.
+            self._cleanup_failed_version_dir(storage_dir, signature)
+            raise
         finally:
             if isinstance(Settings.embed_model, CustomEmbedding):
                 Settings.embed_model.set_progress_callback(None)
@@ -333,16 +377,27 @@ class LlamaIndexPipeline:
         self.logger.info(f"Searching KB '{kb_name}' with query: {query[:50]}...")
 
         kb_dir = Path(self.kb_base_dir) / kb_name
-        storage_dir = kb_dir / "llamaindex_storage"
+        # Resolve the index version that matches the active embedding config.
+        # Falls back to the legacy single-store layout for KBs indexed before
+        # versioning landed.
+        signature = signature_from_embedding_config()
+        storage_dir = resolve_storage_dir_for_read(kb_dir, signature)
 
-        docstore_path = storage_dir / "docstore.json"
-        if not storage_dir.exists() or not docstore_path.exists():
-            self.logger.warning(f"No LlamaIndex storage found at {storage_dir}")
+        if storage_dir is None or not (storage_dir / "docstore.json").exists():
+            self.logger.warning(
+                f"No matching index found for KB '{kb_name}' at signature "
+                f"{signature.hash() if signature else 'n/a'}"
+            )
             return {
                 "query": query,
-                "answer": "No documents indexed. Please upload documents first.",
+                "answer": (
+                    "This knowledge base has no index for the active embedding "
+                    "model. Re-index it (or switch back to a previously-used "
+                    "embedding model) before querying."
+                ),
                 "content": "",
                 "provider": "llamaindex",
+                "needs_reindex": True,
             }
 
         embedding_mismatch_warning = ""
@@ -442,7 +497,36 @@ class LlamaIndexPipeline:
         self.logger.info(f"Adding {len(file_paths)} documents to KB '{kb_name}' using LlamaIndex")
 
         kb_dir = Path(self.kb_base_dir) / kb_name
-        storage_dir = kb_dir / "llamaindex_storage"
+        signature = signature_from_embedding_config()
+        # Add to whichever version matches the active embedding config; if it
+        # doesn't exist yet (e.g. user switched models and is uploading
+        # before reindexing), fall back to building a new versioned store.
+        matching_version = (
+            find_matching_version(kb_dir, signature) if signature is not None else None
+        )
+        existing_storage = (
+            Path(str(matching_version["storage_path"])) if matching_version else None
+        )
+        if matching_version and matching_version.get("layout") == "flat":
+            storage_dir = existing_storage
+        elif matching_version:
+            storage_dir = resolve_storage_dir_for_write(kb_dir, signature)
+            self.logger.info(
+                f"Migrating legacy index layout for KB '{kb_name}' to {storage_dir}"
+            )
+        else:
+            fallback_storage = resolve_storage_dir_for_read(kb_dir, signature)
+            existing_storage = fallback_storage
+            fallback_is_flat = (
+                fallback_storage is not None
+                and fallback_storage.parent == kb_dir
+                and fallback_storage.name.startswith("version-")
+            )
+            storage_dir = (
+                fallback_storage
+                if fallback_is_flat
+                else resolve_storage_dir_for_write(kb_dir, signature)
+            )
 
         try:
             await self._verify_embedding_connectivity()
@@ -499,11 +583,13 @@ class LlamaIndexPipeline:
 
             loop = asyncio.get_event_loop()
 
-            if storage_dir.exists():
-                self.logger.info(f"Loading existing index from {storage_dir}...")
+            if existing_storage is not None:
+                self.logger.info(f"Loading existing index from {existing_storage}...")
 
                 def load_and_insert():
-                    storage_context = StorageContext.from_defaults(persist_dir=str(storage_dir))
+                    storage_context = StorageContext.from_defaults(
+                        persist_dir=str(existing_storage)
+                    )
                     index = load_index_from_storage(storage_context)
 
                     for i, doc in enumerate(documents, 1):
@@ -518,6 +604,8 @@ class LlamaIndexPipeline:
 
                 num_added = await loop.run_in_executor(None, load_and_insert)
                 self.logger.info(f"Added {num_added} documents to existing index")
+                if signature is not None and storage_dir != existing_storage:
+                    write_version_meta(kb_dir, signature, storage_dir=storage_dir)
             else:
                 self.logger.info(f"Creating new index with {len(documents)} documents...")
                 storage_dir.mkdir(parents=True, exist_ok=True)
@@ -529,6 +617,8 @@ class LlamaIndexPipeline:
 
                 num_added = await loop.run_in_executor(None, create_index)
                 self.logger.info(f"Created new index with {num_added} documents")
+                if signature is not None:
+                    write_version_meta(kb_dir, signature, storage_dir=storage_dir)
 
             self.logger.info(f"Successfully added documents to KB '{kb_name}'")
             return True
@@ -538,7 +628,12 @@ class LlamaIndexPipeline:
             import traceback
 
             self.logger.error(traceback.format_exc())
-            return False
+            # Only clean up if we created a fresh version dir (no existing
+            # storage). Adding to an existing index that hits an error must
+            # not blow that index away.
+            if existing_storage is None or storage_dir != existing_storage:
+                self._cleanup_failed_version_dir(storage_dir, signature)
+            raise
         finally:
             if isinstance(Settings.embed_model, CustomEmbedding):
                 Settings.embed_model.set_progress_callback(None)

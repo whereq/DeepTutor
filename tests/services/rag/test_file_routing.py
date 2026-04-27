@@ -78,6 +78,26 @@ class TestSupportedExtensionsAndGlobs:
         # Glob output should be deterministic / sorted
         assert patterns == sorted(patterns)
 
+    def test_collect_supported_files_is_case_insensitive(self, tmp_path: Path) -> None:
+        lower = tmp_path / "notes.md"
+        lower.write_text("notes", encoding="utf-8")
+        upper = tmp_path / "REPORT.PDF"
+        upper.write_bytes(b"%PDF-1.4")
+        nested = tmp_path / "nested"
+        nested.mkdir()
+        nested_upper = nested / "README.MD"
+        nested_upper.write_text("nested", encoding="utf-8")
+        ignored = tmp_path / "image.PNG"
+        ignored.write_bytes(b"\x89PNG\r\n")
+
+        assert [path.name for path in FileTypeRouter.collect_supported_files(tmp_path)] == [
+            "notes.md",
+            "REPORT.PDF",
+        ]
+        assert [
+            path.name for path in FileTypeRouter.collect_supported_files(tmp_path, recursive=True)
+        ] == ["README.MD", "notes.md", "REPORT.PDF"]
+
 
 class TestQuickHelpers:
     def test_needs_parser_for_pdf(self) -> None:

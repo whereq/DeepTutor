@@ -46,6 +46,11 @@ class ProviderSpec:
     is_oauth: bool = False
     is_direct: bool = False
     thinking_style: str = ""
+    # Substring patterns (case-insensitive) marking models whose native
+    # reasoning trace should be surfaced. When the caller does not pass an
+    # explicit reasoning_effort, the provider auto-injects "high" so the
+    # thinking_style flag (e.g. extra_body.thinking.type=enabled) is sent.
+    reasoning_model_patterns: tuple[str, ...] = ()
 
     @property
     def mode(self) -> str:
@@ -253,6 +258,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         backend="openai_compat",
         default_api_base="https://api.deepseek.com",
         thinking_style="thinking_type",
+        reasoning_model_patterns=("deepseek-v4-pro", "deepseek-reasoner"),
     ),
     ProviderSpec(
         name="gemini",
