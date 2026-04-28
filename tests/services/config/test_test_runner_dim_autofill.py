@@ -56,7 +56,7 @@ async def test_persist_when_catalog_dim_empty() -> None:
     model: dict[str, Any] = {"dimension": ""}
 
     fake_client = MagicMock()
-    fake_client.embed = AsyncMock(return_value=[[0.1] * 1024])
+    fake_client.embed = AsyncMock(return_value=[[0.1] * 1024, [0.2] * 1024])
 
     with (
         patch(
@@ -86,7 +86,7 @@ async def test_overwrite_when_catalog_dim_disagrees_unknown_model() -> None:
     model: dict[str, Any] = {"dimension": "3072"}
 
     fake_client = MagicMock()
-    fake_client.embed = AsyncMock(return_value=[[0.5] * 1024])
+    fake_client.embed = AsyncMock(return_value=[[0.5] * 1024, [0.6] * 1024])
 
     with (
         patch(
@@ -116,7 +116,7 @@ async def test_empty_vector_still_fatal() -> None:
     model: dict[str, Any] = {"dimension": ""}
 
     fake_client = MagicMock()
-    fake_client.embed = AsyncMock(return_value=[[]])
+    fake_client.embed = AsyncMock(return_value=[[], []])
 
     with (
         patch(
@@ -152,7 +152,7 @@ def _client_with_known_model(
     )
     fake_client = MagicMock()
     fake_client.adapter = adapter
-    fake_client.embed = AsyncMock(return_value=[[0.0] * actual_dim])
+    fake_client.embed = AsyncMock(return_value=[[0.0] * actual_dim, [0.1] * actual_dim])
     return fake_client
 
 
@@ -217,7 +217,7 @@ async def test_capabilities_event_for_unknown_model() -> None:
     )
     fake_client = MagicMock()
     fake_client.adapter = adapter
-    fake_client.embed = AsyncMock(return_value=[[0.0] * 768])
+    fake_client.embed = AsyncMock(return_value=[[0.0] * 768, [0.1] * 768])
 
     with (
         patch(
@@ -353,6 +353,8 @@ async def test_smoke_probe_forces_dim_zero() -> None:
     config = captured_configs[0]
     assert config.dim == 0, "probe must not request a specific dimension"
     assert config.send_dimensions is False
+    fake_client.embed.assert_awaited_once()
+    assert len(fake_client.embed.await_args.args[0]) == 2
 
 
 @pytest.mark.asyncio

@@ -20,9 +20,9 @@ import uvicorn
 # Force unbuffered output
 os.environ["PYTHONUNBUFFERED"] = "1"
 if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(line_buffering=True)
+    sys.stdout.reconfigure(line_buffering=True, errors="replace")
 if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True, errors="replace")
 
 
 def main() -> None:

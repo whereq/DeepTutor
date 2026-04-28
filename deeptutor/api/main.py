@@ -119,7 +119,7 @@ async def lifespan(app: FastAPI):
     try:
         from deeptutor.services.tutorbot import get_tutorbot_manager
 
-        await get_tutorbot_manager().stop_all()
+        await get_tutorbot_manager().stop_all(preserve_auto_start=True)
         logger.info("TutorBots stopped")
     except Exception as e:
         logger.warning(f"Failed to stop TutorBots: {e}")

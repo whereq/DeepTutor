@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import AtMentionPopup from "@/components/chat/AtMentionPopup";
+import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
 
 interface ComposerInputProps {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -71,6 +72,7 @@ export const ComposerInput = memo(
     // letting `memo` on AtMentionPopup actually skip re-renders when
     // `showAtPopup` doesn't change.
     const inputRef = useRef("");
+    const isComposingRef = useRef(false);
     // Helper that always updates state and ref together so they can't drift.
     const setInputBoth = useCallback((value: string) => {
       inputRef.current = value;
@@ -137,7 +139,7 @@ export const ComposerInput = memo(
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (shouldSubmitOnEnter(e, isComposingRef.current)) {
           e.preventDefault();
           doSend();
         } else if (e.key === "Escape") {
@@ -146,6 +148,18 @@ export const ComposerInput = memo(
       },
       [doSend],
     );
+
+    const handleCompositionStart = useCallback(() => {
+      isComposingRef.current = true;
+    }, []);
+
+    const handleCompositionEnd = useCallback(() => {
+      // Some IMEs fire compositionend before the Enter keydown that confirms
+      // a candidate, so keep the guard through the current event turn.
+      setTimeout(() => {
+        isComposingRef.current = false;
+      }, 0);
+    }, []);
 
     const handleSelectNotebook = useCallback(() => {
       const next = stripTrailingAtMention(inputRef.current);
@@ -184,6 +198,8 @@ export const ComposerInput = memo(
           value={input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
           onClick={handleTextareaClick}
           onPaste={onPaste}
           rows={1}

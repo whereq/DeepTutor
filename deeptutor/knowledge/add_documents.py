@@ -19,7 +19,7 @@ from deeptutor.logging import get_logger
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
 from deeptutor.services.rag.index_versioning import list_kb_versions
-from deeptutor.services.rag.pipelines.llamaindex import LlamaIndexPipeline
+from deeptutor.services.rag.service import RAGService
 
 logger = get_logger("KnowledgeInit")
 
@@ -130,7 +130,7 @@ class DocumentAdder:
         if not new_files:
             return []
 
-        pipeline = LlamaIndexPipeline(kb_base_dir=str(self.base_dir))
+        rag_service = RAGService(kb_base_dir=str(self.base_dir), provider=DEFAULT_PROVIDER)
         processed_files: list[Path] = []
         total_files = len(new_files)
 
@@ -146,7 +146,7 @@ class DocumentAdder:
                         total=total_files,
                     )
 
-                success = await pipeline.add_documents(self.kb_name, [str(doc_file)])
+                success = await rag_service.add_documents(self.kb_name, [str(doc_file)])
                 if success:
                     processed_files.append(doc_file)
                     self._record_successful_hash(doc_file)

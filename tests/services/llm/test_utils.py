@@ -58,6 +58,19 @@ def test_clean_thinking_tags() -> None:
     assert clean_thinking_tags("Hello <think>ignore</think> World") == "Hello  World"
 
 
+def test_clean_thinking_tags_handles_alias_and_attributes() -> None:
+    """Thinking aliases with attributes should also be removed."""
+    assert (
+        clean_thinking_tags('Hello <thinking duration="2s">ignore</thinking> World')
+        == "Hello  World"
+    )
+
+
+def test_clean_thinking_tags_handles_unclosed_blocks() -> None:
+    """Partial streaming scratchpads should not leak into final output."""
+    assert clean_thinking_tags("Edited text\n<think>still reasoning") == "Edited text"
+
+
 def test_extract_response_content() -> None:
     """Response content extraction should handle mapping payloads."""
     payload = {"content": [{"text": "Hello"}, {"text": "World"}]}

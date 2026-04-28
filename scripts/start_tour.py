@@ -17,6 +17,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from _cli_kit import configure_text_streams
+
+configure_text_streams()
+
 ENV_PATH = PROJECT_ROOT / ".env"
 ENV_EXAMPLE_PATH = PROJECT_ROOT / ".env.example"
 INTERFACE_SETTINGS_PATH = PROJECT_ROOT / "data" / "user" / "settings" / "interface.json"
@@ -890,6 +894,7 @@ def _run_live(cmd: list[str], cwd: Path, label: str) -> None:
     env.setdefault("FORCE_COLOR", "1")
     env.setdefault("CLICOLOR_FORCE", "1")
     env.setdefault("PY_COLORS", "1")
+    env["PYTHONIOENCODING"] = "utf-8:replace"
 
     sys.stdout.flush()
     sys.stderr.flush()

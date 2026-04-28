@@ -16,6 +16,25 @@ import textwrap
 import time
 from typing import Generator
 
+
+def _configure_text_stream(stream: object) -> None:
+    """Avoid UnicodeEncodeError on legacy Windows code pages."""
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is None:
+        return
+    try:
+        reconfigure(errors="replace")
+    except (TypeError, ValueError, OSError):
+        return
+
+
+def configure_text_streams() -> None:
+    _configure_text_stream(sys.stdout)
+    _configure_text_stream(sys.stderr)
+
+
+configure_text_streams()
+
 # ---------------------------------------------------------------------------
 # Colour helpers
 # ---------------------------------------------------------------------------

@@ -4,10 +4,12 @@ import {
   memo,
   useCallback,
   useLayoutEffect,
+  useRef,
   useState,
   type RefObject,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
 
 interface SimpleComposerInputProps {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -22,6 +24,7 @@ export const SimpleComposerInput = memo(function SimpleComposerInput({
 }: SimpleComposerInputProps) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
+  const isComposingRef = useRef(false);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -40,7 +43,7 @@ export const SimpleComposerInput = memo(function SimpleComposerInput({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (shouldSubmitOnEnter(e, isComposingRef.current)) {
         e.preventDefault();
         const content = input.trim();
         if (content && !disabled) {
@@ -52,12 +55,26 @@ export const SimpleComposerInput = memo(function SimpleComposerInput({
     [input, onSend, disabled],
   );
 
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true;
+  }, []);
+
+  const handleCompositionEnd = useCallback(() => {
+    // Some IMEs fire compositionend before the Enter keydown that confirms
+    // a candidate, so keep the guard through the current event turn.
+    setTimeout(() => {
+      isComposingRef.current = false;
+    }, 0);
+  }, []);
+
   return (
     <textarea
       ref={textareaRef}
       value={input}
       onChange={handleInputChange}
       onKeyDown={handleKeyDown}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
       placeholder={t("Type a message...")}
       rows={1}
       disabled={disabled}

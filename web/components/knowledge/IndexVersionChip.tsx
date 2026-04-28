@@ -18,11 +18,15 @@ export default function IndexVersionChip({
   const isActive = matchesActive && version.ready === true;
   const isPhantomActive = matchesActive && version.ready !== true;
 
+  const dimensionLabel =
+    typeof version.dimension === "number"
+      ? ` · ${version.dimension}${t("d")}`
+      : "";
   const label = version.legacy
-    ? t("legacy")
+    ? t("Legacy")
     : version.model
-      ? `${version.model}${version.dimension ? ` · ${version.dimension}d` : ""}`
-      : (version.signature ?? "unknown");
+      ? `${version.model}${dimensionLabel}`
+      : (version.signature ?? t("Unknown"));
 
   const className = isActive
     ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"

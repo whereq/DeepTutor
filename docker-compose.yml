@@ -87,6 +87,7 @@ services:
       # Mount local data directory for persistence (read-write)
       # This includes runtime settings under ./data/user/settings.
       - ./data/user:/app/data/user
+      - ./data/memory:/app/data/memory
       - ./data/knowledge_bases:/app/data/knowledge_bases
 
     healthcheck:

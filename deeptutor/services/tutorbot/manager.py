@@ -309,6 +309,18 @@ class TutorBotManager:
         tmp_path.write_text(yaml.dump(data, allow_unicode=True), encoding="utf-8")
         tmp_path.replace(path)
 
+    def _load_auto_start(self, bot_id: str, *, default: bool = False) -> bool:
+        """Read the persisted auto-start intent without loading the full bot config."""
+        path = self._bot_dir(bot_id) / "config.yaml"
+        if not path.exists():
+            return default
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            return bool(data.get("auto_start", default))
+        except Exception:
+            logger.exception("Failed to load auto_start flag for bot '%s'", bot_id)
+            return default
+
     def merge_bot_config(self, bot_id: str, overrides: dict[str, Any]) -> BotConfig:
         """Build a ``BotConfig`` by overlaying ``overrides`` onto the on-disk config.
 
@@ -369,7 +381,7 @@ class TutorBotManager:
             model=config.model,
             exec_config=exec_config,
             session_manager=session_adapter,
-            shared_memory_dir=None,
+            shared_memory_dir=self._shared_memory_dir,
             restrict_to_workspace=False,
             default_session_key=canonical_key,
         )
@@ -492,11 +504,19 @@ class TutorBotManager:
         except Exception:
             logger.exception("Outbound router failed for bot %s", bot_id)
 
-    async def stop_bot(self, bot_id: str) -> bool:
-        """Stop a running TutorBot instance."""
+    async def stop_bot(self, bot_id: str, *, preserve_auto_start: bool = False) -> bool:
+        """Stop a running TutorBot instance.
+
+        Manual stops should disable future auto-starts, but process shutdown
+        must preserve the persisted auto-start intent so Docker/host restarts
+        bring the same bots back online.
+        """
         instance = self._bots.get(bot_id)
         if not instance:
             return False
+        auto_start = (
+            self._load_auto_start(bot_id, default=True) if preserve_auto_start else False
+        )
 
         for task in instance.tasks:
             if not task.done():
@@ -522,9 +542,14 @@ class TutorBotManager:
             except Exception:
                 pass
 
-        self.save_bot_config(bot_id, instance.config, auto_start=False)
+        self.save_bot_config(bot_id, instance.config, auto_start=auto_start)
         del self._bots[bot_id]
-        logger.info("TutorBot '%s' stopped", bot_id)
+        logger.info(
+            "TutorBot '%s' stopped (auto_start=%s, preserve_auto_start=%s)",
+            bot_id,
+            auto_start,
+            preserve_auto_start,
+        )
         return True
 
     def _build_channel_manager(
@@ -841,7 +866,7 @@ class TutorBotManager:
 
     async def destroy_bot(self, bot_id: str) -> bool:
         """Stop a bot (if running) and permanently delete its data from disk."""
-        await self.stop_bot(bot_id)
+        await self.stop_bot(bot_id, preserve_auto_start=False)
         bot_dir = self._bot_dir(bot_id)
         if not bot_dir.exists():
             return False
@@ -877,10 +902,10 @@ class TutorBotManager:
             result[fn] = path.read_text(encoding="utf-8") if path.exists() else ""
         return result
 
-    async def stop_all(self) -> None:
-        """Stop all running bots."""
+    async def stop_all(self, *, preserve_auto_start: bool = True) -> None:
+        """Stop all running bots while preserving restart intent by default."""
         for bot_id in list(self._bots.keys()):
-            await self.stop_bot(bot_id)
+            await self.stop_bot(bot_id, preserve_auto_start=preserve_auto_start)
 
     # ── Soul template library ─────────────────────────────────────
 

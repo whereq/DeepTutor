@@ -103,6 +103,8 @@ RUN pip install --upgrade pip && \
 # ============================================
 FROM python:3.11-slim AS production
 
+ARG APP_VERSION=""
+
 # Labels
 LABEL maintainer="DeepTutor Team" \
       description="DeepTutor: AI-Powered Personalized Learning Assistant" \
@@ -113,6 +115,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8 \
     NODE_ENV=production \
+    APP_VERSION=${APP_VERSION} \
+    NEXT_PUBLIC_APP_VERSION=${APP_VERSION} \
     # Default ports (can be overridden)
     BACKEND_PORT=8001 \
     FRONTEND_PORT=3782

@@ -64,6 +64,7 @@ def format_bytes_human_readable(size_bytes: int) -> str:
 
 
 _kb_base_dir = PROJECT_ROOT / "data" / "knowledge_bases"
+DEFAULT_KB_ALIASES = {"", "default", "current", "selected", "默认", "默认知识库", "当前知识库"}
 
 # Lazy initialization
 kb_manager = None
@@ -258,6 +259,22 @@ def _task_log(task_id: str, message: str, level: str = "info") -> None:
 def _validate_registered_provider(raw_provider: str | None) -> str:
     """Always return the canonical provider; field is kept as a stub."""
     return DEFAULT_PROVIDER
+
+
+def _resolve_registered_kb_name(manager: KnowledgeBaseManager, kb_name: str | None) -> str:
+    """Resolve route-level default aliases to the configured default KB."""
+    requested = str(kb_name or "").strip()
+    kb_names = manager.list_knowledge_bases()
+    if requested and requested in kb_names:
+        return requested
+
+    if requested.lower() in DEFAULT_KB_ALIASES:
+        default_kb = manager.get_default()
+        if default_kb and default_kb in kb_names:
+            return default_kb
+        raise HTTPException(status_code=404, detail="No default knowledge base is configured")
+
+    raise HTTPException(status_code=404, detail=f"Knowledge base '{requested}' not found")
 
 
 def _load_kb_entry_or_404(manager: KnowledgeBaseManager, kb_name: str) -> dict:
@@ -705,9 +722,8 @@ async def get_knowledge_base_details(kb_name: str):
 def _resolve_kb_raw_dir(kb_name: str) -> Path:
     """Resolve the raw/ directory for a KB, validating that it exists."""
     manager = get_kb_manager()
-    if kb_name not in manager.list_knowledge_bases():
-        raise HTTPException(status_code=404, detail=f"Knowledge base '{kb_name}' not found")
-    kb_path = manager.get_knowledge_base_path(kb_name)
+    resolved_name = _resolve_registered_kb_name(manager, kb_name)
+    kb_path = manager.get_knowledge_base_path(resolved_name)
     return kb_path / "raw"
 
 
@@ -1091,11 +1107,12 @@ async def reindex_knowledge_base(
     """
     try:
         manager = get_kb_manager()
+        kb_name = _resolve_registered_kb_name(manager, kb_name)
         _load_kb_entry_or_404(manager, kb_name)
 
+        from deeptutor.services.rag.embedding_signature import signature_from_embedding_config
         from deeptutor.services.rag.index_versioning import (
             find_matching_version,
-            signature_from_embedding_config,
         )
 
         signature = signature_from_embedding_config()

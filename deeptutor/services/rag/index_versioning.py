@@ -59,31 +59,6 @@ class EmbeddingSignature:
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
-def signature_from_embedding_config() -> Optional[EmbeddingSignature]:
-    """Compute the signature for the currently-active embedding config.
-
-    Returns ``None`` when no embedding is configured (e.g. fresh install).
-    """
-    try:
-        from deeptutor.services.embedding import get_embedding_config
-    except Exception:  # pragma: no cover - import error
-        return None
-
-    try:
-        cfg = get_embedding_config()
-    except Exception as exc:
-        logger.debug(f"Cannot resolve embedding signature: {exc}")
-        return None
-
-    return EmbeddingSignature(
-        binding=(cfg.binding or "").strip().lower(),
-        model=(cfg.model or "").strip(),
-        dimension=int(cfg.dim or 0),
-        base_url=(cfg.effective_url or cfg.base_url or "").strip(),
-        api_version=(cfg.api_version or "").strip(),
-    )
-
-
 def kb_versions_dir(kb_dir: Path) -> Path:
     """Return the legacy nested versions directory."""
     return kb_dir / LEGACY_VERSION_DIRNAME

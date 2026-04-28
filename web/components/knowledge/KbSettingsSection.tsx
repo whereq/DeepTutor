@@ -23,7 +23,7 @@ export default function KbSettingsSection({
   const provider = kb.statistics?.rag_provider || "llamaindex";
   const embeddingLabel = meta.embedding_model
     ? typeof meta.embedding_dim === "number"
-      ? `${meta.embedding_model} · ${meta.embedding_dim}d`
+      ? `${meta.embedding_model} · ${meta.embedding_dim}${t("d")}`
       : meta.embedding_model
     : t("Default embedding");
   const created = formatKnowledgeTimestamp(meta.created_at);

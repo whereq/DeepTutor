@@ -38,6 +38,7 @@
 services:
   deeptutor:
     image: ghcr.io/hkuds/deeptutor:latest
+    pull_policy: always
     container_name: deeptutor
     restart: unless-stopped
     ports:
@@ -79,6 +80,7 @@ services:
     volumes:
       # Persistent data (created automatically on first start)
       - ./data/user:/app/data/user
+      - ./data/memory:/app/data/memory
       - ./data/knowledge_bases:/app/data/knowledge_bases
 
     healthcheck:

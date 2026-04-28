@@ -18,7 +18,7 @@
 
 [Features](#-key-features) · [Get Started](#-get-started) · [Explore](#-explore-deeptutor) · [TutorBot](#-tutorbot--persistent-autonomous-ai-tutors) · [CLI](#%EF%B8%8F-deeptutor-cli--agent-native-interface) · [Roadmap](#%EF%B8%8F-roadmap) · [Community](#-community--ecosystem)
 
-[🇨🇳 中文](assets/README/README_CN.md) · [🇯🇵 日本語](assets/README/README_JA.md) · [🇪🇸 Español](assets/README/README_ES.md) · [🇫🇷 Français](assets/README/README_FR.md) · [🇸🇦 العربية](assets/README/README_AR.md) · [🇷🇺 Русский](assets/README/README_RU.md) · [🇮🇳 हिन्दी](assets/README/README_HI.md) · [🇵🇹 Português](assets/README/README_PT.md) · [🇹🇭 ภาษาไทย](assets/README/README_TH.md)
+[🇨🇳 中文](assets/README/README_CN.md) · [🇯🇵 日本語](assets/README/README_JA.md) · [🇪🇸 Español](assets/README/README_ES.md) · [🇫🇷 Français](assets/README/README_FR.md) · [🇸🇦 العربية](assets/README/README_AR.md) · [🇷🇺 Русский](assets/README/README_RU.md) · [🇮🇳 हिन्दी](assets/README/README_HI.md) · [🇵🇹 Português](assets/README/README_PT.md) · [🇹🇭 ภาษาไทย](assets/README/README_TH.md)  · 🇵🇱 [Polski](assets/README/README_PL.md)
 
 </div>
 
@@ -28,27 +28,29 @@
 
 ### 📦 Releases
 
-> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — Versioned Knowledge Base indexes with re-index workflow, rebuilt Knowledge management workspace with raw-file preview and index-version status, embedding dimension auto-discovery and new SiliconFlow/Aliyun/OpenAI SDK adapters, reasoning-stream and vision-attachment robustness, Space hub for Notebooks/Question Bank/Skills/Memory, TutorBot/channel dependency cleanup, Matrix extra, and Windows startup/debugging fixes.
+> **[2026.4.28]** [v1.3.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.1) — Stability: safer RAG routing & embedding validation, Docker persistence, IME-safe input, Windows/GBK robustness.
 
-> **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — Persistent chat attachment storage with preview/download URLs, right-side file preview drawer for PDF/images/SVG/Markdown/code/Office text, broader code-file attachment coverage, attachment-aware Deep Solve/Question/Research/Visualize pipelines, TutorBot save-to-notebook and Markdown export, Setup Tour diagnostics, and auto-scroll/upload-picker fixes.
+> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — Versioned KB indexes with re-index workflow, rebuilt Knowledge workspace, embedding auto-discovery with new adapters, Space hub.
 
-> **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — Text/code/SVG chat attachments, one-command Setup Tour with dependency installation, `uv pip` and Windows npm fixes, Markdown chat export, compact Knowledge Base management UI, Polish README, theme/popover polish, and release/update-version hardening.
+> **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — Persistent chat attachments with file-preview drawer, attachment-aware capability pipelines, TutorBot Markdown export.
 
-> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — Document attachments in chat (PDF/DOCX/XLSX/PPTX), reasoning model thinking-block display, tri-state embedding `send_dimensions` toggle, LLM provider core refactor, Soul template editor, Co-Writer save-to-notebook, Knowledge Base drag-and-drop upload & delete resilience, and question generation language fidelity.
+> **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — Text/code/SVG attachments, one-command Setup Tour, Markdown chat export, compact KB management UI.
 
-> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — User-authored Skills system (CRUD + chat integration), chat input performance overhaul with state colocation, `response_format` auto-fallback for incompatible providers, LAN remote access fix, sidebar version badge, Deep Solve image attachments, TutorBot WebSocket auto-start, Book Library UI, and visualization fullscreen mode.
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — Document attachments (PDF/DOCX/XLSX/PPTX), reasoning thinking-block display, Soul template editor, Co-Writer save-to-notebook.
 
-> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — Per-stage chat token limits in `agents.yaml` (8000-token responses), Regenerate last response across CLI / WebSocket / Web UI, RAG `None`-embedding crash fix, Gemma `json_object` compatibility, and dark code-block readability.
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — User-authored Skills system, chat input performance overhaul, TutorBot auto-start, Book Library UI, visualization fullscreen.
 
-> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine multi-agent "living book" compiler with 14 block types, multi-document Co-Writer workspace, interactive HTML visualizations, Question Bank @-mention in chat, prompt externalization phase 2, and sidebar overhaul.
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — Per-stage token limits, Regenerate response across all entry points, RAG & Gemma compatibility fixes.
 
-> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Schema-driven Channels tab with secret masking, RAG collapsed to single pipeline, RAG/KB consistency hardening, externalized chat prompts, and Thai README.
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine "living book" compiler, multi-document Co-Writer, interactive HTML visualizations, Question Bank @-mention.
 
-> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — Universal "Answer now" across all capabilities, Co-Writer scroll sync, Save-to-Notebook message selection, unified settings panel, streaming Stop button, and TutorBot atomic config writes.
+> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Schema-driven Channels tab, RAG single-pipeline consolidation, externalized chat prompts.
 
-> **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX block math parsing overhaul, LLM diagnostic probe via agents.yaml, extra headers forwarding fix, SaveToNotebook UUID fix, and Docker + local LLM guidance.
+> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — Universal "Answer now", Co-Writer scroll sync, unified settings panel, streaming Stop button.
 
-> **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — URL-based bookmarkable sessions, Snow theme, WebSocket heartbeat & auto-reconnect, ChatComposer performance fix, embedding provider registry overhaul, and Serper search provider.
+> **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX block math overhaul, LLM diagnostic probe, Docker + local LLM guidance.
+
+> **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — Bookmarkable sessions, Snow theme, WebSocket heartbeat & auto-reconnect, embedding registry overhaul.
 
 <details>
 <summary><b>Past releases</b></summary>
@@ -393,7 +395,8 @@ User data and knowledge bases are persisted via Docker volumes mapped to local d
 
 | Container path | Host path | Content |
 |:---|:---|:---|
-| `/app/data/user` | `./data/user` | Settings, memory, workspace, sessions, logs |
+| `/app/data/user` | `./data/user` | Settings, workspace, sessions, logs |
+| `/app/data/memory` | `./data/memory` | Shared long-term memory (`SUMMARY.md`, `PROFILE.md`) |
 | `/app/data/knowledge_bases` | `./data/knowledge_bases` | Uploaded documents & vector indices |
 
 These directories survive `docker compose down` and are reused on the next `docker compose up`.

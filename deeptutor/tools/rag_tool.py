@@ -10,7 +10,31 @@ import asyncio
 from typing import Dict, List, Optional
 
 # Import RAGService as the single entry point
-from deeptutor.services.rag.service import RAGService
+from deeptutor.services.rag.service import DEFAULT_KB_BASE_DIR, RAGService
+
+
+DEFAULT_KB_ALIASES = {"", "default", "current", "selected", "默认", "默认知识库", "当前知识库"}
+
+
+def _resolve_kb_name(kb_name: Optional[str], kb_base_dir: Optional[str] = None) -> Optional[str]:
+    """Resolve generic/default KB aliases to the configured default KB."""
+    requested = str(kb_name or "").strip()
+    try:
+        from deeptutor.knowledge.manager import KnowledgeBaseManager
+
+        manager = KnowledgeBaseManager(base_dir=kb_base_dir or DEFAULT_KB_BASE_DIR)
+        kb_names = manager.list_knowledge_bases()
+        if requested and requested in kb_names:
+            return requested
+        if requested.lower() in DEFAULT_KB_ALIASES:
+            default_kb = manager.get_default()
+            if default_kb:
+                return default_kb
+    except Exception:
+        # Keep tool startup lightweight; the service will surface a concrete
+        # retrieval error if the KB cannot be resolved from disk.
+        pass
+    return requested or None
 
 
 async def rag_search(
@@ -42,11 +66,14 @@ async def rag_search(
             }
     """
     service = RAGService(kb_base_dir=kb_base_dir, provider=provider)
+    resolved_kb_name = _resolve_kb_name(kb_name, kb_base_dir=kb_base_dir)
+    if not resolved_kb_name:
+        raise ValueError("No knowledge base selected and no default knowledge base is configured.")
 
     try:
         return await service.search(
             query=query,
-            kb_name=kb_name,
+            kb_name=resolved_kb_name,
             event_sink=event_sink,
             **kwargs,
         )

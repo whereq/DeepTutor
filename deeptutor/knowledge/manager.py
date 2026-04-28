@@ -93,10 +93,10 @@ def _reconcile_embedding_flags(knowledge_bases: dict, base_dir: Path | None = No
 
     Returns ``True`` when any entry changed.
     """
+    from deeptutor.services.rag.embedding_signature import signature_from_embedding_config
     from deeptutor.services.rag.index_versioning import (
         find_matching_version,
         list_kb_versions,
-        signature_from_embedding_config,
     )
 
     fp = _get_embedding_fingerprint()
@@ -131,18 +131,18 @@ def _reconcile_embedding_flags(knowledge_bases: dict, base_dir: Path | None = No
                 kb_entry["index_versions"] = list_kb_versions(kb_dir)
             continue
 
-        # No matching index version on disk.
+        # No matching ready index version on disk.
         stored_model = kb_entry.get("embedding_model")
-        # If we have a stored fingerprint and it disagrees with the active one,
-        # OR there are no versions on disk for the active signature at all,
-        # mark needs_reindex so the UI shows the CTA. Skip KBs that have no
-        # stored fingerprint AND no on-disk versions (they're brand-new).
-        has_any_version = False
+        # Empty/in-progress version dirs are created before indexing finishes.
+        # They should not mark a brand-new KB as needing re-index.
+        versions: list[dict] = []
+        has_ready_version = False
         if kb_dir is not None:
-            has_any_version = bool(list_kb_versions(kb_dir))
-            kb_entry["index_versions"] = list_kb_versions(kb_dir)
+            versions = list_kb_versions(kb_dir)
+            has_ready_version = any(bool(version.get("ready")) for version in versions)
+            kb_entry["index_versions"] = versions
 
-        if not has_any_version and not stored_model:
+        if not has_ready_version and not stored_model:
             continue
 
         current_model = fp[0] if fp else ""
@@ -151,8 +151,8 @@ def _reconcile_embedding_flags(knowledge_bases: dict, base_dir: Path | None = No
         mismatch = (stored_model and stored_model != current_model) or (
             stored_dim is not None and current_dim and stored_dim != current_dim
         )
-        # If versions exist but none match active signature, that's also a mismatch.
-        if has_any_version:
+        # If ready versions exist but none match active signature, that's also a mismatch.
+        if has_ready_version:
             mismatch = True
 
         if mismatch and not kb_entry.get("embedding_mismatch"):
@@ -319,9 +319,11 @@ class KnowledgeBaseManager:
             # Record the active signature + the on-disk version registry so
             # the UI can render version chips without recomputing.
             try:
+                from deeptutor.services.rag.embedding_signature import (
+                    signature_from_embedding_config,
+                )
                 from deeptutor.services.rag.index_versioning import (
                     list_kb_versions,
-                    signature_from_embedding_config,
                 )
 
                 sig = signature_from_embedding_config()
@@ -482,9 +484,9 @@ class KnowledgeBaseManager:
     def get_rag_storage_path(self, name: str | None = None) -> Path:
         """Get active index storage path for a knowledge base."""
         kb_dir = self.get_knowledge_base_path(name)
+        from deeptutor.services.rag.embedding_signature import signature_from_embedding_config
         from deeptutor.services.rag.index_versioning import (
             resolve_storage_dir_for_read,
-            signature_from_embedding_config,
         )
 
         active_storage = resolve_storage_dir_for_read(kb_dir, signature_from_embedding_config())
@@ -624,6 +626,11 @@ class KnowledgeBaseManager:
         created_at = kb_config.get("created_at")
         updated_at = kb_config.get("updated_at")
 
+        live_status = status in {"initializing", "processing"}
+        if live_status and isinstance(progress, dict):
+            live_status = progress.get("stage") not in {"completed", "error"}
+        effective_needs_reindex = needs_reindex and not live_status
+
         # KB might not have a directory yet if still initializing
         dir_exists = kb_dir.exists()
         index_versions: list[dict[str, Any]] = []
@@ -637,7 +644,7 @@ class KnowledgeBaseManager:
             )
 
         # For old KBs without status field, determine status from rag_storage
-        if needs_reindex:
+        if effective_needs_reindex:
             status = "needs_reindex"
         elif not status and dir_exists:
             rag_storage_dir = kb_dir / "rag_storage"
@@ -646,6 +653,7 @@ class KnowledgeBaseManager:
             elif rag_storage_dir.exists() and any(rag_storage_dir.iterdir()):
                 status = "needs_reindex"
                 needs_reindex = True
+                effective_needs_reindex = True
             else:
                 status = "unknown"
         elif not status:
@@ -656,7 +664,7 @@ class KnowledgeBaseManager:
             "name": kb_name,
             "description": description,
             "rag_provider": rag_provider,
-            "needs_reindex": needs_reindex,
+            "needs_reindex": effective_needs_reindex,
         }
         if created_at:
             metadata["created_at"] = created_at
@@ -707,9 +715,9 @@ class KnowledgeBaseManager:
                 pass
 
         # Check rag_initialized: flat versions OR legacy single-store/nested stores.
+        from deeptutor.services.rag.embedding_signature import signature_from_embedding_config
         from deeptutor.services.rag.index_versioning import (
             find_matching_version,
-            signature_from_embedding_config,
         )
 
         kb_dir = self.base_dir / kb_name if dir_exists else None
@@ -728,7 +736,7 @@ class KnowledgeBaseManager:
             "content_lists": content_lists_count,
             "rag_initialized": rag_initialized,
             "rag_provider": rag_provider,
-            "needs_reindex": needs_reindex,
+            "needs_reindex": effective_needs_reindex,
             "index_versions": index_versions,
             "active_signature": active_signature.hash() if active_signature else None,
             "active_match": active_match,

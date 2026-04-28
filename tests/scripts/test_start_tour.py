@@ -18,6 +18,7 @@ def _load_start_tour_module():
         "banner",
         "bold",
         "confirm",
+        "configure_text_streams",
         "countdown",
         "dim",
         "log_error",
@@ -25,6 +26,7 @@ def _load_start_tour_module():
         "log_success",
         "log_warn",
         "select",
+        "spinner",
         "step",
         "text_input",
     ):

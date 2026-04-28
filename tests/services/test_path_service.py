@@ -107,3 +107,54 @@ def test_task_workspace_maps_capabilities_into_workspace_chat(tmp_path: Path) ->
     finally:
         service._project_root = original_root
         service._user_data_dir = original_user_dir
+
+
+def test_memory_dir_migrates_missing_legacy_markdown_when_target_exists(
+    tmp_path: Path,
+) -> None:
+    service = PathService.get_instance()
+    original_root = service._project_root
+    original_user_dir = service._user_data_dir
+
+    try:
+        service._project_root = tmp_path
+        service._user_data_dir = tmp_path / "data" / "user"
+
+        old_dir = service.get_workspace_feature_dir("memory")
+        old_dir.mkdir(parents=True, exist_ok=True)
+        (old_dir / "SUMMARY.md").write_text("legacy summary", encoding="utf-8")
+        (old_dir / "PROFILE.md").write_text("legacy profile", encoding="utf-8")
+
+        new_dir = tmp_path / "data" / "memory"
+        new_dir.mkdir(parents=True, exist_ok=True)
+
+        assert service.get_memory_dir() == new_dir
+        assert (new_dir / "SUMMARY.md").read_text(encoding="utf-8") == "legacy summary"
+        assert (new_dir / "PROFILE.md").read_text(encoding="utf-8") == "legacy profile"
+    finally:
+        service._project_root = original_root
+        service._user_data_dir = original_user_dir
+
+
+def test_memory_dir_migration_preserves_existing_target_files(tmp_path: Path) -> None:
+    service = PathService.get_instance()
+    original_root = service._project_root
+    original_user_dir = service._user_data_dir
+
+    try:
+        service._project_root = tmp_path
+        service._user_data_dir = tmp_path / "data" / "user"
+
+        old_dir = service.get_workspace_feature_dir("memory")
+        old_dir.mkdir(parents=True, exist_ok=True)
+        (old_dir / "PROFILE.md").write_text("legacy profile", encoding="utf-8")
+
+        new_dir = tmp_path / "data" / "memory"
+        new_dir.mkdir(parents=True, exist_ok=True)
+        (new_dir / "PROFILE.md").write_text("current profile", encoding="utf-8")
+
+        assert service.get_memory_dir() == new_dir
+        assert (new_dir / "PROFILE.md").read_text(encoding="utf-8") == "current profile"
+    finally:
+        service._project_root = original_root
+        service._user_data_dir = original_user_dir

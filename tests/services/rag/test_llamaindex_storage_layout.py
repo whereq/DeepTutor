@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -24,7 +23,8 @@ async def test_incremental_add_migrates_matching_legacy_index_to_flat_version(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from deeptutor.services.rag.pipelines import llamaindex as llamaindex_module
+    from deeptutor.services.rag.pipelines.llamaindex import storage as storage_module
+    from deeptutor.services.rag.pipelines.llamaindex.pipeline import LlamaIndexPipeline
 
     sig = _signature()
     kb_dir = tmp_path / "kb"
@@ -63,51 +63,30 @@ async def test_incremental_add_migrates_matching_legacy_index_to_flat_version(
         def insert(self, document) -> None:
             self.inserted.append(document)
 
-    async def _read_text_file(path: str) -> str:
-        return Path(path).read_text(encoding="utf-8")
-
     async def _verify_embedding_connectivity(self) -> None:
         return None
 
     monkeypatch.setattr(
-        llamaindex_module.LlamaIndexPipeline,
+        LlamaIndexPipeline,
         "_configure_settings",
         lambda self: None,
     )
     monkeypatch.setattr(
-        llamaindex_module.Settings,
-        "_embed_model",
-        object(),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        llamaindex_module.LlamaIndexPipeline,
+        LlamaIndexPipeline,
         "_verify_embedding_connectivity",
         _verify_embedding_connectivity,
     )
-    monkeypatch.setattr(llamaindex_module, "signature_from_embedding_config", lambda: sig)
+    monkeypatch.setattr(storage_module, "StorageContext", _FakeStorageContext)
     monkeypatch.setattr(
-        llamaindex_module.FileTypeRouter,
-        "classify_files",
-        lambda paths: SimpleNamespace(
-            parser_files=[],
-            text_files=list(paths),
-            unsupported=[],
-        ),
-    )
-    monkeypatch.setattr(
-        llamaindex_module.FileTypeRouter,
-        "read_text_file",
-        _read_text_file,
-    )
-    monkeypatch.setattr(llamaindex_module, "StorageContext", _FakeStorageContext)
-    monkeypatch.setattr(
-        llamaindex_module,
+        storage_module,
         "load_index_from_storage",
         lambda _storage_context: _FakeIndex(),
     )
 
-    pipeline = llamaindex_module.LlamaIndexPipeline(kb_base_dir=str(tmp_path))
+    pipeline = LlamaIndexPipeline(
+        kb_base_dir=str(tmp_path),
+        signature_provider=lambda: sig,
+    )
 
     assert await pipeline.add_documents("kb", [str(raw_file)]) is True
 

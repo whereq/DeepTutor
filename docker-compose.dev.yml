@@ -32,6 +32,7 @@ services:
 
       # Mount data directories (writable) - output to local ./data
       - ./data/user:/app/data/user
+      - ./data/memory:/app/data/memory
       - ./data/knowledge_bases:/app/data/knowledge_bases
 
     environment:

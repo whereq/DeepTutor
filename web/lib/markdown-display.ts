@@ -205,6 +205,13 @@ function escapeUnknownHtmlTags(content: string): string {
   );
 }
 
+export function escapeUnknownHtmlTagsForDisplay(content: string): string {
+  if (!content) return "";
+  return escapeUnknownHtmlTags(
+    stripInvisibleCharacters(String(content)).replace(/\r\n/g, "\n"),
+  );
+}
+
 function stripDisplaySyntax(value: string): string {
   return stripInvisibleCharacters(String(value))
     .replace(/&nbsp;/gi, " ")
@@ -384,7 +391,7 @@ export function normalizeMarkdownForDisplay(content: string): string {
   const cleaned = removeEmptyMarkdownTables(
     removeEmptyHtmlTables(normalized),
   ).replace(/\n{3,}/g, "\n\n");
-  const safe = escapeUnknownHtmlTags(cleaned);
+  const safe = escapeUnknownHtmlTagsForDisplay(cleaned);
   return linkifyCitations(unwrapBacktickedCitations(safe));
 }
 

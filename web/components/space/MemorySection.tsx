@@ -30,6 +30,10 @@ interface MemoryData {
   profile_updated_at: string | null;
 }
 
+interface MemoryApiData extends MemoryData {
+  changed?: boolean;
+}
+
 const TABS: {
   key: MemoryFile;
   label: string;
@@ -69,6 +73,20 @@ function formatUpdatedAt(value: string | null, t: (key: string) => string): stri
   return date.toLocaleString();
 }
 
+async function readMemoryResponse(res: Response): Promise<MemoryApiData> {
+  const payload = (await res.json().catch(() => ({}))) as {
+    detail?: unknown;
+  };
+  if (!res.ok) {
+    throw new Error(
+      typeof payload.detail === "string"
+        ? payload.detail
+        : "Memory request failed",
+    );
+  }
+  return payload as MemoryApiData;
+}
+
 export default function MemorySection() {
   const { t } = useTranslation();
   const { activeSessionId, language } = useAppShell();
@@ -103,7 +121,7 @@ export default function MemorySection() {
     setLoading(true);
     try {
       const res = await fetch(apiUrl("/api/v1/memory"));
-      const d: MemoryData = await res.json();
+      const d = await readMemoryResponse(res);
       setData(d);
       setEditors({ summary: d.summary || "", profile: d.profile || "" });
     } finally {
@@ -123,7 +141,7 @@ export default function MemorySection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file: activeTab, content: editorValue }),
       });
-      const d: MemoryData = await res.json();
+      const d = await readMemoryResponse(res);
       setData(d);
       setEditors((prev) => ({ ...prev, [activeTab]: d[activeTab] || "" }));
       setToast(t("{{label}} saved", { label: t(tab.label) }));
@@ -143,10 +161,18 @@ export default function MemorySection() {
           language,
         }),
       });
-      const d: MemoryData = await res.json();
+      const d = await readMemoryResponse(res);
       setData(d);
       setEditors({ summary: d.summary || "", profile: d.profile || "" });
-      setToast(t("Memory refreshed from session"));
+      setToast(
+        d.changed === false
+          ? t("Memory checked; no long-term updates")
+          : t("Memory refreshed from session"),
+      );
+    } catch (error) {
+      setToast(
+        error instanceof Error ? error.message : t("Memory refresh failed"),
+      );
     } finally {
       setRefreshing(false);
     }
@@ -161,7 +187,7 @@ export default function MemorySection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file: activeTab }),
       });
-      const d: MemoryData = await res.json();
+      const d = await readMemoryResponse(res);
       setData(d);
       setEditors((prev) => ({ ...prev, [activeTab]: d[activeTab] || "" }));
       setToast(t("{{label}} cleared", { label: t(tab.label) }));

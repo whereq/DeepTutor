@@ -103,6 +103,13 @@ export function invalidateKnowledgeCaches() {
   invalidateClientCache(KNOWLEDGE_CACHE_PREFIX);
 }
 
+function withDockerUpgradeHint(detail: string, status: number, action: string): string {
+  if (status === 404 && detail.trim().toLowerCase() === "not found") {
+    return `${action} endpoint not found (404). The web UI may be newer than the backend API. If using Docker, pull and recreate the container, then retry.`;
+  }
+  return detail;
+}
+
 export async function listKnowledgeBaseFiles(
   name: string,
   options?: { force?: boolean },
@@ -115,7 +122,13 @@ export async function listKnowledgeBaseFiles(
         { cache: "no-store" },
       );
       if (!response.ok) {
-        throw new Error(`Failed to list files (${response.status})`);
+        const detail = await readErrorDetail(
+          response,
+          `Failed to list files (${response.status})`,
+        );
+        throw new Error(
+          withDockerUpgradeHint(detail, response.status, "Knowledge file listing"),
+        );
       }
       const data = await response.json();
       return Array.isArray(data?.files) ? data.files : [];
@@ -208,7 +221,10 @@ export async function reindexKnowledgeBase(
     { method: "POST" },
   );
   if (!res.ok) {
-    throw new Error(await readErrorDetail(res, `Re-index failed (${res.status})`));
+    const detail = await readErrorDetail(res, `Re-index failed (${res.status})`);
+    throw new Error(
+      withDockerUpgradeHint(detail, res.status, "Knowledge re-index"),
+    );
   }
   invalidateKnowledgeCaches();
   return (await res.json()) as KnowledgeTaskResponse;

@@ -10,6 +10,7 @@ workspace directory, not in the shared memory dir.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -56,6 +57,7 @@ class MemoryService:
     ) -> None:
         self._path_service = path_service or get_path_service()
         self._store = store or get_sqlite_session_store()
+        self._refresh_lock = asyncio.Lock()
         self._migrate_legacy()
 
     @property
@@ -206,10 +208,11 @@ class MemoryService:
             f"[Assistant]\n{assistant_message.strip()}"
         )
 
-        p_changed = await self._rewrite_one("profile", source, language)
-        s_changed = await self._rewrite_one("summary", source, language)
+        async with self._refresh_lock:
+            p_changed = await self._rewrite_one("profile", source, language)
+            s_changed = await self._rewrite_one("summary", source, language)
 
-        snap = self.read_snapshot()
+            snap = self.read_snapshot()
         return MemoryUpdateResult(
             content=snap.profile,
             changed=p_changed or s_changed,
@@ -258,10 +261,11 @@ class MemoryService:
             f"[Session] {target}\n[Capability] {cap or 'chat'}\n\n[Recent Transcript]\n{transcript}"
         )
 
-        p_changed = await self._rewrite_one("profile", source, language)
-        s_changed = await self._rewrite_one("summary", source, language)
+        async with self._refresh_lock:
+            p_changed = await self._rewrite_one("profile", source, language)
+            s_changed = await self._rewrite_one("summary", source, language)
 
-        snap = self.read_snapshot()
+            snap = self.read_snapshot()
         return MemoryUpdateResult(
             content=snap.profile,
             changed=p_changed or s_changed,

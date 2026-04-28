@@ -1,32 +1,25 @@
-"""
-Embedding Service
-=================
+"""Unified embedding client and adapters for all DeepTutor modules.
 
-Unified embedding client for all DeepTutor modules.
-Supports normalized providers: custom/openai/azure_openai/cohere/jina/ollama/vllm.
-
-Usage:
-    from deeptutor.services.embedding import get_embedding_client, EmbeddingClient, EmbeddingConfig
-
-    # Get singleton client
-    client = get_embedding_client()
-    vectors = await client.embed(["text1", "text2"])
-
-    # Get an async embedding callable
-    embed_func = client.get_embedding_func()
+Supported bindings are resolved by ``services.config.provider_runtime`` and
+currently include openai, custom, azure_openai, cohere, jina, ollama, vllm,
+siliconflow, aliyun, custom_openai_sdk, and openrouter.
 """
 
 from .adapters import (
     BaseEmbeddingAdapter,
     CohereEmbeddingAdapter,
+    DashScopeMultiModalEmbeddingAdapter,
+    EmbeddingProviderError,
     EmbeddingRequest,
     EmbeddingResponse,
     JinaEmbeddingAdapter,
     OllamaEmbeddingAdapter,
     OpenAICompatibleEmbeddingAdapter,
+    OpenAISDKEmbeddingAdapter,
 )
 from .client import EmbeddingClient, get_embedding_client, reset_embedding_client
 from .config import EmbeddingConfig, get_embedding_config
+from .validation import validate_embedding_batch
 
 __all__ = [
     "EmbeddingClient",
@@ -34,10 +27,14 @@ __all__ = [
     "get_embedding_client",
     "get_embedding_config",
     "reset_embedding_client",
+    "validate_embedding_batch",
     "BaseEmbeddingAdapter",
+    "EmbeddingProviderError",
     "EmbeddingRequest",
     "EmbeddingResponse",
     "OpenAICompatibleEmbeddingAdapter",
+    "OpenAISDKEmbeddingAdapter",
+    "DashScopeMultiModalEmbeddingAdapter",
     "CohereEmbeddingAdapter",
     "JinaEmbeddingAdapter",
     "OllamaEmbeddingAdapter",

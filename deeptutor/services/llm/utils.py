@@ -148,8 +148,19 @@ def clean_thinking_tags(
     if not content:
         return ""
 
-    pattern = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
-    cleaned = re.sub(pattern, "", content)
+    closed_pattern = re.compile(
+        r"<\s*(?P<tag>think(?:ing)?)\b[^>]*>.*?<\s*/\s*(?P=tag)\s*>",
+        re.DOTALL | re.IGNORECASE,
+    )
+    cleaned = re.sub(closed_pattern, "", content)
+    # Streaming providers can surface a final partial block if the request is
+    # interrupted after reasoning has started. Never expose that scratchpad.
+    unclosed_pattern = re.compile(
+        r"<\s*think(?:ing)?\b[^>]*>.*$",
+        re.DOTALL | re.IGNORECASE,
+    )
+    cleaned = re.sub(unclosed_pattern, "", cleaned)
+    cleaned = re.sub(r"<\s*/\s*think(?:ing)?\s*>", "", cleaned, flags=re.IGNORECASE)
     return cleaned.strip()
 
 

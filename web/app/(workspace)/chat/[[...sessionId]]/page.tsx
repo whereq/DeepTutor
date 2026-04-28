@@ -34,6 +34,7 @@ import {
   type MessageAttachment,
   type MessageRequestSnapshot,
 } from "@/context/UnifiedChatContext";
+import { useAppShell } from "@/context/AppShellContext";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
 import type { StreamEvent } from "@/lib/unified-ws";
 import {
@@ -242,6 +243,7 @@ export default function ChatPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const sessionIdParam = params.sessionId?.[0] ?? null;
+  const { setActiveSessionId } = useAppShell();
 
   const {
     state,
@@ -516,11 +518,14 @@ export default function ChatPage() {
     }
   }, [state.sessionId, sessionIdParam, router]);
 
-  /* Load KBs */
   useEffect(() => {
-    (async () => {
+    setActiveSessionId(state.sessionId || sessionIdParam || null);
+  }, [state.sessionId, sessionIdParam, setActiveSessionId]);
+
+  const refreshKnowledgeBases = useCallback(
+    async (options?: { force?: boolean }) => {
       try {
-        const list = await listKnowledgeBases();
+        const list = await listKnowledgeBases({ force: options?.force });
         setKnowledgeBases(list);
         if (!state.knowledgeBases.length && list.length) {
           const def = list.find((k: KnowledgeBase) => k.is_default);
@@ -529,8 +534,32 @@ export default function ChatPage() {
       } catch {
         setKnowledgeBases([]);
       }
-    })();
-  }, [setKBs, state.knowledgeBases.length]);
+    },
+    [setKBs, state.knowledgeBases.length],
+  );
+
+  /* Load KBs */
+  useEffect(() => {
+    void refreshKnowledgeBases({ force: true });
+  }, [refreshKnowledgeBases]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refresh = () => {
+      void refreshKnowledgeBases({ force: true });
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshKnowledgeBases]);
 
   useEffect(() => {
     setCapabilityConfigs(loadCapabilityPlaygroundConfigs());

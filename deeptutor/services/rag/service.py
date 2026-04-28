@@ -75,6 +75,13 @@ class RAGService:
         pipeline = self._get_pipeline()
         return await pipeline.initialize(kb_name=kb_name, file_paths=file_paths, **kwargs)
 
+    async def add_documents(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
+        self.logger.info(f"Adding {len(file_paths)} document(s) to KB '{kb_name}'")
+        pipeline = self._get_pipeline()
+        if not hasattr(pipeline, "add_documents"):
+            return await pipeline.initialize(kb_name=kb_name, file_paths=file_paths, **kwargs)
+        return await pipeline.add_documents(kb_name=kb_name, file_paths=file_paths, **kwargs)
+
     async def search(
         self,
         query: str,
@@ -189,60 +196,14 @@ class RAGService:
         query_hints: Optional[List[str]] = None,
         max_queries: int = 3,
     ) -> Dict[str, Any]:
-        import asyncio
+        from .smart_retriever import SmartRetriever
 
-        queries = query_hints if query_hints else await self._generate_queries(context, max_queries)
-
-        tasks = [self.search(query=q, kb_name=kb_name) for q in queries]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        passages: list[str] = []
-        all_sources: list[dict] = []
-        for r in results:
-            if isinstance(r, Exception):
-                continue
-            content = r.get("content") or r.get("answer") or ""
-            if content:
-                passages.append(content)
-                all_sources.append({"query": r.get("query", ""), "provider": r.get("provider", "")})
-
-        if not passages:
-            return {"answer": "", "sources": []}
-
-        aggregated = await self._aggregate(context, passages)
-        return {"answer": aggregated, "sources": all_sources}
-
-    async def _generate_queries(self, context: str, n: int) -> list[str]:
-        try:
-            from deeptutor.services.llm import complete
-
-            prompt = (
-                f"Generate {n} diverse search queries to retrieve information relevant "
-                f"to the following context. Return ONLY the queries, one per line.\n\n"
-                f"Context:\n{context[:2000]}"
-            )
-            raw = await complete(prompt, system_prompt="You are a search query generator.")
-            lines = [
-                l.strip().lstrip("0123456789.-) ") for l in raw.strip().split("\n") if l.strip()
-            ]
-            return lines[:n] if lines else [context[:200]]
-        except Exception:
-            return [context[:200]]
-
-    async def _aggregate(self, context: str, passages: list[str]) -> str:
-        try:
-            from deeptutor.services.llm import complete
-
-            combined = "\n---\n".join(passages)
-            prompt = (
-                "Synthesise the following retrieved passages into a concise, "
-                "relevant summary for the given context.\n\n"
-                f"Context:\n{context[:1000]}\n\n"
-                f"Passages:\n{combined[:6000]}"
-            )
-            return await complete(prompt, system_prompt="You are a knowledge synthesiser.")
-        except Exception:
-            return "\n\n".join(passages)
+        return await SmartRetriever(self.search).retrieve(
+            context=context,
+            kb_name=kb_name,
+            query_hints=query_hints,
+            max_queries=max_queries,
+        )
 
     @staticmethod
     def list_providers() -> List[Dict[str, str]]:

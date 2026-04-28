@@ -65,6 +65,57 @@ async def test_embedding_client_batches_requests(monkeypatch) -> None:
     assert adapter.config["dimensions"] == 8
 
 
+@pytest.mark.asyncio
+async def test_embedding_client_rejects_null_vector_values(monkeypatch) -> None:
+    class _NullValueAdapter(_FakeAdapter):
+        async def embed(self, request):
+            self.calls.append(request)
+            return type("Resp", (), {"embeddings": [[0.1, None, 0.3]]})()
+
+    monkeypatch.setattr(
+        "deeptutor.services.embedding.client._resolve_adapter_class",
+        lambda _b: _NullValueAdapter,
+    )
+    client = EmbeddingClient(_build_config("openai"))
+
+    with pytest.raises(ValueError, match="dimension 1 is null"):
+        await client.embed(["bad"])
+
+
+@pytest.mark.asyncio
+async def test_embedding_client_rejects_dropped_vectors(monkeypatch) -> None:
+    class _DroppedVectorAdapter(_FakeAdapter):
+        async def embed(self, request):
+            self.calls.append(request)
+            return type("Resp", (), {"embeddings": [[0.1, 0.2]]})()
+
+    monkeypatch.setattr(
+        "deeptutor.services.embedding.client._resolve_adapter_class",
+        lambda _b: _DroppedVectorAdapter,
+    )
+    client = EmbeddingClient(_build_config("openai"))
+
+    with pytest.raises(ValueError, match="expected 2, got 1"):
+        await client.embed(["a", "b"])
+
+
+@pytest.mark.asyncio
+async def test_embedding_client_rejects_inconsistent_batch_dimensions(monkeypatch) -> None:
+    class _InconsistentAdapter(_FakeAdapter):
+        async def embed(self, request):
+            self.calls.append(request)
+            return type("Resp", (), {"embeddings": [[0.1, 0.2], [0.3]]})()
+
+    monkeypatch.setattr(
+        "deeptutor.services.embedding.client._resolve_adapter_class",
+        lambda _b: _InconsistentAdapter,
+    )
+    client = EmbeddingClient(_build_config("openai"))
+
+    with pytest.raises(ValueError, match="inconsistent vector dimensions"):
+        await client.embed(["a", "b"])
+
+
 def test_resolve_adapter_class_supports_canonical_providers() -> None:
     assert _resolve_adapter_class("openai").__name__ == "OpenAICompatibleEmbeddingAdapter"
     assert _resolve_adapter_class("custom").__name__ == "OpenAICompatibleEmbeddingAdapter"

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import yaml
 
-from deeptutor.services.tutorbot.manager import BotConfig, TutorBotManager
+from deeptutor.services.tutorbot.manager import BotConfig, TutorBotInstance, TutorBotManager
 
 
 @pytest.fixture
@@ -172,3 +173,109 @@ class TestMergeBotConfig:
         merged = manager.merge_bot_config("bot-4", {"name": "X", "unknown_field": "boom"})
         assert merged.name == "X"
         assert not hasattr(merged, "unknown_field")
+
+
+# ---------------------------------------------------------------------------
+# auto_start persistence during lifecycle stops
+# ---------------------------------------------------------------------------
+
+
+class TestAutoStartPersistence:
+    def _config_data(self, manager: TutorBotManager, bot_id: str) -> dict:
+        return yaml.safe_load(
+            (manager._bot_dir(bot_id) / "config.yaml").read_text(encoding="utf-8")
+        )
+
+    def _register_instance(
+        self,
+        manager: TutorBotManager,
+        bot_id: str,
+        cfg: BotConfig | None = None,
+    ) -> BotConfig:
+        cfg = cfg or BotConfig(name=bot_id)
+        manager._bots[bot_id] = TutorBotInstance(bot_id=bot_id, config=cfg)
+        return cfg
+
+    def test_manual_stop_disables_future_auto_start(self, manager: TutorBotManager):
+        cfg = BotConfig(name="manual")
+        manager.save_bot_config("manual-bot", cfg, auto_start=True)
+        self._register_instance(manager, "manual-bot", cfg)
+
+        assert asyncio.run(manager.stop_bot("manual-bot")) is True
+
+        assert self._config_data(manager, "manual-bot")["auto_start"] is False
+        assert manager.get_bot("manual-bot") is None
+
+    def test_shutdown_stop_all_preserves_auto_start_true(self, manager: TutorBotManager):
+        cfg = BotConfig(name="restartable")
+        manager.save_bot_config("restartable-bot", cfg, auto_start=True)
+        self._register_instance(manager, "restartable-bot", cfg)
+
+        asyncio.run(manager.stop_all())
+
+        assert self._config_data(manager, "restartable-bot")["auto_start"] is True
+        assert manager.get_bot("restartable-bot") is None
+
+    def test_shutdown_stop_all_preserves_existing_auto_start_false(
+        self, manager: TutorBotManager
+    ):
+        cfg = BotConfig(name="manual-only")
+        manager.save_bot_config("manual-only-bot", cfg, auto_start=False)
+        self._register_instance(manager, "manual-only-bot", cfg)
+
+        asyncio.run(manager.stop_all())
+
+        assert self._config_data(manager, "manual-only-bot")["auto_start"] is False
+
+
+def test_start_bot_passes_shared_memory_dir(
+    manager: TutorBotManager,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Path | None] = {}
+
+    class FakeAgentLoop:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["shared_memory_dir"] = kwargs.get("shared_memory_dir")
+            self.model = kwargs.get("model") or "fake-model"
+
+        async def run(self) -> None:
+            return None
+
+        async def process_direct(self, *_args, **_kwargs) -> str:
+            return "ok"
+
+    class FakeHeartbeat:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def start(self) -> None:
+            return None
+
+    monkeypatch.setattr("deeptutor.tutorbot.agent.loop.AgentLoop", FakeAgentLoop)
+    monkeypatch.setattr(
+        "deeptutor.tutorbot.providers.deeptutor_adapter.create_deeptutor_provider",
+        lambda: object(),
+    )
+    monkeypatch.setattr(
+        "deeptutor.services.tutorbot.manager.TutorBotManager._build_channel_manager",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "deeptutor.services.tutorbot.manager.TutorBotManager._outbound_router",
+        lambda *_args, **_kwargs: _done(),
+    )
+    monkeypatch.setattr("deeptutor.tutorbot.heartbeat.HeartbeatService", FakeHeartbeat)
+
+    async def run_start() -> None:
+        instance = await manager.start_bot("shared-memory-bot", BotConfig(name="bot"))
+        for task in instance.tasks:
+            task.cancel()
+
+    async def _done() -> None:
+        return None
+
+    asyncio.run(run_start())
+
+    assert captured["shared_memory_dir"] == tmp_path / "memory"
