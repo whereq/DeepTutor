@@ -24,14 +24,13 @@ def search_error_result(query: str, exc: Exception) -> Dict[str, Any]:
         }
 
     null_vector_similarity_error = (
-        "unsupported operand type(s) for *" in lower
-        and "nonetype" in lower
-        and "float" in lower
+        "unsupported operand type(s) for *" in lower and "nonetype" in lower and "float" in lower
     )
     shape_vector_error = "inhomogeneous shape" in lower or (
         "shapes" in lower and "not aligned" in lower
     )
-    if null_vector_similarity_error or shape_vector_error:
+    invalid_persisted_index = "rag index contains invalid embedding vectors" in lower
+    if null_vector_similarity_error or shape_vector_error or invalid_persisted_index:
         return {
             "query": query,
             "answer": (

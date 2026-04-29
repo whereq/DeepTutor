@@ -24,6 +24,46 @@ def test_custom_embedding_rejects_null_coordinates(monkeypatch: pytest.MonkeyPat
         embedding._get_text_embeddings(["chunk"])
 
 
+def test_custom_embedding_refreshes_stale_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    from deeptutor.services.rag.pipelines.llamaindex import (
+        embedding_adapter as embedding_module,
+    )
+
+    class _FakeClient:
+        def __init__(self, model: str, value: float) -> None:
+            self.config = SimpleNamespace(
+                binding="openai",
+                model=model,
+                dim=1,
+                effective_url="https://example.test/v1/embeddings",
+                base_url="https://example.test/v1/embeddings",
+                api_version=None,
+                send_dimensions=None,
+            )
+            self.value = value
+            self.calls: list[list[str]] = []
+
+        async def embed(self, texts, progress_callback=None):
+            self.calls.append(list(texts))
+            return [[self.value] for _ in texts]
+
+    old_client = _FakeClient("old-embed", 1.0)
+    new_client = _FakeClient("new-embed", 2.0)
+    active_client = {"value": old_client}
+    monkeypatch.setattr(
+        embedding_module,
+        "get_embedding_client",
+        lambda config=None: active_client["value"],
+    )
+
+    embedding = embedding_module.CustomEmbedding()
+    active_client["value"] = new_client
+
+    assert embedding._get_query_embedding("hello") == [2.0]
+    assert old_client.calls == []
+    assert new_client.calls == [["hello"]]
+
+
 @pytest.mark.asyncio
 async def test_search_returns_reindex_hint_for_null_vector_index(
     tmp_path, monkeypatch: pytest.MonkeyPatch
@@ -59,3 +99,59 @@ async def test_search_returns_reindex_hint_for_null_vector_index(
     assert result["needs_reindex"] is True
     assert "Re-index the knowledge base" in result["answer"]
     assert "unsupported operand" not in result["answer"]
+
+
+def test_retrieve_nodes_rejects_invalid_persisted_embeddings(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deeptutor.services.rag.pipelines.llamaindex import storage as storage_module
+
+    class _RetrieverShouldNotRun:
+        def retrieve(self, query: str):  # pragma: no cover - assertion helper
+            raise AssertionError("retriever should not run for invalid persisted vectors")
+
+    fake_index = SimpleNamespace(
+        vector_store=SimpleNamespace(
+            data=SimpleNamespace(embedding_dict={"bad-node": [0.1, None, 0.3]})
+        ),
+        as_retriever=lambda similarity_top_k=5: _RetrieverShouldNotRun(),
+    )
+
+    monkeypatch.setattr(
+        storage_module.StorageContext,
+        "from_defaults",
+        lambda persist_dir: object(),
+    )
+    monkeypatch.setattr(storage_module, "load_index_from_storage", lambda _ctx: fake_index)
+
+    with pytest.raises(ValueError, match="RAG index contains invalid embedding vectors"):
+        storage_module.retrieve_nodes(tmp_path, "what is this?")
+
+
+@pytest.mark.asyncio
+async def test_search_reconfigures_llamaindex_settings_for_cached_pipeline(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deeptutor.services.rag.pipelines.llamaindex import storage as storage_module
+    from deeptutor.services.rag.pipelines.llamaindex.pipeline import LlamaIndexPipeline
+
+    storage_dir = tmp_path / "kb" / "version-1"
+    storage_dir.mkdir(parents=True)
+    (storage_dir / "docstore.json").write_text("{}", encoding="utf-8")
+
+    configure_calls: list[str] = []
+    monkeypatch.setattr(
+        LlamaIndexPipeline,
+        "_configure_settings",
+        lambda self: configure_calls.append("configure"),
+    )
+    monkeypatch.setattr(storage_module, "retrieve_nodes", lambda *_args, **_kwargs: [])
+
+    pipeline = LlamaIndexPipeline(
+        kb_base_dir=str(tmp_path),
+        signature_provider=lambda: None,
+    )
+    result = await pipeline.search("what is this?", "kb")
+
+    assert result["provider"] == "llamaindex"
+    assert configure_calls == ["configure", "configure"]

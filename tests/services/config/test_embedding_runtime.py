@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 
 from deeptutor.services.config.env_store import EnvStore
-from deeptutor.services.config.provider_runtime import resolve_embedding_runtime_config
+from deeptutor.services.config.provider_runtime import (
+    EMBEDDING_PROVIDERS,
+    resolve_embedding_runtime_config,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -232,8 +235,7 @@ def test_embedding_send_dimensions_catalog_wins_over_env(tmp_path: Path) -> None
 
 
 def test_embedding_custom_openai_sdk_uses_user_supplied_base_url(tmp_path: Path) -> None:
-    """`custom_openai_sdk` accepts any user-supplied URL verbatim and routes
-    through the AsyncOpenAI client (which appends `/embeddings` itself)."""
+    """Legacy `custom_openai_sdk` configs still resolve for backwards compatibility."""
     catalog = _build_catalog(
         embedding_profile={
             "id": "embedding-p",
@@ -283,7 +285,8 @@ def test_embedding_openrouter_default_base_url_injected(tmp_path: Path) -> None:
     resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
     assert resolved.provider_name == "openrouter"
     assert resolved.binding == "openrouter"
-    assert resolved.effective_url == "https://openrouter.ai/api/v1"
+    assert resolved.effective_url == "https://openrouter.ai/api/v1/embeddings"
+    assert EMBEDDING_PROVIDERS["openrouter"].adapter == "openai_compat"
 
 
 def test_embedding_openrouter_env_key_fallback(tmp_path: Path) -> None:

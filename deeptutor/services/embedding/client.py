@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import List, Optional
 
 from deeptutor.logging import get_logger
-from deeptutor.services.config.provider_runtime import EMBEDDING_PROVIDERS
+from deeptutor.services.config.provider_runtime import (
+    EMBEDDING_PROVIDERS,
+    embedding_endpoint_validation_error,
+)
 
 from .adapters import ADAPTER_BACKENDS, BaseEmbeddingAdapter, EmbeddingRequest
 from .config import EmbeddingConfig, get_embedding_config
@@ -34,6 +37,14 @@ class EmbeddingClient:
     def __init__(self, config: Optional[EmbeddingConfig] = None):
         self.config = config or get_embedding_config()
         self.logger = get_logger("EmbeddingClient")
+        endpoint = self.config.effective_url or self.config.base_url
+        problem = embedding_endpoint_validation_error(self.config.binding, endpoint)
+        if problem:
+            raise ValueError(
+                f"{problem} Current Settings endpoint is {endpoint!r}. "
+                "DeepTutor sends embedding requests to the Settings URL exactly; "
+                "update the visible Endpoint URL instead of relying on hidden path appending."
+            )
         adapter_class = _resolve_adapter_class(self.config.binding)
         self.adapter = adapter_class(
             {
@@ -167,8 +178,9 @@ _client: Optional[EmbeddingClient] = None
 
 def get_embedding_client(config: Optional[EmbeddingConfig] = None) -> EmbeddingClient:
     global _client
-    if _client is None:
-        _client = EmbeddingClient(config)
+    resolved_config = config or get_embedding_config()
+    if _client is None or _client.config != resolved_config:
+        _client = EmbeddingClient(resolved_config)
     return _client
 
 

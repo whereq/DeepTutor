@@ -28,9 +28,7 @@ from .embedding_adapter import (
 from .errors import search_error_result
 
 DEFAULT_KB_BASE_DIR = str(
-    Path(__file__).resolve().parent.parent.parent.parent.parent.parent
-    / "data"
-    / "knowledge_bases"
+    Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "data" / "knowledge_bases"
 )
 
 SignatureProvider = Callable[[], EmbeddingSignature | None]
@@ -61,9 +59,7 @@ class LlamaIndexPipeline:
     def _current_signature(self) -> EmbeddingSignature | None:
         return self._signature_provider()
 
-    def _cleanup_failed_version_dir(
-        self, storage_dir: Path, signature: Optional[Any]
-    ) -> None:
+    def _cleanup_failed_version_dir(self, storage_dir: Path, signature: Optional[Any]) -> None:
         _ = signature
         try:
             if storage.cleanup_failed_version_dir(storage_dir):
@@ -77,6 +73,7 @@ class LlamaIndexPipeline:
 
     async def initialize(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
         progress_callback = kwargs.get("progress_callback")
+        self._configure_settings()
 
         self.logger.info(
             f"Initializing KB '{kb_name}' with {len(file_paths)} files using LlamaIndex"
@@ -129,6 +126,7 @@ class LlamaIndexPipeline:
         **kwargs,
     ) -> Dict[str, Any]:
         kwargs.pop("mode", None)
+        self._configure_settings()
         self.logger.info(f"Searching KB '{kb_name}' with query: {query[:50]}...")
 
         kb_dir = Path(self.kb_base_dir) / kb_name
@@ -168,9 +166,13 @@ class LlamaIndexPipeline:
             return result
 
         except Exception as exc:
-            self.logger.error(f"Search failed: {exc}")
-            self.logger.error(traceback.format_exc())
-            return search_error_result(query, exc)
+            result = search_error_result(query, exc)
+            if result.get("error_type"):
+                self.logger.warning(f"Search failed ({result['error_type']}): {exc}")
+            else:
+                self.logger.error(f"Search failed: {exc}")
+                self.logger.error(traceback.format_exc())
+            return result
 
     def _embedding_mismatch_warning(self, kb_name: str) -> str:
         try:
@@ -220,6 +222,7 @@ class LlamaIndexPipeline:
 
     async def add_documents(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
         progress_callback = kwargs.get("progress_callback")
+        self._configure_settings()
 
         self.logger.info(f"Adding {len(file_paths)} documents to KB '{kb_name}' using LlamaIndex")
 

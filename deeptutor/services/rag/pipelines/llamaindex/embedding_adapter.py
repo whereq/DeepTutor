@@ -10,8 +10,20 @@ from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.bridge.pydantic import PrivateAttr
 
 from deeptutor.logging import get_logger
-from deeptutor.services.embedding import get_embedding_client, get_embedding_config
+from deeptutor.services.embedding import EmbeddingConfig, get_embedding_client, get_embedding_config
 from deeptutor.services.embedding.validation import validate_embedding_batch
+
+
+def _config_fingerprint(config: EmbeddingConfig) -> tuple[Any, ...]:
+    """Return the settings fields that affect LlamaIndex embedding behavior."""
+    return (
+        getattr(config, "binding", None),
+        getattr(config, "model", None),
+        getattr(config, "dim", None),
+        getattr(config, "effective_url", None) or getattr(config, "base_url", None),
+        getattr(config, "api_version", None),
+        getattr(config, "send_dimensions", None),
+    )
 
 
 class CustomEmbedding(BaseEmbedding):
@@ -22,16 +34,40 @@ class CustomEmbedding(BaseEmbedding):
     _progress_callback: Any = PrivateAttr(default=None)
     _binding: Any = PrivateAttr(default=None)
     _model: Any = PrivateAttr(default=None)
+    _fingerprint: Any = PrivateAttr(default=None)
 
     def __init__(self, **kwargs):
         progress_cb = kwargs.pop("progress_callback", None)
+        embedding_config = kwargs.pop("embedding_config", None)
         super().__init__(**kwargs)
-        self._client = get_embedding_client()
         self._logger = get_logger("CustomEmbedding")
         self._progress_callback = progress_cb
+        client = (
+            get_embedding_client(embedding_config)
+            if embedding_config is not None
+            else get_embedding_client()
+        )
+        self._bind_client(client)
+
+    def _bind_client(self, client: Any) -> None:
+        self._client = client
         client_config = getattr(self._client, "config", None)
         self._binding = getattr(client_config, "binding", None)
         self._model = getattr(client_config, "model", None)
+        self._fingerprint = (
+            _config_fingerprint(client_config) if client_config is not None else None
+        )
+
+    def matches_config(self, config: EmbeddingConfig) -> bool:
+        """Return whether this adapter was created for the active config."""
+        return self._fingerprint == _config_fingerprint(config)
+
+    def refresh_client(self, config: EmbeddingConfig | None = None) -> Any:
+        """Refresh the cached client if settings changed while the pipeline lived."""
+        client = get_embedding_client(config) if config is not None else get_embedding_client()
+        if client is not self._client:
+            self._bind_client(client)
+        return self._client
 
     def set_progress_callback(self, callback):
         """Set progress callback fn(batch_num, total_batches)."""
@@ -50,7 +86,8 @@ class CustomEmbedding(BaseEmbedding):
             loop.close()
 
     async def _aget_query_embedding(self, query: str) -> List[float]:
-        embeddings = await self._client.embed([query])
+        client = self.refresh_client()
+        embeddings = await client.embed([query])
         return validate_embedding_batch(
             embeddings,
             expected_count=1,
@@ -59,7 +96,8 @@ class CustomEmbedding(BaseEmbedding):
         )[0]
 
     async def _aget_text_embedding(self, text: str) -> List[float]:
-        embeddings = await self._client.embed([text])
+        client = self.refresh_client()
+        embeddings = await client.embed([text])
         return validate_embedding_batch(
             embeddings,
             expected_count=1,
@@ -68,9 +106,8 @@ class CustomEmbedding(BaseEmbedding):
         )[0]
 
     async def _aget_text_embeddings(self, texts: List[str]) -> List[List[float]]:
-        embeddings = await self._client.embed(
-            texts, progress_callback=self._progress_callback
-        )
+        client = self.refresh_client()
+        embeddings = await client.embed(texts, progress_callback=self._progress_callback)
         return validate_embedding_batch(
             embeddings,
             expected_count=len(texts),
@@ -95,15 +132,25 @@ def configure_llamaindex_settings(logger=None) -> None:
     """Configure LlamaIndex globals for DeepTutor's current embedding config."""
     embedding_cfg = get_embedding_config()
 
-    Settings.embed_model = CustomEmbedding()
+    current = getattr(Settings, "_embed_model", None)
+    configured = False
+    if isinstance(current, CustomEmbedding) and current.matches_config(embedding_cfg):
+        current.refresh_client(embedding_cfg)
+    else:
+        Settings.embed_model = CustomEmbedding(embedding_config=embedding_cfg)
+        configured = True
     Settings.chunk_size = 512
     Settings.chunk_overlap = 50
 
     if logger is not None:
-        logger.info(
+        message = (
             f"LlamaIndex configured: embedding={embedding_cfg.model} "
             f"({embedding_cfg.dim}D, {embedding_cfg.binding}), chunk_size=512"
         )
+        if configured:
+            logger.info(message)
+        else:
+            logger.debug(message)
 
 
 def set_progress_callback(callback) -> None:
@@ -120,14 +167,17 @@ async def verify_embedding_connectivity(logger=None) -> None:
     try:
         client = get_embedding_client()
         result = await client.embed(["connectivity test"])
-        if not result or not result[0]:
-            raise RuntimeError("Embedding API returned empty result")
+        validated = validate_embedding_batch(
+            result,
+            expected_count=1,
+            binding=getattr(client.config, "binding", None),
+            model=getattr(client.config, "model", None),
+        )
         if logger is not None:
-            logger.info(f"Embedding API OK (returned {len(result[0])}-dim vector)")
+            logger.info(f"Embedding API OK (returned {len(validated[0])}-dim vector)")
     except Exception as exc:
         if logger is not None:
             logger.error(f"Embedding API connectivity check failed: {exc}")
         raise RuntimeError(
-            "Cannot reach embedding API. Please check your embedding configuration. "
-            f"Error: {exc}"
+            f"Cannot reach embedding API. Please check your embedding configuration. Error: {exc}"
         ) from exc

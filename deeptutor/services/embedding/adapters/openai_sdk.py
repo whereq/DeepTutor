@@ -1,15 +1,8 @@
-"""OpenAI SDK-based embedding adapter for OpenAI-compatible gateways.
+"""Legacy embedding adapter using AsyncOpenAI.
 
-Unlike :mod:`openai_compatible` (which POSTs to ``base_url`` verbatim via raw
-httpx), this adapter wraps the official ``openai`` Python SDK. The SDK
-auto-appends ``/embeddings`` to whichever ``base_url`` it's given, which
-matches the convention most third-party gateways document (e.g. OpenRouter,
-custom OpenAI proxies): users supply a ``/v1``-style base and the SDK builds
-the endpoint.
-
-Use this adapter when interop with an OpenAI-compatible gateway is the goal;
-use :class:`OpenAICompatibleEmbeddingAdapter` when "exact URL, no path
-appending" is what the user wants.
+Public Settings providers use exact endpoint URLs and raw HTTP adapters so the
+URL shown in Settings is the URL sent on the wire. This SDK adapter is retained
+for old configs/tests that intentionally depend on AsyncOpenAI semantics.
 """
 
 from __future__ import annotations

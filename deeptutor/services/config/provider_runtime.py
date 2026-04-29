@@ -17,6 +17,12 @@ from deeptutor.services.provider_registry import (
     find_gateway,
 )
 
+from .embedding_endpoint import (
+    EMBEDDING_PROVIDER_ALIASES,
+    EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS,
+    embedding_endpoint_validation_error,
+    normalize_embedding_endpoint_for_display,
+)
 from .env_store import EnvStore, get_env_store
 from .loader import load_config_with_main
 from .model_catalog import ModelCatalogService, get_model_catalog_service
@@ -41,16 +47,6 @@ SEARCH_ENV_FALLBACK = {
 }
 
 LLM_LOCALHOST_PROVIDERS = ("ollama", "vllm")
-
-EMBEDDING_PROVIDER_ALIASES = {
-    "google": "openai",
-    "gemini": "openai",
-    "huggingface": "custom",
-    "lm_studio": "vllm",
-    "llama_cpp": "vllm",
-    "openai_compatible": "custom",
-}
-
 
 @dataclass(frozen=True)
 class EmbeddingProviderSpec:
@@ -81,7 +77,7 @@ class EmbeddingProviderSpec:
 EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
     "openai": EmbeddingProviderSpec(
         label="OpenAI",
-        default_api_base="https://api.openai.com/v1/embeddings",
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["openai"],
         keywords=("openai", "text-embedding", "ada-002", "embedding-3"),
         is_local=False,
         api_key_envs=("OPENAI_API_KEY",),
@@ -99,7 +95,7 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
     "cohere": EmbeddingProviderSpec(
         label="Cohere",
         adapter="cohere",
-        default_api_base="https://api.cohere.com/v2/embed",
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["cohere"],
         keywords=("cohere", "embed-v4", "embed-english", "embed-multilingual"),
         is_local=False,
         api_key_envs=("COHERE_API_KEY",),
@@ -110,7 +106,7 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
     "jina": EmbeddingProviderSpec(
         label="Jina",
         adapter="jina",
-        default_api_base="https://api.jina.ai/v1/embeddings",
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["jina"],
         keywords=("jina", "jina-embeddings"),
         is_local=False,
         api_key_envs=("JINA_API_KEY",),
@@ -121,7 +117,7 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
         label="Ollama",
         adapter="ollama",
         mode="local",
-        default_api_base="http://localhost:11434/api/embed",
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["ollama"],
         keywords=("ollama", "nomic-embed", "mxbai", "snowflake-arctic", "all-minilm"),
         is_local=True,
         api_key_envs=(),
@@ -131,7 +127,7 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
     "vllm": EmbeddingProviderSpec(
         label="vLLM / LM Studio",
         mode="local",
-        default_api_base="http://localhost:8000/v1/embeddings",
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["vllm"],
         keywords=("vllm", "lmstudio"),
         is_local=True,
         api_key_envs=("HOSTED_VLLM_API_KEY",),
@@ -139,7 +135,7 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
     "siliconflow": EmbeddingProviderSpec(
         label="SiliconFlow",
         adapter="openai_compat",
-        default_api_base="https://api.siliconflow.cn/v1/embeddings",
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["siliconflow"],
         keywords=(
             "siliconflow",
             "qwen3-embedding",
@@ -157,10 +153,7 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
     "aliyun": EmbeddingProviderSpec(
         label="Aliyun DashScope",
         adapter="dashscope_native",
-        default_api_base=(
-            "https://dashscope.aliyuncs.com/api/v1/services/embeddings/"
-            "multimodal-embedding/multimodal-embedding"
-        ),
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["aliyun"],
         keywords=("dashscope", "qwen3-vl-embedding", "qwen3-embedding", "aliyun", "bailian"),
         is_local=False,
         api_key_envs=("DASHSCOPE_API_KEY",),
@@ -177,11 +170,8 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
         is_local=False,
         api_key_envs=("OPENAI_API_KEY",),
     ),
-    # `custom_openai_sdk` and `openrouter` route through the official `openai`
-    # SDK (AsyncOpenAI), which auto-appends `/embeddings` to the configured
-    # base URL. Use these when the gateway documents OpenAI-SDK-style usage
-    # (give a /v1 base, the SDK builds the endpoint). For "exact URL, no
-    # appending" semantics, use `custom` (OpenAI Compatible) instead.
+    # Retained for legacy configs only. Public Settings providers use exact
+    # endpoint URLs and raw HTTP adapters so no request path is hidden.
     "custom_openai_sdk": EmbeddingProviderSpec(
         label="Custom (OpenAI SDK)",
         adapter="openai_sdk",
@@ -193,8 +183,8 @@ EMBEDDING_PROVIDERS: dict[str, EmbeddingProviderSpec] = {
     ),
     "openrouter": EmbeddingProviderSpec(
         label="OpenRouter",
-        adapter="openai_sdk",
-        default_api_base="https://openrouter.ai/api/v1",
+        adapter="openai_compat",
+        default_api_base=EMBEDDING_PROVIDER_DEFAULT_ENDPOINTS["openrouter"],
         keywords=("openrouter",),
         is_local=False,
         api_key_envs=("OPENROUTER_API_KEY",),
@@ -811,6 +801,8 @@ __all__ = [
     "EmbeddingProviderSpec",
     "EMBEDDING_PROVIDERS",
     "EMBEDDING_PROVIDER_ALIASES",
+    "embedding_endpoint_validation_error",
+    "normalize_embedding_endpoint_for_display",
     "NormalizedProviderConfig",
     "ResolvedLLMConfig",
     "ResolvedEmbeddingConfig",

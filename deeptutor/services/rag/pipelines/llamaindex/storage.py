@@ -9,6 +9,7 @@ from typing import Any
 
 from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_storage
 
+from deeptutor.services.embedding.validation import validate_embedding_batch
 from deeptutor.services.rag.index_versioning import (
     EmbeddingSignature,
     find_matching_version,
@@ -35,9 +36,7 @@ def cleanup_failed_version_dir(storage_dir: Path) -> bool:
     return False
 
 
-def resolve_add_storage_plan(
-    kb_dir: Path, signature: EmbeddingSignature | None
-) -> AddStoragePlan:
+def resolve_add_storage_plan(kb_dir: Path, signature: EmbeddingSignature | None) -> AddStoragePlan:
     """Choose existing/new storage dirs for incremental adds."""
     matching_version = find_matching_version(kb_dir, signature) if signature is not None else None
     existing_storage = Path(str(matching_version["storage_path"])) if matching_version else None
@@ -59,9 +58,7 @@ def resolve_add_storage_plan(
         and fallback_storage.name.startswith("version-")
     )
     storage_dir = (
-        fallback_storage
-        if fallback_is_flat
-        else resolve_storage_dir_for_write(kb_dir, signature)
+        fallback_storage if fallback_is_flat else resolve_storage_dir_for_write(kb_dir, signature)
     )
     return AddStoragePlan(existing_storage=existing_storage, storage_dir=storage_dir)
 
@@ -72,9 +69,7 @@ def create_index(documents: list[Any], storage_dir: Path, *, show_progress: bool
     return len(documents)
 
 
-def insert_documents(
-    existing_storage: Path, storage_dir: Path, documents: list[Any]
-) -> int:
+def insert_documents(existing_storage: Path, storage_dir: Path, documents: list[Any]) -> int:
     storage_context = StorageContext.from_defaults(persist_dir=str(existing_storage))
     index = load_index_from_storage(storage_context)
     for document in documents:
@@ -83,9 +78,33 @@ def insert_documents(
     return len(documents)
 
 
+def _validate_persisted_embeddings(index: Any) -> None:
+    """Fail early when a persisted vector store contains unusable vectors."""
+    vector_store = getattr(index, "vector_store", None)
+    data = getattr(vector_store, "data", None)
+    embedding_dict = getattr(data, "embedding_dict", None)
+    if not isinstance(embedding_dict, dict) or not embedding_dict:
+        return
+
+    try:
+        validate_embedding_batch(
+            list(embedding_dict.values()),
+            expected_count=len(embedding_dict),
+            binding="llamaindex",
+            model="persisted-index",
+        )
+    except ValueError as exc:
+        raise ValueError(
+            "RAG index contains invalid embedding vectors. Re-index the "
+            "knowledge base with the current embedding provider/model before "
+            f"querying it again. Details: {exc}"
+        ) from exc
+
+
 def retrieve_nodes(storage_dir: Path, query: str, *, top_k: int = 5) -> list[Any]:
     storage_context = StorageContext.from_defaults(persist_dir=str(storage_dir))
     index = load_index_from_storage(storage_context)
+    _validate_persisted_embeddings(index)
     retriever = index.as_retriever(similarity_top_k=top_k)
     return retriever.retrieve(query)
 

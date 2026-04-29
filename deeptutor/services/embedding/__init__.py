@@ -2,7 +2,7 @@
 
 Supported bindings are resolved by ``services.config.provider_runtime`` and
 currently include openai, custom, azure_openai, cohere, jina, ollama, vllm,
-siliconflow, aliyun, custom_openai_sdk, and openrouter.
+siliconflow, aliyun, openrouter, plus legacy custom_openai_sdk configs.
 """
 
 from .adapters import (

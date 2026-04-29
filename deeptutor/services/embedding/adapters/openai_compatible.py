@@ -209,11 +209,9 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
                             provider="openai_compat",
                         )
 
-                    # A 2xx response with non-JSON body means the gateway either
-                    # doesn't expose `/v1/embeddings` (e.g. OpenRouter, which is
-                    # chat-completion-only) or routed us to an HTML error page.
-                    # Surface that as a structured error rather than a bare
-                    # JSONDecodeError so the diagnostics UI can guide the user.
+                    # A 2xx response with non-JSON body usually means the
+                    # endpoint/model pairing is wrong or a gateway routed us to
+                    # an HTML page. Surface that as structured diagnostics.
                     try:
                         data = response.json()
                     except (json.JSONDecodeError, ValueError) as exc:
@@ -224,8 +222,8 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
                         if not body_text.strip():
                             hint = (
                                 " The response body was empty — the endpoint may "
-                                "not support embeddings (e.g. OpenRouter is "
-                                "chat-completion only)."
+                                "not support embeddings or the selected model "
+                                "may not be an embedding model."
                             )
                         elif "text/html" in content_type.lower() or body_preview.lstrip().startswith("<"):
                             hint = (

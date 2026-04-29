@@ -196,6 +196,15 @@ def _patch_runtime(
     )
 
 
+def test_embedding_provider_choices_use_full_endpoint_urls() -> None:
+    embedding = {item["value"]: item for item in settings_router._provider_choices()["embedding"]}
+
+    assert embedding["openrouter"]["base_url"] == "https://openrouter.ai/api/v1/embeddings"
+    assert embedding["ollama"]["base_url"] == "http://localhost:11434/api/embed"
+    assert embedding["openai"]["base_url"] == "https://api.openai.com/v1/embeddings"
+    assert "custom_openai_sdk" not in embedding
+
+
 @pytest.fixture(autouse=True)
 def _reset_runtime_state() -> None:
     llm_config_module.clear_llm_config_cache()
@@ -214,7 +223,7 @@ async def test_update_catalog_invalidates_runtime_caches(monkeypatch: pytest.Mon
         llm_base_url="https://old-llm.example/v1",
         llm_api_key="old-llm-key",
         embedding_model="text-embedding-old",
-        embedding_base_url="https://old-embedding.example/v1",
+        embedding_base_url="https://old-embedding.example/v1/embeddings",
         embedding_api_key="old-embedding-key",
     )
     updated_catalog = _build_catalog(
@@ -222,7 +231,7 @@ async def test_update_catalog_invalidates_runtime_caches(monkeypatch: pytest.Mon
         llm_base_url="https://new-llm.example/v1",
         llm_api_key="new-llm-key",
         embedding_model="text-embedding-new",
-        embedding_base_url="https://new-embedding.example/v1",
+        embedding_base_url="https://new-embedding.example/v1/embeddings",
         embedding_api_key="new-embedding-key",
     )
     service = _FakeCatalogService(initial_catalog)
@@ -249,7 +258,7 @@ async def test_update_catalog_invalidates_runtime_caches(monkeypatch: pytest.Mon
     assert new_llm_client.config.model == "gpt-new"
     assert new_embedding_client is not old_embedding_client
     assert new_embedding_client.config.model == "text-embedding-new"
-    assert new_embedding_client.config.base_url == "https://new-embedding.example/v1"
+    assert new_embedding_client.config.base_url == "https://new-embedding.example/v1/embeddings"
 
 
 @pytest.mark.asyncio
@@ -259,7 +268,7 @@ async def test_apply_catalog_invalidates_runtime_caches(monkeypatch: pytest.Monk
         llm_base_url="https://before-apply-llm.example/v1",
         llm_api_key="before-apply-llm-key",
         embedding_model="text-embedding-before-apply",
-        embedding_base_url="https://before-apply-embedding.example/v1",
+        embedding_base_url="https://before-apply-embedding.example/v1/embeddings",
         embedding_api_key="before-apply-embedding-key",
     )
     applied_catalog = _build_catalog(
@@ -267,7 +276,7 @@ async def test_apply_catalog_invalidates_runtime_caches(monkeypatch: pytest.Monk
         llm_base_url="https://after-apply-llm.example/v1",
         llm_api_key="after-apply-llm-key",
         embedding_model="text-embedding-after-apply",
-        embedding_base_url="https://after-apply-embedding.example/v1",
+        embedding_base_url="https://after-apply-embedding.example/v1/embeddings",
         embedding_api_key="after-apply-embedding-key",
     )
     service = _FakeCatalogService(initial_catalog)
@@ -304,7 +313,7 @@ async def test_complete_tour_invalidates_runtime_caches(
         llm_base_url="https://before-tour-llm.example/v1",
         llm_api_key="before-tour-llm-key",
         embedding_model="text-embedding-before-tour",
-        embedding_base_url="https://before-tour-embedding.example/v1",
+        embedding_base_url="https://before-tour-embedding.example/v1/embeddings",
         embedding_api_key="before-tour-embedding-key",
     )
     completed_catalog = _build_catalog(
@@ -312,7 +321,7 @@ async def test_complete_tour_invalidates_runtime_caches(
         llm_base_url="https://after-tour-llm.example/v1",
         llm_api_key="after-tour-llm-key",
         embedding_model="text-embedding-after-tour",
-        embedding_base_url="https://after-tour-embedding.example/v1",
+        embedding_base_url="https://after-tour-embedding.example/v1/embeddings",
         embedding_api_key="after-tour-embedding-key",
     )
     service = _FakeCatalogService(initial_catalog)

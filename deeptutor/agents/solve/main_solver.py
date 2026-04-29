@@ -450,7 +450,6 @@ class MainSolver:
                     scratchpad=scratchpad,
                     memory_context=step_memory_context,
                     image_url=image_url,
-                    attachments=attachments,
                     round_index=round_num + 1,
                 )
 

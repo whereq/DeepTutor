@@ -127,6 +127,7 @@ def _provider_choices() -> dict[str, list[dict[str, str]]]:
                 "default_dim": str(spec.default_dim) if spec.default_dim else "",
             }
             for name, spec in EMBEDDING_PROVIDERS.items()
+            if name != "custom_openai_sdk"
         ],
         key=lambda p: p["label"].lower(),
     )

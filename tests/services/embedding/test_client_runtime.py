@@ -6,7 +6,12 @@ from typing import Any
 
 import pytest
 
-from deeptutor.services.embedding.client import EmbeddingClient, _resolve_adapter_class
+from deeptutor.services.embedding.client import (
+    EmbeddingClient,
+    _resolve_adapter_class,
+    get_embedding_client,
+    reset_embedding_client,
+)
 from deeptutor.services.embedding.config import EmbeddingConfig
 
 
@@ -31,14 +36,12 @@ class _FakeAdapter:
         )()
 
 
-def _build_config(
-    binding: str, *, send_dimensions: bool | None = None
-) -> EmbeddingConfig:
+def _build_config(binding: str, *, send_dimensions: bool | None = None) -> EmbeddingConfig:
     return EmbeddingConfig(
         model="text-embedding-3-small",
         api_key="sk-test",
-        base_url="https://api.openai.com/v1",
-        effective_url="https://api.openai.com/v1",
+        base_url="https://api.openai.com/v1/embeddings",
+        effective_url="https://api.openai.com/v1/embeddings",
         binding=binding,
         provider_name=binding,
         provider_mode="standard",
@@ -124,11 +127,74 @@ def test_resolve_adapter_class_supports_canonical_providers() -> None:
     assert _resolve_adapter_class("jina").__name__ == "JinaEmbeddingAdapter"
     assert _resolve_adapter_class("ollama").__name__ == "OllamaEmbeddingAdapter"
     assert _resolve_adapter_class("vllm").__name__ == "OpenAICompatibleEmbeddingAdapter"
+    assert _resolve_adapter_class("openrouter").__name__ == "OpenAICompatibleEmbeddingAdapter"
 
 
 def test_resolve_adapter_class_rejects_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unknown embedding binding"):
         _resolve_adapter_class("huggingface")
+
+
+def test_embedding_client_rejects_ollama_root_endpoint() -> None:
+    cfg = EmbeddingConfig(
+        model="nomic-embed-text",
+        api_key="sk-no-key-required",
+        base_url="http://localhost:11434",
+        effective_url="http://localhost:11434",
+        binding="ollama",
+        provider_name="ollama",
+        provider_mode="local",
+    )
+
+    with pytest.raises(ValueError, match="/api/embed"):
+        EmbeddingClient(cfg)
+
+
+def test_embedding_client_rejects_openrouter_base_endpoint() -> None:
+    cfg = EmbeddingConfig(
+        model="qwen/qwen3-embedding-8b",
+        api_key="sk-or-test",
+        base_url="https://openrouter.ai/api/v1",
+        effective_url="https://openrouter.ai/api/v1",
+        binding="openrouter",
+        provider_name="openrouter",
+        provider_mode="standard",
+    )
+
+    with pytest.raises(ValueError, match="/embeddings"):
+        EmbeddingClient(cfg)
+
+
+def test_get_embedding_client_refreshes_when_config_changes(monkeypatch) -> None:
+    from deeptutor.services.embedding import client as client_module
+
+    _FakeAdapter.instances = []
+    first_config = _build_config("openai")
+    second_config = _build_config("openai")
+    second_config.model = "text-embedding-new"
+
+    active_config = {"value": first_config}
+    monkeypatch.setattr(
+        client_module,
+        "_resolve_adapter_class",
+        lambda _b: _FakeAdapter,
+    )
+    monkeypatch.setattr(
+        client_module,
+        "get_embedding_config",
+        lambda: active_config["value"],
+    )
+
+    reset_embedding_client()
+    first_client = get_embedding_client()
+    active_config["value"] = second_config
+    second_client = get_embedding_client()
+    same_second_client = get_embedding_client()
+
+    assert first_client is not second_client
+    assert second_client is same_second_client
+    assert second_client.config.model == "text-embedding-new"
+    reset_embedding_client()
 
 
 @pytest.mark.parametrize("flag", [True, False, None])

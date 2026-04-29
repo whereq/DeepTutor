@@ -18,7 +18,6 @@ from .context_window_detection import detect_context_window
 from .env_store import get_env_store
 from .model_catalog import get_model_catalog_service
 from .provider_runtime import (
-    EMBEDDING_PROVIDERS,
     resolve_embedding_runtime_config,
     resolve_llm_runtime_config,
     resolve_search_runtime_config,
@@ -340,19 +339,9 @@ class ConfigTestRunner:
         run.emit(
             "info", f"Resolved embedding model `{config.model}` with binding `{config.binding}`."
         )
-        # URL semantics differ by adapter family:
-        # * `openai_sdk`  → AsyncOpenAI auto-appends `/embeddings` to base_url
-        # * everything else (openai_compat / cohere / jina / ollama / dashscope)
-        #   → POSTs to `base_url` verbatim
-        spec = EMBEDDING_PROVIDERS.get(config.binding)
-        url_note = (
-            "OpenAI SDK appends `/embeddings`"
-            if spec and spec.adapter == "openai_sdk"
-            else "POSTed verbatim, no path appending"
-        )
         run.emit(
             "info",
-            f"Request target ({url_note}): {config.base_url}",
+            f"Request target (POSTed exactly as shown in Settings): {config.base_url}",
         )
         run.emit(
             "info",

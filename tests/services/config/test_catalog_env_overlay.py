@@ -202,3 +202,92 @@ def test_env_still_seeds_pristine_single_default_profile(
     assert profile["base_url"] == "https://api.openai.com/v1/embeddings"
     assert profile["api_key"] == "sk-newkey"
     assert profile["models"][0]["model"] == "text-embedding-3-small"
+
+
+def _write_single_embedding_profile_catalog(
+    catalog_path: Path,
+    *,
+    binding: str,
+    base_url: str,
+) -> None:
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "services": {
+                    "llm": {"active_profile_id": None, "profiles": []},
+                    "embedding": {
+                        "active_profile_id": "embedding-profile-default",
+                        "active_model_id": "embedding-model-default",
+                        "profiles": [
+                            {
+                                "id": "embedding-profile-default",
+                                "name": "Embedding",
+                                "binding": binding,
+                                "base_url": base_url,
+                                "api_key": "sk-test",
+                                "api_version": "",
+                                "extra_headers": {},
+                                "models": [
+                                    {
+                                        "id": "embedding-model-default",
+                                        "name": "m",
+                                        "model": "qwen/qwen3-embedding-8b",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    "search": {"active_profile_id": None, "profiles": []},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    ("binding", "base_url", "expected"),
+    [
+        (
+            "openrouter",
+            "https://openrouter.ai/api/v1",
+            "https://openrouter.ai/api/v1/embeddings",
+        ),
+        ("ollama", "http://localhost:11434", "http://localhost:11434/api/embed"),
+        ("ollama", "http://localhost:11434/api", "http://localhost:11434/api/embed"),
+        ("openai", "https://api.openai.com/v1", "https://api.openai.com/v1/embeddings"),
+    ],
+)
+def test_embedding_legacy_base_is_migrated_to_visible_endpoint(
+    isolated_stores: tuple[Path, Path],
+    binding: str,
+    base_url: str,
+    expected: str,
+) -> None:
+    catalog_path, _env_path = isolated_stores
+    _write_single_embedding_profile_catalog(catalog_path, binding=binding, base_url=base_url)
+
+    loaded = ModelCatalogService(catalog_path).load()
+
+    profile = loaded["services"]["embedding"]["profiles"][0]
+    assert profile["base_url"] == expected
+    saved = json.loads(catalog_path.read_text(encoding="utf-8"))
+    assert saved["services"]["embedding"]["profiles"][0]["base_url"] == expected
+
+
+def test_embedding_custom_endpoint_is_not_migrated(
+    isolated_stores: tuple[Path, Path],
+) -> None:
+    catalog_path, _env_path = isolated_stores
+    _write_single_embedding_profile_catalog(
+        catalog_path,
+        binding="custom",
+        base_url="https://proxy.example/root",
+    )
+
+    loaded = ModelCatalogService(catalog_path).load()
+
+    assert (
+        loaded["services"]["embedding"]["profiles"][0]["base_url"]
+        == "https://proxy.example/root"
+    )

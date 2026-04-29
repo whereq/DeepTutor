@@ -17,6 +17,7 @@ from pathlib import Path
 import re
 from typing import Literal
 
+from deeptutor.services.llm import clean_thinking_tags
 from deeptutor.services.llm import stream as llm_stream
 from deeptutor.services.path_service import PathService, get_path_service
 from deeptutor.services.session.sqlite_store import SQLiteSessionStore, get_sqlite_session_store
@@ -101,7 +102,17 @@ class MemoryService:
         if not path.exists():
             return ""
         try:
-            return path.read_text(encoding="utf-8").strip()
+            raw = path.read_text(encoding="utf-8").strip()
+            cleaned = _clean_memory_content(raw)
+            if cleaned != raw:
+                try:
+                    if cleaned:
+                        path.write_text(cleaned, encoding="utf-8")
+                    else:
+                        path.unlink()
+                except Exception:
+                    pass
+            return cleaned
         except Exception:
             return ""
 
@@ -131,7 +142,7 @@ class MemoryService:
     # ── Write ─────────────────────────────────────────────────────────
 
     def write_file(self, which: MemoryFile, content: str) -> MemorySnapshot:
-        normalized = str(content or "").strip()
+        normalized = _clean_memory_content(str(content or ""))
         path = self._path(which)
         path.parent.mkdir(parents=True, exist_ok=True)
         if not normalized:
@@ -293,7 +304,7 @@ class MemoryService:
         ):
             chunks.append(c)
 
-        raw = _strip_code_fence("".join(chunks)).strip()
+        raw = _clean_memory_content("".join(chunks))
         if not raw or raw == _NO_CHANGE:
             return False
 
@@ -379,6 +390,11 @@ def _strip_code_fence(content: str) -> str:
         cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", cleaned)
         cleaned = re.sub(r"\n?```$", "", cleaned)
     return cleaned.strip()
+
+
+def _clean_memory_content(content: str) -> str:
+    """Remove code fences and model scratchpad tags before durable memory writes."""
+    return clean_thinking_tags(_strip_code_fence(content)).strip()
 
 
 _memory_service: MemoryService | None = None

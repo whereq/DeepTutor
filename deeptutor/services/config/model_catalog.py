@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from deeptutor.services.path_service import get_path_service
 
+from .embedding_endpoint import normalize_embedding_endpoint_for_display
 from .env_store import get_env_store
 
 CATALOG_PATH = get_path_service().get_settings_file("model_catalog")
@@ -73,8 +74,8 @@ class ModelCatalogService:
             synced = False
             if self._is_catalog_pristine(catalog):
                 synced = self._sync_active_services_from_env(catalog)
-            self._normalize(catalog)
-            if hydrated or synced:
+            normalized = self._normalize(catalog)
+            if hydrated or synced or normalized:
                 self.save(catalog)
             return catalog
 
@@ -432,8 +433,9 @@ class ModelCatalogService:
 
         return changed
 
-    def _normalize(self, catalog: dict[str, Any]) -> None:
+    def _normalize(self, catalog: dict[str, Any]) -> bool:
         services = catalog.setdefault("services", {})
+        changed = False
         services.setdefault("llm", _service_shell())
         services.setdefault("embedding", _service_shell())
         services.setdefault("search", _search_shell())
@@ -453,6 +455,15 @@ class ModelCatalogService:
                 else:
                     profile.setdefault("binding", "openai")
                     profile.setdefault("extra_headers", {})
+                    if service_name == "embedding":
+                        before = str(profile.get("base_url") or "")
+                        after = normalize_embedding_endpoint_for_display(
+                            profile.get("binding"),
+                            before,
+                        )
+                        if after != before:
+                            profile["base_url"] = after
+                            changed = True
                     models = profile.setdefault("models", [])
                     for model in models:
                         model.setdefault("id", f"{service_name}-model-{uuid4().hex[:8]}")
@@ -469,11 +480,14 @@ class ModelCatalogService:
                             model.setdefault("supported_dimensions", "")
             if profiles and not service.get("active_profile_id"):
                 service["active_profile_id"] = profiles[0]["id"]
+                changed = True
             if service_name in {"llm", "embedding"}:
                 if not service.get("active_model_id"):
                     active_profile = self.get_active_profile(catalog, service_name)
                     if active_profile and active_profile.get("models"):
                         service["active_model_id"] = active_profile["models"][0]["id"]
+                        changed = True
+        return changed
 
     def get_active_profile(
         self, catalog: dict[str, Any], service_name: str

@@ -52,6 +52,15 @@ def _capture_url(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return captured
 
 
+def test_public_embedding_providers_do_not_use_openai_sdk_autopath() -> None:
+    from deeptutor.services.config.provider_runtime import EMBEDDING_PROVIDERS
+
+    for name, spec in EMBEDDING_PROVIDERS.items():
+        if name == "custom_openai_sdk":
+            continue
+        assert spec.adapter != "openai_sdk", name
+
+
 @pytest.mark.asyncio
 async def test_openai_compat_url_verbatim(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = _capture_url(monkeypatch)
