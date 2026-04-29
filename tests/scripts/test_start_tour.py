@@ -167,3 +167,24 @@ def test_save_ui_language_preserves_existing_theme(tmp_path: Path) -> None:
     saved = settings_path.read_text(encoding="utf-8")
     assert '"theme": "glass"' in saved
     assert '"language": "zh"' in saved
+
+
+def test_embedding_model_suggestions_include_gemini() -> None:
+    start_tour = _load_start_tour_module()
+    assert start_tour.EMBEDDING_MODEL_SUGGESTIONS["gemini"] == "gemini-embedding-001"
+
+
+def test_embedding_provider_options_include_gemini() -> None:
+    start_tour = _load_start_tour_module()
+    fake_spec = types.SimpleNamespace(
+        label="Gemini",
+        default_api_base="https://generativelanguage.googleapis.com/v1beta/openai/embeddings",
+        is_local=False,
+    )
+    with mock.patch.object(
+        start_tour,
+        "_load_provider_metadata",
+        return_value=({"gemini": fake_spec}, None, None),
+    ):
+        options = start_tour._embedding_provider_options(current=None)
+    assert any(value == "gemini" for value, _label, _desc in options)

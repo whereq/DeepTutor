@@ -425,6 +425,7 @@ LLM_MODEL_SUGGESTIONS = {
 
 EMBEDDING_MODEL_SUGGESTIONS = {
     "openai": "text-embedding-3-large",
+    "gemini": "gemini-embedding-001",
     "cohere": "embed-v4.0",
     "jina": "jina-embeddings-v3",
     "ollama": "nomic-embed-text",
@@ -685,7 +686,7 @@ def _llm_provider_options(current: str | None) -> list[tuple[str, str, str]]:
 
 def _embedding_provider_options(current: str | None) -> list[tuple[str, str, str]]:
     embedding_providers, _, _ = _load_provider_metadata()
-    common = ["openai", "jina", "cohere", "ollama", "vllm", "azure_openai", "custom"]
+    common = ["openai", "gemini", "jina", "cohere", "ollama", "vllm", "azure_openai", "custom"]
     options: list[tuple[str, str, str]] = []
     for name in common:
         spec = embedding_providers.get(name)
