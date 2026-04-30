@@ -123,6 +123,8 @@ Before you begin, make sure the following are installed on your system:
 | [Node.js](https://nodejs.org/) | 18+ | `node --version` | Frontend build (not needed for CLI-only or Docker) |
 | [npm](https://www.npmjs.com/) | 9+ | `npm --version` | Bundled with Node.js |
 
+> **Windows only (missing compiler fix):** If you do not have Visual Studio, install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and ensure the **Desktop development with C++** workload is selected.
+
 You'll also need an **API key** from at least one LLM provider (e.g. [OpenAI](https://platform.openai.com/api-keys), [DeepSeek](https://platform.deepseek.com/), [Anthropic](https://console.anthropic.com/)). The Setup Tour will walk you through entering it.
 
 ### Option A — Setup Tour (Recommended)
