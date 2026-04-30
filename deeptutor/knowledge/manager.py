@@ -646,6 +646,21 @@ class KnowledgeBaseManager:
         # For old KBs without status field, determine status from rag_storage
         if effective_needs_reindex:
             status = "needs_reindex"
+        elif (
+            status in {"processing", "initializing"}
+            and has_ready_llamaindex
+            and not (isinstance(progress, dict) and progress.get("stage") == "error")
+        ):
+            # A ready index version exists on disk but the persisted status is
+            # still a "live" sentinel — typically because the progress writer
+            # crashed (or the process was killed) after the index was finalised
+            # but before status was promoted to "ready". Recover the actual
+            # state on read so the UI does not show a perpetual processing
+            # banner. The persistent kb_config.json is left untouched; the
+            # next legitimate update_kb_status() call will clean it up.
+            # See issue #418.
+            status = "ready"
+            progress = None
         elif not status and dir_exists:
             rag_storage_dir = kb_dir / "rag_storage"
             if has_ready_llamaindex:
