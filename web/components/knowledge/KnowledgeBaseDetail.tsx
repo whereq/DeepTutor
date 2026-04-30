@@ -125,7 +125,10 @@ export default function KnowledgeBaseDetail({
                   {t("Default")}
                 </span>
               )}
-              <KbStatusBadge kb={kb} isReindexingLocally={isReindexingLocally} />
+              <KbStatusBadge
+                kb={kb}
+                isReindexingLocally={isReindexingLocally}
+              />
             </div>
             <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
               {provider} · {embeddingLabel} · {t("Updated")} {updatedLabel}

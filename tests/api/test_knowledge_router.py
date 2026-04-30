@@ -173,9 +173,7 @@ def test_create_coerces_legacy_provider_to_llamaindex(monkeypatch, tmp_path: Pat
     assert manager.config["knowledge_bases"]["kb-legacy"]["rag_provider"] == "llamaindex"
 
 
-def test_create_rejects_invalid_files_before_registering_kb(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_create_rejects_invalid_files_before_registering_kb(monkeypatch, tmp_path: Path) -> None:
     manager = _FakeKBManager(tmp_path / "knowledge_bases")
     monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
     monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
@@ -192,9 +190,7 @@ def test_create_rejects_invalid_files_before_registering_kb(
     assert "kb-invalid" not in manager.config["knowledge_bases"]
 
 
-def test_create_rejects_invalid_kb_name_before_registering_kb(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_create_rejects_invalid_kb_name_before_registering_kb(monkeypatch, tmp_path: Path) -> None:
     manager = _FakeKBManager(tmp_path / "knowledge_bases")
     monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
     monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
@@ -211,9 +207,7 @@ def test_create_rejects_invalid_kb_name_before_registering_kb(
     assert manager.config["knowledge_bases"] == {}
 
 
-def test_create_normalizes_uploaded_extension_to_lowercase(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_create_normalizes_uploaded_extension_to_lowercase(monkeypatch, tmp_path: Path) -> None:
     manager = _FakeKBManager(tmp_path / "knowledge_bases")
     monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
     monkeypatch.setattr(knowledge_router_module, "KnowledgeBaseInitializer", _FakeInitializer)
@@ -335,7 +329,9 @@ def test_reindex_accepts_default_alias(monkeypatch, tmp_path: Path) -> None:
 
     embedding_signature = importlib.import_module("deeptutor.services.rag.embedding_signature")
     index_versioning = importlib.import_module("deeptutor.services.rag.index_versioning")
-    monkeypatch.setattr(embedding_signature, "signature_from_embedding_config", lambda: _Signature())
+    monkeypatch.setattr(
+        embedding_signature, "signature_from_embedding_config", lambda: _Signature()
+    )
     monkeypatch.setattr(index_versioning, "find_matching_version", lambda *_args, **_kwargs: None)
 
     async def _noop_reindex_task(*_args, **_kwargs):

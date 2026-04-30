@@ -7,14 +7,13 @@ renders in an isolated iframe.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
-
-from deeptutor.logging import get_logger
 
 from ..models import BlockType, SourceAnchor
 from .base import BlockContext, BlockGenerator, GenerationFailure
 
-logger = get_logger("book.blocks.interactive")
+logger = logging.getLogger(__name__)
 
 
 class InteractiveGenerator(BlockGenerator):

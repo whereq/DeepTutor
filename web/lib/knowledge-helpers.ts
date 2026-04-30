@@ -90,7 +90,10 @@ export const getFileExtension = (filename: string): string => {
 export const selectionFileId = (file: File): string =>
   `${file.name}:${file.size}:${file.lastModified}`;
 
-export const mergeSelectedFiles = (existing: File[], incoming: File[]): File[] => {
+export const mergeSelectedFiles = (
+  existing: File[],
+  incoming: File[],
+): File[] => {
   const merged = new Map<string, File>();
   [...existing, ...incoming].forEach((file) => {
     merged.set(selectionFileId(file), file);

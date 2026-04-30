@@ -61,9 +61,9 @@ export default memo(function ChatSpaceMenu({
 
   // Render the items in a fixed, hand-tuned order so the menu always reads
   // the same regardless of how SPACE_ITEMS may be reordered for navigation.
-  const items = ITEM_ORDER.map((key) => SPACE_ITEMS.find((it) => it.key === key)!).filter(
-    Boolean,
-  );
+  const items = ITEM_ORDER.map(
+    (key) => SPACE_ITEMS.find((it) => it.key === key)!,
+  ).filter(Boolean);
 
   return (
     <div

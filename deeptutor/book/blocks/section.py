@@ -23,9 +23,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 
-from deeptutor.logging import get_logger
 from deeptutor.utils.json_parser import parse_json_response
 
 from ..models import BlockType, SourceAnchor, SourceChunk
@@ -34,7 +34,7 @@ from ._prompts import get_book_prompt, load_book_prompts
 from ._rag_helpers import optional_rag_lookup
 from .base import BlockContext, BlockGenerator, GenerationFailure
 
-logger = get_logger("book.blocks.section")
+logger = logging.getLogger(__name__)
 
 
 _DEFAULT_SUBSECTION_WORDS = 320

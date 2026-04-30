@@ -15,16 +15,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import hashlib
+import logging
 from pathlib import Path
 import re
 
 from deeptutor.knowledge import KnowledgeBaseManager
-from deeptutor.logging import get_logger
 
 from .models import Book
 from .storage import BookStorage, get_book_storage
 
-logger = get_logger("book.kb_health")
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

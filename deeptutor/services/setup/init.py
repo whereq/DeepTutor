@@ -5,11 +5,11 @@ Combines user directory initialization and port configuration management.
 """
 
 import json
+import logging
 from pathlib import Path
 
 import yaml
 
-from deeptutor.logging import get_logger
 from deeptutor.services.config import get_env_store
 from deeptutor.services.path_service import get_path_service
 
@@ -111,7 +111,7 @@ def _get_setup_logger():
     """Get logger for setup operations"""
     global _setup_logger
     if _setup_logger is None:
-        _setup_logger = get_logger("Setup")
+        _setup_logger = logging.getLogger(__name__)
     return _setup_logger
 
 

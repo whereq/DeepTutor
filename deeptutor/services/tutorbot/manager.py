@@ -88,9 +88,7 @@ def normalize_message_content(content: Any) -> str:
         return content
     if isinstance(content, list):
         return " ".join(
-            part
-            for part in (normalize_message_content(item) for item in content)
-            if part
+            part for part in (normalize_message_content(item) for item in content) if part
         )
     if isinstance(content, dict):
         for key in ("text", "content", "message", "alt"):
@@ -541,9 +539,7 @@ class TutorBotManager:
         instance = self._bots.get(bot_id)
         if not instance:
             return False
-        auto_start = (
-            self._load_auto_start(bot_id, default=True) if preserve_auto_start else False
-        )
+        auto_start = self._load_auto_start(bot_id, default=True) if preserve_auto_start else False
 
         for task in instance.tasks:
             if not task.done():

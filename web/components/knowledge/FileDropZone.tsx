@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent,
-} from "react";
+import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, CheckCircle2, FileText, Files, X } from "lucide-react";
 import type { KnowledgeUploadPolicy } from "@/lib/knowledge-api";

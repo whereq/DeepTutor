@@ -477,10 +477,7 @@ export default memo(function ChatComposer({
                 const removeLabel = t("Remove attachment");
                 if (a.type === "image" && a.previewUrl) {
                   return (
-                    <div
-                      key={`${a.filename}-${i}`}
-                      className="group relative"
-                    >
+                    <div key={`${a.filename}-${i}`} className="group relative">
                       <button
                         type="button"
                         onClick={() => onPreviewAttachment?.(i)}
@@ -574,7 +571,9 @@ export default memo(function ChatComposer({
                           {a.filename}
                         </div>
                         <div className="truncate text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
-                          {sizeLabel ? `${spec.label} · ${sizeLabel}` : spec.label}
+                          {sizeLabel
+                            ? `${spec.label} · ${sizeLabel}`
+                            : spec.label}
                         </div>
                       </div>
                     </button>
@@ -800,7 +799,8 @@ export default memo(function ChatComposer({
                         onSelectItem={(key) => {
                           onSetSpaceMenuOpen(false);
                           if (key === "chat_history") onSelectHistoryPicker();
-                          else if (key === "notebooks") onSelectNotebookPicker();
+                          else if (key === "notebooks")
+                            onSelectNotebookPicker();
                           else if (key === "question_bank")
                             onSelectQuestionBankPicker();
                           else if (key === "skills") onSelectSkillsPicker();

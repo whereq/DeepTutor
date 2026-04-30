@@ -799,10 +799,7 @@ function SettingsPageContent() {
     });
   };
 
-  const updateModelBoolField = (
-    field: keyof CatalogModel,
-    value: boolean,
-  ) => {
+  const updateModelBoolField = (field: keyof CatalogModel, value: boolean) => {
     if (activeService === "search") return;
     mutateCatalog((next) => {
       const model = getActiveModel(next, activeService);
@@ -1503,7 +1500,9 @@ function SettingsPageContent() {
                                 <input
                                   type="checkbox"
                                   className="h-3 w-3 cursor-pointer accent-[var(--foreground)]"
-                                  checked={activeModel.send_dimensions !== false}
+                                  checked={
+                                    activeModel.send_dimensions !== false
+                                  }
                                   onChange={(e) =>
                                     updateModelBoolField(
                                       "send_dimensions",
@@ -1622,21 +1621,19 @@ function SettingsPageContent() {
       </div>
 
       {/* ── Spotlight overlay (tour onboarding) ── */}
-      {tourGuideStep >= 0 &&
-        tourGuideStep < TOUR_GUIDE_STEPS.length &&
-        (
-          <SpotlightOverlay
-            stepIndex={tourGuideStep}
-            onNext={() => {
-              if (tourGuideStep < TOUR_GUIDE_STEPS.length - 1) {
-                setTourGuideStep((s) => s + 1);
-              } else {
-                setTourGuideStep(-1);
-              }
-            }}
-            onSkip={() => setTourGuideStep(-1)}
-          />
-        )}
+      {tourGuideStep >= 0 && tourGuideStep < TOUR_GUIDE_STEPS.length && (
+        <SpotlightOverlay
+          stepIndex={tourGuideStep}
+          onNext={() => {
+            if (tourGuideStep < TOUR_GUIDE_STEPS.length - 1) {
+              setTourGuideStep((s) => s + 1);
+            } else {
+              setTourGuideStep(-1);
+            }
+          }}
+          onSkip={() => setTourGuideStep(-1)}
+        />
+      )}
     </div>
   );
 }

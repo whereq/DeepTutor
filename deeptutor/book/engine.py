@@ -32,10 +32,10 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import logging
 from typing import Any
 
 from deeptutor.core.stream_bus import StreamBus
-from deeptutor.logging import get_logger
 
 from .agents.ideation_agent import IdeationAgent
 from .agents.source_explorer import SourceExplorer
@@ -72,7 +72,7 @@ from .streaming import (
     BookStream,
 )
 
-logger = get_logger("book.engine")
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

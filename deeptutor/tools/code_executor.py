@@ -10,6 +10,7 @@ import ast
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -17,7 +18,6 @@ import sys
 import time
 from typing import Any
 
-from deeptutor.logging import get_logger
 from deeptutor.services.path_service import get_path_service
 
 RUN_CODE_WORKSPACE_ENV = "RUN_CODE_WORKSPACE"
@@ -65,7 +65,7 @@ DISALLOWED_ATTRIBUTE_BASES = {
     "builtins",
 }
 
-logger = get_logger("CodeExecutor")
+logger = logging.getLogger(__name__)
 
 # Files managed by the executor itself (excluded from user-artifact lists)
 _META_FILES = frozenset({"code.py", "output.log", ".gitkeep"})

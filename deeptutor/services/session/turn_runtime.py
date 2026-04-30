@@ -5,18 +5,20 @@ Turn-level runtime manager for unified chat streaming.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 import contextlib
 from dataclasses import dataclass, field
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.services.path_service import get_path_service
 from deeptutor.services.session.sqlite_store import SQLiteSessionStore, get_sqlite_session_store
 
 logger = logging.getLogger(__name__)
+
+MemoryReference = Literal["summary", "profile"]
 
 
 def _should_capture_assistant_content(event: StreamEvent) -> bool:
@@ -36,13 +38,13 @@ def _clip_text(value: str, limit: int = 4000) -> str:
     return text[:limit].rstrip() + "\n...[truncated]"
 
 
-def _extract_memory_references(payload: dict[str, Any]) -> list[str]:
+def _extract_memory_references(payload: dict[str, Any]) -> list[MemoryReference]:
     """Return the explicit public memory files requested for this turn."""
     refs = payload.get("memory_references", []) or []
     if not isinstance(refs, list):
         return []
 
-    out: list[str] = []
+    out: list[MemoryReference] = []
     for item in refs:
         if item in {"summary", "profile"} and item not in out:
             out.append(item)
@@ -66,7 +68,7 @@ def _request_snapshot_metadata(
     history_references: list[Any],
     question_notebook_references: list[Any],
     requested_skills: list[str],
-    memory_references: list[str],
+    memory_references: Sequence[str],
 ) -> dict[str, Any]:
     """Persist the front-end context chips with the user message."""
     snapshot: dict[str, Any] = {
@@ -658,9 +660,7 @@ class TurnRuntimeManager:
 
             from deeptutor.utils.document_extractor import extract_documents_from_records
 
-            document_texts, attachment_records = extract_documents_from_records(
-                attachment_records
-            )
+            document_texts, attachment_records = extract_documents_from_records(attachment_records)
             attachments = [
                 Attachment(
                     type=r.get("type", "file"),

@@ -8,44 +8,7 @@ from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional
 
-from deeptutor.logging import get_logger
-
 from .factory import DEFAULT_PROVIDER, get_pipeline, list_pipelines
-
-
-class _RAGRawLogHandler(logging.Handler):
-    def __init__(self, event_sink, loop) -> None:
-        super().__init__(level=logging.DEBUG)
-        self._event_sink = event_sink
-        self._loop = loop
-
-    def emit(self, record: logging.LogRecord) -> None:
-        if self._event_sink is None:
-            return
-        try:
-            module_name = getattr(record, "module_name", record.name.split(".")[-1])
-            level_name = getattr(record, "display_level", record.levelname)
-            message = record.getMessage()
-            line = f"[{module_name}] {level_name}: {message}".strip()
-            if not line:
-                return
-
-            async def _emit() -> None:
-                await self._event_sink(
-                    "raw_log",
-                    line,
-                    {
-                        "trace_layer": "raw",
-                        "logger_name": record.name,
-                        "log_level": level_name,
-                        "module_name": module_name,
-                    },
-                )
-
-            self._loop.create_task(_emit())
-        except Exception:
-            pass
-
 
 DEFAULT_KB_BASE_DIR = str(
     Path(__file__).resolve().parent.parent.parent.parent / "data" / "knowledge_bases"
@@ -60,7 +23,7 @@ class RAGService:
         kb_base_dir: Optional[str] = None,
         provider: Optional[str] = None,  # accepted for backward compatibility
     ):
-        self.logger = get_logger("RAGService")
+        self.logger = logging.getLogger(__name__)
         self.kb_base_dir = kb_base_dir or DEFAULT_KB_BASE_DIR
         self.provider = DEFAULT_PROVIDER
         self._pipeline = None
@@ -160,36 +123,9 @@ class RAGService:
         await event_sink(event_type, message, metadata or {})
 
     def _capture_raw_logs(self, event_sink):
-        import asyncio
-        from contextlib import ExitStack, contextmanager
+        from contextlib import nullcontext
 
-        @contextmanager
-        def _manager():
-            if event_sink is None:
-                yield
-                return
-
-            loop = asyncio.get_running_loop()
-            handler = _RAGRawLogHandler(event_sink, loop)
-            handler.setLevel(logging.DEBUG)
-            targets = [
-                logging.getLogger(name)
-                for name in (
-                    "deeptutor.RAGService",
-                    "deeptutor.RAGForward",
-                    "deeptutor.LlamaIndexPipeline",
-                )
-            ]
-            with ExitStack() as stack:
-                for logger in targets:
-                    logger.addHandler(handler)
-                    stack.callback(logger.removeHandler, handler)
-                try:
-                    yield
-                finally:
-                    handler.close()
-
-        return _manager()
+        return nullcontext()
 
     async def delete(self, kb_name: str) -> bool:
         self.logger.info(f"Deleting KB '{kb_name}'")

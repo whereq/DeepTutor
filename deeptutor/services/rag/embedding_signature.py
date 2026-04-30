@@ -17,9 +17,7 @@ def signature_from_config(config: Any) -> EmbeddingSignature:
         model=(getattr(config, "model", "") or "").strip(),
         dimension=int(getattr(config, "dim", 0) or 0),
         base_url=(
-            getattr(config, "effective_url", None)
-            or getattr(config, "base_url", None)
-            or ""
+            getattr(config, "effective_url", None) or getattr(config, "base_url", None) or ""
         ).strip(),
         api_version=(getattr(config, "api_version", "") or "").strip(),
     )

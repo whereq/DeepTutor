@@ -16,11 +16,15 @@ class _Signature:
         return self._hash
 
 
-def _patch_active_embedding(monkeypatch: pytest.MonkeyPatch, sig_hash: str = "active-signature") -> None:
+def _patch_active_embedding(
+    monkeypatch: pytest.MonkeyPatch, sig_hash: str = "active-signature"
+) -> None:
     from deeptutor.knowledge import manager as manager_module
     from deeptutor.services.rag import embedding_signature
 
-    monkeypatch.setattr(manager_module, "_get_embedding_fingerprint", lambda: ("embed-active", 4096))
+    monkeypatch.setattr(
+        manager_module, "_get_embedding_fingerprint", lambda: ("embed-active", 4096)
+    )
     monkeypatch.setattr(
         embedding_signature,
         "signature_from_embedding_config",
@@ -84,4 +88,3 @@ def test_ready_version_without_active_signature_marks_reindex(
     entry = reloaded.config["knowledge_bases"]["old-kb"]
     assert entry["needs_reindex"] is True
     assert entry["embedding_mismatch"] is True
-

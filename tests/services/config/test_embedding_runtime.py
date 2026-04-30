@@ -325,9 +325,7 @@ def test_embedding_openrouter_env_key_fallback(tmp_path: Path) -> None:
             "api_key": "",
             "api_version": "",
             "extra_headers": {},
-            "models": [
-                {"id": "embedding-m", "name": "m", "model": "qwen/qwen3-embedding-8b"}
-            ],
+            "models": [{"id": "embedding-m", "name": "m", "model": "qwen/qwen3-embedding-8b"}],
         }
     )
     env = _env(tmp_path, ["OPENROUTER_API_KEY=sk-or-from-env"])

@@ -12,13 +12,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from deeptutor.agents.question.agents.generator import Generator
 from deeptutor.agents.question.agents.idea_agent import BATCH_SIZE, IdeaAgent
 from deeptutor.agents.question.models import QAPair, QuestionTemplate
-from deeptutor.logging import Logger, get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.path_service import get_path_service
 from deeptutor.tools.question.pdf_parser import parse_pdf_with_mineru
@@ -53,7 +53,7 @@ class AgentCoordinator:
         log_dir = self.config.get("paths", {}).get("user_log_dir") or self.config.get(
             "logging", {}
         ).get("log_dir")
-        self.logger: Logger = get_logger("QuestionCoordinator", log_dir=log_dir)
+        self.logger = logging.getLogger(__name__)
 
         question_cfg = self.config.get("capabilities", {}).get("question", {})
         generation_cfg = question_cfg.get("generation", {})

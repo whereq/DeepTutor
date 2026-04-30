@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
-from deeptutor.logging import get_logger
 from deeptutor.services.embedding import get_embedding_config
 from deeptutor.services.rag.embedding_signature import signature_from_embedding_config
 from deeptutor.services.rag.index_versioning import (
@@ -44,7 +44,7 @@ class LlamaIndexPipeline:
         signature_provider: SignatureProvider | None = None,
         document_loader: LlamaIndexDocumentLoader | None = None,
     ):
-        self.logger = get_logger("LlamaIndexPipeline")
+        self.logger = logging.getLogger(__name__)
         self.kb_base_dir = kb_base_dir or DEFAULT_KB_BASE_DIR
         self._signature_provider = signature_provider or signature_from_embedding_config
         self.document_loader = document_loader or LlamaIndexDocumentLoader(self.logger)

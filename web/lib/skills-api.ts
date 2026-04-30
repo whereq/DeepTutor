@@ -33,7 +33,9 @@ function normalizeTags(raw: unknown): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const item of raw) {
-    const tag = String(item ?? "").trim().toLowerCase();
+    const tag = String(item ?? "")
+      .trim()
+      .toLowerCase();
     if (!tag || seen.has(tag)) continue;
     seen.add(tag);
     out.push(tag);
@@ -67,11 +69,7 @@ export async function listSkills(options?: {
       const data = await asJson(response);
       const items = Array.isArray(data?.skills) ? data.skills : [];
       return items.map(
-        (item: {
-          name?: unknown;
-          description?: unknown;
-          tags?: unknown;
-        }) => ({
+        (item: { name?: unknown; description?: unknown; tags?: unknown }) => ({
           name: String(item?.name ?? ""),
           description: String(item?.description ?? ""),
           tags: normalizeTags(item?.tags),

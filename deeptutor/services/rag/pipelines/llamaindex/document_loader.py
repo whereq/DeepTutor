@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Iterable
 
 from llama_index.core import Document
 
-from deeptutor.logging import get_logger
 from deeptutor.services.rag.file_routing import FileTypeRouter
 
 
@@ -15,7 +15,7 @@ class LlamaIndexDocumentLoader:
     """Convert source files into LlamaIndex ``Document`` objects."""
 
     def __init__(self, logger=None) -> None:
-        self.logger = logger or get_logger("LlamaIndexDocumentLoader")
+        self.logger = logger or logging.getLogger(__name__)
 
     async def load(self, file_paths: Iterable[str]) -> list[Document]:
         documents: list[Document] = []
@@ -38,9 +38,7 @@ class LlamaIndexDocumentLoader:
 
         return documents
 
-    def _append_if_nonempty(
-        self, documents: list[Document], file_path: Path, text: str
-    ) -> None:
+    def _append_if_nonempty(self, documents: list[Document], file_path: Path, text: str) -> None:
         if text.strip():
             documents.append(
                 Document(

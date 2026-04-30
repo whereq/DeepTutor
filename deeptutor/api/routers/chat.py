@@ -6,10 +6,11 @@ WebSocket endpoint for lightweight chat with session management.
 REST endpoints for session operations.
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from deeptutor.agents.chat import ChatAgent, SessionManager
-from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm.config import get_llm_config
 from deeptutor.services.settings.interface_settings import get_ui_language
@@ -17,7 +18,7 @@ from deeptutor.services.settings.interface_settings import get_ui_language
 # Initialize logger
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
-logger = get_logger("ChatAPI", level="INFO", log_dir=log_dir)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

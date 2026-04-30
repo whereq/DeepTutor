@@ -177,8 +177,7 @@ export default function NotebooksSection() {
       case "chat":
         return {
           label: t("Chat"),
-          color:
-            "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+          color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
           icon: MessageSquare,
         };
       case "tutorbot":
@@ -400,9 +399,7 @@ export default function NotebooksSection() {
                         <div key={record.id} className="group">
                           <button
                             onClick={() =>
-                              setExpandedRecordId(
-                                expanded ? null : record.id,
-                              )
+                              setExpandedRecordId(expanded ? null : record.id)
                             }
                             className="flex w-full items-center gap-3 px-1 py-3.5 text-left transition-colors hover:bg-[var(--muted)]/30"
                           >

@@ -7,6 +7,7 @@ Handles knowledge base CRUD operations, file uploads, and initialization.
 
 import asyncio
 from datetime import datetime
+import logging
 import mimetypes
 import os
 from pathlib import Path
@@ -34,7 +35,6 @@ from deeptutor.knowledge.initializer import KnowledgeBaseInitializer
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.knowledge.naming import validate_knowledge_base_name
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
-from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
@@ -44,7 +44,7 @@ from deeptutor.utils.error_utils import format_exception_message
 # Initialize logger with config
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
-logger = get_logger("Knowledge", level="INFO", log_dir=log_dir)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -171,9 +171,7 @@ def _save_uploaded_files(
                     except OSError:
                         pass
 
-                error_message = (
-                    f"Validation failed for file '{original_filename}': {format_exception_message(e)}"
-                )
+                error_message = f"Validation failed for file '{original_filename}': {format_exception_message(e)}"
                 logger.error(error_message, exc_info=True)
                 raise HTTPException(status_code=400, detail=error_message) from e
     except Exception:
@@ -954,7 +952,7 @@ async def create_knowledge_base(
 
         background_tasks.add_task(run_initialization_task, initializer, task_id)
 
-        logger.success(f"KB '{name}' created, processing {len(uploaded_files)} files in background")
+        logger.info(f"KB '{name}' created, processing {len(uploaded_files)} files in background")
 
         return {
             "message": f"Knowledge base '{name}' created. Processing {len(uploaded_files)} files in background.",
@@ -971,9 +969,7 @@ async def create_knowledge_base(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def run_reindex_task(
-    kb_name: str, base_dir: str, task_id: str, signature_hash: str
-) -> None:
+async def run_reindex_task(kb_name: str, base_dir: str, task_id: str, signature_hash: str) -> None:
     """Re-index a KB's raw documents against the currently-active embedding config.
 
     Each ``(profile, model, dimension, base_url)`` combination gets its own
@@ -991,16 +987,10 @@ async def run_reindex_task(
             kb_dir = base_path / kb_name
             raw_dir = kb_dir / "raw"
             if not raw_dir.is_dir():
-                raise FileNotFoundError(
-                    f"KB '{kb_name}' has no `raw/` directory; cannot reindex."
-                )
-            file_paths = [
-                str(path) for path in FileTypeRouter.collect_supported_files(raw_dir)
-            ]
+                raise FileNotFoundError(f"KB '{kb_name}' has no `raw/` directory; cannot reindex.")
+            file_paths = [str(path) for path in FileTypeRouter.collect_supported_files(raw_dir)]
             if not file_paths:
-                raise ValueError(
-                    f"KB '{kb_name}' has no source files in `raw/` to reindex."
-                )
+                raise ValueError(f"KB '{kb_name}' has no source files in `raw/` to reindex.")
 
             _task_log(
                 task_id,
@@ -1039,9 +1029,7 @@ async def run_reindex_task(
                 progress_callback=_on_progress,
             )
             if not success:
-                raise RuntimeError(
-                    f"Re-index found no valid documents to index in '{kb_name}'."
-                )
+                raise RuntimeError(f"Re-index found no valid documents to index in '{kb_name}'.")
 
             manager = get_kb_manager()
             manager.update_kb_status(
@@ -1072,9 +1060,7 @@ async def run_reindex_task(
 
             _task_log(task_id, f"Re-index of '{kb_name}' complete", level="success")
             task_manager.update_task_status(task_id, "completed")
-            task_stream_manager.emit_complete(
-                task_id, f"Re-index of '{kb_name}' complete"
-            )
+            task_stream_manager.emit_complete(task_id, f"Re-index of '{kb_name}' complete")
         except Exception as e:
             import traceback as _tb
 
@@ -1217,9 +1203,7 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
         kb_dir = _kb_base_dir / kb_name
         from deeptutor.services.rag.index_versioning import list_kb_versions
 
-        kb_is_ready = any(
-            bool(version.get("ready")) for version in list_kb_versions(kb_dir)
-        )
+        kb_is_ready = any(bool(version.get("ready")) for version in list_kb_versions(kb_dir))
 
         # Fast path: no active task — send current state and close immediately
         # This prevents infinite polling loops for ready or legacy KBs.

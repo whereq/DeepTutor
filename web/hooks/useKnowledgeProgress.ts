@@ -148,22 +148,25 @@ export function useKnowledgeProgress(options?: UseKnowledgeProgressOptions) {
 
       let settled = false;
 
-      source.addEventListener("log", (event) => {
+      source.addEventListener("process_log", (event) => {
         try {
           const payload = JSON.parse((event as MessageEvent).data) as {
-            line?: string;
+            message?: string;
           };
-          if (!payload.line) return;
+          if (!payload.message) return;
           setTasksByKb((prev) => {
             const current = prev[kbName];
             if (!current || current.taskId !== taskId) return prev;
             return {
               ...prev,
-              [kbName]: { ...current, logs: [...current.logs, payload.line!] },
+              [kbName]: {
+                ...current,
+                logs: [...current.logs, payload.message!],
+              },
             };
           });
         } catch {
-          // ignore malformed line
+          // ignore malformed process log
         }
       });
 

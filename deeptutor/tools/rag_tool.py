@@ -12,7 +12,6 @@ from typing import Dict, List, Optional
 # Import RAGService as the single entry point
 from deeptutor.services.rag.service import DEFAULT_KB_BASE_DIR, RAGService
 
-
 DEFAULT_KB_ALIASES = {"", "default", "current", "selected", "默认", "默认知识库", "当前知识库"}
 
 

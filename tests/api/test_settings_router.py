@@ -16,17 +16,6 @@ from deeptutor.services.llm import client as llm_client_module
 from deeptutor.services.llm import config as llm_config_module
 
 
-class _DummyLogger:
-    def debug(self, *_args, **_kwargs) -> None:
-        pass
-
-    def error(self, *_args, **_kwargs) -> None:
-        pass
-
-    def info(self, *_args, **_kwargs) -> None:
-        pass
-
-
 class _FakeEmbeddingAdapter:
     def __init__(self, config: dict[str, Any]):
         self.config = config
@@ -134,12 +123,6 @@ def _patch_runtime(
     service: _FakeCatalogService,
 ) -> None:
     monkeypatch.setattr(settings_router, "get_model_catalog_service", lambda: service)
-    monkeypatch.setattr(llm_client_module, "get_logger", lambda *_args, **_kwargs: _DummyLogger())
-    monkeypatch.setattr(
-        embedding_client_module,
-        "get_logger",
-        lambda *_args, **_kwargs: _DummyLogger(),
-    )
     monkeypatch.setattr(
         embedding_client_module,
         "_resolve_adapter_class",

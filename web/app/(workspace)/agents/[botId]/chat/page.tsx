@@ -106,17 +106,14 @@ export default function BotChatPage() {
 
   const handleCloseSaveModal = useCallback(() => setShowSaveModal(false), []);
 
-  const scrollToBottom = useCallback(
-    (behavior: ScrollBehavior = "smooth") => {
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior,
-        });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior,
       });
-    },
-    [],
-  );
+    });
+  }, []);
 
   useEffect(() => {
     if (!botId) {
@@ -130,11 +127,13 @@ export default function BotChatPage() {
     fetch(apiUrl(`/api/v1/tutorbot/${botId}/history`))
       .then((r) => (r.ok ? r.json() : []))
       .then(
-        (history: {
-          role: string;
-          content: RawMessageContent;
-          reasoning_content?: unknown;
-        }[]) => {
+        (
+          history: {
+            role: string;
+            content: RawMessageContent;
+            reasoning_content?: unknown;
+          }[],
+        ) => {
           const restored: ChatMsg[] = history
             .filter((m) => m.role === "user" || m.role === "assistant")
             .map((m) => ({

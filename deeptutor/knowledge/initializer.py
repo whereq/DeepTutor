@@ -7,6 +7,7 @@ import argparse
 import asyncio
 from datetime import datetime
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -14,12 +15,11 @@ from typing import Optional
 
 from deeptutor.knowledge.naming import validate_knowledge_base_name
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
-from deeptutor.logging import get_logger
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
 from deeptutor.services.rag.service import RAGService
 
-logger = get_logger("KnowledgeInit")
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseInitializer:
@@ -43,9 +43,7 @@ class KnowledgeBaseInitializer:
 
         self.api_key = api_key
         self.base_url = base_url
-        self.progress_tracker = progress_tracker or ProgressTracker(
-            self.kb_name, self.base_dir
-        )
+        self.progress_tracker = progress_tracker or ProgressTracker(self.kb_name, self.base_dir)
         self.rag_provider = DEFAULT_PROVIDER
 
     def _register_to_config(self) -> None:
@@ -320,9 +318,7 @@ async def main() -> None:
     if args.docs_dir:
         docs_dir = Path(args.docs_dir)
         if docs_dir.exists() and docs_dir.is_dir():
-            doc_files.extend(
-                str(f) for f in FileTypeRouter.collect_supported_files(docs_dir)
-            )
+            doc_files.extend(str(f) for f in FileTypeRouter.collect_supported_files(docs_dir))
 
     initializer = KnowledgeBaseInitializer(
         kb_name=args.name,

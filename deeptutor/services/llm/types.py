@@ -1,12 +1,11 @@
 """Shared LLM response data models."""
 
 from collections.abc import AsyncGenerator
+import logging
 
 from pydantic import BaseModel, Field
 
-from deeptutor.logging import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class TutorResponse(BaseModel):

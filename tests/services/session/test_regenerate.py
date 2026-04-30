@@ -298,7 +298,7 @@ class TestRegenerateLastTurn:
         monkeypatch.setattr(
             "deeptutor.services.memory.get_memory_service",
             lambda: SimpleNamespace(
-                build_memory_context=lambda: "",
+                build_memory_context=lambda *_args, **_kwargs: "",
                 refresh_from_turn=tracking_refresh,
             ),
         )

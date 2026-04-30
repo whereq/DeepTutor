@@ -442,8 +442,8 @@ function ToolExecutor({
             continue;
           }
 
-          if (eventType === "log") {
-            const line = (payload.line as string) ?? "";
+          if (eventType === "process_log") {
+            const line = (payload.message as string) ?? "";
             setProcessLogs((prev) => [...prev, line]);
           } else if (eventType === "result") {
             setResult({
@@ -892,8 +892,8 @@ function DeepQuestionTester({
             continue;
           }
 
-          if (eventType === "log") {
-            const line = (payload.line as string) ?? "";
+          if (eventType === "process_log") {
+            const line = (payload.message as string) ?? "";
             updateLastAssistant((last) => ({
               ...last,
               processLogs: [...(last.processLogs || []), line],
@@ -1289,8 +1289,8 @@ function DeepResearchTester({
             continue;
           }
 
-          if (eventType === "log") {
-            const line = (payload.line as string) ?? "";
+          if (eventType === "process_log") {
+            const line = (payload.message as string) ?? "";
             updateLastAssistant((last) => ({
               ...last,
               processLogs: [...(last.processLogs || []), line],
@@ -1575,8 +1575,8 @@ function CapabilityTester({
             continue;
           }
 
-          if (eventType === "log") {
-            const line = (payload.line as string) ?? "";
+          if (eventType === "process_log") {
+            const line = (payload.message as string) ?? "";
             updateLastAssistant((last) => ({
               ...last,
               processLogs: [...(last.processLogs || []), line],

@@ -15,9 +15,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import asyncio
 from dataclasses import dataclass, field
+import logging
 from typing import Any
-
-from deeptutor.logging import get_logger
 
 from ..models import (
     Block,
@@ -29,7 +28,7 @@ from ..models import (
     SourceAnchor,
 )
 
-logger = get_logger("book.blocks")
+logger = logging.getLogger(__name__)
 
 
 class GenerationFailure(Exception):

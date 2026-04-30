@@ -105,12 +105,8 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     detail = await store.get_session_with_messages(session["id"])
     assert detail is not None
     assert [message["role"] for message in detail["messages"]] == ["user", "assistant"]
-    assert detail["messages"][0]["metadata"]["request_snapshot"]["skills"] == [
-        "proof-checker"
-    ]
-    assert detail["messages"][0]["metadata"]["request_snapshot"]["memoryReferences"] == [
-        "summary"
-    ]
+    assert detail["messages"][0]["metadata"]["request_snapshot"]["skills"] == ["proof-checker"]
+    assert detail["messages"][0]["metadata"]["request_snapshot"]["memoryReferences"] == ["summary"]
     assert detail["messages"][1]["content"] == "Hello Frank"
     assert detail["preferences"] == {
         "capability": "chat",
@@ -377,7 +373,8 @@ async def test_turn_runtime_injects_memory_and_refreshes_after_completion(
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
         lambda: SimpleNamespace(
-            build_memory_context=lambda *_args, **_kwargs: "## Memory\n## Preferences\n- Prefer concise answers.",
+            build_memory_context=lambda *_args,
+            **_kwargs: "## Memory\n## Preferences\n- Prefer concise answers.",
             refresh_from_turn=fake_refresh_from_turn,
         ),
     )

@@ -8,12 +8,11 @@ Determines the appropriate processing method for each document type.
 
 from dataclasses import dataclass
 from enum import Enum
+import logging
 from pathlib import Path
 from typing import List
 
-from deeptutor.logging import get_logger
-
-logger = get_logger("FileTypeRouter")
+logger = logging.getLogger(__name__)
 
 
 class DocumentType(Enum):
@@ -298,9 +297,7 @@ class FileTypeRouter:
         return Path(file_path).suffix.lower() in cls.get_supported_extensions()
 
     @classmethod
-    def collect_supported_files(
-        cls, directory: str | Path, recursive: bool = False
-    ) -> list[Path]:
+    def collect_supported_files(cls, directory: str | Path, recursive: bool = False) -> list[Path]:
         """Collect supported files from a directory with case-insensitive suffix matching."""
         root = Path(directory)
         if not root.exists() or not root.is_dir():

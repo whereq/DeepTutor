@@ -444,9 +444,7 @@ export default function QuestionBankSection() {
                       onClick={() => void handleToggleBookmark(item)}
                       disabled={disabled}
                       title={
-                        item.bookmarked
-                          ? t("Remove Bookmark")
-                          : t("Bookmark")
+                        item.bookmarked ? t("Remove Bookmark") : t("Bookmark")
                       }
                       className={`rounded-lg p-1.5 transition-colors disabled:opacity-40 ${
                         item.bookmarked
@@ -536,8 +534,7 @@ export default function QuestionBankSection() {
                   </div>
                 )}
 
-                {(!item.options ||
-                  Object.keys(item.options).length === 0) && (
+                {(!item.options || Object.keys(item.options).length === 0) && (
                   <div className="mb-3 space-y-2 text-[13px]">
                     <div
                       className={`rounded-lg border px-3 py-2.5 ${
@@ -586,7 +583,9 @@ export default function QuestionBankSection() {
                           item.question_type === "coding" ? (
                             <MarkdownRenderer
                               content={
-                                item.correct_answer.trimStart().startsWith("```")
+                                item.correct_answer
+                                  .trimStart()
+                                  .startsWith("```")
                                   ? item.correct_answer
                                   : `\`\`\`python\n${item.correct_answer}\n\`\`\``
                               }

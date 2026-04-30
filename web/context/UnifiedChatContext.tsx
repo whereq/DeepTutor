@@ -535,13 +535,16 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && item.length > 0)
+    ? value.filter(
+        (item): item is string => typeof item === "string" && item.length > 0,
+      )
     : [];
 }
 
 function asMemoryReferences(value: unknown): MemoryReferencePayload {
   return asStringArray(value).filter(
-    (item): item is "summary" | "profile" => item === "summary" || item === "profile",
+    (item): item is "summary" | "profile" =>
+      item === "summary" || item === "profile",
   );
 }
 
@@ -549,7 +552,8 @@ function asNotebookReferences(value: unknown): NotebookReferencePayload[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
     const ref = asRecord(item);
-    const notebookId = typeof ref?.notebook_id === "string" ? ref.notebook_id : "";
+    const notebookId =
+      typeof ref?.notebook_id === "string" ? ref.notebook_id : "";
     const recordIds = asStringArray(ref?.record_ids);
     return notebookId && recordIds.length
       ? [{ notebook_id: notebookId, record_ids: recordIds }]
@@ -557,7 +561,9 @@ function asNotebookReferences(value: unknown): NotebookReferencePayload[] {
   });
 }
 
-function asQuestionReferences(value: unknown): QuestionNotebookReferencePayload {
+function asQuestionReferences(
+  value: unknown,
+): QuestionNotebookReferencePayload {
   return Array.isArray(value)
     ? value
         .map((item) => (typeof item === "number" ? item : Number(item)))
@@ -571,13 +577,17 @@ function hydrateRequestSnapshot(
   attachments: MessageAttachment[],
 ): MessageRequestSnapshot | undefined {
   const metadata = asRecord(message.metadata);
-  const stored = asRecord(metadata?.request_snapshot ?? metadata?.requestSnapshot);
+  const stored = asRecord(
+    metadata?.request_snapshot ?? metadata?.requestSnapshot,
+  );
   if (!stored) return undefined;
 
   const snapshot: MessageRequestSnapshot = {
     content: typeof stored.content === "string" ? stored.content : content,
     capability:
-      typeof stored.capability === "string" ? stored.capability : message.capability || "",
+      typeof stored.capability === "string"
+        ? stored.capability
+        : message.capability || "",
     enabledTools: asStringArray(stored.enabledTools),
     knowledgeBases: asStringArray(stored.knowledgeBases),
     language: typeof stored.language === "string" ? stored.language : "en",
@@ -594,7 +604,8 @@ function hydrateRequestSnapshot(
   const memoryReferences = asMemoryReferences(stored.memoryReferences);
 
   if (config && Object.keys(config).length) snapshot.config = config;
-  if (notebookReferences.length) snapshot.notebookReferences = notebookReferences;
+  if (notebookReferences.length)
+    snapshot.notebookReferences = notebookReferences;
   if (historyReferences.length) snapshot.historyReferences = historyReferences;
   if (questionNotebookReferences.length) {
     snapshot.questionNotebookReferences = questionNotebookReferences;
@@ -651,11 +662,13 @@ export function UnifiedChatProvider({
       return messages
         .filter((message) => message.role !== "system")
         .map((message) => {
-          const raw = normalizeMessageContent(
-            message.content as unknown,
-          );
+          const raw = normalizeMessageContent(message.content as unknown);
           const attachments = hydrateMessageAttachments(message.attachments);
-          const requestSnapshot = hydrateRequestSnapshot(message, raw, attachments);
+          const requestSnapshot = hydrateRequestSnapshot(
+            message,
+            raw,
+            attachments,
+          );
           return {
             role: message.role,
             content:

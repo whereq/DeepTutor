@@ -197,9 +197,7 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
 
                     if response.status_code >= 400:
                         body_text = response.text
-                        logger.error(
-                            f"HTTP {response.status_code} from {url}: {body_text[:2000]}"
-                        )
+                        logger.error(f"HTTP {response.status_code} from {url}: {body_text[:2000]}")
                         raise EmbeddingProviderError(
                             f"Embedding provider returned HTTP {response.status_code}",
                             status=response.status_code,
@@ -225,7 +223,10 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
                                 "not support embeddings or the selected model "
                                 "may not be an embedding model."
                             )
-                        elif "text/html" in content_type.lower() or body_preview.lstrip().startswith("<"):
+                        elif (
+                            "text/html" in content_type.lower()
+                            or body_preview.lstrip().startswith("<")
+                        ):
                             hint = (
                                 " The response was HTML, not JSON — the URL is "
                                 "likely wrong or the gateway does not expose "

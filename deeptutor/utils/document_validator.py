@@ -6,8 +6,8 @@ Document Validator - Validation utilities for document uploads
 import mimetypes
 import os
 import re
-import unicodedata
 from typing import ClassVar
+import unicodedata
 
 
 class DocumentValidator:
@@ -97,11 +97,7 @@ class DocumentValidator:
             raise ValueError("Invalid filename")
 
         # Additional size check for PDFs to prevent resource exhaustion
-        if (
-            ext == ".pdf"
-            and file_size is not None
-            and file_size > DocumentValidator.MAX_PDF_SIZE
-        ):
+        if ext == ".pdf" and file_size is not None and file_size > DocumentValidator.MAX_PDF_SIZE:
             raise ValueError(
                 f"PDF file too large: {file_size} bytes. Maximum allowed for PDFs: {DocumentValidator.MAX_PDF_SIZE} bytes"
             )

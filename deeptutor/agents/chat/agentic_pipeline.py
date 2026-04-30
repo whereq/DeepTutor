@@ -728,9 +728,7 @@ class AgenticChatPipeline:
         for tool_index, (
             (tool_call_id, tool_name, display_args, _execution_args),
             tool_result,
-        ) in enumerate(
-            zip(pending_calls, tool_results, strict=False)
-        ):
+        ) in enumerate(zip(pending_calls, tool_results, strict=False)):
             result_text = tool_result["result_text"]
             success = bool(tool_result["success"])
             sources = tool_result["sources"]

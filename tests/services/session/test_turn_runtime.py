@@ -7,8 +7,8 @@ import pytest
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.services.session.turn_runtime import (
     _clip_text,
-    _extract_memory_references,
     _extract_followup_question_context,
+    _extract_memory_references,
     _extract_persist_user_message,
     _format_followup_question_context,
     _should_capture_assistant_content,

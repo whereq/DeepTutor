@@ -362,8 +362,10 @@ export default function SessionList({
                       )}
                       {!isEditing && (
                         <div className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-[var(--muted-foreground)]">
-                          {truncateText(normalizeMessageContent(session.last_message), 120) ||
-                            relativeTime(session.updated_at)}
+                          {truncateText(
+                            normalizeMessageContent(session.last_message),
+                            120,
+                          ) || relativeTime(session.updated_at)}
                         </div>
                       )}
                     </div>

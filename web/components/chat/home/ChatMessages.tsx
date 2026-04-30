@@ -367,11 +367,7 @@ const UserMessage = memo(function UserMessage({
                     className={cardClass}
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[var(--muted)]/60">
-                      <Icon
-                        size={20}
-                        strokeWidth={1.5}
-                        className={spec.tint}
-                      />
+                      <Icon size={20} strokeWidth={1.5} className={spec.tint} />
                     </div>
                     <div className="min-w-0 flex-1 text-left">
                       <div className="truncate text-[12px] font-medium text-[var(--foreground)]">

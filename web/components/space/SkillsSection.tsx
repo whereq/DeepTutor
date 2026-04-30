@@ -242,9 +242,7 @@ export default function SkillsSection() {
       prev
         ? {
             ...prev,
-            tags: prev.tags.includes(clean)
-              ? prev.tags
-              : [...prev.tags, clean],
+            tags: prev.tags.includes(clean) ? prev.tags : [...prev.tags, clean],
           }
         : prev,
     );
@@ -748,7 +746,9 @@ export default function SkillsSection() {
                 disabled={editor.saving}
                 className="inline-flex items-center gap-1.5 rounded-md bg-[var(--foreground)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                {editor.saving && <Loader2 size={12} className="animate-spin" />}
+                {editor.saving && (
+                  <Loader2 size={12} className="animate-spin" />
+                )}
                 {t("Save")}
               </button>
             </div>

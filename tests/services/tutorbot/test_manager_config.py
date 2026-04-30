@@ -63,9 +63,7 @@ class TestLoadAndSave:
 
 
 class TestMessageHistory:
-    def test_history_normalizes_part_content_and_strips_reasoning(
-        self, manager: TutorBotManager
-    ):
+    def test_history_normalizes_part_content_and_strips_reasoning(self, manager: TutorBotManager):
         _append_session_line(
             manager,
             "bot-history",
@@ -262,9 +260,7 @@ class TestAutoStartPersistence:
         assert self._config_data(manager, "restartable-bot")["auto_start"] is True
         assert manager.get_bot("restartable-bot") is None
 
-    def test_shutdown_stop_all_preserves_existing_auto_start_false(
-        self, manager: TutorBotManager
-    ):
+    def test_shutdown_stop_all_preserves_existing_auto_start_false(self, manager: TutorBotManager):
         cfg = BotConfig(name="manual-only")
         manager.save_bot_config("manual-only-bot", cfg, auto_start=False)
         self._register_instance(manager, "manual-only-bot", cfg)

@@ -103,11 +103,7 @@ def _flat_version_dirs(kb_dir: Path) -> list[Path]:
     if not kb_dir.is_dir():
         return []
     return sorted(
-        (
-            child
-            for child in kb_dir.iterdir()
-            if child.is_dir() and _VERSION_RE.match(child.name)
-        ),
+        (child for child in kb_dir.iterdir() if child.is_dir() and _VERSION_RE.match(child.name)),
         key=_flat_version_number,
     )
 
@@ -223,9 +219,7 @@ def read_version_meta(kb_dir: Path, sig_hash: str) -> Optional[dict[str, Any]]:
     return None
 
 
-def find_matching_version(
-    kb_dir: Path, signature: EmbeddingSignature
-) -> Optional[dict[str, Any]]:
+def find_matching_version(kb_dir: Path, signature: EmbeddingSignature) -> Optional[dict[str, Any]]:
     """Return a ready version whose signature matches ``signature``.
 
     Prefer the new flat layout when both flat and legacy entries exist for the
@@ -303,9 +297,7 @@ def resolve_storage_dir_for_read(
     return None
 
 
-def resolve_storage_dir_for_write(
-    kb_dir: Path, signature: Optional[EmbeddingSignature]
-) -> Path:
+def resolve_storage_dir_for_write(kb_dir: Path, signature: Optional[EmbeddingSignature]) -> Path:
     """Return the flat storage dir to write for the active embedding signature.
 
     Existing flat versions are reused. Legacy nested/root stores are never used
@@ -314,9 +306,7 @@ def resolve_storage_dir_for_write(
     if signature is None:
         target = _next_flat_version_dir(kb_dir)
     else:
-        entry = _find_flat_version_by_signature(
-            kb_dir, signature.hash(), ready_only=False
-        )
+        entry = _find_flat_version_by_signature(kb_dir, signature.hash(), ready_only=False)
         target = Path(str(entry["storage_path"])) if entry else _next_flat_version_dir(kb_dir)
     target.mkdir(parents=True, exist_ok=True)
     return target

@@ -48,6 +48,7 @@ SEARCH_ENV_FALLBACK = {
 
 LLM_LOCALHOST_PROVIDERS = ("ollama", "vllm")
 
+
 @dataclass(frozen=True)
 class EmbeddingProviderSpec:
     """Single embedding-provider metadata entry.

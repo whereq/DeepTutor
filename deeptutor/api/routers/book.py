@@ -9,6 +9,7 @@ create / confirm / compile / read / delete + a per-book event stream.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
@@ -24,10 +25,9 @@ from deeptutor.book.models import ContentType
 from deeptutor.book.streaming import SOURCE as BOOK_SOURCE
 from deeptutor.core.stream import StreamEventType
 from deeptutor.core.stream_bus import StreamBus
-from deeptutor.logging import get_logger
 
 router = APIRouter()
-logger = get_logger("book.router")
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
