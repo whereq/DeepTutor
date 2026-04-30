@@ -69,6 +69,7 @@ def _env(tmp_path: Path, lines: list[str]) -> EnvStore:
         "AZURE_API_KEY=",
         "COHERE_API_KEY=",
         "JINA_API_KEY=",
+        "GEMINI_API_KEY=",
         "HOSTED_VLLM_API_KEY=",
     ]
     env_path = tmp_path / ".env"
@@ -116,7 +117,7 @@ def test_embedding_explicit_binding_and_headers(tmp_path: Path) -> None:
     assert resolved.dimension == 1024
 
 
-def test_embedding_alias_canonicalization_google_to_openai(tmp_path: Path) -> None:
+def test_embedding_alias_canonicalization_google_to_gemini(tmp_path: Path) -> None:
     catalog = _build_catalog(
         embedding_profile={
             "id": "embedding-p",
@@ -130,8 +131,32 @@ def test_embedding_alias_canonicalization_google_to_openai(tmp_path: Path) -> No
         }
     )
     resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
-    assert resolved.provider_name == "openai"
-    assert resolved.binding == "openai"
+    assert resolved.provider_name == "gemini"
+    assert resolved.binding == "gemini"
+
+
+def test_embedding_gemini_default_base_and_env_key_fallback(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "gemini",
+            "base_url": "",
+            "api_key": "",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "embedding-m", "name": "m", "model": "gemini-embedding-001"}],
+        }
+    )
+    env = _env(tmp_path, ["GEMINI_API_KEY=gemini-test-key"])
+    resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=env)
+    assert resolved.provider_name == "gemini"
+    assert resolved.binding == "gemini"
+    assert resolved.api_key == "gemini-test-key"
+    assert (
+        resolved.effective_url
+        == "https://generativelanguage.googleapis.com/v1beta/openai/embeddings"
+    )
 
 
 def test_embedding_local_fallback_from_base_url(tmp_path: Path) -> None:
