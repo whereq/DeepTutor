@@ -4,6 +4,7 @@ import { Check, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type SessionSummary } from "@/lib/session-api";
+import { normalizeMessageContent, truncateText } from "@/lib/message-content";
 
 type SessionRuntimeStatus =
   | "idle"
@@ -361,7 +362,7 @@ export default function SessionList({
                       )}
                       {!isEditing && (
                         <div className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-[var(--muted-foreground)]">
-                          {session.last_message ||
+                          {truncateText(normalizeMessageContent(session.last_message), 120) ||
                             relativeTime(session.updated_at)}
                         </div>
                       )}

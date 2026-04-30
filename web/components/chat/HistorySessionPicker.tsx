@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { listSessions, type SessionSummary } from "@/lib/session-api";
+import { normalizeMessageContent, truncateText } from "@/lib/message-content";
 
 export interface SelectedHistorySession {
   sessionId: string;
@@ -74,7 +75,7 @@ export default function HistorySessionPicker({
     if (!keyword) return sessions;
     return sessions.filter((session) => {
       const title = String(session.title || "").toLowerCase();
-      const lastMessage = String(session.last_message || "").toLowerCase();
+      const lastMessage = normalizeMessageContent(session.last_message).toLowerCase();
       return title.includes(keyword) || lastMessage.includes(keyword);
     });
   }, [query, sessions]);
@@ -191,7 +192,7 @@ export default function HistorySessionPicker({
                         </div>
                         {session.last_message ? (
                           <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--muted-foreground)]">
-                            {session.last_message}
+                            {truncateText(normalizeMessageContent(session.last_message), 200)}
                           </p>
                         ) : null}
                         <div className="mt-2 flex items-center gap-3 text-[11px] text-[var(--muted-foreground)]/85">

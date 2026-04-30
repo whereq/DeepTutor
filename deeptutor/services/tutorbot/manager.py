@@ -728,6 +728,15 @@ class TutorBotManager:
                         if data.get("_type") == "metadata":
                             continue
                         if data.get("role") in ("user", "assistant") and data.get("content"):
+                            raw = data["content"]
+                            if isinstance(raw, list):
+                                data["content"] = " ".join(
+                                    p.get("text", "") if isinstance(p, dict) else str(p)
+                                    for p in raw
+                                )
+                            elif not isinstance(raw, str):
+                                data["content"] = str(raw)
+                            data.pop("reasoning_content", None)
                             all_messages.append(data)
             except Exception:
                 continue
@@ -765,7 +774,16 @@ class TutorBotManager:
                         if data.get("_type") == "metadata":
                             continue
                         if data.get("role") in ("user", "assistant") and data.get("content"):
-                            last_msg = data["content"]
+                            raw = data["content"]
+                            if isinstance(raw, list):
+                                last_msg = " ".join(
+                                    p.get("text", "") if isinstance(p, dict) else str(p)
+                                    for p in raw
+                                )
+                            elif isinstance(raw, str):
+                                last_msg = raw
+                            else:
+                                last_msg = str(raw)
             except Exception:
                 pass
 

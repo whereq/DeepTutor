@@ -18,6 +18,7 @@ import type { StreamEvent, ChatMessage } from "@/lib/unified-ws";
 import { UnifiedWSClient } from "@/lib/unified-ws";
 import { getSession, type SessionMessage } from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
+import { normalizeMessageContent } from "@/lib/message-content";
 import { shouldAppendEventContent } from "@/lib/stream";
 
 type SessionRuntimeStatus =
@@ -550,30 +551,33 @@ export function UnifiedChatProvider({
 
   const hydrateMessages = useCallback(
     (messages: SessionMessage[]): MessageItem[] => {
-      // System messages (e.g. quiz follow-up grounding context written by the
-      // backend turn runtime) are LLM-only and must not surface in the chat UI.
       return messages
         .filter((message) => message.role !== "system")
-        .map((message) => ({
-          role: message.role,
-          content:
-            message.role === "assistant"
-              ? normalizeMarkdownForDisplay(message.content)
-              : message.content,
-          capability: message.capability || "",
-          events: Array.isArray(message.events) ? message.events : [],
-          attachments: Array.isArray(message.attachments)
-            ? message.attachments.map((item) => ({
-                type: item.type,
-                filename: item.filename,
-                base64: item.base64,
-                url: item.url,
-                mime_type: item.mime_type,
-                id: item.id,
-                extracted_text: item.extracted_text,
-              }))
-            : [],
-        }));
+        .map((message) => {
+          const raw = normalizeMessageContent(
+            message.content as unknown,
+          );
+          return {
+            role: message.role,
+            content:
+              message.role === "assistant"
+                ? normalizeMarkdownForDisplay(raw)
+                : raw,
+            capability: message.capability || "",
+            events: Array.isArray(message.events) ? message.events : [],
+            attachments: Array.isArray(message.attachments)
+              ? message.attachments.map((item) => ({
+                  type: item.type,
+                  filename: item.filename,
+                  base64: item.base64,
+                  url: item.url,
+                  mime_type: item.mime_type,
+                  id: item.id,
+                  extracted_text: item.extracted_text,
+                }))
+              : [],
+          };
+        });
     },
     [],
   );

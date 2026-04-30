@@ -10,6 +10,10 @@ import { firstParam } from "@/lib/route-params";
 import AssistantResponse from "@/components/common/AssistantResponse";
 import { SimpleComposerInput } from "@/components/chat/home/SimpleComposerInput";
 import { downloadChatMarkdown } from "@/lib/chat-export";
+import {
+  normalizeMessageContent,
+  type RawMessageContent,
+} from "@/lib/message-content";
 import type { MessageItem } from "@/context/UnifiedChatContext";
 import type {
   NotebookSaveMessage,
@@ -125,22 +129,26 @@ export default function BotChatPage() {
 
     fetch(apiUrl(`/api/v1/tutorbot/${botId}/history`))
       .then((r) => (r.ok ? r.json() : []))
-      .then((history: { role: string; content: string }[]) => {
-        const restored: ChatMsg[] = history
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .map((m) => ({
-            role: m.role as "user" | "assistant",
-            content: m.content,
-          }));
-        if (restored.length) {
-          setMessages(restored);
-          // Markdown/KaTeX inside AssistantResponse can grow the container after
-          // the first paint — re-snap a few times so we land at the bottom.
-          requestAnimationFrame(() => scrollToBottom("instant"));
-          window.setTimeout(() => scrollToBottom("instant"), 80);
-          window.setTimeout(() => scrollToBottom("instant"), 250);
-        }
-      })
+      .then(
+        (history: {
+          role: string;
+          content: RawMessageContent;
+          reasoning_content?: unknown;
+        }[]) => {
+          const restored: ChatMsg[] = history
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .map((m) => ({
+              role: m.role as "user" | "assistant",
+              content: normalizeMessageContent(m.content),
+            }));
+          if (restored.length) {
+            setMessages(restored);
+            requestAnimationFrame(() => scrollToBottom("instant"));
+            window.setTimeout(() => scrollToBottom("instant"), 80);
+            window.setTimeout(() => scrollToBottom("instant"), 250);
+          }
+        },
+      )
       .catch(() => {});
   }, [botId, scrollToBottom]);
 
