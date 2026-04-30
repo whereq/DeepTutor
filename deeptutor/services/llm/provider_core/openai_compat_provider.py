@@ -819,7 +819,8 @@ class OpenAICompatProvider(LLMProvider):
                     self._record_responses_failure(model, reasoning_effort)
 
             request_kwargs["stream"] = True
-            request_kwargs["stream_options"] = {"include_usage": True}
+            if self._spec is None or self._spec.supports_stream_options:
+                request_kwargs["stream_options"] = {"include_usage": True}
             try:
                 stream = await self._client.chat.completions.create(**request_kwargs)
             except Exception as exc:
