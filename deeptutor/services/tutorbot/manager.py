@@ -13,6 +13,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+import json
 import logging
 from pathlib import Path
 import shutil
@@ -77,6 +78,32 @@ def mask_channel_secrets(channels: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(walked, dict):  # defensive — should not happen
         return {}
     return walked
+
+
+def normalize_message_content(content: Any) -> str:
+    """Return a display-safe string for text or multimodal message content."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(
+            part
+            for part in (normalize_message_content(item) for item in content)
+            if part
+        )
+    if isinstance(content, dict):
+        for key in ("text", "content", "message", "alt"):
+            value = content.get(key)
+            if isinstance(value, str) and value:
+                return value
+        if content.get("type") in {"image", "image_url"}:
+            return "[image]"
+        try:
+            return json.dumps(content, ensure_ascii=False)
+        except TypeError:
+            return str(content)
+    return str(content)
 
 
 @dataclass
@@ -708,8 +735,6 @@ class TutorBotManager:
 
     def get_bot_history(self, bot_id: str, limit: int = 100) -> list[dict[str, Any]]:
         """Read chat messages from a bot's JSONL session files."""
-        import json as _json
-
         sessions_dir = self._bot_workspace(bot_id) / "sessions"
         if not sessions_dir.exists():
             return []
@@ -724,18 +749,11 @@ class TutorBotManager:
                         line = line.strip()
                         if not line:
                             continue
-                        data = _json.loads(line)
+                        data = json.loads(line)
                         if data.get("_type") == "metadata":
                             continue
                         if data.get("role") in ("user", "assistant") and data.get("content"):
-                            raw = data["content"]
-                            if isinstance(raw, list):
-                                data["content"] = " ".join(
-                                    p.get("text", "") if isinstance(p, dict) else str(p)
-                                    for p in raw
-                                )
-                            elif not isinstance(raw, str):
-                                data["content"] = str(raw)
+                            data["content"] = normalize_message_content(data["content"])
                             data.pop("reasoning_content", None)
                             all_messages.append(data)
             except Exception:
@@ -747,8 +765,6 @@ class TutorBotManager:
 
     def get_recent_active_bots(self, limit: int = 3) -> list[dict[str, Any]]:
         """Return the most recently active bots with their last message preview."""
-        import json as _json
-
         bot_activity: list[tuple[float, str, dict[str, Any]]] = []
 
         for bid in self._discover_bot_ids():
@@ -770,20 +786,11 @@ class TutorBotManager:
                         line = line.strip()
                         if not line:
                             continue
-                        data = _json.loads(line)
+                        data = json.loads(line)
                         if data.get("_type") == "metadata":
                             continue
                         if data.get("role") in ("user", "assistant") and data.get("content"):
-                            raw = data["content"]
-                            if isinstance(raw, list):
-                                last_msg = " ".join(
-                                    p.get("text", "") if isinstance(p, dict) else str(p)
-                                    for p in raw
-                                )
-                            elif isinstance(raw, str):
-                                last_msg = raw
-                            else:
-                                last_msg = str(raw)
+                            last_msg = normalize_message_content(data["content"])
             except Exception:
                 pass
 

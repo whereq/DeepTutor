@@ -168,7 +168,8 @@ class LlamaIndexPipeline:
         except Exception as exc:
             result = search_error_result(query, exc)
             if result.get("error_type"):
-                self.logger.warning(f"Search failed ({result['error_type']}): {exc}")
+                log_message = result.get("log_message") or str(exc)
+                self.logger.warning(f"Search failed ({result['error_type']}): {log_message}")
             else:
                 self.logger.error(f"Search failed: {exc}")
                 self.logger.error(traceback.format_exc())

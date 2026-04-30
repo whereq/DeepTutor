@@ -26,6 +26,43 @@ def test_memory_service_snapshot_is_empty_without_file(tmp_path) -> None:
     assert snapshot.profile_updated_at is None
 
 
+def test_memory_context_requires_explicit_files(tmp_path) -> None:
+    service = _make_service(tmp_path)
+    service.write_file("summary", "## Current Focus\n- Linear algebra")
+    service.write_file("profile", "## Preferences\n- Concise answers")
+
+    assert service.build_memory_context() == ""
+    assert service.build_memory_context([]) == ""
+
+
+def test_memory_context_can_include_summary_only(tmp_path) -> None:
+    service = _make_service(tmp_path)
+    service.write_file("summary", "## Current Focus\n- Linear algebra")
+    service.write_file("profile", "## Preferences\n- Concise answers")
+
+    context = service.build_memory_context(["summary"])
+
+    assert "## Background Memory" in context
+    assert "### Learning Context" in context
+    assert "Linear algebra" in context
+    assert "### User Profile" not in context
+    assert "Concise answers" not in context
+
+
+def test_memory_context_can_include_profile_only(tmp_path) -> None:
+    service = _make_service(tmp_path)
+    service.write_file("summary", "## Current Focus\n- Linear algebra")
+    service.write_file("profile", "## Preferences\n- Concise answers")
+
+    context = service.build_memory_context(["profile"])
+
+    assert "## Background Memory" in context
+    assert "### User Profile" in context
+    assert "Concise answers" in context
+    assert "### Learning Context" not in context
+    assert "Linear algebra" not in context
+
+
 async def _no_change_stream(**_kwargs):
     yield "NO_CHANGE"
 
@@ -40,6 +77,10 @@ async def _thinking_rewrite_stream(**_kwargs):
 
 async def _unclosed_thinking_stream(**_kwargs):
     yield "## Current Focus\n- Algebra\n<think>unfinished private reasoning"
+
+
+async def _invalid_profile_stream(**_kwargs):
+    yield "The derivative of x^2 is 2x. This is an answer, not a profile."
 
 
 def test_memory_service_refresh_turn_writes_rewritten_document(monkeypatch, tmp_path) -> None:
@@ -130,8 +171,28 @@ def test_memory_service_refresh_strips_unclosed_thinking_tags(monkeypatch, tmp_p
         )
     )
 
-    assert service.read_profile() == "## Current Focus\n- Algebra"
+    assert service.read_profile() == ""
+    assert service.read_summary() == "## Current Focus\n- Algebra"
     assert "<think" not in service.read_summary().lower()
+
+
+def test_memory_service_rejects_invalid_profile_rewrite(monkeypatch, tmp_path) -> None:
+    service = _make_service(tmp_path)
+    monkeypatch.setattr("deeptutor.services.memory.service.llm_stream", _invalid_profile_stream)
+
+    import asyncio
+
+    changed = asyncio.run(
+        service._rewrite_one(
+            "profile",
+            "[User]\nWhat is d/dx x^2?\n\n[Assistant]\n2x",
+            "en",
+        )
+    )
+
+    assert changed is False
+    assert service.read_profile() == ""
+    assert not service._path("profile").exists()
 
 
 def test_memory_service_repairs_existing_thinking_tags_on_read(tmp_path) -> None:

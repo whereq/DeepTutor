@@ -18,6 +18,7 @@ export interface SessionMessage {
     id?: string;
     extracted_text?: string;
   }>;
+  metadata?: Record<string, unknown>;
   created_at: number;
 }
 

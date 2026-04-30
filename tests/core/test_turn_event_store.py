@@ -56,3 +56,30 @@ async def test_sqlite_store_persists_turns_and_events(tmp_path) -> None:
     sessions = await store.list_sessions()
     assert sessions[0]["session_id"] == session["id"]
     assert sessions[0]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_sqlite_store_persists_message_metadata(tmp_path) -> None:
+    store = SQLiteSessionStore(tmp_path / "chat_history.db")
+    session = await store.create_session(title="Demo", session_id="session-demo")
+
+    await store.add_message(
+        session_id=session["id"],
+        role="user",
+        content="hello",
+        metadata={
+            "request_snapshot": {
+                "content": "hello",
+                "skills": ["proof-checker"],
+                "memoryReferences": ["summary"],
+            }
+        },
+    )
+
+    detail = await store.get_session_with_messages(session["id"])
+    assert detail is not None
+    assert detail["messages"][0]["metadata"]["request_snapshot"] == {
+        "content": "hello",
+        "skills": ["proof-checker"],
+        "memoryReferences": ["summary"],
+    }

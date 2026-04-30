@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -128,6 +129,38 @@ def test_retrieve_nodes_rejects_invalid_persisted_embeddings(
         storage_module.retrieve_nodes(tmp_path, "what is this?")
 
 
+def test_retrieve_nodes_checks_storage_context_vector_stores(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deeptutor.services.rag.pipelines.llamaindex import storage as storage_module
+
+    class _RetrieverShouldNotRun:
+        def retrieve(self, query: str):  # pragma: no cover - assertion helper
+            raise AssertionError("retriever should not run for invalid persisted vectors")
+
+    fake_index = SimpleNamespace(
+        vector_store=SimpleNamespace(data=SimpleNamespace(embedding_dict={})),
+        storage_context=SimpleNamespace(
+            vector_stores={
+                "default": SimpleNamespace(
+                    data=SimpleNamespace(embedding_dict={"bad-node": [0.1, None, 0.3]})
+                )
+            }
+        ),
+        as_retriever=lambda similarity_top_k=5: _RetrieverShouldNotRun(),
+    )
+
+    monkeypatch.setattr(
+        storage_module.StorageContext,
+        "from_defaults",
+        lambda persist_dir: object(),
+    )
+    monkeypatch.setattr(storage_module, "load_index_from_storage", lambda _ctx: fake_index)
+
+    with pytest.raises(ValueError, match="RAG index contains invalid embedding vectors"):
+        storage_module.retrieve_nodes(tmp_path, "what is this?")
+
+
 @pytest.mark.asyncio
 async def test_search_reconfigures_llamaindex_settings_for_cached_pipeline(
     tmp_path, monkeypatch: pytest.MonkeyPatch
@@ -155,3 +188,58 @@ async def test_search_reconfigures_llamaindex_settings_for_cached_pipeline(
 
     assert result["provider"] == "llamaindex"
     assert configure_calls == ["configure", "configure"]
+
+
+@pytest.mark.asyncio
+async def test_rag_service_hides_low_level_invalid_index_error_in_raw_logs(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deeptutor.services.rag.pipelines.llamaindex import storage as storage_module
+    from deeptutor.services.rag.pipelines.llamaindex.pipeline import LlamaIndexPipeline
+    from deeptutor.services.rag.service import RAGService
+
+    storage_dir = tmp_path / "kb" / "version-1"
+    storage_dir.mkdir(parents=True)
+    (storage_dir / "docstore.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        LlamaIndexPipeline,
+        "_configure_settings",
+        lambda self: None,
+    )
+    monkeypatch.setattr(
+        storage_module,
+        "retrieve_nodes",
+        lambda storage_dir, query, top_k=5: (_ for _ in ()).throw(
+            TypeError("unsupported operand type(s) for *: 'NoneType' and 'float'")
+        ),
+    )
+
+    pipeline = LlamaIndexPipeline(
+        kb_base_dir=str(tmp_path),
+        signature_provider=lambda: None,
+    )
+    service = RAGService(kb_base_dir=str(tmp_path))
+    service._pipeline = pipeline
+    events: list[tuple[str, str, dict]] = []
+
+    async def event_sink(event_type: str, message: str, metadata: dict) -> None:
+        events.append((event_type, message, metadata))
+
+    result = await service.search("what is this?", "kb", event_sink=event_sink)
+    await asyncio.sleep(0)
+
+    raw_logs = [message for event_type, message, _ in events if event_type == "raw_log"]
+    assert result["error_type"] == "invalid_embedding_index"
+    assert any("Search failed (invalid_embedding_index)" in message for message in raw_logs)
+    assert not any("unsupported operand" in message for message in raw_logs)
+    assert any(
+        metadata.get("call_state") == "error" and metadata.get("needs_reindex") is True
+        for event_type, _, metadata in events
+        if event_type == "status"
+    )
+    assert not any(
+        message.startswith("Retrieved ")
+        for event_type, message, _ in events
+        if event_type == "status"
+    )

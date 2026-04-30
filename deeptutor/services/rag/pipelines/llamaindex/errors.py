@@ -21,6 +21,10 @@ def search_error_result(query: str, exc: Exception) -> Dict[str, Any]:
             "provider": "llamaindex",
             "error": message,
             "error_type": "invalid_embedding_provider_response",
+            "log_message": (
+                "Embedding provider returned an invalid query vector; check "
+                "the embedding provider/model configuration."
+            ),
         }
 
     null_vector_similarity_error = (
@@ -42,6 +46,7 @@ def search_error_result(query: str, exc: Exception) -> Dict[str, Any]:
             "provider": "llamaindex",
             "error": message,
             "error_type": "invalid_embedding_index",
+            "log_message": "RAG index contains invalid embedding vectors; re-index required.",
             "needs_reindex": True,
         }
 

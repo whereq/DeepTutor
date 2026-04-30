@@ -103,6 +103,7 @@ class SQLiteSessionStore:
                     capability TEXT DEFAULT '',
                     events_json TEXT DEFAULT '',
                     attachments_json TEXT DEFAULT '',
+                    metadata_json TEXT DEFAULT '{}',
                     created_at REAL NOT NULL
                 );
 
@@ -187,6 +188,11 @@ class SQLiteSessionStore:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
             if "preferences_json" not in columns:
                 conn.execute("ALTER TABLE sessions ADD COLUMN preferences_json TEXT DEFAULT '{}'")
+            message_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(messages)").fetchall()
+            }
+            if "metadata_json" not in message_columns:
+                conn.execute("ALTER TABLE messages ADD COLUMN metadata_json TEXT DEFAULT '{}'")
             conn.commit()
 
     async def _run(self, fn, *args):
@@ -540,6 +546,7 @@ class SQLiteSessionStore:
         capability: str = "",
         events: list[dict[str, Any]] | None = None,
         attachments: list[dict[str, Any]] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> int:
         now = time.time()
         with self._connect() as conn:
@@ -552,8 +559,9 @@ class SQLiteSessionStore:
             cur = conn.execute(
                 """
                 INSERT INTO messages (
-                    session_id, role, content, capability, events_json, attachments_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    session_id, role, content, capability, events_json,
+                    attachments_json, metadata_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
@@ -562,6 +570,7 @@ class SQLiteSessionStore:
                     capability or "",
                     _json_dumps(events or []),
                     _json_dumps(attachments or []),
+                    _json_dumps(metadata or {}),
                     now,
                 ),
             )
@@ -592,6 +601,7 @@ class SQLiteSessionStore:
         capability: str = "",
         events: list[dict[str, Any]] | None = None,
         attachments: list[dict[str, Any]] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> int:
         return await self._run(
             self._add_message_sync,
@@ -601,6 +611,7 @@ class SQLiteSessionStore:
             capability,
             events,
             attachments,
+            metadata,
         )
 
     def _delete_message_sync(self, message_id: int) -> bool:
@@ -619,7 +630,8 @@ class SQLiteSessionStore:
             if role is None:
                 row = conn.execute(
                     """
-                    SELECT id, session_id, role, content, capability, events_json, attachments_json, created_at
+                    SELECT id, session_id, role, content, capability, events_json,
+                           attachments_json, metadata_json, created_at
                     FROM messages
                     WHERE session_id = ?
                     ORDER BY id DESC
@@ -630,7 +642,8 @@ class SQLiteSessionStore:
             else:
                 row = conn.execute(
                     """
-                    SELECT id, session_id, role, content, capability, events_json, attachments_json, created_at
+                    SELECT id, session_id, role, content, capability, events_json,
+                           attachments_json, metadata_json, created_at
                     FROM messages
                     WHERE session_id = ? AND role = ?
                     ORDER BY id DESC
@@ -656,6 +669,7 @@ class SQLiteSessionStore:
             "capability": row["capability"] or "",
             "events": _json_loads(row["events_json"], []),
             "attachments": _json_loads(row["attachments_json"], []),
+            "metadata": _json_loads(row["metadata_json"], {}),
             "created_at": row["created_at"],
         }
 
@@ -663,7 +677,8 @@ class SQLiteSessionStore:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, session_id, role, content, capability, events_json, attachments_json, created_at
+                SELECT id, session_id, role, content, capability, events_json,
+                       attachments_json, metadata_json, created_at
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY id ASC

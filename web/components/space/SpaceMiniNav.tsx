@@ -3,48 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import {
-  Brain,
-  ClipboardList,
-  LayoutGrid,
-  NotebookPen,
-  Wand2,
-  type LucideIcon,
-} from "lucide-react";
-
-interface SpaceNavEntry {
-  href: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-}
-
-const SPACE_NAV: SpaceNavEntry[] = [
-  {
-    href: "/space/notebooks",
-    label: "Notebooks",
-    description: "Organize saved outputs from chat, research, Co-Writer, and more.",
-    icon: NotebookPen,
-  },
-  {
-    href: "/space/questions",
-    label: "Question Bank",
-    description: "Review and organize quiz questions across sessions.",
-    icon: ClipboardList,
-  },
-  {
-    href: "/space/skills",
-    label: "Skills",
-    description: "Behavior playbooks that guide chat responses.",
-    icon: Wand2,
-  },
-  {
-    href: "/space/memory",
-    label: "Memory",
-    description: "Long-form memory the assistant carries across sessions.",
-    icon: Brain,
-  },
-];
+import { LayoutGrid } from "lucide-react";
+import { SPACE_ITEMS } from "@/lib/space-items";
 
 export default function SpaceMiniNav() {
   const pathname = usePathname();
@@ -65,14 +25,14 @@ export default function SpaceMiniNav() {
           </h1>
           <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
             {t(
-              "Your personal library of notebooks, questions, playbooks, and memory.",
+              "Your personal library of conversations, notebooks, questions, playbooks, and memory.",
             )}
           </p>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1 px-2 py-3">
-        {SPACE_NAV.map(({ href, label, description, icon: Icon }) => {
+        {SPACE_ITEMS.map(({ href, label, description, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
             <Link

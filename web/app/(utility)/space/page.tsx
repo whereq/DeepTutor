@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function SpaceIndexPage() {
-  redirect("/space/notebooks");
+  redirect("/space/chat-history");
 }

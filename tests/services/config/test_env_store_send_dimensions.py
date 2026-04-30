@@ -161,6 +161,17 @@ def test_write_persists_send_dimensions_when_set(tmp_path: Path) -> None:
     assert "EMBEDDING_SEND_DIMENSIONS=false" in text
 
 
+def test_write_preserves_provider_specific_embedding_key(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text("GEMINI_API_KEY=gemini-existing\n", encoding="utf-8")
+    env = EnvStore(path=env_path)
+
+    env.write(env.render_from_catalog(_embedding_catalog(send_dimensions=None)))
+
+    text = env_path.read_text(encoding="utf-8")
+    assert "GEMINI_API_KEY=gemini-existing" in text
+
+
 # ---------------------------------------------------------------------------
 # as_summary() — round-trip from .env back into the embedding dict
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
+import logging
 from pathlib import Path
 import re
 from typing import Literal
@@ -26,6 +27,8 @@ MemoryFile = Literal["summary", "profile"]
 MEMORY_FILES: list[MemoryFile] = ["summary", "profile"]
 
 _NO_CHANGE = "NO_CHANGE"
+
+logger = logging.getLogger(__name__)
 
 _FILENAMES: dict[MemoryFile, str] = {
     "summary": "SUMMARY.md",
@@ -168,14 +171,22 @@ class MemoryService:
 
     # ── Context building (injected into LLM prompts) ─────────────────
 
-    def build_memory_context(self, max_chars: int = 4000) -> str:
+    def build_memory_context(
+        self,
+        files: list[MemoryFile] | None = None,
+        max_chars: int = 4000,
+    ) -> str:
+        requested = {item for item in files or [] if item in MEMORY_FILES}
+        if not requested:
+            return ""
+
         parts: list[str] = []
 
-        profile = self.read_profile()
+        profile = self.read_profile() if "profile" in requested else ""
         if profile:
             parts.append(f"### User Profile\n{profile}")
 
-        summary = self.read_summary()
+        summary = self.read_summary() if "summary" in requested else ""
         if summary:
             parts.append(f"### Learning Context\n{summary}")
 
@@ -311,6 +322,13 @@ class MemoryService:
         if raw == current:
             return False
 
+        if not _is_valid_memory_rewrite(which, raw):
+            logger.warning(
+                "Skipping invalid %s memory rewrite: missing expected section heading",
+                which,
+            )
+            return False
+
         self.write_file(which, raw)
         return True
 
@@ -390,6 +408,55 @@ def _strip_code_fence(content: str) -> str:
         cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", cleaned)
         cleaned = re.sub(r"\n?```$", "", cleaned)
     return cleaned.strip()
+
+
+_EXPECTED_MEMORY_HEADINGS: dict[MemoryFile, set[str]] = {
+    "profile": {
+        "identity",
+        "user identity",
+        "learning style",
+        "knowledge level",
+        "preferences",
+        "preference",
+        "身份",
+        "用户身份",
+        "学习风格",
+        "学习方式",
+        "知识水平",
+        "偏好",
+        "用户偏好",
+    },
+    "summary": {
+        "current focus",
+        "accomplishments",
+        "open questions",
+        "learning journey",
+        "context",
+        "当前关注",
+        "当前学习",
+        "学习重点",
+        "已完成",
+        "学习成果",
+        "成就",
+        "开放问题",
+        "待解决问题",
+        "学习旅程",
+        "上下文",
+    },
+}
+
+
+def _normalize_heading(value: str) -> str:
+    heading = re.sub(r"[*_`]+", "", str(value or "")).strip()
+    heading = re.sub(r"[:：#\s]+$", "", heading).strip()
+    return heading.lower()
+
+
+def _is_valid_memory_rewrite(which: MemoryFile, content: str) -> bool:
+    """Accept only target-shaped LLM rewrites, not arbitrary model answers."""
+    allowed = _EXPECTED_MEMORY_HEADINGS[which]
+    headings = re.findall(r"^##(?!#)\s*(.+?)\s*$", content, flags=re.MULTILINE)
+    return any(_normalize_heading(heading) in allowed for heading in headings)
 
 
 def _clean_memory_content(content: str) -> str:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,6 +23,13 @@ def manager(tmp_path: Path) -> TutorBotManager:
         get_memory_dir=lambda: tmp_path / "memory",
     )
     return mgr
+
+
+def _append_session_line(manager: TutorBotManager, bot_id: str, payload: dict) -> None:
+    sessions_dir = manager._bot_workspace(bot_id) / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    with open(sessions_dir / "chat.jsonl", "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +60,44 @@ class TestLoadAndSave:
         (bot_dir / "config.yaml").write_text(": not :: valid : yaml ::", encoding="utf-8")
 
         assert manager.load_bot_config("bad-bot") is None
+
+
+class TestMessageHistory:
+    def test_history_normalizes_part_content_and_strips_reasoning(
+        self, manager: TutorBotManager
+    ):
+        _append_session_line(
+            manager,
+            "bot-history",
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Here is the image"},
+                    {"type": "image", "alt": "diagram"},
+                ],
+                "reasoning_content": "internal scratchpad",
+            },
+        )
+
+        history = manager.get_bot_history("bot-history")
+
+        assert history == [{"role": "assistant", "content": "Here is the image diagram"}]
+
+    def test_recent_active_bots_normalizes_last_message(self, manager: TutorBotManager):
+        manager.save_bot_config("bot-recent", BotConfig(name="Recent Bot"))
+        _append_session_line(
+            manager,
+            "bot-recent",
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "look"}, {"type": "image"}],
+            },
+        )
+
+        recent = manager.get_recent_active_bots(limit=1)
+
+        assert recent[0]["bot_id"] == "bot-recent"
+        assert recent[0]["last_message"] == "look [image]"
 
 
 # ---------------------------------------------------------------------------

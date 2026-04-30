@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import shutil
 from typing import Any
@@ -72,27 +73,82 @@ def create_index(documents: list[Any], storage_dir: Path, *, show_progress: bool
 def insert_documents(existing_storage: Path, storage_dir: Path, documents: list[Any]) -> int:
     storage_context = StorageContext.from_defaults(persist_dir=str(existing_storage))
     index = load_index_from_storage(storage_context)
+    _validate_persisted_embeddings(index, existing_storage)
     for document in documents:
         index.insert(document)
     index.storage_context.persist(persist_dir=str(storage_dir))
     return len(documents)
 
 
-def _validate_persisted_embeddings(index: Any) -> None:
-    """Fail early when a persisted vector store contains unusable vectors."""
-    vector_store = getattr(index, "vector_store", None)
-    data = getattr(vector_store, "data", None)
-    embedding_dict = getattr(data, "embedding_dict", None)
+def _validate_embedding_dict(embedding_dict: Any, *, label: str) -> None:
     if not isinstance(embedding_dict, dict) or not embedding_dict:
         return
 
+    validate_embedding_batch(
+        list(embedding_dict.values()),
+        expected_count=len(embedding_dict),
+        binding="llamaindex",
+        model=f"persisted-index:{label}",
+    )
+
+
+def _iter_index_embedding_dicts(index: Any):
+    """Yield embedding dictionaries exposed by loaded LlamaIndex vector stores."""
+    seen: set[int] = set()
+
+    def _yield_store(label: str, vector_store: Any):
+        if vector_store is None:
+            return
+        store_id = id(vector_store)
+        if store_id in seen:
+            return
+        seen.add(store_id)
+        data = getattr(vector_store, "data", None)
+        embedding_dict = getattr(data, "embedding_dict", None)
+        if isinstance(embedding_dict, dict):
+            yield label, embedding_dict
+
+    yield from _yield_store("default", getattr(index, "vector_store", None))
+
+    storage_context = getattr(index, "storage_context", None)
+    vector_stores = getattr(storage_context, "vector_stores", None)
+    if isinstance(vector_stores, dict):
+        for namespace, vector_store in vector_stores.items():
+            yield from _yield_store(str(namespace), vector_store)
+
+
+def _embedding_dict_from_payload(payload: Any) -> Any:
+    if not isinstance(payload, dict):
+        return None
+    if isinstance(payload.get("embedding_dict"), dict):
+        return payload["embedding_dict"]
+    data = payload.get("data")
+    if isinstance(data, dict) and isinstance(data.get("embedding_dict"), dict):
+        return data["embedding_dict"]
+    return None
+
+
+def _iter_file_embedding_dicts(storage_dir: Path):
+    """Yield embedding dictionaries from persisted vector-store JSON files."""
+    for path in sorted(storage_dir.glob("*vector_store.json")):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception:
+            continue
+        embedding_dict = _embedding_dict_from_payload(payload)
+        if isinstance(embedding_dict, dict):
+            yield path.name, embedding_dict
+
+
+def _validate_persisted_embeddings(index: Any, storage_dir: Path | None = None) -> None:
+    """Fail early when a persisted vector store contains unusable vectors."""
     try:
-        validate_embedding_batch(
-            list(embedding_dict.values()),
-            expected_count=len(embedding_dict),
-            binding="llamaindex",
-            model="persisted-index",
-        )
+        for label, embedding_dict in _iter_index_embedding_dicts(index):
+            _validate_embedding_dict(embedding_dict, label=label)
+        if storage_dir is not None:
+            for label, embedding_dict in _iter_file_embedding_dicts(storage_dir):
+                _validate_embedding_dict(embedding_dict, label=label)
     except ValueError as exc:
         raise ValueError(
             "RAG index contains invalid embedding vectors. Re-index the "
@@ -104,7 +160,7 @@ def _validate_persisted_embeddings(index: Any) -> None:
 def retrieve_nodes(storage_dir: Path, query: str, *, top_k: int = 5) -> list[Any]:
     storage_context = StorageContext.from_defaults(persist_dir=str(storage_dir))
     index = load_index_from_storage(storage_context)
-    _validate_persisted_embeddings(index)
+    _validate_persisted_embeddings(index, storage_dir)
     retriever = index.as_retriever(similarity_top_k=top_k)
     return retriever.retrieve(query)
 

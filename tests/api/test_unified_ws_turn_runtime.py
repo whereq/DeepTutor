@@ -13,6 +13,13 @@ async def _noop_refresh(**_kwargs):
     return None
 
 
+def _fake_skill_service() -> SimpleNamespace:
+    return SimpleNamespace(
+        auto_select=lambda _content: [],
+        load_for_context=lambda _skills: "",
+    )
+
+
 @pytest.mark.asyncio
 async def test_turn_runtime_replays_events_and_materializes_messages(
     monkeypatch: pytest.MonkeyPatch,
@@ -63,9 +70,13 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
         lambda: SimpleNamespace(
-            build_memory_context=lambda: "",
+            build_memory_context=lambda *_args, **_kwargs: "",
             refresh_from_turn=_noop_refresh,
         ),
+    )
+    monkeypatch.setattr(
+        "deeptutor.services.skill.get_skill_service",
+        _fake_skill_service,
     )
 
     session, turn = await runtime.start_turn(
@@ -78,6 +89,8 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             "knowledge_bases": [],
             "attachments": [],
             "language": "en",
+            "skills": ["proof-checker"],
+            "memory_references": ["summary"],
             "config": {},
         }
     )
@@ -92,6 +105,12 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     detail = await store.get_session_with_messages(session["id"])
     assert detail is not None
     assert [message["role"] for message in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][0]["metadata"]["request_snapshot"]["skills"] == [
+        "proof-checker"
+    ]
+    assert detail["messages"][0]["metadata"]["request_snapshot"]["memoryReferences"] == [
+        "summary"
+    ]
     assert detail["messages"][1]["content"] == "Hello Frank"
     assert detail["preferences"] == {
         "capability": "chat",
@@ -153,10 +172,11 @@ async def test_turn_runtime_bootstraps_question_followup_context_once(
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
         lambda: SimpleNamespace(
-            build_memory_context=lambda: "",
+            build_memory_context=lambda *_args, **_kwargs: "",
             refresh_from_turn=_noop_refresh,
         ),
     )
+    monkeypatch.setattr("deeptutor.services.skill.get_skill_service", _fake_skill_service)
 
     session, turn = await runtime.start_turn(
         {
@@ -270,10 +290,11 @@ async def test_turn_runtime_persists_deep_research_session_preference(
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
         lambda: SimpleNamespace(
-            build_memory_context=lambda: "",
+            build_memory_context=lambda *_args, **_kwargs: "",
             refresh_from_turn=_noop_refresh,
         ),
     )
+    monkeypatch.setattr("deeptutor.services.skill.get_skill_service", _fake_skill_service)
 
     session, turn = await runtime.start_turn(
         {
@@ -356,10 +377,11 @@ async def test_turn_runtime_injects_memory_and_refreshes_after_completion(
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
         lambda: SimpleNamespace(
-            build_memory_context=lambda: "## Memory\n## Preferences\n- Prefer concise answers.",
+            build_memory_context=lambda *_args, **_kwargs: "## Memory\n## Preferences\n- Prefer concise answers.",
             refresh_from_turn=fake_refresh_from_turn,
         ),
     )
+    monkeypatch.setattr("deeptutor.services.skill.get_skill_service", _fake_skill_service)
 
     _session, turn = await runtime.start_turn(
         {

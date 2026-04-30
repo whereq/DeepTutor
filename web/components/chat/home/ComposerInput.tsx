@@ -11,7 +11,9 @@ import {
   type RefObject,
 } from "react";
 import { useTranslation } from "react-i18next";
-import AtMentionPopup from "@/components/chat/AtMentionPopup";
+import ChatSpaceMenu, {
+  type ChatSpaceSelectionCounts,
+} from "@/components/chat/space/ChatSpaceMenu";
 import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
 
 interface ComposerInputProps {
@@ -26,9 +28,12 @@ interface ComposerInputProps {
   onSend: (content: string) => void;
   onInputChange: (content: string) => void;
   onPaste: (e: React.ClipboardEvent) => void;
+  selectedCounts: ChatSpaceSelectionCounts;
   onSelectNotebookPicker: () => void;
   onSelectHistoryPicker: () => void;
   onSelectQuestionBankPicker: () => void;
+  onSelectSkillsPicker: () => void;
+  onSelectMemoryPicker: () => void;
 }
 
 export interface ComposerInputHandle {
@@ -56,9 +61,12 @@ export const ComposerInput = memo(
       onSend,
       onInputChange,
       onPaste,
+      selectedCounts,
       onSelectNotebookPicker,
       onSelectHistoryPicker,
       onSelectQuestionBankPicker,
+      onSelectSkillsPicker,
+      onSelectMemoryPicker,
     },
     ref,
   ) {
@@ -67,9 +75,9 @@ export const ComposerInput = memo(
     const [showAtPopup, setShowAtPopup] = useState(false);
 
     // Latest text mirrored into a ref by the change handlers (never updated
-    // during render). The select-* handlers and the imperative handle read
+    // during render). The @space handlers and the imperative handle read
     // from this ref so their identities stay stable across keystrokes,
-    // letting `memo` on AtMentionPopup actually skip re-renders when
+    // letting `memo` on ChatSpaceMenu actually skip re-renders when
     // `showAtPopup` doesn't change.
     const inputRef = useRef("");
     const isComposingRef = useRef(false);
@@ -161,38 +169,50 @@ export const ComposerInput = memo(
       }, 0);
     }, []);
 
-    const handleSelectNotebook = useCallback(() => {
+    const clearTrailingMention = useCallback(() => {
       const next = stripTrailingAtMention(inputRef.current);
       setInputBoth(next);
       onInputChange(next);
-      setShowAtPopup(false);
-      onSelectNotebookPicker();
-    }, [setInputBoth, onInputChange, onSelectNotebookPicker]);
+    }, [setInputBoth, onInputChange]);
 
-    const handleSelectHistory = useCallback(() => {
-      const next = stripTrailingAtMention(inputRef.current);
-      setInputBoth(next);
-      onInputChange(next);
-      setShowAtPopup(false);
-      onSelectHistoryPicker();
-    }, [setInputBoth, onInputChange, onSelectHistoryPicker]);
-
-    const handleSelectQuestionBank = useCallback(() => {
-      const next = stripTrailingAtMention(inputRef.current);
-      setInputBoth(next);
-      onInputChange(next);
-      setShowAtPopup(false);
-      onSelectQuestionBankPicker();
-    }, [setInputBoth, onInputChange, onSelectQuestionBankPicker]);
+    const handleSelectSpaceItem = useCallback(
+      (
+        key:
+          | "chat_history"
+          | "notebooks"
+          | "question_bank"
+          | "skills"
+          | "memory",
+      ) => {
+        clearTrailingMention();
+        setShowAtPopup(false);
+        if (key === "chat_history") onSelectHistoryPicker();
+        else if (key === "notebooks") onSelectNotebookPicker();
+        else if (key === "question_bank") onSelectQuestionBankPicker();
+        else if (key === "skills") onSelectSkillsPicker();
+        else if (key === "memory") onSelectMemoryPicker();
+      },
+      [
+        clearTrailingMention,
+        onSelectHistoryPicker,
+        onSelectNotebookPicker,
+        onSelectQuestionBankPicker,
+        onSelectSkillsPicker,
+        onSelectMemoryPicker,
+      ],
+    );
 
     return (
       <div className="px-4 pt-3.5 pb-2">
-        <AtMentionPopup
-          open={showAtPopup}
-          onSelectNotebook={handleSelectNotebook}
-          onSelectHistory={handleSelectHistory}
-          onSelectQuestionBank={handleSelectQuestionBank}
-        />
+        {showAtPopup && (
+          <div className="absolute bottom-full left-0 z-[70] mb-2">
+            <ChatSpaceMenu
+              variant="mention"
+              selectedCounts={selectedCounts}
+              onSelectItem={handleSelectSpaceItem}
+            />
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={input}

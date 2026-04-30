@@ -118,6 +118,22 @@ class RAGService:
                 result["content"] = result["answer"]
             result["provider"] = DEFAULT_PROVIDER
 
+            if result.get("error_type") or result.get("needs_reindex"):
+                await self._emit_tool_event(
+                    event_sink,
+                    "status",
+                    result.get("answer") or result.get("content") or "RAG search failed.",
+                    {
+                        "provider": DEFAULT_PROVIDER,
+                        "kb_name": kb_name,
+                        "trace_layer": "summary",
+                        "call_state": "error",
+                        "error_type": result.get("error_type"),
+                        "needs_reindex": bool(result.get("needs_reindex")),
+                    },
+                )
+                return result
+
             answer = result.get("answer") or result.get("content") or ""
             await self._emit_tool_event(
                 event_sink,

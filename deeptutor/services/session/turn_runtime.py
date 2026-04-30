@@ -36,6 +36,63 @@ def _clip_text(value: str, limit: int = 4000) -> str:
     return text[:limit].rstrip() + "\n...[truncated]"
 
 
+def _extract_memory_references(payload: dict[str, Any]) -> list[str]:
+    """Return the explicit public memory files requested for this turn."""
+    refs = payload.get("memory_references", []) or []
+    if not isinstance(refs, list):
+        return []
+
+    out: list[str] = []
+    for item in refs:
+        if item in {"summary", "profile"} and item not in out:
+            out.append(item)
+    return out
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
+def _request_snapshot_metadata(
+    *,
+    payload: dict[str, Any],
+    content: str,
+    capability: str,
+    config: dict[str, Any],
+    attachments: list[dict[str, Any]],
+    notebook_references: list[Any],
+    history_references: list[Any],
+    question_notebook_references: list[Any],
+    requested_skills: list[str],
+    memory_references: list[str],
+) -> dict[str, Any]:
+    """Persist the front-end context chips with the user message."""
+    snapshot: dict[str, Any] = {
+        "content": content,
+        "capability": capability,
+        "enabledTools": _string_list(payload.get("tools")),
+        "knowledgeBases": _string_list(payload.get("knowledge_bases")),
+        "language": str(payload.get("language", "en") or "en"),
+    }
+    if attachments:
+        snapshot["attachments"] = attachments
+    if config:
+        snapshot["config"] = dict(config)
+    if notebook_references:
+        snapshot["notebookReferences"] = notebook_references
+    if history_references:
+        snapshot["historyReferences"] = history_references
+    if question_notebook_references:
+        snapshot["questionNotebookReferences"] = question_notebook_references
+    if requested_skills:
+        snapshot["skills"] = requested_skills
+    if memory_references:
+        snapshot["memoryReferences"] = memory_references
+    return {"request_snapshot": snapshot}
+
+
 def _format_question_bank_entry(entry: dict[str, Any]) -> str:
     """Render a single Question Bank entry as a structured Markdown block."""
     lines: list[str] = []
@@ -542,6 +599,7 @@ class TurnRuntimeManager:
             notebook_references = payload.get("notebook_references", []) or []
             history_references = payload.get("history_references", []) or []
             question_notebook_references = payload.get("question_notebook_references", []) or []
+            memory_references = _extract_memory_references(payload)
             notebook_context = ""
             history_context = ""
             question_bank_context = ""
@@ -653,10 +711,10 @@ class TurnRuntimeManager:
                 on_event=_emit_context_event,
             )
             memory_service = get_memory_service()
-            memory_context = memory_service.build_memory_context()
+            memory_context = memory_service.build_memory_context(memory_references)
 
             skill_service = get_skill_service()
-            requested_skills = list(payload.get("skills") or [])
+            requested_skills = _string_list(payload.get("skills"))
             if not requested_skills or requested_skills == ["auto"]:
                 resolved_skills = skill_service.auto_select(raw_user_content)
             else:
@@ -783,6 +841,18 @@ class TurnRuntimeManager:
                     content=raw_user_content,
                     capability=capability_name,
                     attachments=persisted_attachment_records,
+                    metadata=_request_snapshot_metadata(
+                        payload=payload,
+                        content=raw_user_content,
+                        capability=capability_name,
+                        config=request_config,
+                        attachments=persisted_attachment_records,
+                        notebook_references=notebook_references,
+                        history_references=history_references,
+                        question_notebook_references=question_notebook_references,
+                        requested_skills=requested_skills,
+                        memory_references=memory_references,
+                    ),
                 )
 
             context = UnifiedContext(
@@ -809,6 +879,7 @@ class TurnRuntimeManager:
                     "notebook_references": notebook_references,
                     "history_references": history_references,
                     "question_notebook_references": question_notebook_references,
+                    "memory_references": memory_references,
                     "question_bank_context": question_bank_context,
                     "memory_context": memory_context,
                     "active_skills": resolved_skills,

@@ -15,6 +15,7 @@ import uuid
 
 from pydantic import BaseModel
 
+from deeptutor.services.llm import clean_thinking_tags
 from deeptutor.services.path_service import get_path_service
 
 
@@ -59,6 +60,11 @@ class Notebook(BaseModel):
 _UNSET = object()
 
 
+def _clean_record_summary(summary: str) -> str:
+    """Remove private model scratchpads before notebook summaries are persisted."""
+    return clean_thinking_tags(str(summary or "")).strip()
+
+
 class NotebookManager:
     """Manage notebook files stored under ``data/user/workspace/notebook``."""
 
@@ -99,9 +105,30 @@ class NotebookManager:
             return None
         try:
             with open(filepath, encoding="utf-8") as f:
-                return json.load(f)
+                notebook = json.load(f)
         except Exception:
             return None
+        if self._sanitize_loaded_notebook(notebook):
+            try:
+                self._save_notebook(notebook)
+            except Exception:
+                pass
+        return notebook
+
+    def _sanitize_loaded_notebook(self, notebook: dict) -> bool:
+        changed = False
+        records = notebook.get("records", [])
+        if not isinstance(records, list):
+            return False
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            raw_summary = record.get("summary", "")
+            cleaned = _clean_record_summary(raw_summary)
+            if cleaned != raw_summary:
+                record["summary"] = cleaned
+                changed = True
+        return changed
 
     def _save_notebook(self, notebook: dict) -> None:
         filepath = self._get_notebook_file(notebook["id"])
@@ -246,7 +273,7 @@ class NotebookManager:
             "id": record_id,
             "type": resolved_type,
             "title": title,
-            "summary": summary,
+            "summary": _clean_record_summary(summary),
             "user_query": user_query,
             "output": output,
             "metadata": metadata or {},
@@ -306,7 +333,7 @@ class NotebookManager:
             if title is not None:
                 record["title"] = title
             if summary is not None:
-                record["summary"] = summary
+                record["summary"] = _clean_record_summary(summary)
             if user_query is not None:
                 record["user_query"] = user_query
             if output is not None:

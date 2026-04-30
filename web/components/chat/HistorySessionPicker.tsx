@@ -217,14 +217,14 @@ export default function HistorySessionPicker({
             <div className="text-[12px] text-[var(--muted-foreground)]">
               {selectedIds.length === 1
                 ? t("1 session selected")
-                : t("{n} sessions selected", { n: selectedIds.length })}
+                : t("{{n}} sessions selected", { n: selectedIds.length })}
             </div>
             <button
               onClick={handleApply}
               disabled={!selectedIds.length}
               className="btn-primary rounded-xl bg-[var(--primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {t("Use Selected Sessions ({n})", { n: selectedIds.length })}
+              {t("Use Selected Sessions ({{n}})", { n: selectedIds.length })}
             </button>
           </div>
         </div>
