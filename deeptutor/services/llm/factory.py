@@ -318,6 +318,7 @@ async def complete(
         response = await provider.chat_with_retry(
             messages=request_messages,
             model=config.model,
+            reasoning_effort=config.reasoning_effort,
             retry_delays=retry_delays,
             **extra_kwargs,
         )
@@ -400,6 +401,7 @@ async def stream(
             response = await provider.chat_stream_with_retry(
                 messages=request_messages,
                 model=config.model,
+                reasoning_effort=config.reasoning_effort,
                 on_content_delta=_on_content_delta,
                 on_reasoning_delta=_on_reasoning_delta,
                 retry_delays=retry_delays,
