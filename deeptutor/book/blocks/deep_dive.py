@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from deeptutor.utils.json_parser import parse_json_response
+
 from ..models import BlockType, SourceAnchor
 from ._llm_writer import llm_text
 from ._prompts import get_book_prompt, load_book_prompts
@@ -43,10 +45,7 @@ class DeepDiveGenerator(BlockGenerator):
             response_format={"type": "json_object"},
             language=ctx.language,
         )
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            data = {}
+        data = parse_json_response(raw, fallback={})
         suggestions_raw = data.get("suggestions") if isinstance(data, dict) else None
         suggestions: list[dict[str, str]] = []
         if isinstance(suggestions_raw, list):

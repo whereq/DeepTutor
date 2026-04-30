@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from deeptutor.utils.json_parser import parse_json_response
+
 from ..models import BlockType, SourceAnchor
 from ._llm_writer import llm_text
 from ._prompts import get_book_prompt, load_book_prompts
@@ -50,7 +52,7 @@ class CodeGenerator(BlockGenerator):
             language=ctx.language,
         )
 
-        data = _safe_json(raw)
+        data = parse_json_response(raw, fallback={})
         code = str(data.get("code") or "").strip()
         if not code:
             raise GenerationFailure("LLM did not return any code.")
@@ -64,20 +66,6 @@ class CodeGenerator(BlockGenerator):
             [],
             {},
         )
-
-
-def _safe_json(raw: str) -> dict[str, Any]:
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        idx = raw.find("\n")
-        if idx > 0 and not raw[:idx].strip().startswith("{"):
-            raw = raw[idx + 1 :]
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
 
 
 __all__ = ["CodeGenerator"]

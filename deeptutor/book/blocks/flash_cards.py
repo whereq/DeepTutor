@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from deeptutor.utils.json_parser import parse_json_response
+
 from ..models import BlockType, SourceAnchor
 from ._llm_writer import llm_text
 from ._prompts import get_book_prompt, load_book_prompts
@@ -45,10 +47,7 @@ class FlashCardsGenerator(BlockGenerator):
             response_format={"type": "json_object"},
             language=ctx.language,
         )
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            data = {}
+        data = parse_json_response(raw, fallback={})
         cards_raw = data.get("cards") if isinstance(data, dict) else None
         cards: list[dict[str, str]] = []
         if isinstance(cards_raw, list):
