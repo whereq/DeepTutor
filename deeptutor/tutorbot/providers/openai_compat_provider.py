@@ -367,6 +367,8 @@ class OpenAICompatProvider(LLMProvider):
                 content = m.content
             if not content and getattr(m, "reasoning", None):
                 content = m.reasoning
+            if not content and getattr(m, "reasoning_content", None):
+                content = m.reasoning_content
 
         tool_calls = []
         for tc in raw_tool_calls:
