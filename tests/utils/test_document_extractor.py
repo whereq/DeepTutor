@@ -11,6 +11,7 @@ from pptx import Presentation
 from pptx.util import Inches
 import pytest
 
+from deeptutor.utils import document_extractor as document_extractor_module
 from deeptutor.utils.document_extractor import (
     MAX_DOC_BYTES,
     MAX_EXTRACTED_CHARS_PER_DOC,
@@ -20,6 +21,7 @@ from deeptutor.utils.document_extractor import (
     UnsupportedDocumentError,
     extract_documents_from_records,
     extract_text_from_bytes,
+    extract_text_from_path,
     is_document_extension,
 )
 
@@ -106,6 +108,25 @@ class TestExtractDocx:
         assert "Hello world" in text
         assert "Second paragraph" in text
 
+    def test_path_helper_can_disable_chat_truncation(self, tmp_path) -> None:
+        data = _make_docx(["a" * (MAX_EXTRACTED_CHARS_PER_DOC + 10)])
+        path = tmp_path / "long.docx"
+        path.write_bytes(data)
+
+        text = extract_text_from_path(path, max_chars=None)
+
+        assert len(text) > MAX_EXTRACTED_CHARS_PER_DOC
+        assert "truncated" not in text
+
+    def test_ooxml_fallback_without_python_docx(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(document_extractor_module, "DocxDocument", None)
+        data = _make_docx(["Fallback paragraph", "第二段"])
+
+        text = extract_text_from_bytes("doc.docx", data)
+
+        assert "Fallback paragraph" in text
+        assert "第二段" in text
+
 
 class TestExtractXlsx:
     def test_multiple_sheets(self) -> None:
@@ -121,6 +142,16 @@ class TestExtractXlsx:
         assert "a1" in text and "42" in text
         assert "x" in text
 
+    def test_ooxml_fallback_without_openpyxl(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(document_extractor_module, "load_workbook", None)
+        data = _make_xlsx({"Alpha": [["name", "score"], ["alice", 98]]})
+
+        text = extract_text_from_bytes("book.xlsx", data)
+
+        assert "--- Sheet: Alpha ---" in text
+        assert "alice" in text
+        assert "98" in text
+
 
 class TestExtractPptx:
     def test_basic_slides(self) -> None:
@@ -130,6 +161,16 @@ class TestExtractPptx:
         assert "--- Slide 2 ---" in text
         assert "Slide 1 title" in text
         assert "Slide 2 only text" in text
+
+    def test_ooxml_fallback_without_python_pptx(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(document_extractor_module, "PptxPresentation", None)
+        data = _make_pptx([["Fallback slide", "第二行"]])
+
+        text = extract_text_from_bytes("deck.pptx", data)
+
+        assert "--- Slide 1 ---" in text
+        assert "Fallback slide" in text
+        assert "第二行" in text
 
 
 class TestExtractTextLike:

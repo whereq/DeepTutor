@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, Eye, EyeOff, XCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import type { Block } from "@/lib/book-types";
@@ -33,12 +34,13 @@ export interface QuizBlockProps {
 }
 
 export default function QuizBlock({ block, onAttempt }: QuizBlockProps) {
+  const { t } = useTranslation();
   const questions =
     (block.payload?.questions as QuizQuestion[] | undefined) || [];
   if (questions.length === 0) {
     return (
       <div className="text-sm text-[var(--muted-foreground)]">
-        No quiz questions generated.
+        {t("No quiz questions generated.")}
       </div>
     );
   }
@@ -46,7 +48,7 @@ export default function QuizBlock({ block, onAttempt }: QuizBlockProps) {
     <section>
       <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
         <span className="h-px flex-1 bg-[var(--primary)]/20" />
-        Quick Check
+        {t("Quick Check")}
         <span className="h-px flex-1 bg-[var(--primary)]/20" />
       </div>
       <div className="space-y-3">
@@ -72,6 +74,7 @@ function QuizQuestionCard({
   question: QuizQuestion;
   onAttempt?: (args: QuizAttemptArgs) => void;
 }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [reported, setReported] = useState(false);
@@ -108,7 +111,7 @@ function QuizQuestionCard({
           </span>
           <div className="min-w-0 flex-1">
             <MarkdownRenderer
-              content={String(question.question || "(missing)")}
+              content={String(question.question || t("(missing)"))}
               variant="compact"
               className="font-sans text-sm font-medium text-[var(--foreground)] [&_ol]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_p]:my-1.5 [&_pre]:my-2 [&_ul]:my-2"
             />
@@ -158,8 +161,8 @@ function QuizQuestionCard({
       ) : (
         <div className="mt-2 text-xs text-[var(--muted-foreground)]">
           {normalizedType === "written"
-            ? "Think about your answer, then reveal the solution."
-            : "Open response — click reveal to see the model answer."}
+            ? t("Think about your answer, then reveal the solution.")
+            : t("Open response — click reveal to see the model answer.")}
         </div>
       )}
 
@@ -173,11 +176,11 @@ function QuizQuestionCard({
           ) : (
             <Eye className="h-3.5 w-3.5" />
           )}
-          {revealed ? "Hide answer" : "Reveal answer"}
+          {revealed ? t("Hide answer") : t("Reveal answer")}
         </button>
         {revealed && correct && isChoice && (
           <span className="text-xs text-[var(--muted-foreground)]">
-            Answer:{" "}
+            {t("Answer")}:{" "}
             <span className="font-mono text-[var(--foreground)]">
               {correctChoiceKey || correct}
             </span>
@@ -188,7 +191,7 @@ function QuizQuestionCard({
       {revealed && correct && !isChoice && (
         <div className="mt-2 rounded-lg border border-[var(--border)] bg-[var(--card)]/70 p-2">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-            Answer
+            {t("Answer")}
           </div>
           <MarkdownRenderer
             content={correct}

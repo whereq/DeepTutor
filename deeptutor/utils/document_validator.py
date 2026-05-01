@@ -109,9 +109,17 @@ class DocumentValidator:
                 f"Unsupported file type: {ext}. Allowed types: {', '.join(exts_to_check)}"
             )
 
-        # Additional MIME type validation for security
+        # Additional MIME type validation for the legacy/default policy. For
+        # caller-provided extension policies (for example the KB router's
+        # FileTypeRouter list), the extension set is already the source of
+        # truth; mimetypes is extension-derived and incomplete for many code
+        # and config formats.
         guessed_mime, _ = mimetypes.guess_type(safe_name.lower())
-        if guessed_mime and guessed_mime not in DocumentValidator.ALLOWED_MIME_TYPES:
+        if (
+            allowed_extensions is None
+            and guessed_mime
+            and guessed_mime not in DocumentValidator.ALLOWED_MIME_TYPES
+        ):
             raise ValueError(
                 f"MIME type validation failed: {guessed_mime}. File may be malicious or corrupted."
             )

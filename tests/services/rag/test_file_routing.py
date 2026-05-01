@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,8 @@ class TestExtensionClassification:
             ("script.py", DocumentType.TEXT),
             ("config.yaml", DocumentType.TEXT),
             ("paper.docx", DocumentType.DOCX),
+            ("sheet.xlsx", DocumentType.SPREADSHEET),
+            ("deck.pptx", DocumentType.PRESENTATION),
             ("photo.png", DocumentType.IMAGE),
         ],
     )
@@ -47,13 +50,21 @@ class TestClassifyFiles:
     def test_routes_pdf_to_parser_text_to_text(self, tmp_path: Path) -> None:
         pdf = tmp_path / "a.pdf"
         pdf.write_bytes(b"%PDF-1.4")
+        docx = tmp_path / "a.docx"
+        docx.write_bytes(b"PK\x03\x04")
+        xlsx = tmp_path / "a.xlsx"
+        xlsx.write_bytes(b"PK\x03\x04")
+        pptx = tmp_path / "a.pptx"
+        pptx.write_bytes(b"PK\x03\x04")
         txt = tmp_path / "a.txt"
         txt.write_text("hi")
         png = tmp_path / "a.png"
         png.write_bytes(b"\x89PNG\r\n")
 
-        cls = FileTypeRouter.classify_files([str(pdf), str(txt), str(png)])
-        assert cls.parser_files == [str(pdf)]
+        cls = FileTypeRouter.classify_files(
+            [str(pdf), str(docx), str(xlsx), str(pptx), str(txt), str(png)]
+        )
+        assert cls.parser_files == [str(pdf), str(docx), str(xlsx), str(pptx)]
         assert cls.text_files == [str(txt)]
         assert cls.unsupported == [str(png)]
 
@@ -68,6 +79,9 @@ class TestSupportedExtensionsAndGlobs:
     def test_get_supported_extensions_covers_pdf_and_text(self) -> None:
         exts = FileTypeRouter.get_supported_extensions()
         assert ".pdf" in exts
+        assert ".docx" in exts
+        assert ".xlsx" in exts
+        assert ".pptx" in exts
         assert ".md" in exts
         assert ".txt" in exts
 
@@ -87,21 +101,29 @@ class TestSupportedExtensionsAndGlobs:
         nested.mkdir()
         nested_upper = nested / "README.MD"
         nested_upper.write_text("nested", encoding="utf-8")
+        deck = tmp_path / "DECK.PPTX"
+        deck.write_bytes(b"PK\x03\x04")
         ignored = tmp_path / "image.PNG"
         ignored.write_bytes(b"\x89PNG\r\n")
 
         assert [path.name for path in FileTypeRouter.collect_supported_files(tmp_path)] == [
+            "DECK.PPTX",
             "notes.md",
             "REPORT.PDF",
         ]
         assert [
             path.name for path in FileTypeRouter.collect_supported_files(tmp_path, recursive=True)
-        ] == ["README.MD", "notes.md", "REPORT.PDF"]
+        ] == ["DECK.PPTX", "README.MD", "notes.md", "REPORT.PDF"]
 
 
 class TestQuickHelpers:
     def test_needs_parser_for_pdf(self) -> None:
         assert FileTypeRouter.needs_parser("paper.pdf") is True
+
+    def test_needs_parser_for_office_documents(self) -> None:
+        assert FileTypeRouter.needs_parser("paper.docx") is True
+        assert FileTypeRouter.needs_parser("sheet.xlsx") is True
+        assert FileTypeRouter.needs_parser("deck.pptx") is True
 
     def test_needs_parser_false_for_text(self) -> None:
         assert FileTypeRouter.needs_parser("notes.md") is False
@@ -113,16 +135,15 @@ class TestQuickHelpers:
         assert FileTypeRouter.is_text_readable("doc.pdf") is False
 
 
-@pytest.mark.asyncio
 class TestReadTextFile:
-    async def test_reads_utf8(self, tmp_path: Path) -> None:
+    def test_reads_utf8(self, tmp_path: Path) -> None:
         path = tmp_path / "u.txt"
         path.write_text("héllo", encoding="utf-8")
-        content = await FileTypeRouter.read_text_file(str(path))
+        content = asyncio.run(FileTypeRouter.read_text_file(str(path)))
         assert content == "héllo"
 
-    async def test_reads_gbk_fallback(self, tmp_path: Path) -> None:
+    def test_reads_gbk_fallback(self, tmp_path: Path) -> None:
         path = tmp_path / "g.txt"
         path.write_bytes("中文测试".encode("gbk"))
-        content = await FileTypeRouter.read_text_file(str(path))
+        content = asyncio.run(FileTypeRouter.read_text_file(str(path)))
         assert "中文" in content

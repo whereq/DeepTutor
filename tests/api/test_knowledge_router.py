@@ -114,9 +114,13 @@ def test_supported_file_types_returns_upload_policy() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert ".pdf" in payload["extensions"]
+    assert ".docx" in payload["extensions"]
+    assert ".xlsx" in payload["extensions"]
+    assert ".pptx" in payload["extensions"]
     assert ".md" in payload["extensions"]
     assert payload["max_file_size_bytes"] > payload["max_pdf_size_bytes"] > 0
     assert ".pdf" in payload["accept"]
+    assert ".docx" in payload["accept"]
 
 
 def test_create_kb_does_not_require_llm_precheck(monkeypatch, tmp_path: Path) -> None:
@@ -347,6 +351,46 @@ def test_reindex_accepts_default_alias(monkeypatch, tmp_path: Path) -> None:
     assert body["noop"] is False
     assert isinstance(body.get("task_id"), str) and body["task_id"]
     assert manager.config["knowledge_bases"]["actual-kb"]["status"] == "initializing"
+
+
+def test_reindex_error_status_bypasses_existing_match_noop(monkeypatch, tmp_path: Path) -> None:
+    manager = _FakeKBManager(tmp_path / "knowledge_bases")
+    manager.config["knowledge_bases"]["failed-kb"] = {
+        "path": "failed-kb",
+        "status": "error",
+        "progress": {"stage": "error", "message": "previous indexing failed"},
+    }
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", manager.base_dir)
+
+    class _Signature:
+        def hash(self) -> str:
+            return "sig"
+
+    embedding_signature = importlib.import_module("deeptutor.services.rag.embedding_signature")
+    index_versioning = importlib.import_module("deeptutor.services.rag.index_versioning")
+    monkeypatch.setattr(
+        embedding_signature, "signature_from_embedding_config", lambda: _Signature()
+    )
+    monkeypatch.setattr(
+        index_versioning,
+        "find_matching_version",
+        lambda *_args, **_kwargs: {"layout": "flat", "ready": True},
+    )
+
+    async def _noop_reindex_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(knowledge_router_module, "run_reindex_task", _noop_reindex_task)
+
+    with TestClient(_build_app()) as client:
+        response = client.post("/api/v1/knowledge/failed-kb/reindex")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["noop"] is False
+    assert isinstance(body.get("task_id"), str) and body["task_id"]
+    assert manager.config["knowledge_bases"]["failed-kb"]["status"] == "initializing"
 
 
 def test_update_config_coerces_legacy_provider_to_llamaindex() -> None:

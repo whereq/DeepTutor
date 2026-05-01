@@ -21,7 +21,13 @@ import base64
 from collections.abc import Iterable
 import io
 import logging
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
+import re
+from typing import Any
+import zipfile
+
+from defusedxml import ElementTree as DefusedElementTree
+from defusedxml.common import DefusedXmlException
 
 from deeptutor.services.rag.file_routing import FileTypeRouter
 
@@ -56,7 +62,7 @@ except ImportError:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-_OFFICE_EXTENSIONS: frozenset[str] = frozenset({".pdf", ".docx", ".xlsx", ".pptx"})
+_OFFICE_EXTENSIONS: frozenset[str] = frozenset(FileTypeRouter.PARSER_EXTENSIONS)
 # Text-like formats are sourced from the KB file router so chat and KB stay
 # in sync. Adding a new code / config extension in one place propagates here.
 TEXT_LIKE_EXTENSIONS: frozenset[str] = frozenset(FileTypeRouter.TEXT_EXTENSIONS)
@@ -129,17 +135,26 @@ def _check_magic(ext: str, data: bytes, filename: str) -> None:
             )
 
 
-def extract_text_from_bytes(filename: str, data: bytes) -> str:
+def extract_text_from_bytes(
+    filename: str,
+    data: bytes,
+    *,
+    max_bytes: int | None = MAX_DOC_BYTES,
+    max_chars: int | None = MAX_EXTRACTED_CHARS_PER_DOC,
+) -> str:
     """Extract text from a single document's raw bytes.
 
     Raises a ``DocumentExtractionError`` subclass on failure. Successful
-    output is truncated to ``MAX_EXTRACTED_CHARS_PER_DOC`` with a notice.
+    output is truncated to ``max_chars`` with a notice when ``max_chars`` is
+    not ``None``. ``max_bytes`` is configurable so the KB indexer can reuse
+    the same parsers with its larger upload policy while chat keeps the
+    stricter per-turn limit.
     """
     if not data:
         raise EmptyDocumentError(f"{filename} is empty", filename=filename)
-    if len(data) > MAX_DOC_BYTES:
+    if max_bytes is not None and len(data) > max_bytes:
         raise DocumentTooLargeError(
-            f"{filename} exceeds the {MAX_DOC_BYTES // (1024 * 1024)} MB per-file limit",
+            f"{filename} exceeds the {max_bytes // (1024 * 1024)} MB per-file limit",
             filename=filename,
         )
 
@@ -166,7 +181,23 @@ def extract_text_from_bytes(filename: str, data: bytes) -> str:
 
     if not text.strip():
         raise EmptyDocumentError(f"{filename}: no extractable text", filename=filename)
-    return _truncate(text, MAX_EXTRACTED_CHARS_PER_DOC)
+    return _truncate(text, max_chars) if max_chars is not None else text
+
+
+def extract_text_from_path(
+    file_path: str | Path,
+    *,
+    max_bytes: int | None = MAX_DOC_BYTES,
+    max_chars: int | None = MAX_EXTRACTED_CHARS_PER_DOC,
+) -> str:
+    """Extract text from a file path using the same bytes-based parsers."""
+    path = Path(file_path)
+    return extract_text_from_bytes(
+        path.name,
+        path.read_bytes(),
+        max_bytes=max_bytes,
+        max_chars=max_chars,
+    )
 
 
 def _extract_pdf(data: bytes, filename: str) -> str:
@@ -215,24 +246,45 @@ def _extract_pdf(data: bytes, filename: str) -> str:
 
 
 def _extract_docx(data: bytes, filename: str) -> str:
+    primary_error: Exception | None = None
+    primary_text = ""
+    if DocxDocument is not None:
+        try:
+            doc = DocxDocument(io.BytesIO(data))
+            paragraphs = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
+            primary_text = "\n\n".join(paragraphs)
+        except Exception as exc:
+            primary_error = exc
+            logger.info("python-docx failed on %s; falling back to raw OOXML: %s", filename, exc)
+
+    fallback = _extract_docx_ooxml(data, filename)
+    if fallback.strip() and (not primary_text.strip() or len(fallback) > len(primary_text) * 1.2):
+        return fallback
+    if primary_text.strip():
+        return primary_text
+
     if DocxDocument is None:
-        raise CorruptDocumentError(f"{filename}: python-docx not installed", filename=filename)
-    try:
-        doc = DocxDocument(io.BytesIO(data))
-    except Exception as exc:
         raise CorruptDocumentError(
-            f"{filename}: failed to open DOCX ({exc})", filename=filename
-        ) from exc
-    paragraphs = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
-    return "\n\n".join(paragraphs)
+            f"{filename}: python-docx not installed and OOXML fallback found no text",
+            filename=filename,
+        )
+    if primary_error is not None:
+        raise CorruptDocumentError(
+            f"{filename}: failed to open DOCX ({primary_error})", filename=filename
+        ) from primary_error
+    return ""
 
 
 def _extract_xlsx(data: bytes, filename: str) -> str:
     if load_workbook is None:
-        raise CorruptDocumentError(f"{filename}: openpyxl not installed", filename=filename)
+        return _extract_xlsx_ooxml(data, filename)
     try:
         wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except Exception as exc:
+        logger.info("openpyxl failed on %s; falling back to raw OOXML: %s", filename, exc)
+        fallback = _extract_xlsx_ooxml(data, filename)
+        if fallback.strip():
+            return fallback
         raise CorruptDocumentError(
             f"{filename}: failed to open XLSX ({exc})", filename=filename
         ) from exc
@@ -254,10 +306,14 @@ def _extract_xlsx(data: bytes, filename: str) -> str:
 
 def _extract_pptx(data: bytes, filename: str) -> str:
     if PptxPresentation is None:
-        raise CorruptDocumentError(f"{filename}: python-pptx not installed", filename=filename)
+        return _extract_pptx_ooxml(data, filename)
     try:
         prs = PptxPresentation(io.BytesIO(data))
     except Exception as exc:
+        logger.info("python-pptx failed on %s; falling back to raw OOXML: %s", filename, exc)
+        fallback = _extract_pptx_ooxml(data, filename)
+        if fallback.strip():
+            return fallback
         raise CorruptDocumentError(
             f"{filename}: failed to open PPTX ({exc})", filename=filename
         ) from exc
@@ -284,6 +340,180 @@ def _extract_text_like(data: bytes, filename: str) -> str:
         raise CorruptDocumentError(
             f"{filename}: failed to decode text ({exc})", filename=filename
         ) from exc
+
+
+def _open_ooxml(data: bytes, filename: str) -> zipfile.ZipFile:
+    try:
+        return zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile as exc:
+        raise CorruptDocumentError(
+            f"{filename}: failed to open Office ZIP package ({exc})", filename=filename
+        ) from exc
+
+
+def _local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1] if "}" in tag else tag
+
+
+def _parse_xml_member(zf: zipfile.ZipFile, member: str, filename: str) -> Any | None:
+    try:
+        raw = zf.read(member)
+    except KeyError:
+        return None
+    try:
+        return DefusedElementTree.fromstring(raw)
+    except (DefusedElementTree.ParseError, DefusedXmlException) as exc:
+        raise CorruptDocumentError(
+            f"{filename}: failed to parse {member} ({exc})", filename=filename
+        ) from exc
+
+
+def _collect_ooxml_text(node: Any) -> str:
+    parts: list[str] = []
+    for child in node.iter():
+        name = _local_name(child.tag)
+        if name == "t" and child.text:
+            parts.append(child.text)
+        elif name == "tab":
+            parts.append("\t")
+        elif name in {"br", "cr"}:
+            parts.append("\n")
+    return "".join(parts).strip()
+
+
+def _extract_paragraph_text(root: Any) -> list[str]:
+    paragraphs: list[str] = []
+    for node in root.iter():
+        if _local_name(node.tag) != "p":
+            continue
+        text = _collect_ooxml_text(node)
+        if text:
+            paragraphs.append(text)
+    if paragraphs:
+        return paragraphs
+    text = _collect_ooxml_text(root)
+    return [text] if text else []
+
+
+def _extract_docx_ooxml(data: bytes, filename: str) -> str:
+    with _open_ooxml(data, filename) as zf:
+        names = zf.namelist()
+        content_members = ["word/document.xml"]
+        content_members.extend(
+            sorted(
+                name
+                for name in names
+                if re.match(r"word/(header|footer|footnotes|endnotes|comments)\d*\.xml$", name)
+            )
+        )
+
+        chunks: list[str] = []
+        for member in content_members:
+            root = _parse_xml_member(zf, member, filename)
+            if root is None:
+                continue
+            chunks.extend(_extract_paragraph_text(root))
+        return "\n\n".join(chunks)
+
+
+def _xlsx_shared_strings(zf: zipfile.ZipFile, filename: str) -> list[str]:
+    root = _parse_xml_member(zf, "xl/sharedStrings.xml", filename)
+    if root is None:
+        return []
+    strings: list[str] = []
+    for node in root:
+        if _local_name(node.tag) != "si":
+            continue
+        strings.append(_collect_ooxml_text(node))
+    return strings
+
+
+def _xlsx_sheet_names(zf: zipfile.ZipFile, filename: str) -> dict[str, str]:
+    root = _parse_xml_member(zf, "xl/workbook.xml", filename)
+    if root is None:
+        return {}
+    out: dict[str, str] = {}
+    index = 1
+    for node in root.iter():
+        if _local_name(node.tag) != "sheet":
+            continue
+        sheet_name = node.attrib.get("name") or f"sheet{index}"
+        sheet_id = node.attrib.get("sheetId") or str(index)
+        out[f"xl/worksheets/sheet{sheet_id}.xml"] = sheet_name
+        index += 1
+    return out
+
+
+def _xlsx_cell_text(cell: Any, shared_strings: list[str]) -> str:
+    cell_type = cell.attrib.get("t", "")
+    if cell_type == "inlineStr":
+        return _collect_ooxml_text(cell)
+
+    value = ""
+    for child in cell:
+        if _local_name(child.tag) == "v":
+            value = child.text or ""
+            break
+
+    if cell_type == "s":
+        try:
+            return shared_strings[int(value)]
+        except (ValueError, IndexError):
+            return value
+    return value
+
+
+def _extract_xlsx_ooxml(data: bytes, filename: str) -> str:
+    with _open_ooxml(data, filename) as zf:
+        shared_strings = _xlsx_shared_strings(zf, filename)
+        sheet_names = _xlsx_sheet_names(zf, filename)
+        sheet_members = sorted(
+            (name for name in zf.namelist() if re.match(r"xl/worksheets/sheet\d+\.xml$", name)),
+            key=lambda name: [
+                int(part) if part.isdigit() else part for part in re.split(r"(\d+)", name)
+            ],
+        )
+
+        sheets: list[str] = []
+        for index, member in enumerate(sheet_members, 1):
+            root = _parse_xml_member(zf, member, filename)
+            if root is None:
+                continue
+            rows: list[str] = []
+            for row in root.iter():
+                if _local_name(row.tag) != "row":
+                    continue
+                cells = [
+                    _xlsx_cell_text(cell, shared_strings)
+                    for cell in row
+                    if _local_name(cell.tag) == "c"
+                ]
+                row_text = "\t".join(cells)
+                if row_text.strip():
+                    rows.append(row_text)
+            if rows:
+                sheet_name = sheet_names.get(member, f"sheet{index}")
+                sheets.append(f"--- Sheet: {sheet_name} ---\n" + "\n".join(rows))
+        return "\n\n".join(sheets)
+
+
+def _extract_pptx_ooxml(data: bytes, filename: str) -> str:
+    with _open_ooxml(data, filename) as zf:
+        slide_members = sorted(
+            (name for name in zf.namelist() if re.match(r"ppt/slides/slide\d+\.xml$", name)),
+            key=lambda name: [
+                int(part) if part.isdigit() else part for part in re.split(r"(\d+)", name)
+            ],
+        )
+        slides: list[str] = []
+        for index, member in enumerate(slide_members, 1):
+            root = _parse_xml_member(zf, member, filename)
+            if root is None:
+                continue
+            paragraphs = _extract_paragraph_text(root)
+            if paragraphs:
+                slides.append(f"--- Slide {index} ---\n" + "\n".join(paragraphs))
+        return "\n\n".join(slides)
 
 
 def _collect_pptx_shape_text(shape, out: list[str]) -> None:

@@ -10,7 +10,7 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](../../LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/HKUDS/DeepTutor?style=flat-square&color=brightgreen)](https://github.com/HKUDS/DeepTutor/releases)
-[![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](#)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.26962-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.26962)
 
 [![Discord](https://img.shields.io/badge/Discord-Community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
 [![Feishu](https://img.shields.io/badge/Feishu-Group-00D4AA?style=flat-square&logo=feishu&logoColor=white)](../../Communication.md)
@@ -18,7 +18,7 @@
 
 [主な機能](#key-features) · [はじめる](#get-started) · [DeepTutor を探る](#explore-deeptutor) · [TutorBot](#tutorbot) · [CLI](#deeptutor-cli-guide) · [ロードマップ](#roadmap) · [コミュニティ](#community)
 
-[🇬🇧 English](../../README.md) · [🇨🇳 中文](README_CN.md) · [🇪🇸 Español](README_ES.md) · [🇫🇷 Français](README_FR.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md)
+[🇬🇧 English](../../README.md) · [🇨🇳 中文](README_CN.md) · [🇪🇸 Español](README_ES.md) · [🇫🇷 Français](README_FR.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md) · 🇵🇱 [Polski](README_PL.md)
 
 </div>
 
@@ -28,21 +28,36 @@
 
 ### 📦 リリース
 
-> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — チャットでの文書添付（PDF/DOCX/XLSX/PPTX）、推論モデルの思考ブロック表示、埋め込み `send_dimensions` 三択、LLM プロバイダ中核のリファクタ、Soul テンプレートエディタ、Co-Writer のノートブック保存、ナレッジベースのドラッグ＆ドロップアップロードと削除耐性、問題生成の言語忠実度。
+> **[2026.4.30]** [v1.3.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.3) — NVIDIA NIM と Gemini 埋め込み対応、チャット履歴 / スキル / メモリを束ねる統一 Space コンテキスト、セッションスナップショット、RAG 再インデックスの耐性強化。
 
-> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — ユーザー作成 Skills（CRUD＋チャット連携）、チャット入力の性能刷新と state の配置、`response_format` の非互換プロバイダ向け自動フォールバック、LAN リモートアクセス修正、サイドバーのバージョン表示、Deep Solve の画像添付、TutorBot WebSocket の自動起動、Book Library UI、可視化の全画面表示。
+> **[2026.4.29]** [v1.3.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.2) — 埋め込みエンドポイント URL の可視化、無効な永続ベクトル時の RAG 再インデックス耐性、思考モデル出力のメモリ整理、Deep Solve ランタイム修正。
 
-> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` によるチャット各段階のトークン上限（8000 トークン応答）、CLI / WebSocket / Web UI で最終応答を再生成、RAG の `None` 埋め込みクラッシュ修正、Gemma の `json_object` 互換、暗いコードブロックの可読性。
+> **[2026.4.28]** [v1.3.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.1) — 安定性：より安全な RAG ルーティングと埋め込み検証、Docker 永続化、IME 安全な入力、Windows / GBK 堅牢性。
 
-> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine による 14 種ブロックのマルチエージェント「リビングブック」コンパイラ、マルチドキュメント Co-Writer、HTML インタラクティブ可視化、チャットでの Question Bank @メンション、プロンプト外部化フェーズ 2、サイドバー刷新。
+> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — バージョン付き KB インデックスと再インデックスワークフロー、ナレッジワークスペース刷新、新アダプタ付き埋め込み自動検出、Space ハブ。
 
-> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Schema 駆動の Channels タブとシークレットマスク、RAG を単一パイプラインへ集約、RAG/KB の整合性強化、チャットプロンプトの外部化、タイ語 README。
+> **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — チャット添付の永続化とファイルプレビュードロワー、添付を意識したケイパビリティパイプライン、TutorBot の Markdown エクスポート。
 
-> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — 全ケイパビリティ対応のユニバーサル「今すぐ回答」、Co-Writer のスクロール同期、ノートブック保存時のメッセージ選択、統一設定パネル、ストリーミング Stop ボタン、TutorBot 設定の原子的書き込み。
+> **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — テキスト / コード / SVG 添付、ワンコマンドのセットアップツアー、Markdown チャットエクスポート、コンパクトな KB 管理 UI。
 
-> **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX ブロック数式パースの刷新、`agents.yaml` 経由の LLM 診断プローブ、追加ヘッダ転送の修正、SaveToNotebook の UUID 修正、Docker とローカル LLM のガイダンス。
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — 文書添付（PDF/DOCX/XLSX/PPTX）、推論の思考ブロック表示、Soul テンプレートエディタ、Co-Writer のノートブック保存。
 
-> **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — URL ベースのブックマーク可能セッション、Snow テーマ、WebSocket ハートビートと自動再接続、ChatComposer の性能改善、埋め込みプロバイダレジストリの刷新、Serper 検索プロバイダ。
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — ユーザー作成 Skills、チャット入力の性能刷新、TutorBot 自動起動、Book Library UI、可視化の全画面表示。
+
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — 段階ごとのトークン上限、全エントリポイントでの応答再生成、RAG と Gemma の互換性修正。
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine「リビングブック」コンパイラ、マルチドキュメント Co-Writer、インタラクティブ HTML 可視化、Question Bank の @ メンション。
+
+> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Schema 駆動の Channels タブ、RAG の単一パイプライン集約、チャットプロンプトの外部化。
+
+> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — ユニバーサル「今すぐ回答」、Co-Writer のスクロール同期、統一設定パネル、ストリーミング Stop ボタン。
+
+<details>
+<summary><b>過去のリリース（2 週間より前）</b></summary>
+
+> **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX ブロック数式パースの刷新、`agents.yaml` 経由の LLM 診断プローブ、Docker とローカル LLM のガイダンス。
+
+> **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — URL ベースのブックマーク可能セッション、Snow テーマ、WebSocket ハートビートと自動再接続、埋め込みプロバイダレジストリの刷新。
 
 > **[2026.4.13]** [v1.0.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.3) — ブックマークとカテゴリ付きクイズノートブック、Visualize での Mermaid、埋め込み不一致検出、Qwen/vLLM 互換、LM Studio と llama.cpp 対応、Glass テーマ。
 
@@ -57,9 +72,6 @@
 > **[2026.4.7]** [v1.0.0-beta.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.2) — ホットリロード可能な設定、MinerU のネスト出力、WebSocket 修正、最低 Python 3.11+。
 
 > **[2026.4.4]** [v1.0.0-beta.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.1) — エージェントネイティブ架構の全面書き換え（約 20 万行）：Tools + Capabilities プラグインモデル、CLI と SDK、TutorBot、Co-Writer、ガイド付き学習、永続メモリ。
-
-<details>
-<summary><b>過去のリリース</b></summary>
 
 > **[2026.1.23]** [v0.6.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.6.0) — セッション永続化、増分アップロード、柔軟な RAG パイプライン、中国語ローカライズ。
 
@@ -78,6 +90,8 @@
 ### 📰 ニュース
 
 > **[2026.4.19]** 🎉 111 日で 20k スターに到達しました！ご支援に感謝します — 真にパーソナルで知的なチュターリングに向けて、継続的に改善を続けます。
+
+> **[2026.4.10]** 📄 論文が arXiv で公開されました。[プレプリント](https://arxiv.org/abs/2604.26962)で DeepTutor の設計とアイデアをご覧ください。
 
 > **[2026.4.4]** お久しぶりです！✨ DeepTutor v1.0.0 がついに登場 — Apache-2.0 のもと、ゼロからの架構書き直し、TutorBot、柔軟なモード切替を備えたエージェントネイティブな進化です。新章の始まりです！
 

@@ -165,6 +165,7 @@ def _get_llm_config_from_env() -> LLMConfig:
     api_key = _strip_value(env_store.get("LLM_API_KEY"))
     base_url = _strip_value(env_store.get("LLM_HOST"))
     api_version = _strip_value(env_store.get("LLM_API_VERSION"))
+    reasoning_effort = _strip_value(env_store.get("LLM_REASONING_EFFORT"))
 
     # Validate required configuration
     if not model:
@@ -182,6 +183,7 @@ def _get_llm_config_from_env() -> LLMConfig:
         api_key=api_key or "",
         base_url=base_url,
         api_version=api_version,
+        reasoning_effort=reasoning_effort or None,
     )
 
 

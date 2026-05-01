@@ -34,6 +34,7 @@ from deeptutor.services.llm import (
     stream as llm_stream,
 )
 from deeptutor.services.prompt import get_prompt_manager
+from deeptutor.services.prompt.language import append_language_directive
 from deeptutor.tools.builtin import BUILTIN_TOOL_NAMES
 from deeptutor.utils.json_parser import parse_json_response
 
@@ -518,7 +519,7 @@ class AgenticChatPipeline:
         trace_meta = build_trace_metadata(
             call_id=new_call_id("chat-answer-now"),
             phase="responding",
-            label="Answer now",
+            label=self._t("labels.answer_now", default="Answer now"),
             call_kind="llm_final_response",
             trace_id="chat-answer-now",
             trace_role="response",
@@ -1381,11 +1382,12 @@ class AgenticChatPipeline:
         )
         has_rag = "rag" in enabled_tools
         rag_hint = self._t("responding.rag_hint") if has_rag else ""
-        return self._t(
+        system_prompt = self._t(
             "responding.system",
             tool_list=tool_list or self._fallback_empty_tool_list(),
             rag_hint=rag_hint,
         )
+        return append_language_directive(system_prompt, self.language)
 
     def _acting_user_prompt(self, context: UnifiedContext, thinking_text: str) -> str:
         return self._t(

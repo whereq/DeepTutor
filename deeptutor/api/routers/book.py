@@ -124,6 +124,17 @@ class SupplementRequest(BaseModel):
     topic: str
 
 
+class PageChatSessionRequest(BaseModel):
+    book_id: str
+    page_id: str
+    session_id: str
+
+
+class RebuildBookRequest(BaseModel):
+    book_id: str
+    auto_compile: bool = True
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # REST endpoints
 # ─────────────────────────────────────────────────────────────────────────────
@@ -433,6 +444,32 @@ async def supplement(req: SupplementRequest) -> dict[str, Any]:
     if block is None:
         raise HTTPException(status_code=404, detail="Page not found")
     return {"block": block.model_dump(mode="json")}
+
+
+@router.post("/books/page-chat-session")
+async def set_page_chat_session(req: PageChatSessionRequest) -> dict[str, Any]:
+    engine = get_book_engine()
+    book = engine.set_page_chat_session(
+        book_id=req.book_id,
+        page_id=req.page_id,
+        session_id=req.session_id,
+    )
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book or page not found")
+    return {"book": book.model_dump(mode="json")}
+
+
+@router.post("/books/rebuild")
+async def rebuild_book(req: RebuildBookRequest) -> dict[str, Any]:
+    engine = get_book_engine()
+    try:
+        pages = await engine.rebuild_book(book_id=req.book_id, auto_compile=req.auto_compile)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"rebuild_book failed: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"pages": [p.model_dump(mode="json") for p in pages]}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

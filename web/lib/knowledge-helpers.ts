@@ -1,5 +1,11 @@
 import type { TFunction } from "i18next";
-import type { KnowledgeUploadPolicy } from "@/lib/knowledge-api";
+
+export interface KnowledgeUploadPolicy {
+  extensions: string[];
+  accept: string;
+  max_file_size_bytes: number;
+  max_pdf_size_bytes: number;
+}
 
 export const DEFAULT_UPLOAD_POLICY: KnowledgeUploadPolicy = {
   extensions: [],
@@ -122,6 +128,20 @@ export const kbNeedsReindex = (kb: KnowledgeBase): boolean =>
 
 export const kbIsUploadable = (kb: KnowledgeBase): boolean =>
   resolveKbStatus(kb) === "ready" && !kbNeedsReindex(kb);
+
+export const kbCanReindex = (kb: KnowledgeBase): boolean => {
+  const status = resolveKbStatus(kb);
+  const hasSourceFiles =
+    typeof kb.statistics?.raw_documents === "number"
+      ? kb.statistics.raw_documents > 0
+      : true;
+  if (!hasSourceFiles) return false;
+  if (status === "error") return true;
+  return (
+    Boolean(kb.statistics?.needs_reindex) ||
+    kb.statistics?.active_match === false
+  );
+};
 
 const LIVE_PROGRESS_STAGES = new Set([
   "initializing",

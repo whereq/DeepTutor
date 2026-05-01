@@ -267,6 +267,44 @@ def test_llm_context_window_passes_through_from_catalog(tmp_path: Path) -> None:
     assert resolved.context_window == 128000
 
 
+def test_llm_reasoning_effort_env_overrides_catalog(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "LLM_BINDING=openai",
+                "LLM_MODEL=gpt-4o-mini",
+                "LLM_API_KEY=sk-test",
+                "LLM_HOST=https://api.openai.com/v1",
+                "LLM_REASONING_EFFORT=minimal",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    catalog = _build_catalog(
+        llm_profile={
+            "id": "llm-p",
+            "name": "LLM",
+            "binding": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "api_key": "sk-test",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [
+                {
+                    "id": "llm-m",
+                    "name": "GPT 4o mini",
+                    "model": "gpt-4o-mini",
+                    "reasoning_effort": "high",
+                }
+            ],
+        }
+    )
+    resolved = resolve_llm_runtime_config(catalog=catalog, env_store=EnvStore(path=env_path))
+    assert resolved.reasoning_effort == "minimal"
+
+
 def test_search_fallback_to_duckduckgo_without_key(tmp_path: Path) -> None:
     catalog = _build_catalog(
         search_profile={

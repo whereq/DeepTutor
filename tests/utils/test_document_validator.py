@@ -22,3 +22,23 @@ def test_validate_upload_safety_strips_windows_path_components() -> None:
     )
 
     assert safe_name == "报告.md"
+
+
+def test_validate_upload_safety_accepts_chat_office_formats_for_kb_policy() -> None:
+    safe_name = DocumentValidator.validate_upload_safety(
+        "Lecture Notes.DOCX",
+        1024,
+        allowed_extensions=FileTypeRouter.get_supported_extensions(),
+    )
+
+    assert safe_name == "Lecture Notes.docx"
+
+
+def test_validate_upload_safety_custom_policy_allows_supported_code_mimes() -> None:
+    safe_name = DocumentValidator.validate_upload_safety(
+        "solver.PY",
+        1024,
+        allowed_extensions=FileTypeRouter.get_supported_extensions(),
+    )
+
+    assert safe_name == "solver.py"

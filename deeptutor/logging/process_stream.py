@@ -79,7 +79,7 @@ class ProcessLogHandler(logging.Handler):
                     loop = asyncio.get_running_loop()
                 except RuntimeError:
                     return
-                loop.create_task(result)
+                asyncio.ensure_future(result, loop=loop)
         except Exception:
             self.handleError(record)
 

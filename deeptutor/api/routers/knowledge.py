@@ -1094,7 +1094,8 @@ async def reindex_knowledge_base(
     try:
         manager = get_kb_manager()
         kb_name = _resolve_registered_kb_name(manager, kb_name)
-        _load_kb_entry_or_404(manager, kb_name)
+        kb_entry = _load_kb_entry_or_404(manager, kb_name)
+        force_reindex = str(kb_entry.get("status") or "").lower() == "error"
 
         from deeptutor.services.rag.embedding_signature import signature_from_embedding_config
         from deeptutor.services.rag.index_versioning import (
@@ -1113,7 +1114,7 @@ async def reindex_knowledge_base(
 
         kb_dir = _kb_base_dir / kb_name
         matching_version = find_matching_version(kb_dir, signature)
-        if matching_version and matching_version.get("layout") == "flat":
+        if matching_version and matching_version.get("layout") == "flat" and not force_reindex:
             return {
                 "message": (
                     f"Knowledge base '{kb_name}' already has an index for the "

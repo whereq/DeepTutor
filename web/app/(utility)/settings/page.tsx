@@ -4,6 +4,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Brain,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Database,
@@ -96,6 +97,8 @@ type SystemStatus = {
   search: { status: string; provider?: string; error?: string };
 };
 
+const SERVICES = ["llm", "embedding", "search"] as const;
+
 // ---------------------------------------------------------------------------
 
 function cloneCatalog(catalog: Catalog): Catalog {
@@ -135,6 +138,46 @@ function serviceIcon(service: ServiceName) {
   if (service === "llm") return <Brain className="h-3.5 w-3.5" />;
   if (service === "embedding") return <Database className="h-3.5 w-3.5" />;
   return <Search className="h-3.5 w-3.5" />;
+}
+
+function serviceLabel(
+  service: ServiceName,
+  t: (key: string) => string,
+): string {
+  if (service === "llm") return t("LLM");
+  if (service === "embedding") return t("Embedding");
+  return t("Search");
+}
+
+function activeProfileDetail(
+  profile: CatalogProfile | null,
+  service: ServiceName,
+  t: (key: string) => string,
+): string {
+  if (!profile) return t("No profile");
+  if (service === "search") return profile.provider || t("No provider");
+  return profile.base_url || t("No endpoint");
+}
+
+function activeModelDetail(
+  profile: CatalogProfile | null,
+  model: CatalogModel | null,
+  service: ServiceName,
+  t: (key: string) => string,
+): string {
+  if (service === "search") return profile?.provider || t("No provider");
+  return model?.model || model?.name || t("No model selected");
+}
+
+function servicePendingApply(
+  catalog: Catalog,
+  draft: Catalog,
+  service: ServiceName,
+): boolean {
+  return (
+    JSON.stringify(catalog.services[service]) !==
+    JSON.stringify(draft.services[service])
+  );
 }
 
 function statusDotClass(configured: boolean, hasError: boolean): string {
@@ -629,6 +672,22 @@ function SettingsPageContent() {
     searchProviderRaw === "perplexity" &&
     !String(activeProfile?.api_key || "").trim();
 
+  // Category-label typography. English looks great with `uppercase` + wide
+  // letter-spacing, but CJK glyphs are already square blocks — extra tracking
+  // pushes them apart and `uppercase` is a no-op. For zh we drop both and
+  // bump size by ~1px to keep visual weight comparable.
+  const labelClass = (size: "sm" | "md" | "lg"): string => {
+    if (language === "zh") {
+      if (size === "sm") return "text-[10.5px] font-medium";
+      if (size === "lg") return "text-[12px] font-medium";
+      return "text-[11px] font-medium";
+    }
+    if (size === "sm")
+      return "text-[9.5px] font-semibold uppercase tracking-[0.16em]";
+    if (size === "lg") return "text-[11px] uppercase tracking-[0.16em]";
+    return "text-[10px] font-semibold uppercase tracking-[0.16em]";
+  };
+
   useEffect(() => {
     setShowApiKey(false);
   }, [activeService, activeProfile?.id]);
@@ -1002,8 +1061,8 @@ function SettingsPageContent() {
           </div>
         </div>
 
-        {/* ── Preferences & Runtime ── */}
-        <div className="mb-8 flex flex-wrap items-center gap-x-8 gap-y-3 border-b border-[var(--border)]/50 pb-6">
+        {/* ── Preferences ── */}
+        <div className="mb-5 flex flex-wrap items-center gap-x-8 gap-y-3">
           <div className="flex items-center gap-2">
             <span className="text-[12px] text-[var(--muted-foreground)]">
               {t("Theme")}
@@ -1051,38 +1110,112 @@ function SettingsPageContent() {
               ))}
             </div>
           </div>
+        </div>
 
-          <div className="ml-auto flex items-center gap-4 text-[12px] text-[var(--muted-foreground)]">
-            <span className="flex items-center gap-1.5">
+        {/* ── Runtime status ── */}
+        <div className="mb-8 grid grid-cols-2 overflow-hidden rounded-xl border border-[var(--border)]/60 sm:grid-cols-4">
+          <div
+            className="px-4 py-3.5"
+            title={status?.backend.timestamp || t("Backend status")}
+          >
+            <div className="flex items-center gap-2">
               <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(status?.backend.status === "online", false)}`}
+                className={`h-1.5 w-1.5 rounded-full ${statusDotClass(
+                  status?.backend.status === "online",
+                  false,
+                )}`}
               />
-              {t("Backend")}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.llm.model), Boolean(status?.llm.error))}`}
-              />
-              {t("LLM")}
-              {status?.llm.model && (
-                <span className="text-[var(--muted-foreground)]/50">
-                  · {status.llm.model}
-                </span>
-              )}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.embeddings.model), Boolean(status?.embeddings.error))}`}
-              />
-              {t("Emb")}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.search.provider), false)}`}
-              />
-              {t("Search")}
-            </span>
+              <span className={`${labelClass("md")} text-[var(--muted-foreground)]`}>
+                {t("Backend")}
+              </span>
+            </div>
+            <div className="mt-2 truncate text-[13px] font-medium text-[var(--foreground)]">
+              {status?.backend.status === "online"
+                ? t("Online")
+                : t("Checking")}
+            </div>
+            <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+              {(() => {
+                const ts = status?.backend.timestamp;
+                if (!ts) return "—";
+                const parsed = new Date(ts);
+                if (Number.isNaN(parsed.getTime())) return "";
+                return parsed.toLocaleTimeString(
+                  language === "zh" ? "zh-CN" : "en-US",
+                  { hour: "2-digit", minute: "2-digit" },
+                );
+              })()}
+            </div>
           </div>
+
+          {SERVICES.map((service, i) => {
+            const profile = getActiveProfile(draft, service);
+            const model = getActiveModel(draft, service);
+            const serviceStatus =
+              service === "llm"
+                ? status?.llm
+                : service === "embedding"
+                  ? status?.embeddings
+                  : status?.search;
+            const runtimeModel =
+              service === "llm"
+                ? status?.llm.model
+                : service === "embedding"
+                  ? status?.embeddings.model
+                  : undefined;
+            const configured =
+              service === "search"
+                ? Boolean(profile?.provider || status?.search.provider)
+                : Boolean(model?.model || runtimeModel);
+            const pendingApply = servicePendingApply(catalog, draft, service);
+            const detail = activeModelDetail(profile, model, service, t);
+            const profileName = profile?.name || t("No profile");
+            const isActiveTab = activeService === service;
+            const borderClasses =
+              i === 0
+                ? "border-l border-[var(--border)]/40"
+                : i === 1
+                  ? "border-t border-[var(--border)]/40 sm:border-t-0 sm:border-l"
+                  : "border-t border-l border-[var(--border)]/40 sm:border-t-0";
+            return (
+              <button
+                key={service}
+                type="button"
+                onClick={() => setActiveService(service)}
+                title={`${serviceLabel(service, t)} · ${profileName} · ${detail}`}
+                className={`relative px-4 py-3.5 text-left transition-colors ${borderClasses} ${
+                  isActiveTab
+                    ? "bg-[var(--muted)]/55"
+                    : "hover:bg-[var(--muted)]/30"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${statusDotClass(
+                      configured,
+                      Boolean(serviceStatus?.error),
+                    )}`}
+                  />
+                  <span
+                    className={`truncate ${labelClass("md")} text-[var(--muted-foreground)]`}
+                  >
+                    {serviceLabel(service, t)}
+                  </span>
+                  {pendingApply && (
+                    <span className="ml-auto shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                      {t("Pending")}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 truncate text-[13px] font-medium text-[var(--foreground)]">
+                  {detail}
+                </div>
+                <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                  {profileName}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* ── Service Configuration ── */}
@@ -1131,35 +1264,85 @@ function SettingsPageContent() {
           {activeProfile ? (
             <div className="grid grid-cols-[200px_1fr] gap-5">
               {/* ── Profile list ── */}
-              <div className="space-y-1">
-                {draft.services[activeService].profiles.map((profile) => (
-                  <button
-                    key={profile.id}
-                    onClick={() =>
-                      mutateCatalog((next) => {
-                        next.services[activeService].active_profile_id =
-                          profile.id;
-                        if (activeService !== "search") {
-                          next.services[activeService].active_model_id =
-                            profile.models[0]?.id ?? null;
-                        }
-                      })
-                    }
-                    className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
-                      profile.id ===
-                      draft.services[activeService].active_profile_id
-                        ? "bg-[var(--muted)] text-[var(--foreground)]"
-                        : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/50"
-                    }`}
-                  >
-                    <div className="text-[13px] font-medium">
-                      {profile.name}
-                    </div>
-                    <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
-                      {profile.base_url || t("No endpoint")}
-                    </div>
-                  </button>
-                ))}
+              <div className="space-y-2">
+                {draft.services[activeService].profiles.map((profile) => {
+                  const isActive =
+                    profile.id ===
+                    draft.services[activeService].active_profile_id;
+                  const activeProfileModel =
+                    activeService === "search"
+                      ? null
+                      : (profile.models.find(
+                          (model) =>
+                            model.id ===
+                            draft.services[activeService].active_model_id,
+                        ) ??
+                        profile.models[0] ??
+                        null);
+                  const profileDetail = activeProfileDetail(
+                    profile,
+                    activeService,
+                    t,
+                  );
+                  const modelDetail = activeModelDetail(
+                    profile,
+                    activeProfileModel,
+                    activeService,
+                    t,
+                  );
+                  return (
+                    <button
+                      key={profile.id}
+                      onClick={() =>
+                        mutateCatalog((next) => {
+                          next.services[activeService].active_profile_id =
+                            profile.id;
+                          if (activeService !== "search") {
+                            next.services[activeService].active_model_id =
+                              profile.models[0]?.id ?? null;
+                          }
+                        })
+                      }
+                      className={`relative w-full overflow-hidden rounded-xl px-3.5 py-3 text-left transition-colors ${
+                        isActive
+                          ? "bg-[var(--muted)]/60 text-[var(--foreground)]"
+                          : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/30"
+                      }`}
+                    >
+                      {isActive && (
+                        <span className="absolute inset-y-3 left-0 w-0.5 rounded-r-full bg-[var(--foreground)]/80" />
+                      )}
+                      <div className="truncate text-[13px] font-semibold">
+                        {profile.name}
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                        {profileDetail}
+                      </div>
+                      {isActive ? (
+                        <div className="mt-2.5 border-t border-[var(--border)]/40 pt-2">
+                          <div
+                            className={`${labelClass("sm")} text-[var(--muted-foreground)]/70`}
+                          >
+                            {activeService === "search"
+                              ? t("Active provider")
+                              : t("Active model")}
+                          </div>
+                          <div className="mt-0.5 truncate text-[12px] font-medium text-[var(--foreground)]">
+                            {modelDetail}
+                          </div>
+                        </div>
+                      ) : (
+                        activeService !== "search" && (
+                          <div className="mt-1 text-[11px] text-[var(--muted-foreground)]/60">
+                            {t("{{count}} models", {
+                              count: profile.models.length,
+                            })}
+                          </div>
+                        )
+                      )}
+                    </button>
+                  );
+                })}
                 <button
                   onClick={removeActiveProfile}
                   disabled={!activeProfile}
@@ -1394,11 +1577,18 @@ function SettingsPageContent() {
                             className={`rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
                               model.id ===
                               draft.services[activeService].active_model_id
-                                ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
+                                ? "bg-[var(--foreground)] font-medium text-[var(--background)] shadow-sm"
                                 : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/50"
                             }`}
                           >
-                            {model.name}
+                            <span className="inline-flex items-center gap-1.5">
+                              {model.id ===
+                                draft.services[activeService]
+                                  .active_model_id && (
+                                <CheckCircle2 className="h-3 w-3" />
+                              )}
+                              {model.name}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -1448,7 +1638,9 @@ function SettingsPageContent() {
                             </div>
                             <div className="rounded-xl border border-[var(--border)]/70 bg-[var(--muted)]/30 px-3.5 py-3">
                               <div className="flex items-center justify-between gap-3">
-                                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]/70">
+                                <div
+                                  className={`${labelClass("lg")} text-[var(--muted-foreground)]/70`}
+                                >
                                   {t("Source")}
                                 </div>
                                 <span className="rounded-full border border-[var(--border)]/70 bg-[var(--card)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">

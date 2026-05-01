@@ -41,9 +41,11 @@ import type {
 } from "@/lib/research-types";
 import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";
+import type { SelectedBookReference } from "@/lib/book-references";
 
 type SpaceSelectionCounts = {
   chatHistory: number;
+  books: number;
   notebooks: number;
   questionBank: number;
   skills: number;
@@ -126,6 +128,7 @@ export default memo(function ChatComposer({
   ragActive,
   knowledgeBases,
   selectedNotebookRecords,
+  selectedBookReferences,
   selectedHistorySessions,
   selectedQuestionEntries,
   notebookReferenceGroups,
@@ -152,6 +155,7 @@ export default memo(function ChatComposer({
   onSetSpaceMenuOpen,
   onSetKB,
   onSelectNotebookPicker,
+  onSelectBookPicker,
   onSelectHistoryPicker,
   onSelectQuestionBankPicker,
   onSelectSkillsPicker,
@@ -165,6 +169,7 @@ export default memo(function ChatComposer({
   onRemoveAttachment,
   onPreviewAttachment,
   onRemoveHistory,
+  onRemoveBookReference,
   onRemoveNotebook,
   onRemoveQuestion,
   onDragEnter,
@@ -203,6 +208,7 @@ export default memo(function ChatComposer({
   ragActive: boolean;
   knowledgeBases: KnowledgeBase[];
   selectedNotebookRecords: SelectedRecord[];
+  selectedBookReferences: SelectedBookReference[];
   selectedHistorySessions: SelectedHistorySession[];
   selectedQuestionEntries: SelectedQuestionEntry[];
   notebookReferenceGroups: Array<{
@@ -233,6 +239,7 @@ export default memo(function ChatComposer({
   onSetSpaceMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetKB: (kb: string) => void;
   onSelectNotebookPicker: () => void;
+  onSelectBookPicker: () => void;
   onSelectHistoryPicker: () => void;
   onSelectQuestionBankPicker: () => void;
   onSelectSkillsPicker: () => void;
@@ -246,6 +253,7 @@ export default memo(function ChatComposer({
   onRemoveAttachment: (index: number) => void;
   onPreviewAttachment?: (index: number) => void;
   onRemoveHistory: (sessionId: string) => void;
+  onRemoveBookReference: (bookId: string) => void;
   onRemoveNotebook: (notebookId: string) => void;
   onRemoveQuestion: (entryId: number) => void;
   onDragEnter: (event: React.DragEvent) => void;
@@ -310,6 +318,7 @@ export default memo(function ChatComposer({
 
   const hasReferences =
     !!attachments.length ||
+    !!selectedBookReferences.length ||
     !!selectedNotebookRecords.length ||
     !!selectedHistorySessions.length ||
     !!selectedQuestionEntries.length ||
@@ -325,6 +334,10 @@ export default memo(function ChatComposer({
   const skillsCount = skillsAutoMode ? 1 : selectedSkills.length;
   const spaceSelectionCounts: SpaceSelectionCounts = {
     chatHistory: selectedHistorySessions.length,
+    books: selectedBookReferences.reduce(
+      (total, ref) => total + ref.pages.length,
+      0,
+    ),
     notebooks: selectedNotebookRecords.length,
     questionBank: selectedQuestionEntries.length,
     skills: skillsCount,
@@ -332,6 +345,7 @@ export default memo(function ChatComposer({
   };
   const spaceSelectionCount =
     spaceSelectionCounts.chatHistory +
+    spaceSelectionCounts.books +
     spaceSelectionCounts.notebooks +
     spaceSelectionCounts.questionBank +
     spaceSelectionCounts.skills +
@@ -438,12 +452,14 @@ export default memo(function ChatComposer({
             <div className="px-4 pt-3.5 [&>div]:mb-0">
               <SpaceContextChips
                 historySessions={selectedHistorySessions}
+                bookReferences={selectedBookReferences}
                 notebookGroups={notebookReferenceGroups}
                 questionEntries={selectedQuestionEntries}
                 selectedSkills={selectedSkills}
                 skillsAutoMode={skillsAutoMode}
                 memoryFiles={selectedMemoryFiles}
                 onRemoveHistory={onRemoveHistory}
+                onRemoveBookReference={onRemoveBookReference}
                 onRemoveNotebook={onRemoveNotebook}
                 onRemoveQuestion={onRemoveQuestion}
                 onRemoveSkill={onToggleSkill}
@@ -464,6 +480,7 @@ export default memo(function ChatComposer({
             onPaste={onPaste}
             selectedCounts={spaceSelectionCounts}
             onSelectNotebookPicker={onSelectNotebookPicker}
+            onSelectBookPicker={onSelectBookPicker}
             onSelectHistoryPicker={onSelectHistoryPicker}
             onSelectQuestionBankPicker={onSelectQuestionBankPicker}
             onSelectSkillsPicker={onSelectSkillsPicker}
@@ -799,6 +816,7 @@ export default memo(function ChatComposer({
                         onSelectItem={(key) => {
                           onSetSpaceMenuOpen(false);
                           if (key === "chat_history") onSelectHistoryPicker();
+                          else if (key === "books") onSelectBookPicker();
                           else if (key === "notebooks")
                             onSelectNotebookPicker();
                           else if (key === "question_bank")

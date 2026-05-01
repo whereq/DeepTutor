@@ -10,7 +10,7 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](../../LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/HKUDS/DeepTutor?style=flat-square&color=brightgreen)](https://github.com/HKUDS/DeepTutor/releases)
-[![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](#)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.26962-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.26962)
 
 [![Discord](https://img.shields.io/badge/Discord-Community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
 [![Feishu](https://img.shields.io/badge/Feishu-Group-00D4AA?style=flat-square&logo=feishu&logoColor=white)](../../Communication.md)
@@ -18,7 +18,7 @@
 
 [คุณสมบัติเด่น](#-คุณสมบัติเด่น) · [เริ่มต้นใช้งาน](#-เริ่มต้นใช้งาน) · [สำรวจความสามารถ](#-สำรวจ-deeptutor) · [TutorBot](#-tutorbot--ติวเตอร์-ai-แบบถาวรและอัตโนมัติ) · [CLI](#%EF%B8%8F-deeptutor-cli--อินเทอร์เฟซแบบ-agent-native) · [ชุมชน](#-ชุมชนและระบบนิเวศ)
 
-[🇺🇸 English](../../README.md) · [🇨🇳 中文](README_CN.md) · [🇯🇵 日本語](README_JA.md) · [🇪🇸 Español](README_ES.md) · [🇫🇷 Français](README_FR.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md)
+[🇺🇸 English](../../README.md) · [🇨🇳 中文](README_CN.md) · [🇯🇵 日本語](README_JA.md) · [🇪🇸 Español](README_ES.md) · [🇫🇷 Français](README_FR.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md) · 🇵🇱 [Polski](README_PL.md)
 
 </div>
 
@@ -28,17 +28,33 @@
 
 ### 📦 ประวัติการเผยแพร่
 
-> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — แนบเอกสารในแชต (PDF/DOCX/XLSX/PPTX) แสดงบล็อกการคิดของโมเดลให้เหตุผล สลับสามสถานะ `send_dimensions` ของ embedding รีแฟกเตอร์แกน LLM provider ตัวแก้เทมเพลต Soul บันทึก Co-Writer ลงสมุด ลากวางอัปโหลด knowledge base แก้การลบให้ทนทาน ความตรงภาษาในการสร้างคำถาม
+> **[2026.4.30]** [v1.3.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.3) — รองรับ embedding NVIDIA NIM และ Gemini, Space context รวมสำหรับประวัติแชต / สกิล / หน่วยความจำ, snapshot ของเซสชัน, ความทนทานของการทำดัชนี RAG ใหม่
 
-> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — ระบบ Skills ที่ผู้ใช้สร้าง (CRUD + ผสานแชต) ปรับประสิทธิ์ช่องแชตกับ state colocation `response_format` fallback อัตโนมัติเมื่อ provider ไม่รองรับ แก้ remote LAN ป้ายเวอร์ชันแถบข้าง แนบรูป Deep Solve TutorBot WebSocket สตาร์ทอัตโนมัติ UI ห้องสมุดหนังสือ โหมดเต็มจอ visualization
+> **[2026.4.29]** [v1.3.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.2) — URL ปลายทาง embedding โปร่งใส, ความทนทาน re-index RAG เมื่อเวกเตอร์ที่ persist ไม่ถูกต้อง, ทำความสะอาดหน่วยความจำสำหรับเอาต์พุตโมเดล thinking, แก้รันไทม์ Deep Solve
 
-> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — กำหนดขีดจำกัดโทเคนต่อขั้นตอนใน `agents.yaml` (คำตอบ 8000 โทเคน), สร้างคำตอบล่าสุดใหม่ใน CLI / WebSocket / Web UI, แก้แครช RAG เมื่อ embedding เป็น `None`, รองรับ Gemma `json_object`, ปรับความอ่านง่ายของโค้ดบล็อกสีเข้ม
+> **[2026.4.28]** [v1.3.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.1) — เสถียรภาพ: RAG routing ปลอดภัยขึ้นและตรวจสอบ embedding, Docker persistence, อินพุตปลอดภัยกับ IME, ความทนทาน Windows/GBK
 
-> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine คอมไพเลอร์หนังสือมีชีวิตแบบหลายเอเจนต์พร้อม 14 ประเภทบล็อก, พื้นที่ทำงาน Co-Writer หลายเอกสาร, การแสดงผล HTML แบบโต้ตอบ, @-mention ธนาคารคำถามในแชต, การแยก prompt ระยะที่ 2, และปรับปรุงแถบด้านข้าง
+> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — ดัชนี KB แบบมีเวอร์ชันพร้อมเวิร์กโฟลว์ re-index, รีบิลด์ Knowledge workspace, embedding auto-discovery กับอะแดปเตอร์ใหม่, Space hub
 
-> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — แท็บ Channels แบบ schema-driven พร้อมการปกปิดความลับ (secret masking) รวม RAG เป็น pipeline เดียว ปรับปรุงความสอดคล้อง RAG/KB แยก chat prompts ออกเป็นไฟล์ภายนอก และ README ภาษาไทย
+> **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — แนบไฟล์ในแชตถาวรพร้อมลิ้นชักพรีวิว, pipeline ความสามารถที่รับรู้แนบไฟล์, ส่งออก Markdown ของ TutorBot
 
-> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — ปุ่ม "ตอบเลย" ข้ามการ reasoning ได้ทุก capability, Co-Writer ปรับขนาด split + scroll sync ตามบรรทัด, บันทึกข้อความลง Notebook แบบเลือก message, ระบบ Notebook จริงครอบคลุม Knowledge/Guide/Save, แผงตั้งค่ารวมแบบพับได้, ปุ่ม Stop รอบการ streaming, refactor TutorBot config manager แบบ atomic write, ปรับ Light/Snow theme ใหม่ และขยาย test suite
+> **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — แนบข้อความ / โค้ด / SVG, Setup Tour คำสั่งเดียว, ส่งออกแชต Markdown, UI จัดการ KB แบบกะทัดรัด
+
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — แนบเอกสาร (PDF/DOCX/XLSX/PPTX), แสดงบล็อกการคิดของโมเดลให้เหตุผล, ตัวแก้เทมเพลต Soul, บันทึก Co-Writer ลงสมุด
+
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — ระบบ Skills ที่ผู้ใช้สร้าง, ปรับประสิทธิ์อินพุตแชต, TutorBot สตาร์ทอัตโนมัติ, UI ห้องสมุดหนังสือ, โหมดเต็มจอของการแสดงผล
+
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — จำกัดโทเคนต่อขั้นตอน, สร้างคำตอบใหม่ได้ทุกจุดเข้า, แก้ความเข้ากันได้ของ RAG และ Gemma
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — คอมไพเลอร์ Book Engine «หนังสือมีชีวิต», Co-Writer หลายเอกสาร, การแสดงผล HTML แบบโต้ตอบ, @-mention ธนาคารคำถามในแชต
+
+> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — แท็บ Channels แบบ schema-driven, รวม RAG เป็น pipeline เดียว, แยก chat prompts ออกเป็นไฟล์ภายนอก
+
+> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — ปุ่ม "ตอบเลย" ครอบคลุมทุกความสามารถ, Co-Writer scroll sync, แผงตั้งค่ารวม, ปุ่ม Stop ระหว่างสตรีม
+
+
+<details>
+<summary><b>รุ่นที่ผ่านมา (มากกว่า 2 สัปดาห์ที่แล้ว)</b></summary>
 
 > **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — ปรับปรุงการ parse LaTeX block math, ตั้งค่า LLM probe ผ่าน agents.yaml, forward extra headers ใน LLM factory, แก้ UUID ของ SaveToNotebookModal, คำแนะนำ Docker + local LLM และขยาย test suite
 
@@ -58,9 +74,6 @@
 
 > **[2026.4.4]** [v1.0.0-beta.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.1) — เขียนสถาปัตยกรรมใหม่แบบ Agent-native (~200k บรรทัด) พร้อมโมเดลปลั๊กอิน 2 ชั้น (Tools + Capabilities), CLI & SDK entry points, TutorBot มัลติแชนแนล, Co-Writer, Guided Learning และ persistent memory
 
-<details>
-<summary><b>รุ่นเก่า</b></summary>
-
 > **[2026.1.23]** [v0.6.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.6.0) — Session persistence, อัปโหลดเอกสารเพิ่มทีละไฟล์, import RAG pipeline ที่ยืดหยุ่น และ localization ภาษาจีนครบ
 
 > **[2026.1.18]** [v0.5.2](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.2) — รองรับ Docling สำหรับ RAG-Anything, ปรับ logging system และแก้บั๊ก
@@ -78,6 +91,8 @@
 ### 📰 ข่าวสาร
 
 > **[2026.4.19]** 🎉 ครบ 20k ดาวหลัง 111 วัน! ขอบคุณที่สนับสนุน — เราจะพัฒนาต่อเพื่อติวเตอร์เชิงบุคคลและฉลาดอย่างแท้จริง
+
+> **[2026.4.10]** 📄 งานวิจัยของเราลง arXiv แล้ว! อ่าน [พรีปรินต์](https://arxiv.org/abs/2604.26962) เพื่อทำความเข้าใจการออกแบบและแนวคิดของ DeepTutor
 
 > **[2026.4.4]** นานมาแล้ว ✨ DeepTutor v1.0.0 มาถึงแล้ว — วิวัฒนาการแบบ agent-native ที่เขียนสถาปัตยกรรมใหม่ตั้งแต่ต้น พร้อม TutorBot และการสลับโหมดอย่างยืดหยุ่น ภายใต้สัญญาอนุญาต Apache-2.0 บทใหม่เริ่มต้นขึ้น เรื่องราวของเรายังดำเนินต่อไป!
 
