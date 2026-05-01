@@ -67,6 +67,7 @@ def _request_snapshot_metadata(
     notebook_references: list[Any],
     history_references: list[Any],
     question_notebook_references: list[Any],
+    book_references: list[Any],
     requested_skills: list[str],
     memory_references: Sequence[str],
 ) -> dict[str, Any]:
@@ -88,6 +89,8 @@ def _request_snapshot_metadata(
         snapshot["historyReferences"] = history_references
     if question_notebook_references:
         snapshot["questionNotebookReferences"] = question_notebook_references
+    if book_references:
+        snapshot["bookReferences"] = book_references
     if requested_skills:
         snapshot["skills"] = requested_skills
     if memory_references:
@@ -444,6 +447,12 @@ class TurnRuntimeManager:
 
         preferences = session.get("preferences") or {}
         overrides = overrides or {}
+        snapshot = {}
+        metadata = last_user.get("metadata") or {}
+        if isinstance(metadata, dict):
+            candidate = metadata.get("request_snapshot") or metadata.get("requestSnapshot")
+            if isinstance(candidate, dict):
+                snapshot = candidate
 
         capability = str(
             overrides.get("capability")
@@ -491,6 +500,11 @@ class TurnRuntimeManager:
                 overrides.get("history_references")
                 if overrides.get("history_references") is not None
                 else preferences.get("history_references") or []
+            ),
+            "book_references": list(
+                overrides.get("book_references")
+                if overrides.get("book_references") is not None
+                else snapshot.get("bookReferences") or []
             ),
             "config": config,
         }
@@ -583,6 +597,7 @@ class TurnRuntimeManager:
 
         try:
             from deeptutor.agents.notebook import NotebookAnalysisAgent
+            from deeptutor.book.context import build_book_context
             from deeptutor.core.context import Attachment, UnifiedContext
             from deeptutor.runtime.orchestrator import ChatOrchestrator
             from deeptutor.services.llm.config import get_llm_config
@@ -601,10 +616,13 @@ class TurnRuntimeManager:
             notebook_references = payload.get("notebook_references", []) or []
             history_references = payload.get("history_references", []) or []
             question_notebook_references = payload.get("question_notebook_references", []) or []
+            book_context_result = build_book_context(payload.get("book_references", []) or [])
+            book_references = book_context_result.references
             memory_references = _extract_memory_references(payload)
             notebook_context = ""
             history_context = ""
             question_bank_context = ""
+            book_context = book_context_result.text
 
             import base64 as _b64
             import uuid as _uuid
@@ -821,6 +839,8 @@ class TurnRuntimeManager:
             context_parts: list[str] = []
             if document_texts:
                 context_parts.append("[Attached Documents]\n" + "\n\n".join(document_texts))
+            if book_context:
+                context_parts.append(f"[Book Context]\n{book_context}")
             if notebook_context:
                 context_parts.append(f"[Notebook Context]\n{notebook_context}")
             if history_context:
@@ -850,6 +870,7 @@ class TurnRuntimeManager:
                         notebook_references=notebook_references,
                         history_references=history_references,
                         question_notebook_references=question_notebook_references,
+                        book_references=book_references,
                         requested_skills=requested_skills,
                         memory_references=memory_references,
                     ),
@@ -879,6 +900,9 @@ class TurnRuntimeManager:
                     "notebook_references": notebook_references,
                     "history_references": history_references,
                     "question_notebook_references": question_notebook_references,
+                    "book_references": book_references,
+                    "book_context": book_context,
+                    "book_context_warnings": book_context_result.warnings,
                     "memory_references": memory_references,
                     "question_bank_context": question_bank_context,
                     "memory_context": memory_context,

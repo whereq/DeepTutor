@@ -22,6 +22,8 @@ class DocumentType(Enum):
     TEXT = "text"
     MARKDOWN = "markdown"
     DOCX = "docx"
+    SPREADSHEET = "spreadsheet"
+    PRESENTATION = "presentation"
     IMAGE = "image"
     UNKNOWN = "unknown"
 
@@ -39,12 +41,14 @@ class FileTypeRouter:
     """File type router for the RAG pipeline.
 
     Classifies files before processing to route them to appropriate handlers:
-    - PDF files -> PDF parsing
+    - PDF / Office files -> parser-based text extraction
     - Text files -> Direct read (fast, simple)
     - Unsupported -> Skip with warning
     """
 
-    PARSER_EXTENSIONS = {".pdf"}
+    PDF_EXTENSIONS = {".pdf"}
+    OFFICE_EXTENSIONS = {".docx", ".xlsx", ".pptx"}
+    PARSER_EXTENSIONS = PDF_EXTENSIONS | OFFICE_EXTENSIONS
 
     TEXT_EXTENSIONS = {
         # Plain text & docs
@@ -169,7 +173,6 @@ class FileTypeRouter:
         ".dockerfile",
     }
 
-    DOCX_EXTENSIONS = {".docx", ".doc"}
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
 
     @classmethod
@@ -177,12 +180,16 @@ class FileTypeRouter:
         """Classify a single file by its type."""
         ext = Path(file_path).suffix.lower()
 
-        if ext in cls.PARSER_EXTENSIONS:
+        if ext in cls.PDF_EXTENSIONS:
             return DocumentType.PDF
         elif ext in cls.TEXT_EXTENSIONS:
             return DocumentType.TEXT
-        elif ext in cls.DOCX_EXTENSIONS:
+        elif ext == ".docx":
             return DocumentType.DOCX
+        elif ext == ".xlsx":
+            return DocumentType.SPREADSHEET
+        elif ext == ".pptx":
+            return DocumentType.PRESENTATION
         elif ext in cls.IMAGE_EXTENSIONS:
             return DocumentType.IMAGE
         else:
@@ -215,7 +222,12 @@ class FileTypeRouter:
         for path in file_paths:
             doc_type = cls.get_document_type(path)
 
-            if doc_type == DocumentType.PDF:
+            if doc_type in (
+                DocumentType.PDF,
+                DocumentType.DOCX,
+                DocumentType.SPREADSHEET,
+                DocumentType.PRESENTATION,
+            ):
                 parser_files.append(path)
             elif doc_type in (DocumentType.TEXT, DocumentType.MARKDOWN):
                 text_files.append(path)
@@ -274,7 +286,13 @@ class FileTypeRouter:
     def needs_parser(cls, file_path: str) -> bool:
         """Quick check if a single file needs parser processing."""
         doc_type = cls.get_document_type(file_path)
-        return doc_type in (DocumentType.PDF, DocumentType.DOCX, DocumentType.IMAGE)
+        return doc_type in (
+            DocumentType.PDF,
+            DocumentType.DOCX,
+            DocumentType.SPREADSHEET,
+            DocumentType.PRESENTATION,
+            DocumentType.IMAGE,
+        )
 
     @classmethod
     def is_text_readable(cls, file_path: str) -> bool:

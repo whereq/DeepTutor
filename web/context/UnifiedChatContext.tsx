@@ -11,6 +11,9 @@ import React, {
   useRef,
 } from "react";
 import {
+  LANGUAGE_EVENT,
+  LANGUAGE_STORAGE_KEY,
+  normalizeLanguage,
   readStoredLanguage,
   writeStoredActiveSessionId,
 } from "@/context/app-shell-storage";
@@ -20,6 +23,10 @@ import { getSession, type SessionMessage } from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
 import { shouldAppendEventContent } from "@/lib/stream";
+import {
+  normalizeBookReferences,
+  type BookReferencePayload,
+} from "@/lib/book-references";
 
 type SessionRuntimeStatus =
   | "idle"
@@ -52,6 +59,7 @@ export interface SendMessageOptions {
   displayUserMessage?: boolean;
   persistUserMessage?: boolean;
   requestSnapshotOverride?: MessageRequestSnapshot;
+  bookReferences?: BookReferencePayload[];
 }
 
 export interface ChatState {
@@ -96,6 +104,7 @@ export interface MessageRequestSnapshot {
   notebookReferences?: NotebookReferencePayload[];
   historyReferences?: HistoryReferencePayload;
   questionNotebookReferences?: QuestionNotebookReferencePayload;
+  bookReferences?: BookReferencePayload[];
   skills?: string[];
   memoryReferences?: MemoryReferencePayload;
 }
@@ -602,6 +611,7 @@ function hydrateRequestSnapshot(
   );
   const skills = asStringArray(stored.skills);
   const memoryReferences = asMemoryReferences(stored.memoryReferences);
+  const bookReferences = normalizeBookReferences(stored.bookReferences);
 
   if (config && Object.keys(config).length) snapshot.config = config;
   if (notebookReferences.length)
@@ -610,6 +620,7 @@ function hydrateRequestSnapshot(
   if (questionNotebookReferences.length) {
     snapshot.questionNotebookReferences = questionNotebookReferences;
   }
+  if (bookReferences.length) snapshot.bookReferences = bookReferences;
   if (skills.length) snapshot.skills = skills;
   if (memoryReferences.length) snapshot.memoryReferences = memoryReferences;
   return snapshot;
@@ -855,7 +866,10 @@ export function UnifiedChatProvider({
         knowledgeBases: Array.isArray(session.preferences?.knowledge_bases)
           ? session.preferences.knowledge_bases
           : [],
-        language: session.preferences?.language || "en",
+        // The Settings language is global UI state. Historical sessions may
+        // have stale persisted preferences, so new turns follow the current
+        // app language rather than the language saved when the session began.
+        language: readStoredLanguage(),
       });
       if (activeTurn?.turn_id || activeTurn?.id) {
         const key = session.session_id || session.id;
@@ -876,6 +890,28 @@ export function UnifiedChatProvider({
       : null;
     writeStoredActiveSessionId(current?.sessionId ?? null);
   }, [state.selectedKey, state.sessions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncLanguage = (language: string | null | undefined) => {
+      dispatch({ type: "SET_LANGUAGE", lang: normalizeLanguage(language) });
+    };
+    const onLanguage = (event: Event) => {
+      const detail = (event as CustomEvent<{ language?: string }>).detail;
+      syncLanguage(detail?.language);
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === LANGUAGE_STORAGE_KEY) syncLanguage(event.newValue);
+    };
+
+    window.addEventListener(LANGUAGE_EVENT, onLanguage);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(LANGUAGE_EVENT, onLanguage);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   // URL is now the source of truth for session loading.
   // Chat pages load sessions based on URL params; no sessionStorage restore needed.
@@ -957,7 +993,8 @@ export function UnifiedChatProvider({
         replaySnapshot?.enabledTools ?? session.enabledTools;
       const effectiveKnowledgeBases =
         replaySnapshot?.knowledgeBases ?? session.knowledgeBases;
-      const effectiveLanguage = replaySnapshot?.language ?? session.language;
+      const effectiveLanguage =
+        replaySnapshot?.language ?? readStoredLanguage();
       const researchSources = Array.isArray(config?.sources)
         ? config.sources.filter(
             (value): value is string => typeof value === "string",
@@ -970,6 +1007,8 @@ export function UnifiedChatProvider({
       const effectiveSkills = replaySnapshot?.skills ?? skills;
       const effectiveMemoryReferences =
         replaySnapshot?.memoryReferences ?? memoryReferences;
+      const effectiveBookReferences =
+        replaySnapshot?.bookReferences ?? options?.bookReferences;
       const requestSnapshot: MessageRequestSnapshot = replaySnapshot ?? {
         content,
         capability: effectiveCapability,
@@ -986,6 +1025,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(questionNotebookReferences?.length
           ? { questionNotebookReferences: [...questionNotebookReferences] }
+          : {}),
+        ...(effectiveBookReferences?.length
+          ? { bookReferences: effectiveBookReferences }
           : {}),
         ...(effectiveSkills?.length ? { skills: [...effectiveSkills] } : {}),
         ...(effectiveMemoryReferences?.length
@@ -1026,6 +1068,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(questionNotebookReferences?.length
           ? { question_notebook_references: questionNotebookReferences }
+          : {}),
+        ...(effectiveBookReferences?.length
+          ? { book_references: effectiveBookReferences }
           : {}),
         ...(effectiveSkills?.length ? { skills: effectiveSkills } : {}),
         ...(effectiveMemoryReferences?.length
@@ -1080,6 +1125,9 @@ export function UnifiedChatProvider({
     sendThroughRunner(key, {
       type: "regenerate",
       session_id: session.sessionId,
+      overrides: {
+        language: readStoredLanguage(),
+      },
     });
   }, [sendThroughRunner]);
 

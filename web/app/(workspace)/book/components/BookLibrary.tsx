@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { Book, BookStatus } from "@/lib/book-types";
 
@@ -58,19 +59,22 @@ const STATUS_STYLES: Record<
   },
 };
 
-function relativeTime(seconds: number): string {
+function relativeTime(
+  seconds: number,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
   if (!seconds || Number.isNaN(seconds)) return "";
   const diff = Date.now() / 1000 - seconds;
-  if (diff < 60) return "just now";
+  if (diff < 60) return t("just now");
   const mins = Math.floor(diff / 60);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return t("{{count}}m ago", { count: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return t("{{count}}h ago", { count: hrs });
   const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return t("{{count}}d ago", { count: days });
   const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(months / 12)}y ago`;
+  if (months < 12) return t("{{count}}mo ago", { count: months });
+  return t("{{count}}y ago", { count: Math.floor(months / 12) });
 }
 
 // Stable, deterministic palette per book id so each cover feels distinct
@@ -142,6 +146,7 @@ export default function BookLibrary({
   onSelectBook,
   onDeleteBook,
 }: BookLibraryProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
@@ -176,10 +181,10 @@ export default function BookLibrary({
           <Library size={18} className="text-[var(--muted-foreground)]" />
           <div>
             <div className="text-sm font-semibold text-[var(--foreground)]">
-              Books
+              {t("Books")}
             </div>
             <div className="text-xs text-[var(--muted-foreground)]">
-              Generate, browse and study your AI-authored books.
+              {t("Generate, browse and study your AI-authored books.")}
             </div>
           </div>
         </div>
@@ -192,7 +197,7 @@ export default function BookLibrary({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search books"
+              placeholder={t("Search books")}
               className="h-8 w-56 rounded-md border border-[var(--border)] bg-[var(--secondary)]/30 pl-7 pr-2.5 text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/60 focus:border-[var(--primary)]/40 focus:outline-none"
             />
           </div>
@@ -202,7 +207,7 @@ export default function BookLibrary({
             className="inline-flex items-center gap-1.5 rounded-md bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90"
           >
             <Plus size={13} />
-            New book
+            {t("New book")}
           </button>
         </div>
       </header>
@@ -212,24 +217,24 @@ export default function BookLibrary({
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
             icon={<BookOpen size={14} />}
-            label="Total books"
+            label={t("Total books")}
             value={stats.total}
           />
           <StatCard
             icon={<Sparkles size={14} />}
-            label="Ready"
+            label={t("Ready")}
             value={stats.ready}
             accent="text-emerald-600 dark:text-emerald-400"
           />
           <StatCard
             icon={<Loader2 size={14} />}
-            label="In progress"
+            label={t("In progress")}
             value={stats.inProgress}
             accent="text-violet-600 dark:text-violet-400"
           />
           <StatCard
             icon={<Layers size={14} />}
-            label="Chapters"
+            label={t("Chapters")}
             value={stats.chapters}
           />
         </div>
@@ -238,11 +243,14 @@ export default function BookLibrary({
         <div className="mb-3 flex items-end justify-between">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-              My library
+              {t("My library")}
             </div>
             <div className="text-xs text-[var(--muted-foreground)]/80">
-              {filtered.length} of {books.length} books
-              {query ? ` · matching “${query}”` : ""}
+              {t("{{shown}} of {{total}} books", {
+                shown: filtered.length,
+                total: books.length,
+              })}
+              {query ? ` · ${t("matching “{{query}}”", { query })}` : ""}
             </div>
           </div>
         </div>
@@ -250,13 +258,13 @@ export default function BookLibrary({
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-20 text-sm text-[var(--muted-foreground)]">
             <Loader2 size={16} className="animate-spin" />
-            Loading books…
+            {t("Loading books…")}
           </div>
         ) : books.length === 0 ? (
           <EmptyState onNewBook={onNewBook} />
         ) : filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--secondary)]/30 px-6 py-12 text-center text-sm text-[var(--muted-foreground)]">
-            No books match “{query}”.
+            {t("No books match “{{query}}”.", { query })}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -346,7 +354,7 @@ export default function BookLibrary({
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${status.dot}`}
                       />
-                      {status.label}
+                      {t(status.label)}
                     </span>
                     <button
                       type="button"
@@ -361,8 +369,8 @@ export default function BookLibrary({
                       }}
                       title={
                         isPendingDelete
-                          ? "Click again to confirm"
-                          : "Delete book"
+                          ? t("Click again to confirm")
+                          : t("Delete book")
                       }
                       className={`absolute right-2 top-2 rounded-md p-1.5 transition-colors ${
                         isPendingDelete
@@ -378,28 +386,34 @@ export default function BookLibrary({
                   <div className="flex flex-1 flex-col gap-2 p-4">
                     <div
                       className="line-clamp-2 text-sm font-semibold text-[var(--foreground)]"
-                      title={book.title || "Untitled book"}
+                      title={book.title || t("Untitled book")}
                     >
-                      {book.title || "Untitled book"}
+                      {book.title || t("Untitled book")}
                     </div>
                     <p className="line-clamp-3 flex-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
                       {book.description ||
-                        "No description yet. Open the book to view its outline."}
+                        t(
+                          "No description yet. Open the book to view its outline.",
+                        )}
                     </p>
                     <div className="mt-auto flex items-center justify-between text-[10px] text-[var(--muted-foreground)]/80">
                       <div className="flex items-center gap-3">
                         <span className="inline-flex items-center gap-1">
                           <Layers size={11} />
-                          {book.chapter_count || 0} ch
+                          {t("{{count}} ch", {
+                            count: book.chapter_count || 0,
+                          })}
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <FileText size={11} />
-                          {book.page_count || 0} pages
+                          {t("{{count}} pages", {
+                            count: book.page_count || 0,
+                          })}
                         </span>
                       </div>
                       <span className="inline-flex items-center gap-1">
                         <Clock3 size={11} />
-                        {relativeTime(book.updated_at) || "—"}
+                        {relativeTime(book.updated_at, t) || "—"}
                       </span>
                     </div>
                   </div>
@@ -442,16 +456,18 @@ function StatCard({
 }
 
 function EmptyState({ onNewBook }: { onNewBook: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--secondary)]/30 px-8 py-16 text-center">
       <BookOpen size={28} className="text-[var(--muted-foreground)]/50" />
       <div>
         <p className="text-base font-medium text-[var(--foreground)]">
-          No books yet
+          {t("No books yet")}
         </p>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          Create your first AI-generated book from a knowledge base, chat
-          selections or simply a topic.
+          {t(
+            "Create your first AI-generated book from a knowledge base, chat selections or simply a topic.",
+          )}
         </p>
       </div>
       <button
@@ -460,7 +476,7 @@ function EmptyState({ onNewBook }: { onNewBook: () => void }) {
         className="inline-flex items-center gap-1.5 rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90"
       >
         <Plus size={14} />
-        New book
+        {t("New book")}
       </button>
     </div>
   );

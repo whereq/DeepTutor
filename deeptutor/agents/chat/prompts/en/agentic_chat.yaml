@@ -12,6 +12,7 @@ labels:
   final_response: "Final response"
   tool_call: "Tool call"
   retrieve: "Retrieve"
+  answer_now: "Answer now"
 
 # ---------------------------------------------------------------------------
 # Thinking stage

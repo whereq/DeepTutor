@@ -421,7 +421,12 @@ def resolve_llm_runtime_config(
         "api_version", ""
     )
     active_extra_headers = _to_headers((profile or {}).get("extra_headers"))
-    reasoning_effort = _as_str((model or {}).get("reasoning_effort")) or None
+    reasoning_effort = (
+        _as_str(env_values.get("LLM_REASONING_EFFORT"))
+        or _as_str(summary.llm.get("reasoning_effort"))
+        or _as_str((model or {}).get("reasoning_effort"))
+        or None
+    )
     context_window = _coerce_optional_int((model or {}).get("context_window"))
     if context_window is None:
         context_window = _coerce_optional_int((model or {}).get("context_window_tokens"))

@@ -27,6 +27,7 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
 ) -> None:
     store = SQLiteSessionStore(tmp_path / "chat_history.db")
     runtime = TurnRuntimeManager(store)
+    captured: dict[str, object] = {}
 
     class FakeContextBuilder:
         def __init__(self, *_args, **_kwargs) -> None:
@@ -52,7 +53,9 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             )
 
     class FakeOrchestrator:
-        async def handle(self, _context):
+        async def handle(self, context):
+            captured["user_message"] = context.user_message
+            captured["metadata"] = context.metadata
             yield StreamEvent(
                 type=StreamEventType.CONTENT,
                 source="chat",
@@ -67,6 +70,14 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
         "deeptutor.services.session.context_builder.ContextBuilder", FakeContextBuilder
     )
     monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(
+        "deeptutor.book.context.build_book_context",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            text="## Page: Signal Basics\nA selected page.",
+            references=[{"book_id": "book-1", "page_ids": ["page-1"]}],
+            warnings=[],
+        ),
+    )
     monkeypatch.setattr(
         "deeptutor.services.memory.get_memory_service",
         lambda: SimpleNamespace(
@@ -91,6 +102,7 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             "language": "en",
             "skills": ["proof-checker"],
             "memory_references": ["summary"],
+            "book_references": [{"book_id": "book-1", "page_ids": ["page-1"]}],
             "config": {},
         }
     )
@@ -107,6 +119,14 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     assert [message["role"] for message in detail["messages"]] == ["user", "assistant"]
     assert detail["messages"][0]["metadata"]["request_snapshot"]["skills"] == ["proof-checker"]
     assert detail["messages"][0]["metadata"]["request_snapshot"]["memoryReferences"] == ["summary"]
+    assert detail["messages"][0]["metadata"]["request_snapshot"]["bookReferences"] == [
+        {"book_id": "book-1", "page_ids": ["page-1"]}
+    ]
+    assert "[Book Context]" in str(captured["user_message"])
+    assert "A selected page." in str(captured["user_message"])
+    assert captured["metadata"] and captured["metadata"]["book_references"] == [
+        {"book_id": "book-1", "page_ids": ["page-1"]}
+    ]
     assert detail["messages"][1]["content"] == "Hello Frank"
     assert detail["preferences"] == {
         "capability": "chat",

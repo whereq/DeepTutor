@@ -7,11 +7,12 @@
 # 各阶段标签（用于 trace metadata，前端展示）
 # ---------------------------------------------------------------------------
 labels:
-  reasoning: "Reasoning"
-  observation: "Observation"
-  final_response: "Final response"
-  tool_call: "Tool call"
-  retrieve: "Retrieve"
+  reasoning: "推理中"
+  observation: "整理观察"
+  final_response: "生成回答"
+  tool_call: "调用工具"
+  retrieve: "检索"
+  answer_now: "直接回答"
 
 # ---------------------------------------------------------------------------
 # Thinking 阶段

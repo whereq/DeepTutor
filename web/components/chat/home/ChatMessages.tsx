@@ -30,6 +30,7 @@ import { extractQuizQuestions } from "@/lib/quiz-types";
 import { extractVisualizeResult } from "@/lib/visualize-types";
 import type { StreamEvent } from "@/lib/unified-ws";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
+import type { SelectedBookReference } from "@/lib/book-references";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import { CallTracePanel } from "./TracePanels";
 
@@ -386,6 +387,7 @@ const UserMessage = memo(function UserMessage({
           {(() => {
             const snap = msg.requestSnapshot;
             const hasNotebook = Boolean(snap?.notebookReferences?.length);
+            const hasBooks = Boolean(snap?.bookReferences?.length);
             const hasHistory = Boolean(snap?.historyReferences?.length);
             const hasQuestions = Boolean(
               snap?.questionNotebookReferences?.length,
@@ -394,6 +396,7 @@ const UserMessage = memo(function UserMessage({
             const hasMemory = Boolean(snap?.memoryReferences?.length);
             if (
               !hasNotebook &&
+              !hasBooks &&
               !hasHistory &&
               !hasQuestions &&
               !hasSkills &&
@@ -409,6 +412,15 @@ const UserMessage = memo(function UserMessage({
                   >
                     <BookOpen size={11} strokeWidth={1.8} />
                     {t("Notebook")} · {ref.record_ids.length} {t("records")}
+                  </span>
+                ))}
+                {snap?.bookReferences?.map((ref) => (
+                  <span
+                    key={ref.book_id}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                  >
+                    <BookOpen size={11} strokeWidth={1.8} />
+                    {t("Book")} · {ref.page_ids.length} {t("chapters")}
                   </span>
                 ))}
                 {snap?.historyReferences?.map((sid) => (
@@ -460,12 +472,14 @@ UserMessage.displayName = "UserMessage";
 
 export const SpaceContextChips = memo(function SpaceContextChips({
   historySessions,
+  bookReferences,
   notebookGroups,
   questionEntries,
   selectedSkills,
   skillsAutoMode,
   memoryFiles,
   onRemoveHistory,
+  onRemoveBookReference,
   onRemoveNotebook,
   onRemoveQuestion,
   onRemoveSkill,
@@ -473,12 +487,14 @@ export const SpaceContextChips = memo(function SpaceContextChips({
   onRemoveMemoryFile,
 }: {
   historySessions: SelectedHistorySession[];
+  bookReferences: SelectedBookReference[];
   notebookGroups: NotebookReferenceGroup[];
   questionEntries: SelectedQuestionEntry[];
   selectedSkills: string[];
   skillsAutoMode: boolean;
   memoryFiles: SpaceMemoryFile[];
   onRemoveHistory: (sessionId: string) => void;
+  onRemoveBookReference: (bookId: string) => void;
   onRemoveNotebook: (notebookId: string) => void;
   onRemoveQuestion: (entryId: number) => void;
   onRemoveSkill: (skill: string) => void;
@@ -488,6 +504,7 @@ export const SpaceContextChips = memo(function SpaceContextChips({
   const { t } = useTranslation();
   if (
     historySessions.length === 0 &&
+    bookReferences.length === 0 &&
     notebookGroups.length === 0 &&
     questionEntries.length === 0 &&
     selectedSkills.length === 0 &&
@@ -510,6 +527,24 @@ export const SpaceContextChips = memo(function SpaceContextChips({
           </span>
           <button
             onClick={() => onRemoveHistory(session.sessionId)}
+            className="shrink-0 opacity-60 transition hover:opacity-100"
+          >
+            <X size={12} />
+          </button>
+        </span>
+      ))}
+      {bookReferences.map((book) => (
+        <span
+          key={book.bookId}
+          className="inline-flex max-w-full items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-[12px] text-teal-800 shadow-sm dark:border-teal-900/60 dark:bg-teal-950/30 dark:text-teal-200"
+        >
+          <BookOpen size={12} strokeWidth={1.8} className="shrink-0" />
+          <span className="shrink-0 font-medium">{t("Book")}</span>
+          <span className="truncate text-teal-700/90 dark:text-teal-200/90">
+            {book.bookTitle} ({book.pages.length})
+          </span>
+          <button
+            onClick={() => onRemoveBookReference(book.bookId)}
             className="shrink-0 opacity-60 transition hover:opacity-100"
           >
             <X size={12} />

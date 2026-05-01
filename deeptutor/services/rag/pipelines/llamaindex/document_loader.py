@@ -9,6 +9,8 @@ from typing import Iterable
 from llama_index.core import Document
 
 from deeptutor.services.rag.file_routing import FileTypeRouter
+from deeptutor.utils.document_extractor import DocumentExtractionError, extract_text_from_path
+from deeptutor.utils.document_validator import DocumentValidator
 
 
 class LlamaIndexDocumentLoader:
@@ -23,8 +25,8 @@ class LlamaIndexDocumentLoader:
 
         for file_path_str in classification.parser_files:
             file_path = Path(file_path_str)
-            self.logger.info(f"Parsing PDF: {file_path.name}")
-            text = self._extract_pdf_text(file_path)
+            self.logger.info(f"Parsing document: {file_path.name}")
+            text = self._extract_parser_text(file_path)
             self._append_if_nonempty(documents, file_path, text)
 
         for file_path_str in classification.text_files:
@@ -37,6 +39,18 @@ class LlamaIndexDocumentLoader:
             self.logger.warning(f"Skipped unsupported file: {Path(file_path_str).name}")
 
         return documents
+
+    def _extract_parser_text(self, file_path: Path) -> str:
+        max_bytes = (
+            DocumentValidator.MAX_PDF_SIZE
+            if file_path.suffix.lower() == ".pdf"
+            else DocumentValidator.MAX_FILE_SIZE
+        )
+        try:
+            return extract_text_from_path(file_path, max_bytes=max_bytes, max_chars=None)
+        except (DocumentExtractionError, OSError) as exc:
+            self.logger.error(f"Failed to extract {file_path.name}: {exc}")
+            return ""
 
     def _append_if_nonempty(self, documents: list[Document], file_path: Path, text: str) -> None:
         if text.strip():
@@ -52,18 +66,3 @@ class LlamaIndexDocumentLoader:
             self.logger.info(f"Loaded: {file_path.name} ({len(text)} chars)")
         else:
             self.logger.warning(f"Skipped empty document: {file_path.name}")
-
-    def _extract_pdf_text(self, file_path: Path) -> str:
-        try:
-            import fitz  # PyMuPDF
-
-            doc = fitz.open(file_path)
-            texts = [page.get_text() for page in doc]
-            doc.close()
-            return "\n\n".join(texts)
-        except ImportError:
-            self.logger.warning("PyMuPDF not installed. Cannot extract PDF text.")
-            return ""
-        except Exception as exc:
-            self.logger.error(f"Failed to extract PDF text: {exc}")
-            return ""

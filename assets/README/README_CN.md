@@ -10,7 +10,7 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](../../LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/HKUDS/DeepTutor?style=flat-square&color=brightgreen)](https://github.com/HKUDS/DeepTutor/releases)
-[![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](#)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.26962-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.26962)
 
 [![Discord](https://img.shields.io/badge/Discord-Community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
 [![Feishu](https://img.shields.io/badge/Feishu-Group-00D4AA?style=flat-square&logo=feishu&logoColor=white)](../../Communication.md)
@@ -18,7 +18,7 @@
 
 [核心亮点](#key-features) · [快速开始](#get-started) · [探索 DeepTutor](#explore-deeptutor) · [TutorBot](#tutorbot) · [CLI](#deeptutor-cli-guide) · [路线图](#roadmap) · [社区](#community)
 
-[🇬🇧 English](../../README.md) · [🇯🇵 日本語](README_JA.md) · [🇪🇸 Español](README_ES.md) · [🇫🇷 Français](README_FR.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md)
+[🇬🇧 English](../../README.md) · [🇯🇵 日本語](README_JA.md) · [🇪🇸 Español](README_ES.md) · [🇫🇷 Français](README_FR.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md) · 🇵🇱 [Polski](README_PL.md)
 
 </div>
 
@@ -28,21 +28,36 @@
 
 ### 📦 版本发布
 
-> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — 聊天内文档附件（PDF/DOCX/XLSX/PPTX）、推理模型思维链块展示、嵌入 `send_dimensions` 三态开关、LLM 提供商核心重构、Soul 模板编辑器、Co-Writer 保存到笔记本、知识库拖放上传与删除韧性、出题语言保真度。
+> **[2026.4.30]** [v1.3.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.3) — NVIDIA NIM 与 Gemini 嵌入支持，统一 Space 上下文（聊天历史 / 技能 / 记忆），会话快照，RAG 重索引韧性。
 
-> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — 用户自编写 Skills 体系（增删改查 + 聊天集成）、聊天输入性能重构与状态共置、不兼容提供商的 `response_format` 自动回退、局域网远程访问修复、侧栏版本徽章、Deep Solve 图片附件、TutorBot WebSocket 自启动、图书库 UI、可视化全屏模式。
+> **[2026.4.29]** [v1.3.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.2) — 嵌入端点 URL 透明可读，无效持久化向量时 RAG 重索引韧性，思考模型输出记忆清理，Deep Solve 运行时修复。
 
-> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` 按阶段配置 chat token 上限（8000-token 回复）；CLI / WebSocket / Web UI 重新生成上一条回复；RAG `None` 嵌入崩溃修复；Gemma `json_object` 兼容；暗色代码块可读性修复。
+> **[2026.4.28]** [v1.3.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.1) — 稳定性：更安全的 RAG 路由与嵌入校验，Docker 持久化，输入法安全输入，Windows/GBK 健壮性。
 
-> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine 多智能体「活书」编译器（14 种块类型）；多文档 Co-Writer 工作区；交互式 HTML 可视化；题库 @-引用进聊天；提示词外置第二阶段；侧栏重构。
+> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — 版本化知识库索引与重索引工作流，知识工作区重构，嵌入自动发现与新适配器，Space 中心枢纽。
 
-> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — 基于 Schema 的「频道」标签页与密钥脱敏；RAG 收敛为单一流水线；RAG/知识库一致性加固；聊天提示词外置；以及泰语 README。
+> **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — 聊天附件持久化与文件预览抽屉，感知附件的能力流水线，TutorBot Markdown 导出。
 
-> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — 全能力通用「立即回答」；Co-Writer 滚动同步；保存到笔记本时的消息选择；统一设置面板；流式「停止」按钮；TutorBot 配置原子写入。
+> **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — 文本 / 代码 / SVG 附件，一键设置导览，Markdown 聊天导出，紧凑知识库管理界面。
 
-> **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX 块级公式解析重构；通过 `agents.yaml` 的 LLM 诊断探测；额外请求头转发修复；SaveToNotebook UUID 修复；Docker 与本地 LLM 使用说明。
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — 文档附件（PDF/DOCX/XLSX/PPTX），推理思维块展示，Soul 模板编辑器，Co-Writer 保存至笔记本。
 
-> **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — 基于 URL 的可收藏会话；Snow 主题；WebSocket 心跳与自动重连；ChatComposer 性能修复；嵌入提供商注册表重构；Serper 搜索提供商。
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — 用户自编写 Skills 体系、聊天输入性能重构、TutorBot 自动启动、图书库 UI、可视化全屏。
+
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — 按阶段 token 上限，各入口重新生成回复，RAG 与 Gemma 兼容性修复。
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine「活书」编译器，多文档 Co-Writer，交互式 HTML 可视化，题库 @-引用。
+
+> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — 基于 Schema 的 Channels 标签页，RAG 单一流水线收敛，聊天提示词外置。
+
+> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — 全能力「立即回答」，Co-Writer 滚动同步，统一设置面板，流式停止按钮。
+
+<details>
+<summary><b>更早版本（两周以前）</b></summary>
+
+> **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX 块级公式解析重构；通过 `agents.yaml` 的 LLM 诊断探测；Docker 与本地 LLM 使用说明。
+
+> **[2026.4.14]** [v1.1.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0-beta) — 基于 URL 的可收藏会话；Snow 主题；WebSocket 心跳与自动重连；嵌入提供商注册表重构。
 
 > **[2026.4.13]** [v1.0.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.3) — 带书签与分类的测验笔记本；Visualize 支持 Mermaid；嵌入模型不一致检测；Qwen/vLLM 兼容；LM Studio 与 llama.cpp 支持；Glass 主题。
 
@@ -57,9 +72,6 @@
 > **[2026.4.7]** [v1.0.0-beta.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.2) — 热重载设置；MinerU 嵌套输出；WebSocket 修复；最低 Python 3.11+。
 
 > **[2026.4.4]** [v1.0.0-beta.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.1) — 智能体原生架构重写（约 20 万行）：Tools + Capabilities 插件模型、CLI 与 SDK、TutorBot、Co-Writer、引导式学习与持久记忆。
-
-<details>
-<summary><b>历史版本</b></summary>
 
 > **[2026.1.23]** [v0.6.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.6.0) — 会话持久化、增量文档上传、灵活 RAG 流水线导入与完整中文本地化。
 
@@ -78,6 +90,8 @@
 ### 📰 动态
 
 > **[2026.4.19]** 🎉 发布 111 天后突破 20k star！感谢大家的支持 —— 我们会持续迭代，朝着真正个性化、智能的辅导不断前进。
+
+> **[2026.4.10]** 📄 论文已上线 arXiv！欢迎阅读[预印本](https://arxiv.org/abs/2604.26962)，了解 DeepTutor 的设计与思路。
 
 > **[2026.4.4]** 好久不见！✨ DeepTutor v1.0.0 终于到来 —— 在 Apache-2.0 许可下的智能体原生演进：自底向上架构重写、TutorBot、灵活模式切换。新篇章开启，故事继续！
 

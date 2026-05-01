@@ -531,6 +531,8 @@ class OpenAICompatProvider(LLMProvider):
                     finish_reason = ch.finish_reason
             if not content and m.content:
                 content = m.content
+            if not content and getattr(m, "reasoning_content", None):
+                content = m.reasoning_content
             if not content and getattr(m, "reasoning", None):
                 content = m.reasoning
 

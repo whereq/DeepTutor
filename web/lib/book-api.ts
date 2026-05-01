@@ -166,6 +166,18 @@ export const bookApi = {
       body: JSON.stringify({ book_id, page_id, topic }),
     }),
 
+  setPageChatSession: (book_id: string, page_id: string, session_id: string) =>
+    request<{ book: Book }>("/books/page-chat-session", {
+      method: "POST",
+      body: JSON.stringify({ book_id, page_id, session_id }),
+    }),
+
+  rebuild: (book_id: string, auto_compile = true) =>
+    request<{ pages: Page[] }>("/books/rebuild", {
+      method: "POST",
+      body: JSON.stringify({ book_id, auto_compile }),
+    }),
+
   health: (book_id: string) =>
     request<{
       kb_drift: {
@@ -196,6 +208,22 @@ export const bookApi = {
       method: "POST",
     }),
 };
+
+export interface LegacyChatSession {
+  session_id: string;
+  messages?: Array<{ role: string; content: string }>;
+}
+
+export async function getLegacyChatSession(
+  session_id: string,
+): Promise<LegacyChatSession | null> {
+  const res = await fetch(
+    apiUrl(`/api/v1/chat/sessions/${encodeURIComponent(session_id)}`),
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`chat session ${session_id} → ${res.status}`);
+  return (await res.json()) as LegacyChatSession;
+}
 
 // ── WebSocket helper ─────────────────────────────────────────────────
 

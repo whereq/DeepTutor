@@ -10,7 +10,7 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](../../LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/HKUDS/DeepTutor?style=flat-square&color=brightgreen)](https://github.com/HKUDS/DeepTutor/releases)
-[![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](#)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.26962-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.26962)
 
 [![Discord](https://img.shields.io/badge/Discord-Community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
 [![Feishu](https://img.shields.io/badge/Feishu-Group-00D4AA?style=flat-square&logo=feishu&logoColor=white)](../../Communication.md)
@@ -18,7 +18,7 @@
 
 [Fonctionnalités](#key-features) · [Démarrage](#get-started) · [Explorer](#explore-deeptutor) · [TutorBot](#tutorbot) · [CLI](#deeptutor-cli-guide) · [Feuille de route](#roadmap) · [Communauté](#community)
 
-[🇬🇧 English](../../README.md) · [🇨🇳 中文](README_CN.md) · [🇯🇵 日本語](README_JA.md) · [🇪🇸 Español](README_ES.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md)
+[🇬🇧 English](../../README.md) · [🇨🇳 中文](README_CN.md) · [🇯🇵 日本語](README_JA.md) · [🇪🇸 Español](README_ES.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md) · 🇵🇱 [Polski](README_PL.md)
 
 </div>
 
@@ -28,17 +28,33 @@
 
 ### 📦 Versions
 
-> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — Pièces jointes de documents dans le chat (PDF/DOCX/XLSX/PPTX), affichage du bloc de raisonnement du modèle, bascule trité sur `send_dimensions` pour l’embedding, refonte du cœur des fournisseurs LLM, éditeur de modèles Soul, enregistrement Co-Writer vers le carnet, glisser-déposer et suppression résiliente dans la base de connaissances, fidélité linguistique à la génération de questions.
+> **[2026.4.30]** [v1.3.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.3) — Prise en charge des embeddings NVIDIA NIM et Gemini, contexte Space unifié pour l'historique du chat / les skills / la mémoire, instantanés de session, résilience de la réindexation RAG.
 
-> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — Skills rédigés par l’utilisateur (CRUD + intégration chat), refonte des perfs de saisie avec colocation d’état, repli auto de `response_format` pour fournisseurs incompatibles, correctif d’accès distant LAN, badge de version dans la barre latérale, pièces jointes image dans Deep Solve, démarrage auto WebSocket TutorBot, UI de la bibliothèque de livres, mode plein écran des visualisations.
+> **[2026.4.29]** [v1.3.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.2) — URLs d'endpoint d'embedding transparentes, résilience de réindexation RAG pour vecteurs persistés invalides, nettoyage mémoire pour la sortie des modèles de raisonnement, correctif d'exécution Deep Solve.
 
-> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — Limites de tokens par étape dans `agents.yaml` (réponses 8000 tokens), régénérer la dernière réponse (CLI / WebSocket / Web UI), correctif crash RAG sur embeddings `None`, compatibilité Gemma `json_object`, lisibilité des blocs de code sombres.
+> **[2026.4.28]** [v1.3.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.1) — Stabilité : routage RAG plus sûr et validation des embeddings, persistance Docker, saisie compatible IME, robustesse Windows/GBK.
 
-> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine : compilateur multi-agents de « livres vivants » avec 14 types de blocs, espace Co-Writer multi-documents, visualisations HTML interactives, mentions @ de la banque de questions dans le chat, phase 2 d’externalisation des prompts, refonte de la barre latérale.
+> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — Index KB versionnés avec flux de réindexation, espace Connaissances reconstruit, auto-découverte des embeddings avec nouveaux adaptateurs, hub Space.
 
-> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Onglet Channels piloté par schéma et masquage des secrets ; RAG fusionné en un seul pipeline ; renforcement de la cohérence RAG/KB ; prompts de chat externalisés ; README en thaï.
+> **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — Pièces jointes de chat persistantes avec tiroir d'aperçu, pipelines de capacité sensibles aux pièces jointes, export Markdown TutorBot.
 
-> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — « Répondre maintenant » universel sur toutes les capacités ; synchronisation du défilement Co-Writer ; sélection des messages pour l’enregistrement dans le carnet ; panneau de paramètres unifié ; bouton Stop en streaming ; écriture atomique de la configuration TutorBot.
+> **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — Pièces jointes texte / code / SVG, visite guidée de configuration en une commande, export du chat Markdown, UI compacte de gestion des KB.
+
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — Pièces jointes de documents (PDF/DOCX/XLSX/PPTX), affichage du bloc de raisonnement, éditeur de modèles Soul, enregistrement Co-Writer vers le carnet.
+
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — Système de Skills rédigés par l'utilisateur, refonte des perfs de saisie du chat, démarrage auto TutorBot, UI de la bibliothèque de livres, visualisations plein écran.
+
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — Limites de tokens par étape, régénérer la réponse sur tous les points d'entrée, correctifs de compatibilité RAG et Gemma.
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Compilateur Book Engine de « livres vivants », Co-Writer multi-documents, visualisations HTML interactives, mentions @ de la banque de questions dans le chat.
+
+> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — Onglet Channels piloté par schéma, consolidation RAG en pipeline unique, prompts de chat externalisés.
+
+> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — « Répondre maintenant » universel, synchronisation du défilement Co-Writer, panneau de paramètres unifié, bouton Stop en streaming.
+
+
+<details>
+<summary><b>Versions antérieures (il y a plus de 2 semaines)</b></summary>
 
 > **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — Refonte du parsing LaTeX en blocs ; sonde de diagnostic LLM via `agents.yaml` ; correctif de transfert d’en-têtes supplémentaires ; correctif UUID SaveToNotebook ; guide Docker + LLM local.
 
@@ -58,9 +74,6 @@
 
 > **[2026.4.4]** [v1.0.0-beta.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.1) — Réécriture native agents (~200k lignes) : modèle de plugins Tools + Capabilities, CLI et SDK, TutorBot, Co-Writer, apprentissage guidé et mémoire persistante.
 
-<details>
-<summary><b>Versions précédentes</b></summary>
-
 > **[2026.1.23]** [v0.6.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.6.0) — Persistance de session, import incrémental, RAG flexible, localisation chinoise complète.
 
 > **[2026.1.18]** [v0.5.2](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.2) — Docling, journaux, correctifs.
@@ -78,6 +91,8 @@
 ### 📰 Actualités
 
 > **[2026.4.19]** 🎉 20k étoiles en 111 jours ! Merci pour votre soutien — nous poursuivons l’itération vers un tutorat vraiment personnalisé et intelligent.
+
+> **[2026.4.10]** 📄 Notre article est en ligne sur arXiv ! Lisez le [preprint](https://arxiv.org/abs/2604.26962) pour découvrir la conception et les idées derrière DeepTutor.
 
 > **[2026.4.4]** Ça faisait longtemps ! ✨ DeepTutor v1.0.0 est enfin là — évolution native agents : refonte complète de l’architecture, TutorBot et modes flexibles sous Apache-2.0. Un nouveau chapitre commence !
 

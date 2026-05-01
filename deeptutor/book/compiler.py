@@ -242,6 +242,7 @@ class BookCompiler:
                 "block_type": block.type.value,
                 "status": block.status.value,
                 "error": block.error,
+                "failure": block.metadata.get("failure") if block.metadata else None,
                 "payload_keys": list(block.payload.keys()),
             },
             stage=STAGE_BLOCK,
