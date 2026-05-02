@@ -201,11 +201,19 @@ function defaultCatalog(): Catalog {
   };
 }
 
+const fieldControlClass =
+  "w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)]";
+
 const inputClass =
-  "w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40";
+  `${fieldControlClass} bg-transparent placeholder:text-[var(--muted-foreground)]/40`;
+
+const nativeSelectClass =
+  `${fieldControlClass} bg-[var(--background)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`;
 
 const selectClass =
-  "w-full appearance-none rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] cursor-pointer";
+  `${nativeSelectClass} appearance-none`;
+
+const selectOptionClass = "bg-[var(--background)] text-[var(--foreground)]";
 
 function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
   if (!value) return "";
@@ -309,11 +317,11 @@ function SpotlightOverlay({
 
   useEffect(() => {
     if (!guideStep) return;
-    const el = document.querySelector(`[data-tour="${guideStep.target}"]`);
-    if (el) {
-      const r = el.getBoundingClientRect();
-      setRect(r);
-    }
+    const frame = window.requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-tour="${guideStep.target}"]`);
+      setRect(el ? el.getBoundingClientRect() : null);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [guideStep]);
 
   if (!guideStep || !rect) return null;
@@ -489,20 +497,26 @@ function DimensionField({
     <div className="space-y-1.5">
       {useDropdown && !customMode ? (
         <select
-          className={inputClass}
+          className={nativeSelectClass}
           value={dropdownValue}
           onChange={(e) => handleSelect(e.target.value)}
           disabled={disabled}
         >
-          <option value={AUTO_DIM_SENTINEL}>
+          <option className={selectOptionClass} value={AUTO_DIM_SENTINEL}>
             {t("Auto (probe on next test)")}
           </option>
           {supported.map((dim) => (
-            <option key={dim} value={String(dim)}>
+            <option
+              className={selectOptionClass}
+              key={dim}
+              value={String(dim)}
+            >
               {dim}
             </option>
           ))}
-          <option value={CUSTOM_DIM_SENTINEL}>{t("Custom…")}</option>
+          <option className={selectOptionClass} value={CUSTOM_DIM_SENTINEL}>
+            {t("Custom…")}
+          </option>
         </select>
       ) : (
         <input
@@ -1125,7 +1139,9 @@ function SettingsPageContent() {
                   false,
                 )}`}
               />
-              <span className={`${labelClass("md")} text-[var(--muted-foreground)]`}>
+              <span
+                className={`${labelClass("md")} text-[var(--muted-foreground)]`}
+              >
                 {t("Backend")}
               </span>
             </div>
@@ -1405,9 +1421,15 @@ function SettingsPageContent() {
                             }
                           }}
                         >
-                          <option value="">{t("Select provider...")}</option>
+                          <option className={selectOptionClass} value="">
+                            {t("Select provider...")}
+                          </option>
                           {(providers[activeService] || []).map((p) => (
-                            <option key={p.value} value={p.value}>
+                            <option
+                              className={selectOptionClass}
+                              key={p.value}
+                              value={p.value}
+                            >
                               {p.label}
                             </option>
                           ))}

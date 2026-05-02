@@ -64,6 +64,10 @@ async def rag_search(
                 "provider": str
             }
     """
+    query = str(query or "").strip()
+    if not query:
+        raise ValueError("RAG query must be a non-empty string.")
+
     service = RAGService(kb_base_dir=kb_base_dir, provider=provider)
     resolved_kb_name = _resolve_kb_name(kb_name, kb_base_dir=kb_base_dir)
     if not resolved_kb_name:

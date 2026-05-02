@@ -659,9 +659,6 @@ def resolve_embedding_runtime_config(
     api_version = active_api_version or ((mapped.api_version or "") if mapped else "")
     extra_headers = active_extra_headers or ((mapped.extra_headers or {}) if mapped else {})
 
-    if spec.is_local and not api_key:
-        api_key = "sk-no-key-required"
-
     return ResolvedEmbeddingConfig(
         model=resolved_model,
         provider_name=provider_name,

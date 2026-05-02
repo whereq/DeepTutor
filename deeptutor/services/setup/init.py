@@ -217,13 +217,22 @@ def _write_yaml_if_missing(file_path: Path, payload: dict) -> None:
 
 def get_backend_port(project_root: Path | None = None) -> int:
     """
-    Get backend port from environment variable.
+    Get backend port from runtime settings, falling back to environment.
 
-    Configure in .env file: BACKEND_PORT=8001
+    Preferred source: data/user/settings/env.json -> ports.backend
+    Fallback source: .env -> BACKEND_PORT
 
     Returns:
         Backend port number (default: 8001)
     """
+    try:
+        from deeptutor.services.config.launch_settings import load_launch_settings
+
+        return load_launch_settings(project_root).backend_port
+    except Exception:
+        # Preserve the historical .env fallback if runtime settings cannot load.
+        pass
+
     env_port = get_env_store().get("BACKEND_PORT", "8001")
     try:
         return int(env_port)
@@ -235,13 +244,22 @@ def get_backend_port(project_root: Path | None = None) -> int:
 
 def get_frontend_port(project_root: Path | None = None) -> int:
     """
-    Get frontend port from environment variable.
+    Get frontend port from runtime settings, falling back to environment.
 
-    Configure in .env file: FRONTEND_PORT=3782
+    Preferred source: data/user/settings/env.json -> ports.frontend
+    Fallback source: .env -> FRONTEND_PORT
 
     Returns:
         Frontend port number (default: 3782)
     """
+    try:
+        from deeptutor.services.config.launch_settings import load_launch_settings
+
+        return load_launch_settings(project_root).frontend_port
+    except Exception:
+        # Preserve the historical .env fallback if runtime settings cannot load.
+        pass
+
     env_port = get_env_store().get("FRONTEND_PORT", "3782")
     try:
         return int(env_port)

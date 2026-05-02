@@ -24,6 +24,7 @@ configure_text_streams()
 ENV_PATH = PROJECT_ROOT / ".env"
 ENV_EXAMPLE_PATH = PROJECT_ROOT / ".env.example"
 INTERFACE_SETTINGS_PATH = PROJECT_ROOT / "data" / "user" / "settings" / "interface.json"
+ENV_SETTINGS_PATH = PROJECT_ROOT / "data" / "user" / "settings" / "env.json"
 LEGACY_TOUR_CACHE_PATH = PROJECT_ROOT / "data" / "user" / "settings" / ".tour_cache.json"
 
 
@@ -169,6 +170,8 @@ PROFILE_COMMANDS: dict[str, list[str]] = {
     "cli-rag": ["requirements/cli.txt"],
     "web-basic": ["requirements/server.txt"],
     "web-rag": ["requirements/server.txt"],
+    "web-tutorbot": ["requirements/tutorbot.txt"],
+    "web-matrix": ["requirements/matrix.txt"],
 }
 
 PROFILE_ALIASES: dict[str, str] = {
@@ -179,6 +182,7 @@ PROFILE_ALIASES: dict[str, str] = {
 }
 
 MATH_ANIMATOR_REQUIREMENTS = "requirements/math-animator.txt"
+NODE_MIN_VERSION = (20, 9, 0)
 
 
 MESSAGES: dict[str, dict[str, str]] = {
@@ -272,8 +276,22 @@ MESSAGES: dict[str, dict[str, str]] = {
         "install_node_hint_winget": "Install with: winget install OpenJS.NodeJS",
         "install_node_hint_manual": "Download from https://nodejs.org",
         "install_node_abort": "Node.js is required for the frontend. Please install it and re-run this script.",
+        "install_node_too_old": "Node.js {version} is too old. DeepTutor web requires Node.js >=20.9.0.",
+        "install_profile_prompt": "Choose installation profile",
+        "install_profile_web_label": "Web app (recommended)",
+        "install_profile_web_desc": "CLI + API server + RAG/document parsing",
+        "install_profile_tutorbot_label": "Web + TutorBot",
+        "install_profile_tutorbot_desc": "Adds TutorBot engine and common channel SDKs",
+        "install_profile_matrix_label": "Web + TutorBot + Matrix",
+        "install_profile_matrix_desc": "Also installs matrix-nio[e2e]; requires libolm on your system",
+        "install_math_animator": "Install Math Animator add-on?",
+        "install_math_animator_hint": (
+            "Optional: Manim can require LaTeX, Cairo, pkg-config, CMake, and ffmpeg."
+        ),
+        "install_selected": "Selected install profile: {profile}",
         "install_confirm": "Install dependencies now?",
         "install_backend": "Installing Python dependencies ...",
+        "install_requirement": "Installing {requirement} ...",
         "install_backend_done": "Python dependencies installed.",
         "install_frontend": "Installing frontend dependencies (npm install) ...",
         "install_frontend_done": "Frontend dependencies installed.",
@@ -374,8 +392,20 @@ MESSAGES: dict[str, dict[str, str]] = {
         "install_node_hint_winget": "请运行: winget install OpenJS.NodeJS",
         "install_node_hint_manual": "请前往 https://nodejs.org 下载安装",
         "install_node_abort": "前端运行需要 Node.js，请安装后重新运行本脚本。",
+        "install_node_too_old": "当前 Node.js {version} 版本过低。DeepTutor Web 需要 Node.js >=20.9.0。",
+        "install_profile_prompt": "选择安装配置",
+        "install_profile_web_label": "Web 应用（推荐）",
+        "install_profile_web_desc": "CLI + API 服务 + RAG/文档解析",
+        "install_profile_tutorbot_label": "Web + TutorBot",
+        "install_profile_tutorbot_desc": "增加 TutorBot 引擎和常用渠道 SDK",
+        "install_profile_matrix_label": "Web + TutorBot + Matrix",
+        "install_profile_matrix_desc": "额外安装 matrix-nio[e2e]；系统需先安装 libolm",
+        "install_math_animator": "是否安装 Math Animator 附加能力？",
+        "install_math_animator_hint": "选填：Manim 可能需要 LaTeX、Cairo、pkg-config、CMake 和 ffmpeg。",
+        "install_selected": "已选择安装配置：{profile}",
         "install_confirm": "现在安装依赖？",
         "install_backend": "正在安装 Python 依赖 ...",
+        "install_requirement": "正在安装 {requirement} ...",
         "install_backend_done": "Python 依赖安装完成。",
         "install_frontend": "正在安装前端依赖（npm install）...",
         "install_frontend_done": "前端依赖安装完成。",
@@ -496,6 +526,16 @@ def _install_commands(
     return cmds
 
 
+def _requirements_for_install(profile: str, *, include_math_animator: bool = False) -> list[str]:
+    profile = PROFILE_ALIASES.get(profile, profile)
+    if profile not in PROFILE_COMMANDS:
+        raise ValueError(f"Unknown install profile: {profile}")
+    requirements = list(PROFILE_COMMANDS[profile])
+    if include_math_animator:
+        requirements.append(MATH_ANIMATOR_REQUIREMENTS)
+    return requirements
+
+
 def _run_cmd(cmd: list[str], cwd: Path) -> None:
     log_info(f"{dim(str(cwd))}  {' '.join(cmd)}")
     use_shell = platform.system().lower() == "windows"
@@ -550,6 +590,35 @@ def _save_ui_language(language: str, path: Path = INTERFACE_SETTINGS_PATH) -> No
     payload["language"] = "zh" if language == "zh" else "en"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _save_launch_ports(values: dict[str, str], path: Path = ENV_SETTINGS_PATH) -> None:
+    """Keep launcher ports in runtime settings without rewriting provider data."""
+    backend = values.get("BACKEND_PORT")
+    frontend = values.get("FRONTEND_PORT")
+    if backend is None and frontend is None:
+        return
+
+    payload: dict[str, Any] = {}
+    if path.exists() and path.stat().st_size > 0:
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                payload = loaded
+        except Exception:
+            payload = {}
+
+    payload.setdefault("version", 1)
+    ports = payload.get("ports")
+    if not isinstance(ports, dict):
+        ports = {}
+    if backend is not None:
+        ports["backend"] = int(backend)
+    if frontend is not None:
+        ports["frontend"] = int(frontend)
+    payload["ports"] = ports
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _ensure_env_file(env_path: Path = ENV_PATH, template_path: Path = ENV_EXAMPLE_PATH) -> bool:
@@ -753,6 +822,69 @@ def _send_dimensions_choice(current_value: str) -> str:
     )
 
 
+def _install_profile_options() -> list[tuple[str, str, str]]:
+    return [
+        (
+            "web-basic",
+            _t("install_profile_web_label"),
+            _t("install_profile_web_desc"),
+        ),
+        (
+            "web-tutorbot",
+            _t("install_profile_tutorbot_label"),
+            _t("install_profile_tutorbot_desc"),
+        ),
+        (
+            "web-matrix",
+            _t("install_profile_matrix_label"),
+            _t("install_profile_matrix_desc"),
+        ),
+    ]
+
+
+def _install_profile_label(profile: str) -> str:
+    for value, label, _desc in _install_profile_options():
+        if value == profile:
+            return label
+    return profile
+
+
+def _select_install_profile() -> str:
+    profile = select(_t("install_profile_prompt"), _install_profile_options())
+    log_info(_t("install_selected", profile=_install_profile_label(profile)))
+    return profile
+
+
+def _select_math_animator() -> bool:
+    log_info(dim(_t("install_math_animator_hint")))
+    return confirm(_t("install_math_animator"), default=False)
+
+
+def _parse_version_tuple(version: str | None) -> tuple[int, int, int] | None:
+    if not version:
+        return None
+    token = version.strip().split()[0].lstrip("v")
+    parts: list[int] = []
+    for raw_part in token.split(".")[:3]:
+        digits = ""
+        for char in raw_part:
+            if char.isdigit():
+                digits += char
+            else:
+                break
+        if not digits:
+            return None
+        parts.append(int(digits))
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+def _node_version_supported(version: str | None) -> bool:
+    parsed = _parse_version_tuple(version)
+    return parsed is None or parsed >= NODE_MIN_VERSION
+
+
 # ---------------------------------------------------------------------------
 # Wizard steps
 # ---------------------------------------------------------------------------
@@ -912,11 +1044,14 @@ def _install_dependencies() -> None:
     node_version = _detect_command_version("node")
     npm_version = _detect_command_version("npm")
 
-    if node_version and npm_version:
+    if node_version and npm_version and _node_version_supported(node_version):
         log_success(_t("install_node_ok", version=node_version))
         log_success(_t("install_npm_ok", version=npm_version))
     else:
-        log_warn(_t("install_node_missing"))
+        if node_version and not _node_version_supported(node_version):
+            log_warn(_t("install_node_too_old", version=node_version))
+        else:
+            log_warn(_t("install_node_missing"))
         strategy = _node_strategy()
         hint_key = f"install_node_hint_{strategy}"
         if hint_key in MESSAGES[_LANG]:
@@ -933,9 +1068,16 @@ def _install_dependencies() -> None:
         if not (node_version and npm_version):
             log_error(_t("install_node_abort"))
             raise SystemExit(1)
+        if not _node_version_supported(node_version):
+            log_error(_t("install_node_too_old", version=node_version))
+            raise SystemExit(1)
         log_success(_t("install_node_ok", version=node_version))
         log_success(_t("install_npm_ok", version=npm_version))
 
+    print()
+
+    profile = _select_install_profile()
+    include_math_animator = _select_math_animator()
     print()
 
     if not confirm(_t("install_confirm"), default=True):
@@ -947,13 +1089,17 @@ def _install_dependencies() -> None:
 
     uv = _uv()
 
-    # --- uv pip install -r requirements/server.txt ---
+    # --- uv pip install -r requirements/*.txt ---
     try:
-        _run_live(
-            [uv, "pip", "install", "-r", "requirements/server.txt", "--python", _PYTHON],
-            PROJECT_ROOT,
-            _t("install_backend"),
-        )
+        for requirement in _requirements_for_install(
+            profile,
+            include_math_animator=include_math_animator,
+        ):
+            _run_live(
+                [uv, "pip", "install", "-r", requirement, "--python", _PYTHON],
+                PROJECT_ROOT,
+                _t("install_requirement", requirement=requirement),
+            )
         log_success(_t("install_backend_done"))
     except RuntimeError as exc:
         log_error(_t("install_failed", error=str(exc)))
@@ -1159,6 +1305,7 @@ def _print_review(values: dict[str, str]) -> None:
 
 def _write_env(values: dict[str, str]) -> None:
     get_env_store().write(values)
+    _save_launch_ports(values)
 
 
 def _tour_banner() -> None:

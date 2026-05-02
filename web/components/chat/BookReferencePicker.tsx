@@ -149,18 +149,30 @@ export default function BookReferencePicker({
       }
       if (existing) {
         return prev.map((ref) =>
-          ref.bookId === book.id ? { ...ref, pages: [...ref.pages, nextPage] } : ref,
+          ref.bookId === book.id
+            ? { ...ref, pages: [...ref.pages, nextPage] }
+            : ref,
         );
       }
       return [
         ...prev,
-        { bookId: book.id, bookTitle: book.title || t("Untitled book"), pages: [nextPage] },
+        {
+          bookId: book.id,
+          bookTitle: book.title || t("Untitled book"),
+          pages: [nextPage],
+        },
       ];
     });
   };
 
-  const toggleChapter = (book: Book, chapter: Chapter | null, pages: Page[]) => {
-    const allSelected = pages.every((page) => selectedKeys.has(pageKey(book.id, page.id)));
+  const toggleChapter = (
+    book: Book,
+    chapter: Chapter | null,
+    pages: Page[],
+  ) => {
+    const allSelected = pages.every((page) =>
+      selectedKeys.has(pageKey(book.id, page.id)),
+    );
     setSelected((prev) => {
       const existing = prev.find((ref) => ref.bookId === book.id);
       const existingPages = existing?.pages || [];
@@ -170,14 +182,17 @@ export default function BookReferencePicker({
         : [
             ...existingPages,
             ...pages
-              .filter((page) => !existingPages.some((p) => p.pageId === page.id))
+              .filter(
+                (page) => !existingPages.some((p) => p.pageId === page.id),
+              )
               .map((page) => ({
                 bookId: book.id,
                 bookTitle: book.title || t("Untitled book"),
                 pageId: page.id,
                 pageTitle: page.title || t("Untitled chapter"),
                 chapterId: chapter?.id || page.chapter_id,
-                chapterTitle: chapter?.title || page.title || t("Untitled chapter"),
+                chapterTitle:
+                  chapter?.title || page.title || t("Untitled chapter"),
               })),
           ];
       const nextRef = {
@@ -190,7 +205,10 @@ export default function BookReferencePicker({
     });
   };
 
-  const selectedCount = selected.reduce((total, ref) => total + ref.pages.length, 0);
+  const selectedCount = selected.reduce(
+    (total, ref) => total + ref.pages.length,
+    0,
+  );
 
   if (!open) return null;
 
@@ -240,13 +258,16 @@ export default function BookReferencePicker({
                   {filteredBooks.map((book) => {
                     const active = book.id === activeBookId;
                     const selectedPages =
-                      selected.find((ref) => ref.bookId === book.id)?.pages.length || 0;
+                      selected.find((ref) => ref.bookId === book.id)?.pages
+                        .length || 0;
                     return (
                       <button
                         key={book.id}
                         onClick={() => setActiveBookId(book.id)}
                         className={`flex w-full items-center gap-3 px-3 py-3 text-left transition-colors ${
-                          active ? "bg-[var(--primary)]/8" : "hover:bg-[var(--muted)]/40"
+                          active
+                            ? "bg-[var(--primary)]/8"
+                            : "hover:bg-[var(--muted)]/40"
                         }`}
                       >
                         <BookOpen className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
@@ -309,7 +330,9 @@ export default function BookReferencePicker({
                       className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--background)]/35"
                     >
                       <button
-                        onClick={() => toggleChapter(activeBook, chapter, pages)}
+                        onClick={() =>
+                          toggleChapter(activeBook, chapter, pages)
+                        }
                         className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--muted)]/35 ${
                           showPageRows ? "border-b border-[var(--border)]" : ""
                         }`}
@@ -326,12 +349,15 @@ export default function BookReferencePicker({
                         <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[13px] font-medium text-[var(--foreground)]">
-                            {chapter?.title || firstPage?.title || t("Unassigned pages")}
+                            {chapter?.title ||
+                              firstPage?.title ||
+                              t("Unassigned pages")}
                           </span>
                           <span className="text-[11px] text-[var(--muted-foreground)]">
                             {pages.length} {t("pages")}
                           </span>
-                          {!showPageRows && firstPage?.learning_objectives?.length ? (
+                          {!showPageRows &&
+                          firstPage?.learning_objectives?.length ? (
                             <span className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--muted-foreground)]">
                               {firstPage.learning_objectives.join("; ")}
                             </span>
@@ -340,38 +366,44 @@ export default function BookReferencePicker({
                       </button>
                       {showPageRows && (
                         <div className="divide-y divide-[var(--border)]">
-                        {pages.map((page) => {
-                          const checked = selectedKeys.has(pageKey(activeBook.id, page.id));
-                          return (
-                            <button
-                              key={page.id}
-                              onClick={() => togglePage(activeBook, page, chapter)}
-                              className={`flex w-full items-start gap-3 px-5 py-3 text-left transition-colors ${
-                                checked ? "bg-[var(--primary)]/8" : "hover:bg-[var(--muted)]/30"
-                              }`}
-                            >
-                              <span
-                                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                          {pages.map((page) => {
+                            const checked = selectedKeys.has(
+                              pageKey(activeBook.id, page.id),
+                            );
+                            return (
+                              <button
+                                key={page.id}
+                                onClick={() =>
+                                  togglePage(activeBook, page, chapter)
+                                }
+                                className={`flex w-full items-start gap-3 px-5 py-3 text-left transition-colors ${
                                   checked
-                                    ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
-                                    : "border-[var(--border)] text-transparent"
+                                    ? "bg-[var(--primary)]/8"
+                                    : "hover:bg-[var(--muted)]/30"
                                 }`}
                               >
-                                <Check size={12} />
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-[13px] font-medium text-[var(--foreground)]">
-                                  {page.title || t("Untitled chapter")}
+                                <span
+                                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                                    checked
+                                      ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
+                                      : "border-[var(--border)] text-transparent"
+                                  }`}
+                                >
+                                  <Check size={12} />
                                 </span>
-                                {page.learning_objectives?.length ? (
-                                  <span className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--muted-foreground)]">
-                                    {page.learning_objectives.join("; ")}
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-[13px] font-medium text-[var(--foreground)]">
+                                    {page.title || t("Untitled chapter")}
                                   </span>
-                                ) : null}
-                              </span>
-                            </button>
-                          );
-                        })}
+                                  {page.learning_objectives?.length ? (
+                                    <span className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--muted-foreground)]">
+                                      {page.learning_objectives.join("; ")}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

@@ -683,6 +683,8 @@ class AgenticChatPipeline:
                 context,
                 thinking_text,
             )
+            if tool_name == "rag":
+                display_args = self._llm_visible_tool_args(tool_name, execution_args)
             pending_calls.append((tool_call.id, tool_name, display_args, execution_args))
 
         for tool_index, (tool_call_id, tool_name, display_args, _execution_args) in enumerate(
@@ -841,8 +843,12 @@ class AgenticChatPipeline:
             payload = {}
 
         action = str(payload.get("action") or "done").strip()
-        action_input = payload.get("action_input") or {}
-        if not isinstance(action_input, dict):
+        raw_action_input = payload.get("action_input")
+        if isinstance(raw_action_input, dict):
+            action_input = raw_action_input
+        elif action == "rag" and isinstance(raw_action_input, str):
+            action_input = {"query": raw_action_input}
+        else:
             action_input = {}
 
         if action == "done":
@@ -872,6 +878,8 @@ class AgenticChatPipeline:
 
         display_args = self._llm_visible_tool_args(action, action_input)
         tool_args = self._augment_tool_kwargs(action, display_args, context, thinking_text)
+        if action == "rag":
+            display_args = self._llm_visible_tool_args(action, tool_args)
         if response:
             await stream.thinking(
                 response,
@@ -1073,6 +1081,9 @@ class AgenticChatPipeline:
             properties = parameters.get("properties")
             if isinstance(properties, dict):
                 properties.pop("kb_name", None)
+                query_schema = properties.get("query")
+                if isinstance(query_schema, dict):
+                    query_schema.setdefault("minLength", 1)
             required = parameters.get("required")
             if isinstance(required, list):
                 parameters["required"] = [name for name in required if name != "kb_name"]
@@ -1264,6 +1275,10 @@ class AgenticChatPipeline:
             task_dir = get_path_service().get_task_workspace("chat", turn_id)
         if tool_name == "rag":
             selected_kbs = self._selected_kbs(context)
+            if not str(kwargs.get("query") or "").strip():
+                fallback_query = self._fallback_rag_query(context)
+                if fallback_query:
+                    kwargs["query"] = fallback_query
             kwargs["kb_name"] = selected_kbs[0] if selected_kbs else ""
             kwargs.setdefault("mode", "hybrid")
         elif tool_name == "code_execution":
@@ -1285,6 +1300,14 @@ class AgenticChatPipeline:
             if task_dir is not None:
                 kwargs.setdefault("output_dir", str(task_dir / "web_search"))
         return kwargs
+
+    @staticmethod
+    def _fallback_rag_query(context: UnifiedContext) -> str:
+        message = str(context.user_message or "")
+        marker = "[User Question]\n"
+        if marker in message:
+            message = message.rsplit(marker, 1)[-1]
+        return " ".join(message.split())[:800]
 
     def _acting_system_prompt(self, enabled_tools: list[str], context: UnifiedContext) -> str:
         kb_name = context.knowledge_bases[0] if context.knowledge_bases else ""
@@ -1342,14 +1365,14 @@ class AgenticChatPipeline:
             return ""
         if getattr(self, "language", "en") == "zh":
             return (
-                "本轮已有系统态选中的知识库。如果需要知识库检索，只需调用 RAG 并提供 query；"
-                "不要输出、猜测或沿用任何知识库名称。系统会把 query 发到当前选中的知识库。"
+                "本轮已有系统态选中的知识库。如果需要知识库检索，只需调用 RAG 并提供非空 query；"
+                "不要输出、猜测或沿用任何知识库名称，也不要传 kb_name。系统会把 query 发到当前选中的知识库。"
             )
         return (
             "A knowledge base is selected in system state for this turn. "
-            "If retrieval is useful, call RAG with only a query; do not output, "
-            "guess, or reuse any knowledge-base name. The system will route the "
-            "query to the currently selected knowledge base."
+            "If retrieval is useful, call RAG with only a non-empty query; do not output, "
+            "guess, reuse, or pass any knowledge-base name. The system will route "
+            "the query to the currently selected knowledge base."
         )
 
     def _rag_without_kb_message(self) -> str:

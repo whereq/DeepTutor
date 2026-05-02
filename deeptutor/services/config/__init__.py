@@ -18,6 +18,7 @@ from .loader import (
     parse_language,
     resolve_config_path,
 )
+from .launch_settings import LaunchSettings, load_launch_settings
 from .model_catalog import ModelCatalogService, get_model_catalog_service
 
 # Re-export the loader module itself for code paths that monkeypatch via the
@@ -28,6 +29,8 @@ __all__ = [
     "ConfigSummary",
     "EnvStore",
     "get_env_store",
+    "LaunchSettings",
+    "load_launch_settings",
     # From loader.py
     "PROJECT_ROOT",
     "get_runtime_settings_dir",
