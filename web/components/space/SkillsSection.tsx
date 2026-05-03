@@ -43,6 +43,23 @@ function normalizeTag(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/** Must match the backend regex: ^[a-z0-9][a-z0-9-]{0,63}$ */
+const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+/**
+ * Convert any free-text input into a valid skill slug:
+ *   "Socratic Math Mentor" → "socratic-math-mentor"
+ *   "My  Skill__v2"        → "my-skill-v2"
+ */
+function slugifyName(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")       // spaces & underscores → hyphens
+    .replace(/[^a-z0-9-]/g, "")    // strip anything else
+    .replace(/-{2,}/g, "-")        // collapse repeated hyphens
+    .replace(/^-+/, "");           // strip leading hyphens
+}
+
 export default function SkillsSection() {
   const { t } = useTranslation();
 
@@ -167,6 +184,15 @@ export default function SkillsSection() {
     const trimmedName = editor.name.trim();
     if (!trimmedName) {
       setEditor({ ...editor, error: t("Name is required") });
+      return;
+    }
+    if (!NAME_RE.test(trimmedName)) {
+      setEditor({
+        ...editor,
+        error: t(
+          "Name must use only lowercase letters, digits, and hyphens, and must start with a letter or digit.",
+        ),
+      });
       return;
     }
     setEditor({ ...editor, saving: true, error: null });
@@ -601,7 +627,7 @@ export default function SkillsSection() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-2xl">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)] shadow-2xl">
             <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
               <div className="flex items-center gap-2">
                 <Wand2 size={14} className="text-[var(--muted-foreground)]" />
@@ -625,12 +651,22 @@ export default function SkillsSection() {
                 <input
                   value={editor.name}
                   onChange={(e) =>
-                    setEditor({ ...editor, name: e.target.value })
+                    setEditor({ ...editor, name: slugifyName(e.target.value) })
                   }
-                  placeholder={t("e.g. teacher")}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+                  placeholder={t("e.g. socratic-math-mentor")}
+                  className={`w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25 ${
+                    editor.name && !NAME_RE.test(editor.name)
+                      ? "border-red-400 dark:border-red-600"
+                      : "border-[var(--border)]"
+                  }`}
                 />
-                <p className="mt-1 text-[11px] text-[var(--muted-foreground)]/70">
+                <p
+                  className={`mt-1 text-[11px] transition-colors ${
+                    editor.name && !NAME_RE.test(editor.name)
+                      ? "text-red-500 dark:text-red-400"
+                      : "text-[var(--muted-foreground)]/70"
+                  }`}
+                >
                   {t("Lowercase letters, digits, and hyphens only.")}
                 </p>
               </div>
