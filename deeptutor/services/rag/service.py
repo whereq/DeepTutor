@@ -125,7 +125,26 @@ class RAGService:
     def _capture_raw_logs(self, event_sink):
         from contextlib import nullcontext
 
-        return nullcontext()
+        if event_sink is None:
+            return nullcontext()
+
+        from deeptutor.logging import capture_process_logs
+
+        def emit(event):
+            return self._emit_tool_event(
+                event_sink,
+                "raw_log",
+                event.message,
+                {
+                    "level": event.level,
+                    "logger": event.logger,
+                    "timestamp": event.timestamp,
+                    "trace_layer": "raw",
+                    **event.context,
+                },
+            )
+
+        return capture_process_logs(emit, min_level=logging.INFO)
 
     async def delete(self, kb_name: str) -> bool:
         self.logger.info(f"Deleting KB '{kb_name}'")

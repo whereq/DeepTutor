@@ -14,7 +14,7 @@ from deeptutor.services.rag.embedding_signature import signature_from_embedding_
 from deeptutor.services.rag.index_versioning import (
     EmbeddingSignature,
     resolve_storage_dir_for_read,
-    resolve_storage_dir_for_write,
+    resolve_storage_dir_for_rebuild,
     write_version_meta,
 )
 
@@ -81,7 +81,7 @@ class LlamaIndexPipeline:
 
         kb_dir = Path(self.kb_base_dir) / kb_name
         signature = self._current_signature()
-        storage_dir = resolve_storage_dir_for_write(kb_dir, signature)
+        storage_dir = resolve_storage_dir_for_rebuild(kb_dir, signature)
 
         try:
             await self._verify_embedding_connectivity()

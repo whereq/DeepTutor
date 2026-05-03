@@ -294,6 +294,26 @@ def _assert_kb_writable_or_409(kb_name: str, kb_entry: dict) -> None:
         )
 
 
+def _matching_index_is_valid(kb_name: str, matching_version: dict | None) -> bool:
+    """Return whether a matching active index can safely satisfy retrieval."""
+    if not matching_version:
+        return False
+    try:
+        from deeptutor.services.rag.pipelines.llamaindex.storage import (
+            validate_storage_embeddings,
+        )
+
+        validate_storage_embeddings(Path(str(matching_version["storage_path"])))
+        return True
+    except Exception as exc:
+        logger.warning(
+            "Matching index for KB '%s' is invalid; forcing re-index: %s",
+            kb_name,
+            exc,
+        )
+        return False
+
+
 async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id: str):
     """Background task for knowledge base initialization"""
     task_manager = TaskIDManager.get_instance()
@@ -1114,7 +1134,13 @@ async def reindex_knowledge_base(
 
         kb_dir = _kb_base_dir / kb_name
         matching_version = find_matching_version(kb_dir, signature)
-        if matching_version and matching_version.get("layout") == "flat" and not force_reindex:
+        matching_valid = _matching_index_is_valid(kb_name, matching_version)
+        if (
+            matching_version
+            and matching_version.get("layout") == "flat"
+            and matching_valid
+            and not force_reindex
+        ):
             return {
                 "message": (
                     f"Knowledge base '{kb_name}' already has an index for the "

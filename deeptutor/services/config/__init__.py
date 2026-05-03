@@ -7,6 +7,7 @@ from .knowledge_base_config import (
     KnowledgeBaseConfigService,
     get_kb_config_service,
 )
+from .launch_settings import LaunchSettings, load_launch_settings
 from .loader import (
     DEFAULT_CHAT_PARAMS,
     PROJECT_ROOT,
@@ -18,7 +19,6 @@ from .loader import (
     parse_language,
     resolve_config_path,
 )
-from .launch_settings import LaunchSettings, load_launch_settings
 from .model_catalog import ModelCatalogService, get_model_catalog_service
 
 # Re-export the loader module itself for code paths that monkeypatch via the

@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import SpaceSectionHeader from "@/components/space/SpaceSectionHeader";
+import { isValidSkillName, slugifySkillName } from "@/lib/skill-slug";
 import {
   createSkill,
   createSkillTag,
@@ -41,23 +42,6 @@ interface SkillEditorState {
 
 function normalizeTag(value: string): string {
   return value.trim().toLowerCase();
-}
-
-/** Must match the backend regex: ^[a-z0-9][a-z0-9-]{0,63}$ */
-const NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
-
-/**
- * Convert any free-text input into a valid skill slug:
- *   "Socratic Math Mentor" → "socratic-math-mentor"
- *   "My  Skill__v2"        → "my-skill-v2"
- */
-function slugifyName(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[\s_]+/g, "-")       // spaces & underscores → hyphens
-    .replace(/[^a-z0-9-]/g, "")    // strip anything else
-    .replace(/-{2,}/g, "-")        // collapse repeated hyphens
-    .replace(/^-+/, "");           // strip leading hyphens
 }
 
 export default function SkillsSection() {
@@ -186,7 +170,7 @@ export default function SkillsSection() {
       setEditor({ ...editor, error: t("Name is required") });
       return;
     }
-    if (!NAME_RE.test(trimmedName)) {
+    if (!isValidSkillName(trimmedName)) {
       setEditor({
         ...editor,
         error: t(
@@ -339,6 +323,9 @@ export default function SkillsSection() {
       ),
     [editor?.tags, tagVocab],
   );
+  const editorNameInvalid = Boolean(
+    editor?.name && !isValidSkillName(editor.name),
+  );
 
   return (
     <div className="space-y-6">
@@ -356,7 +343,7 @@ export default function SkillsSection() {
         action={
           <button
             onClick={openCreate}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--foreground)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--background)] shadow-sm transition-opacity hover:opacity-90"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--primary-foreground)] shadow-sm transition-opacity hover:opacity-90"
           >
             <Plus size={13} strokeWidth={2} />
             {t("New skill")}
@@ -534,7 +521,7 @@ export default function SkillsSection() {
           </p>
           <button
             onClick={openCreate}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--foreground)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--background)] shadow-sm transition-opacity hover:opacity-90"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--primary-foreground)] shadow-sm transition-opacity hover:opacity-90"
           >
             <Plus size={13} strokeWidth={2} />
             {t("Create your first skill")}
@@ -651,18 +638,21 @@ export default function SkillsSection() {
                 <input
                   value={editor.name}
                   onChange={(e) =>
-                    setEditor({ ...editor, name: slugifyName(e.target.value) })
+                    setEditor({
+                      ...editor,
+                      name: slugifySkillName(e.target.value),
+                    })
                   }
                   placeholder={t("e.g. socratic-math-mentor")}
                   className={`w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25 ${
-                    editor.name && !NAME_RE.test(editor.name)
+                    editorNameInvalid
                       ? "border-red-400 dark:border-red-600"
                       : "border-[var(--border)]"
                   }`}
                 />
                 <p
                   className={`mt-1 text-[11px] transition-colors ${
-                    editor.name && !NAME_RE.test(editor.name)
+                    editorNameInvalid
                       ? "text-red-500 dark:text-red-400"
                       : "text-[var(--muted-foreground)]/70"
                   }`}

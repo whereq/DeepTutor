@@ -188,6 +188,30 @@ def test_embedding_provider_choices_use_full_endpoint_urls() -> None:
     assert "custom_openai_sdk" not in embedding
 
 
+@pytest.mark.asyncio
+async def test_get_llm_options_returns_redacted_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    catalog = _build_catalog(
+        llm_model="gpt-4o-mini",
+        llm_base_url="https://llm.example/v1",
+        llm_api_key="secret-key",
+        embedding_model="text-embedding-3-small",
+        embedding_base_url="https://emb.example/v1/embeddings",
+        embedding_api_key="emb-key",
+    )
+    service = _FakeCatalogService(catalog)
+    monkeypatch.setattr(settings_router, "get_model_catalog_service", lambda: service)
+
+    response = await settings_router.get_llm_options()
+
+    assert response["active"] == {
+        "profile_id": "llm-profile-default",
+        "model_id": "llm-model-default",
+    }
+    assert response["options"][0]["model"] == "gpt-4o-mini"
+    assert "api_key" not in response["options"][0]
+    assert "base_url" not in response["options"][0]
+
+
 @pytest.fixture(autouse=True)
 def _reset_runtime_state() -> None:
     llm_config_module.clear_llm_config_cache()

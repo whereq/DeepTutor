@@ -310,3 +310,17 @@ def resolve_storage_dir_for_write(kb_dir: Path, signature: Optional[EmbeddingSig
         target = Path(str(entry["storage_path"])) if entry else _next_flat_version_dir(kb_dir)
     target.mkdir(parents=True, exist_ok=True)
     return target
+
+
+def resolve_storage_dir_for_rebuild(kb_dir: Path, signature: Optional[EmbeddingSignature]) -> Path:
+    """Return a fresh flat storage dir for a full index rebuild.
+
+    Incremental writes reuse a matching flat version, but a full rebuild should
+    not overwrite the last matching version until the new index has been
+    persisted successfully. Keeping the old version in place lets a failed
+    rebuild remain diagnosable and avoids stale vector-store files.
+    """
+    _ = signature
+    target = _next_flat_version_dir(kb_dir)
+    target.mkdir(parents=True, exist_ok=True)
+    return target

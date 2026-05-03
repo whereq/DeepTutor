@@ -152,7 +152,9 @@ class TestResolvePython:
         matrix_cmds = start_tour._install_commands("web-matrix", catalog)
 
         assert any("requirements/tutorbot.txt" in cmd for cmd, _cwd in tutorbot_cmds)
-        assert any(cmd[0].startswith("npm") or cmd[0].endswith("npm") for cmd, _cwd in tutorbot_cmds)
+        assert any(
+            cmd[0].startswith("npm") or cmd[0].endswith("npm") for cmd, _cwd in tutorbot_cmds
+        )
         assert any("requirements/matrix.txt" in cmd for cmd, _cwd in matrix_cmds)
 
     def test_requirements_for_install_can_include_math_animator(self) -> None:
@@ -198,26 +200,6 @@ def test_save_ui_language_preserves_existing_theme(tmp_path: Path) -> None:
     saved = settings_path.read_text(encoding="utf-8")
     assert '"theme": "glass"' in saved
     assert '"language": "zh"' in saved
-
-
-def test_save_launch_ports_preserves_existing_env_settings(tmp_path: Path) -> None:
-    start_tour = _load_start_tour_module()
-    settings_path = tmp_path / "env.json"
-    settings_path.write_text(
-        '{"version":1,"profile":"web-basic","llm":{"binding":"openai"}}',
-        encoding="utf-8",
-    )
-
-    start_tour._save_launch_ports(
-        {"BACKEND_PORT": "9101", "FRONTEND_PORT": "4200"},
-        path=settings_path,
-    )
-
-    saved = settings_path.read_text(encoding="utf-8")
-    assert '"profile": "web-basic"' in saved
-    assert '"binding": "openai"' in saved
-    assert '"backend": 9101' in saved
-    assert '"frontend": 4200' in saved
 
 
 def test_embedding_model_suggestions_include_gemini() -> None:

@@ -1,4 +1,4 @@
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 import { apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
 
@@ -43,6 +43,7 @@ export interface SessionSummary {
     tools?: string[];
     knowledge_bases?: string[];
     language?: string;
+    llm_selection?: LLMSelection | null;
   };
 }
 
@@ -80,6 +81,7 @@ export interface SessionDetail {
     tools?: string[];
     knowledge_bases?: string[];
     language?: string;
+    llm_selection?: LLMSelection | null;
   };
   messages: SessionMessage[];
   active_turns?: ActiveTurnSummary[];

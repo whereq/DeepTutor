@@ -8,6 +8,7 @@ from deeptutor.services.rag.index_versioning import (
     find_matching_version,
     list_kb_versions,
     resolve_storage_dir_for_read,
+    resolve_storage_dir_for_rebuild,
     resolve_storage_dir_for_write,
     write_version_meta,
 )
@@ -49,6 +50,20 @@ def test_resolve_storage_dir_for_write_reuses_matching_flat_version(tmp_path: Pa
     )
 
     assert resolve_storage_dir_for_write(kb_dir, sig) == version_dir
+
+
+def test_resolve_storage_dir_for_rebuild_allocates_fresh_version(tmp_path: Path) -> None:
+    kb_dir = tmp_path / "kb"
+    sig = _signature()
+    version_dir = kb_dir / "version-1"
+    version_dir.mkdir(parents=True)
+    (version_dir / "docstore.json").write_text("{}", encoding="utf-8")
+    (version_dir / "meta.json").write_text(
+        json.dumps({"signature": sig.hash(), "version": "version-1"}),
+        encoding="utf-8",
+    )
+
+    assert resolve_storage_dir_for_rebuild(kb_dir, sig) == kb_dir / "version-2"
 
 
 def test_resolve_storage_dir_for_write_without_signature_still_uses_flat_layout(

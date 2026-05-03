@@ -24,6 +24,11 @@ class TestAdaptChatKwargsToResponses:
         assert result == {"max_output_tokens": 8192, "temperature": 0.2}
         assert "max_completion_tokens" not in result
 
+    def test_translates_legacy_max_tokens_to_max_output_tokens(self) -> None:
+        result = adapt_chat_kwargs_to_responses({"max_tokens": 2048, "temperature": 0.2})
+        assert result == {"max_output_tokens": 2048, "temperature": 0.2}
+        assert "max_tokens" not in result
+
     def test_drops_max_completion_tokens_when_none(self) -> None:
         result = adapt_chat_kwargs_to_responses({"max_completion_tokens": None, "temperature": 0.2})
         assert result == {"temperature": 0.2}
@@ -35,6 +40,10 @@ class TestAdaptChatKwargsToResponses:
             {"max_completion_tokens": 8192, "max_output_tokens": 4096}
         )
         assert result == {"max_output_tokens": 4096}
+
+    def test_max_completion_tokens_wins_when_both_chat_aliases_are_present(self) -> None:
+        result = adapt_chat_kwargs_to_responses({"max_tokens": 2048, "max_completion_tokens": 8192})
+        assert result == {"max_output_tokens": 8192}
 
     def test_empty_input_returns_empty_dict(self) -> None:
         assert adapt_chat_kwargs_to_responses({}) == {}

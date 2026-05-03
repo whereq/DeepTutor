@@ -35,6 +35,8 @@ import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { DeepQuestionFormConfig } from "@/lib/quiz-types";
 import type { MathAnimatorFormConfig } from "@/lib/math-animator-types";
 import type { VisualizeFormConfig } from "@/lib/visualize-types";
+import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMOption } from "@/lib/llm-options";
 import type {
   DeepResearchFormConfig,
   ResearchSource,
@@ -42,6 +44,7 @@ import type {
 import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import type { SelectedBookReference } from "@/lib/book-references";
+import ModelSelector from "./ModelSelector";
 
 type SpaceSelectionCounts = {
   chatHistory: number;
@@ -127,6 +130,11 @@ export default memo(function ChatComposer({
   selectedTools,
   ragActive,
   knowledgeBases,
+  llmOptions,
+  activeLLMDefault,
+  llmSelection,
+  llmOptionsLoading,
+  llmOptionsError,
   selectedNotebookRecords,
   selectedBookReferences,
   selectedHistorySessions,
@@ -154,6 +162,7 @@ export default memo(function ChatComposer({
   onSetToolMenuOpen,
   onSetSpaceMenuOpen,
   onSetKB,
+  onSelectLLM,
   onSelectNotebookPicker,
   onSelectBookPicker,
   onSelectHistoryPicker,
@@ -207,6 +216,11 @@ export default memo(function ChatComposer({
   selectedTools: Set<string>;
   ragActive: boolean;
   knowledgeBases: KnowledgeBase[];
+  llmOptions: LLMOption[];
+  activeLLMDefault: LLMSelection | null;
+  llmSelection: LLMSelection | null;
+  llmOptionsLoading: boolean;
+  llmOptionsError: boolean;
   selectedNotebookRecords: SelectedRecord[];
   selectedBookReferences: SelectedBookReference[];
   selectedHistorySessions: SelectedHistorySession[];
@@ -238,6 +252,7 @@ export default memo(function ChatComposer({
   onSetToolMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetSpaceMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetKB: (kb: string) => void;
+  onSelectLLM: (selection: LLMSelection | null) => void;
   onSelectNotebookPicker: () => void;
   onSelectBookPicker: () => void;
   onSelectHistoryPicker: () => void;
@@ -831,6 +846,15 @@ export default memo(function ChatComposer({
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <ModelSelector
+                  options={llmOptions}
+                  activeDefault={activeLLMDefault}
+                  value={llmSelection}
+                  loading={llmOptionsLoading}
+                  error={llmOptionsError}
+                  onChange={onSelectLLM}
+                />
+
                 <select
                   value={stateKnowledgeBase}
                   onChange={(e) => onSetKB(e.target.value)}

@@ -209,7 +209,7 @@ def _write_yaml_if_missing(file_path: Path, payload: dict) -> None:
 # ============================================================================
 # Port Configuration Management
 # ============================================================================
-# Ports are configured via environment variables in .env file:
+# Ports are configured via environment variables in the project .env file:
 #   BACKEND_PORT=8001   (default: 8001)
 #   FRONTEND_PORT=3782  (default: 3782)
 # ============================================================================
@@ -217,10 +217,10 @@ def _write_yaml_if_missing(file_path: Path, payload: dict) -> None:
 
 def get_backend_port(project_root: Path | None = None) -> int:
     """
-    Get backend port from runtime settings, falling back to environment.
+    Get backend port from .env, falling back to environment/defaults.
 
-    Preferred source: data/user/settings/env.json -> ports.backend
-    Fallback source: .env -> BACKEND_PORT
+    Preferred source: .env -> BACKEND_PORT
+    Fallback source: process environment -> BACKEND_PORT
 
     Returns:
         Backend port number (default: 8001)
@@ -244,10 +244,10 @@ def get_backend_port(project_root: Path | None = None) -> int:
 
 def get_frontend_port(project_root: Path | None = None) -> int:
     """
-    Get frontend port from runtime settings, falling back to environment.
+    Get frontend port from .env, falling back to environment/defaults.
 
-    Preferred source: data/user/settings/env.json -> ports.frontend
-    Fallback source: .env -> FRONTEND_PORT
+    Preferred source: .env -> FRONTEND_PORT
+    Fallback source: process environment -> FRONTEND_PORT
 
     Returns:
         Frontend port number (default: 3782)

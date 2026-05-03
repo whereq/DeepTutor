@@ -278,7 +278,9 @@ def _state_process_records(state: dict[str, Any]) -> list[tuple[int | None, int 
             continue
         pid = raw.get("pid")
         pgid = raw.get("pgid")
-        records.append((pid if isinstance(pid, int) else None, pgid if isinstance(pgid, int) else None))
+        records.append(
+            (pid if isinstance(pid, int) else None, pgid if isinstance(pgid, int) else None)
+        )
     return records
 
 
@@ -454,9 +456,7 @@ def _wait_for_http(
         if should_stop is not None and should_stop():
             raise SystemExit(0)
         if process.process.poll() is not None:
-            log_error(
-                _t(language, "process_exited", name=name, code=process.process.returncode)
-            )
+            log_error(_t(language, "process_exited", name=name, code=process.process.returncode))
             raise SystemExit(1)
         try:
             with urlrequest.urlopen(url, timeout=1):
@@ -606,7 +606,12 @@ def main() -> None:
         while not shutdown_requested:
             if backend.process.poll() is not None:
                 log_error(
-                    _t(language, "process_exited", name=backend.name, code=backend.process.returncode)
+                    _t(
+                        language,
+                        "process_exited",
+                        name=backend.name,
+                        code=backend.process.returncode,
+                    )
                 )
                 exit_code = 1
                 break

@@ -19,7 +19,7 @@ import logging
 from pathlib import Path
 import re
 
-from deeptutor.knowledge import KnowledgeBaseManager
+from deeptutor.knowledge.manager import KnowledgeBaseManager
 
 from .models import Book
 from .storage import BookStorage, get_book_storage

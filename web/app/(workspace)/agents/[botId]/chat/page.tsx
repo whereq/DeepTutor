@@ -119,10 +119,20 @@ export default function BotChatPage() {
     if (!botId) {
       return;
     }
+    let cancelled = false;
+    setMessages([]);
+    setThinking([]);
+    thinkingRef.current = [];
+    setStreaming(false);
+
     fetch(apiUrl(`/api/v1/tutorbot/${botId}`))
       .then((r) => (r.ok ? r.json() : null))
-      .then(setBot)
-      .catch(() => setBot(null));
+      .then((data) => {
+        if (!cancelled) setBot(data);
+      })
+      .catch(() => {
+        if (!cancelled) setBot(null);
+      });
 
     fetch(apiUrl(`/api/v1/tutorbot/${botId}/history`))
       .then((r) => (r.ok ? r.json() : []))
@@ -140,8 +150,9 @@ export default function BotChatPage() {
               role: m.role as "user" | "assistant",
               content: normalizeMessageContent(m.content),
             }));
+          if (cancelled) return;
+          setMessages(restored);
           if (restored.length) {
-            setMessages(restored);
             requestAnimationFrame(() => scrollToBottom("instant"));
             window.setTimeout(() => scrollToBottom("instant"), 80);
             window.setTimeout(() => scrollToBottom("instant"), 250);
@@ -149,6 +160,9 @@ export default function BotChatPage() {
         },
       )
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [botId, scrollToBottom]);
 
   useEffect(() => {

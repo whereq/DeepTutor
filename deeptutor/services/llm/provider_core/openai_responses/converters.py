@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 from typing import Any
+
+_CHAT_TOKEN_LIMIT_ALIASES = ("max_completion_tokens", "max_tokens")
 
 
 def convert_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
@@ -110,28 +113,31 @@ def split_tool_call_id(tool_call_id: Any) -> tuple[str, str | None]:
     return "call_0", None
 
 
-def adapt_chat_kwargs_to_responses(extra_kwargs: dict[str, Any]) -> dict[str, Any]:
+def adapt_chat_kwargs_to_responses(extra_kwargs: Mapping[str, Any]) -> dict[str, Any]:
     """Translate Chat Completions kwargs to Responses API equivalents.
 
     Callers building requests for the Chat Completions endpoint may pass
-    ``max_completion_tokens`` for newer OpenAI models (o1/o3/gpt-4o/gpt-5.x).
-    The Responses API does not accept that name and uses ``max_output_tokens``
-    instead, so the OpenAI SDK raises ``TypeError`` from ``responses.create``
-    before any HTTP request leaves the client. See DeepTutor#437.
+    ``max_completion_tokens`` for newer OpenAI models (o1/o3/gpt-4o/gpt-5.x)
+    or ``max_tokens`` for older chat models. The Responses API does not accept
+    either name and uses ``max_output_tokens`` instead, so the OpenAI SDK raises
+    ``TypeError`` from ``responses.create`` before any HTTP request leaves the
+    client. See DeepTutor#437.
 
     Drops keys with ``None`` values to match the existing merge filter, and
     only applies the alias when the caller did not already set the Responses
     name explicitly.
     """
-    result: dict[str, Any] = {}
-    legacy_max_completion: int | None = None
-    for key, value in extra_kwargs.items():
-        if value is None:
-            continue
-        if key == "max_completion_tokens":
-            legacy_max_completion = value
-            continue
-        result[key] = value
-    if legacy_max_completion is not None and "max_output_tokens" not in result:
-        result["max_output_tokens"] = legacy_max_completion
+    result = {
+        key: value
+        for key, value in extra_kwargs.items()
+        if value is not None and key not in _CHAT_TOKEN_LIMIT_ALIASES
+    }
+    if "max_output_tokens" in result:
+        return result
+
+    for key in _CHAT_TOKEN_LIMIT_ALIASES:
+        value = extra_kwargs.get(key)
+        if value is not None:
+            result["max_output_tokens"] = value
+            break
     return result

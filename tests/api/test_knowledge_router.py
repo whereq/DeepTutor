@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from pathlib import Path
 
 import pytest
@@ -391,6 +392,54 @@ def test_reindex_error_status_bypasses_existing_match_noop(monkeypatch, tmp_path
     assert body["noop"] is False
     assert isinstance(body.get("task_id"), str) and body["task_id"]
     assert manager.config["knowledge_bases"]["failed-kb"]["status"] == "initializing"
+
+
+def test_reindex_bypasses_existing_match_when_vectors_are_invalid(
+    monkeypatch, tmp_path: Path
+) -> None:
+    manager = _FakeKBManager(tmp_path / "knowledge_bases")
+    manager.config["knowledge_bases"]["bad-index-kb"] = {
+        "path": "bad-index-kb",
+        "status": "ready",
+    }
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", manager.base_dir)
+
+    class _Signature:
+        def hash(self) -> str:
+            return "sig"
+
+    kb_dir = manager.base_dir / "bad-index-kb"
+    version_dir = kb_dir / "version-1"
+    version_dir.mkdir(parents=True)
+    (version_dir / "docstore.json").write_text("{}", encoding="utf-8")
+    (version_dir / "meta.json").write_text(
+        json.dumps({"signature": "sig", "version": "version-1"}),
+        encoding="utf-8",
+    )
+    (version_dir / "default__vector_store.json").write_text(
+        json.dumps({"embedding_dict": {"bad-node": [0.1, None, 0.3]}}),
+        encoding="utf-8",
+    )
+
+    embedding_signature = importlib.import_module("deeptutor.services.rag.embedding_signature")
+    monkeypatch.setattr(
+        embedding_signature, "signature_from_embedding_config", lambda: _Signature()
+    )
+
+    async def _noop_reindex_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(knowledge_router_module, "run_reindex_task", _noop_reindex_task)
+
+    with TestClient(_build_app()) as client:
+        response = client.post("/api/v1/knowledge/bad-index-kb/reindex")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["noop"] is False
+    assert isinstance(body.get("task_id"), str) and body["task_id"]
+    assert manager.config["knowledge_bases"]["bad-index-kb"]["status"] == "initializing"
 
 
 def test_update_config_coerces_legacy_provider_to_llamaindex() -> None:

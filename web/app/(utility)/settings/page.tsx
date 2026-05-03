@@ -204,14 +204,11 @@ function defaultCatalog(): Catalog {
 const fieldControlClass =
   "w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)]";
 
-const inputClass =
-  `${fieldControlClass} bg-transparent placeholder:text-[var(--muted-foreground)]/40`;
+const inputClass = `${fieldControlClass} bg-transparent placeholder:text-[var(--muted-foreground)]/40`;
 
-const nativeSelectClass =
-  `${fieldControlClass} bg-[var(--background)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`;
+const nativeSelectClass = `${fieldControlClass} bg-[var(--background)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`;
 
-const selectClass =
-  `${nativeSelectClass} appearance-none`;
+const selectClass = `${nativeSelectClass} appearance-none`;
 
 const selectOptionClass = "bg-[var(--background)] text-[var(--foreground)]";
 
@@ -506,11 +503,7 @@ function DimensionField({
             {t("Auto (probe on next test)")}
           </option>
           {supported.map((dim) => (
-            <option
-              className={selectOptionClass}
-              key={dim}
-              value={String(dim)}
-            >
+            <option className={selectOptionClass} key={dim} value={String(dim)}>
               {dim}
             </option>
           ))}

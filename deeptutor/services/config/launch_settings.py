@@ -21,7 +21,6 @@ class LaunchSettings:
     language: str
     source: str
     settings_dir: Path
-    env_json_path: Path
     interface_json_path: Path
     env_path: Path
 
@@ -60,55 +59,52 @@ def _normalize_language(value: Any) -> str | None:
 def load_launch_settings(project_root: Path | None = None) -> LaunchSettings:
     """Load ports and UI language for launcher-style entry points.
 
-    Runtime settings under ``data/user/settings`` are preferred because they
-    reflect the web Settings flow.  When that directory or the relevant files
-    are absent/empty/invalid, the project ``.env`` remains the compatibility
-    fallback used by older installs and manual setups.
+    Launch ports come from the project ``.env`` so every entry point follows
+    the same documented configuration path.  Environment variables remain a
+    compatibility fallback, then built-in defaults.  UI language can still come
+    from ``data/user/settings/interface.json`` because that file stores web UI
+    preferences rather than launch/runtime provider configuration.
     """
 
     root = project_root or PROJECT_ROOT
     settings_dir = root / "data" / "user" / "settings"
-    env_json_path = settings_dir / "env.json"
     interface_json_path = settings_dir / "interface.json"
     env_path = root / ".env"
 
-    settings_env = _load_json_object(env_json_path)
     interface_settings = _load_json_object(interface_json_path)
     env_store = EnvStore(env_path)
     env_values = env_store.load()
 
-    settings_ports = settings_env.get("ports") if isinstance(settings_env.get("ports"), dict) else {}
-    settings_backend_port = _coerce_port(settings_ports.get("backend"))
-    settings_frontend_port = _coerce_port(settings_ports.get("frontend"))
+    env_backend_port = _coerce_port(env_values.get("BACKEND_PORT"))
+    env_frontend_port = _coerce_port(env_values.get("FRONTEND_PORT"))
+    process_backend_port = _coerce_port(os.getenv("BACKEND_PORT"))
+    process_frontend_port = _coerce_port(os.getenv("FRONTEND_PORT"))
     interface_language = _normalize_language(interface_settings.get("language"))
-    backend_port = (
-        settings_backend_port
-        or _coerce_port(env_values.get("BACKEND_PORT"))
-        or _coerce_port(os.getenv("BACKEND_PORT"))
-        or DEFAULT_BACKEND_PORT
-    )
-    frontend_port = (
-        settings_frontend_port
-        or _coerce_port(env_values.get("FRONTEND_PORT"))
-        or _coerce_port(os.getenv("FRONTEND_PORT"))
-        or DEFAULT_FRONTEND_PORT
-    )
-    language = (
-        interface_language
-        or _normalize_language(env_values.get("UI_LANGUAGE"))
+    env_language = (
+        _normalize_language(env_values.get("UI_LANGUAGE"))
         or _normalize_language(env_values.get("LANGUAGE"))
-        or _normalize_language(os.getenv("UI_LANGUAGE"))
-        or _normalize_language(os.getenv("LANGUAGE"))
-        or DEFAULT_LANGUAGE
     )
+    process_language = (
+        _normalize_language(os.getenv("UI_LANGUAGE"))
+        or _normalize_language(os.getenv("LANGUAGE"))
+    )
+    backend_port = env_backend_port or process_backend_port or DEFAULT_BACKEND_PORT
+    frontend_port = env_frontend_port or process_frontend_port or DEFAULT_FRONTEND_PORT
+    language = interface_language or env_language or process_language or DEFAULT_LANGUAGE
 
     sources: list[str] = []
-    if settings_backend_port is not None or settings_frontend_port is not None:
-        sources.append("data/user/settings/env.json")
+    if env_backend_port is not None or env_frontend_port is not None or env_language is not None:
+        sources.append(".env")
+    elif (
+        process_backend_port is not None
+        or process_frontend_port is not None
+        or process_language is not None
+    ):
+        sources.append("environment")
+    else:
+        sources.append("defaults")
     if interface_language is not None:
         sources.append("data/user/settings/interface.json")
-    if not sources:
-        sources.append(".env")
 
     return LaunchSettings(
         backend_port=backend_port,
@@ -116,7 +112,6 @@ def load_launch_settings(project_root: Path | None = None) -> LaunchSettings:
         language=language,
         source=" + ".join(sources),
         settings_dir=settings_dir,
-        env_json_path=env_json_path,
         interface_json_path=interface_json_path,
         env_path=env_path,
     )

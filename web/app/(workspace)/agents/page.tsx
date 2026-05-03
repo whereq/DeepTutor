@@ -22,6 +22,13 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
 import { apiUrl } from "@/lib/api";
+import ModelSelector from "@/components/chat/home/ModelSelector";
+import {
+  listLLMOptions,
+  sameLLMSelection,
+  type LLMOption,
+} from "@/lib/llm-options";
+import type { LLMSelection } from "@/lib/unified-ws";
 
 const MarkdownRenderer = dynamic(
   () => import("@/components/common/MarkdownRenderer"),
@@ -45,6 +52,7 @@ interface BotInfo {
    */
   channels: string[];
   model: string | null;
+  llm_selection?: LLMSelection | null;
   running: boolean;
   started_at: string | null;
   /** Set when a previous PATCH succeeded but `reload_channels` failed. */
@@ -78,6 +86,12 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("bots");
   const [toast, setToast] = useState("");
+  const [llmOptions, setLLMOptions] = useState<LLMOption[]>([]);
+  const [activeLLMDefault, setActiveLLMDefault] = useState<LLMSelection | null>(
+    null,
+  );
+  const [llmOptionsLoading, setLLMOptionsLoading] = useState(true);
+  const [llmOptionsError, setLLMOptionsError] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -104,10 +118,27 @@ export default function AgentsPage() {
     }
   }, []);
 
+  const loadLLMOptions = useCallback(async () => {
+    setLLMOptionsLoading(true);
+    try {
+      const payload = await listLLMOptions();
+      setLLMOptions(payload.options);
+      setActiveLLMDefault(payload.active);
+      setLLMOptionsError(false);
+    } catch {
+      setLLMOptions([]);
+      setActiveLLMDefault(null);
+      setLLMOptionsError(true);
+    } finally {
+      setLLMOptionsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadBots();
     void loadSouls();
-  }, [loadBots, loadSouls]);
+    void loadLLMOptions();
+  }, [loadBots, loadSouls, loadLLMOptions]);
 
   return (
     <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
@@ -160,6 +191,10 @@ export default function AgentsPage() {
             bots={bots}
             souls={souls}
             loading={loading}
+            llmOptions={llmOptions}
+            activeLLMDefault={activeLLMDefault}
+            llmOptionsLoading={llmOptionsLoading}
+            llmOptionsError={llmOptionsError}
             onReload={loadBots}
             onToast={setToast}
             router={router}
@@ -819,6 +854,10 @@ function BotsTab({
   bots,
   souls,
   loading,
+  llmOptions,
+  activeLLMDefault,
+  llmOptionsLoading,
+  llmOptionsError,
   onReload,
   onToast,
   router,
@@ -826,6 +865,10 @@ function BotsTab({
   bots: BotInfo[];
   souls: SoulTemplate[];
   loading: boolean;
+  llmOptions: LLMOption[];
+  activeLLMDefault: LLMSelection | null;
+  llmOptionsLoading: boolean;
+  llmOptionsError: boolean;
   onReload: () => Promise<void>;
   onToast: (msg: string) => void;
   router: ReturnType<typeof useRouter>;
@@ -838,14 +881,17 @@ function BotsTab({
   const [formDesc, setFormDesc] = useState("");
   const [formSoulId, setFormSoulId] = useState("_custom");
   const [formSoul, setFormSoul] = useState("");
-  const [formModel, setFormModel] = useState("");
+  const [formLLMSelection, setFormLLMSelection] = useState<LLMSelection | null>(
+    null,
+  );
+  const [updatingModelBot, setUpdatingModelBot] = useState<string | null>(null);
 
   const resetForm = () => {
     setFormName("");
     setFormDesc("");
     setFormSoulId("_custom");
     setFormSoul("");
-    setFormModel("");
+    setFormLLMSelection(null);
   };
 
   const botId = useMemo(() => {
@@ -887,7 +933,7 @@ function BotsTab({
           name: formName.trim(),
           description: formDesc.trim(),
           persona: formSoul.trim(),
-          model: formModel.trim() || undefined,
+          llm_selection: formLLMSelection,
         }),
       });
       if (res.ok) {
@@ -910,7 +956,61 @@ function BotsTab({
     } finally {
       setCreating(false);
     }
-  }, [botId, formName, formDesc, formSoul, formModel, onReload, onToast, t]);
+  }, [
+    botId,
+    formName,
+    formDesc,
+    formSoul,
+    formLLMSelection,
+    onReload,
+    onToast,
+    t,
+  ]);
+
+  const updateBotModel = useCallback(
+    async (bid: string, selection: LLMSelection | null) => {
+      setUpdatingModelBot(bid);
+      try {
+        const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            llm_selection: selection,
+            ...(selection ? {} : { model: "" }),
+          }),
+        });
+        if (res.ok) {
+          onToast(t("Model saved"));
+          await onReload();
+        } else {
+          const err = (await res.json().catch(() => ({}))) as {
+            detail?: string;
+          };
+          onToast(err.detail ?? t("Failed to save model"));
+        }
+      } catch {
+        onToast(t("Failed to save model"));
+      } finally {
+        setUpdatingModelBot(null);
+      }
+    },
+    [onReload, onToast, t],
+  );
+
+  const modelLabelFor = useCallback(
+    (bot: BotInfo) => {
+      const selected = bot.llm_selection
+        ? llmOptions.find((option) =>
+            sameLLMSelection(option, bot.llm_selection),
+          )
+        : null;
+      if (selected) return selected.model_name || selected.model;
+      if (bot.llm_selection) return t("Selected model");
+      if (bot.model) return bot.model;
+      return t("System default");
+    },
+    [llmOptions, t],
+  );
 
   const startBot = useCallback(
     async (bid: string) => {
@@ -1077,12 +1177,22 @@ function BotsTab({
                   {t("(optional)")}
                 </span>
               </label>
-              <input
-                value={formModel}
-                onChange={(e) => setFormModel(e.target.value)}
-                placeholder={t("Uses default model if empty")}
-                className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40"
+              <ModelSelector
+                options={llmOptions}
+                activeDefault={activeLLMDefault}
+                value={formLLMSelection}
+                loading={llmOptionsLoading}
+                error={llmOptionsError}
+                allowSystemDefault
+                helperText={t("Applies to this TutorBot")}
+                placement="bottom"
+                onChange={setFormLLMSelection}
               />
+              <p className="mt-1 text-[11px] text-[var(--muted-foreground)]/60">
+                {t(
+                  "Choose a configured Settings model, or keep the system default.",
+                )}
+              </p>
             </div>
             <div className="flex justify-end">
               <button
@@ -1142,7 +1252,7 @@ function BotsTab({
                     ) : (
                       <span>{bot.bot_id}</span>
                     )}
-                    {bot.model && <span>· {bot.model}</span>}
+                    <span>· {modelLabelFor(bot)}</span>
                     {bot.started_at && (
                       <span>
                         ·{" "}
@@ -1155,6 +1265,19 @@ function BotsTab({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <ModelSelector
+                  options={llmOptions}
+                  activeDefault={activeLLMDefault}
+                  value={bot.llm_selection ?? null}
+                  loading={llmOptionsLoading || updatingModelBot === bot.bot_id}
+                  error={llmOptionsError}
+                  allowSystemDefault
+                  helperText={t("Applies to this TutorBot")}
+                  placement="bottom"
+                  onChange={(selection) =>
+                    updateBotModel(bot.bot_id, selection)
+                  }
+                />
                 {bot.running ? (
                   <>
                     <button

@@ -36,7 +36,7 @@ import {
 } from "@/context/UnifiedChatContext";
 import { useAppShell } from "@/context/AppShellContext";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 import {
   extractBase64FromDataUrl,
   readFileAsDataUrl,
@@ -78,6 +78,7 @@ import {
   type ResearchSource,
 } from "@/lib/research-types";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
+import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
 import { downloadChatMarkdown } from "@/lib/chat-export";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import {
@@ -266,6 +267,7 @@ export default function ChatPage() {
     setTools,
     setCapability,
     setKBs,
+    setLLMSelection,
     sendMessage,
     cancelStreamingTurn,
     regenerateLastMessage,
@@ -274,6 +276,12 @@ export default function ChatPage() {
   } = useUnifiedChat();
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [llmOptions, setLLMOptions] = useState<LLMOption[]>([]);
+  const [activeLLMDefault, setActiveLLMDefault] = useState<LLMSelection | null>(
+    null,
+  );
+  const [llmOptionsLoading, setLLMOptionsLoading] = useState(true);
+  const [llmOptionsError, setLLMOptionsError] = useState(false);
   const [capabilityConfigs, setCapabilityConfigs] =
     useState<CapabilityPlaygroundConfigMap>({});
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -585,10 +593,36 @@ export default function ChatPage() {
     void refreshKnowledgeBases({ force: true });
   }, [refreshKnowledgeBases]);
 
+  const refreshLLMOptions = useCallback(async () => {
+    setLLMOptionsLoading(true);
+    try {
+      const payload = await listLLMOptions();
+      setLLMOptions(payload.options);
+      setActiveLLMDefault(payload.active);
+      setLLMOptionsError(false);
+    } catch {
+      setLLMOptionsError(true);
+      setLLMOptions([]);
+      setActiveLLMDefault(null);
+    } finally {
+      setLLMOptionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshLLMOptions();
+  }, [refreshLLMOptions]);
+
+  useEffect(() => {
+    if (state.llmSelection || !activeLLMDefault) return;
+    setLLMSelection(activeLLMDefault);
+  }, [activeLLMDefault, setLLMSelection, state.llmSelection]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const refresh = () => {
       void refreshKnowledgeBases({ force: true });
+      void refreshLLMOptions();
     };
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -601,7 +635,7 @@ export default function ChatPage() {
       window.removeEventListener("pageshow", refresh);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [refreshKnowledgeBases]);
+  }, [refreshKnowledgeBases, refreshLLMOptions]);
 
   useEffect(() => {
     setCapabilityConfigs(loadCapabilityPlaygroundConfigs());
@@ -1275,6 +1309,11 @@ export default function ChatPage() {
           selectedTools={selectedTools}
           ragActive={ragActive}
           knowledgeBases={knowledgeBases}
+          llmOptions={llmOptions}
+          activeLLMDefault={activeLLMDefault}
+          llmSelection={state.llmSelection}
+          llmOptionsLoading={llmOptionsLoading}
+          llmOptionsError={llmOptionsError}
           selectedBookReferences={selectedBookReferences}
           selectedNotebookRecords={selectedNotebookRecords}
           selectedHistorySessions={selectedHistorySessions}
@@ -1302,6 +1341,7 @@ export default function ChatPage() {
           onSetToolMenuOpen={setToolMenuOpen}
           onSetSpaceMenuOpen={setSpaceMenuOpen}
           onSetKB={handleSetKB}
+          onSelectLLM={setLLMSelection}
           onSelectNotebookPicker={handleSelectNotebookPicker}
           onSelectBookPicker={handleSelectBookPicker}
           onSelectHistoryPicker={handleSelectHistoryPicker}

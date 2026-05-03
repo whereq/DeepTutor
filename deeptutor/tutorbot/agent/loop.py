@@ -134,6 +134,33 @@ class AgentLoop:
         )
         self._register_default_tools()
 
+    def update_llm(
+        self,
+        *,
+        provider: LLMProvider,
+        model: str | None = None,
+        context_window_tokens: int | None = None,
+    ) -> None:
+        """Swap the provider/model used by future TutorBot turns."""
+        self.provider = provider
+        self.model = model or provider.get_default_model()
+        if context_window_tokens:
+            self.context_window_tokens = context_window_tokens
+
+        self.subagents.provider = provider
+        self.subagents.model = self.model
+
+        self.team.provider = provider
+        self.team.model = self.model
+        self.team.temperature = provider.generation.temperature
+        self.team.max_tokens = provider.generation.max_tokens
+        self.team.reasoning_effort = provider.generation.reasoning_effort
+
+        self.memory_consolidator.provider = provider
+        self.memory_consolidator.model = self.model
+        if context_window_tokens:
+            self.memory_consolidator.context_window_tokens = context_window_tokens
+
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
         self.tools = build_base_tools(
