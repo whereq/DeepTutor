@@ -108,3 +108,30 @@ def split_tool_call_id(tool_call_id: Any) -> tuple[str, str | None]:
             return call_id, item_id or None
         return tool_call_id, None
     return "call_0", None
+
+
+def adapt_chat_kwargs_to_responses(extra_kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Translate Chat Completions kwargs to Responses API equivalents.
+
+    Callers building requests for the Chat Completions endpoint may pass
+    ``max_completion_tokens`` for newer OpenAI models (o1/o3/gpt-4o/gpt-5.x).
+    The Responses API does not accept that name and uses ``max_output_tokens``
+    instead, so the OpenAI SDK raises ``TypeError`` from ``responses.create``
+    before any HTTP request leaves the client. See DeepTutor#437.
+
+    Drops keys with ``None`` values to match the existing merge filter, and
+    only applies the alias when the caller did not already set the Responses
+    name explicitly.
+    """
+    result: dict[str, Any] = {}
+    legacy_max_completion: int | None = None
+    for key, value in extra_kwargs.items():
+        if value is None:
+            continue
+        if key == "max_completion_tokens":
+            legacy_max_completion = value
+            continue
+        result[key] = value
+    if legacy_max_completion is not None and "max_output_tokens" not in result:
+        result["max_output_tokens"] = legacy_max_completion
+    return result

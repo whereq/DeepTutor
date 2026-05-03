@@ -21,6 +21,7 @@ from openai import AsyncOpenAI
 from deeptutor.services.llm.capabilities import disable_response_format_at_runtime
 from deeptutor.services.llm.provider_core.base import LLMProvider, LLMResponse, ToolCallRequest
 from deeptutor.services.llm.provider_core.openai_responses import (
+    adapt_chat_kwargs_to_responses,
     consume_sdk_stream,
     convert_messages,
     convert_tools,
@@ -694,7 +695,7 @@ class OpenAICompatProvider(LLMProvider):
                         reasoning_effort,
                         tool_choice,
                     )
-                    body.update({k: v for k, v in extra_kwargs.items() if v is not None})
+                    body.update(adapt_chat_kwargs_to_responses(extra_kwargs))
                     result = parse_response_output(await self._client.responses.create(**body))
                     self._record_responses_success(model, reasoning_effort)
                     return result
@@ -777,7 +778,7 @@ class OpenAICompatProvider(LLMProvider):
                         reasoning_effort,
                         tool_choice,
                     )
-                    body.update({k: v for k, v in extra_kwargs.items() if v is not None})
+                    body.update(adapt_chat_kwargs_to_responses(extra_kwargs))
                     body["stream"] = True
                     stream = await self._client.responses.create(**body)
 
