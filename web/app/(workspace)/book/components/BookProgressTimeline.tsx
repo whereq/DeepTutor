@@ -11,7 +11,10 @@ import {
   BookMarked,
   LayoutList,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { BookProgress, StageId, StageView } from "@/lib/book-progress";
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 export interface BookProgressTimelineProps {
   progress: BookProgress;
@@ -83,12 +86,95 @@ function StageIcon({ id, state }: { id: StageId; state: StageView["state"] }) {
   return <Icon className={cls} />;
 }
 
+function formatProgressMessage(message: string, t: Translate): string {
+  if (!message) return "";
+  const sourceSweep = message.match(
+    /^Source sweep done — (\d+) queries, (\d+) chunks$/,
+  );
+  if (sourceSweep) {
+    return t("Source sweep done — {{queries}} queries, {{chunks}} chunks", {
+      queries: Number(sourceSweep[1]),
+      chunks: Number(sourceSweep[2]),
+    });
+  }
+  const spineReady = message.match(
+    /^Spine ready — (\d+) chapters · (\d+) concepts$/,
+  );
+  if (spineReady) {
+    return t("Spine ready — {{chapters}} chapters · {{concepts}} concepts", {
+      chapters: Number(spineReady[1]),
+      concepts: Number(spineReady[2]),
+    });
+  }
+  return t(message);
+}
+
+function formatStageDetail(detail: string | undefined, t: Translate): string {
+  if (!detail) return "";
+  const sourceSweep = detail.match(/^(\d+) queries · (\d+) chunks$/);
+  if (sourceSweep) {
+    return t("{{queries}} queries · {{chunks}} chunks", {
+      queries: Number(sourceSweep[1]),
+      chunks: Number(sourceSweep[2]),
+    });
+  }
+  const critique = detail.match(/^(\d+) rounds? · (\d+) issues?$/);
+  if (critique) {
+    const rounds = Number(critique[1]);
+    const issues = Number(critique[2]);
+    const key =
+      rounds === 1
+        ? issues === 1
+          ? "{{rounds}} round · {{issues}} issue"
+          : "{{rounds}} round · {{issues}} issues"
+        : issues === 1
+          ? "{{rounds}} rounds · {{issues}} issue"
+          : "{{rounds}} rounds · {{issues}} issues";
+    return t(key, { rounds, issues });
+  }
+  const synthesis = detail.match(/^(\d+) rounds? · (\d+) chapters?$/);
+  if (synthesis) {
+    const rounds = Number(synthesis[1]);
+    const chapters = Number(synthesis[2]);
+    const key =
+      rounds === 1
+        ? chapters === 1
+          ? "{{rounds}} round · {{chapters}} chapter"
+          : "{{rounds}} round · {{chapters}} chapters"
+        : chapters === 1
+          ? "{{rounds}} rounds · {{chapters}} chapter"
+          : "{{rounds}} rounds · {{chapters}} chapters";
+    return t(key, { rounds, chapters });
+  }
+  const spine = detail.match(/^(\d+) chapters · (\d+) concepts$/);
+  if (spine) {
+    return t("{{chapters}} chapters · {{concepts}} concepts", {
+      chapters: Number(spine[1]),
+      concepts: Number(spine[2]),
+    });
+  }
+  const compilation = detail.match(/^(\d+) pages? · (\d+) blocks$/);
+  if (compilation) {
+    const pages = Number(compilation[1]);
+    const blocks = Number(compilation[2]);
+    return t(
+      pages === 1
+        ? "{{pages}} page · {{blocks}} blocks"
+        : "{{pages}} pages · {{blocks}} blocks",
+      { pages, blocks },
+    );
+  }
+  return t(detail);
+}
+
 export default function BookProgressTimeline({
   progress,
   compact = false,
   mini = false,
   className = "",
 }: BookProgressTimelineProps) {
+  const { t } = useTranslation();
+  const tr: Translate = (key, options) => t(key, options);
   const { ordered, stages, message } = progress;
   const fraction = stageProgressFraction(progress);
   const activeStage =
@@ -96,14 +182,17 @@ export default function BookProgressTimeline({
     [...ordered].reverse().find((id) => stages[id].state === "completed") ||
     ordered[0];
   const activeView = stages[activeStage];
-  const counters = collectCounters(progress);
+  const counters = collectCounters(progress, tr);
+  const liveMessage = formatProgressMessage(message, tr);
+  const activeDetail = formatStageDetail(activeView.detail, tr);
 
   // ── Mini mode: thin floating chip (top-right) ───────────────────────
   if (mini) {
     const allDone = fraction >= 1;
-    const tooltip = `${activeView.label}${
-      activeView.detail ? ` · ${activeView.detail}` : ""
-    }${message && message !== activeView.label ? ` · ${message}` : ""}`;
+    const activeLabel = t(activeView.label);
+    const tooltip = `${activeLabel}${activeDetail ? ` · ${activeDetail}` : ""}${
+      liveMessage && message !== activeView.label ? ` · ${liveMessage}` : ""
+    }`;
     return (
       <div
         className={`pointer-events-auto inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)]/90 px-2.5 py-1 text-[11px] shadow-sm backdrop-blur ${className}`}
@@ -125,7 +214,7 @@ export default function BookProgressTimeline({
             return (
               <span
                 key={id}
-                title={`${stages[id].label} · ${s}`}
+                title={`${t(stages[id].label)} · ${t(s)}`}
                 className={`relative z-10 inline-flex h-3 w-3 items-center justify-center rounded-full ring-1 ${tone.ring} ${tone.bg}`}
               >
                 {s === "running" && (
@@ -142,7 +231,7 @@ export default function BookProgressTimeline({
           })}
         </div>
         <span className="max-w-[160px] truncate text-[10.5px] text-[var(--muted-foreground)]">
-          {activeView.label}
+          {activeLabel}
         </span>
         <span className="tabular-nums text-[10px] font-medium text-[var(--muted-foreground)]">
           {Math.round(fraction * 100)}%
@@ -155,7 +244,7 @@ export default function BookProgressTimeline({
     return (
       <div
         className={`flex items-center gap-3 ${className}`}
-        title={message || activeView.label}
+        title={liveMessage || t(activeView.label)}
       >
         {/* Icon strip */}
         <div className="flex items-center gap-0.5">
@@ -165,7 +254,7 @@ export default function BookProgressTimeline({
             return (
               <span
                 key={id}
-                title={`${stages[id].label} · ${s}`}
+                title={`${t(stages[id].label)} · ${t(s)}`}
                 className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${tone.bg} ${tone.fg}`}
               >
                 <StageIcon id={id} state={s} />
@@ -177,13 +266,13 @@ export default function BookProgressTimeline({
         {/* Live caption */}
         <div className="min-w-0 flex-1 truncate text-[11px] text-[var(--muted-foreground)]">
           <span className="font-medium text-[var(--foreground)]">
-            {activeView.label}
+            {t(activeView.label)}
           </span>
-          {activeView.detail && (
-            <span className="ml-1.5 opacity-70">· {activeView.detail}</span>
+          {activeDetail && (
+            <span className="ml-1.5 opacity-70">· {activeDetail}</span>
           )}
-          {message && message !== activeView.label && (
-            <span className="ml-1.5 opacity-70">· {message}</span>
+          {liveMessage && message !== activeView.label && (
+            <span className="ml-1.5 opacity-70">· {liveMessage}</span>
           )}
         </div>
       </div>
@@ -204,19 +293,19 @@ export default function BookProgressTimeline({
                   fraction < 1 ? "animate-spin" : "opacity-0"
                 }`}
               />
-              Generating book
+              {t("Generating book")}
             </div>
             <div className="mt-0.5 truncate text-sm font-medium text-[var(--foreground)]">
-              {activeView.label}
-              {activeView.detail && (
+              {t(activeView.label)}
+              {activeDetail && (
                 <span className="ml-1.5 text-[12px] font-normal text-[var(--muted-foreground)]">
-                  · {activeView.detail}
+                  · {activeDetail}
                 </span>
               )}
             </div>
-            {message && message !== activeView.label && (
+            {liveMessage && message !== activeView.label && (
               <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
-                {message}
+                {liveMessage}
               </div>
             )}
           </div>
@@ -244,7 +333,7 @@ export default function BookProgressTimeline({
             return (
               <div
                 key={id}
-                title={`${stage.label} — ${stage.description}`}
+                title={`${t(stage.label)} — ${t(stage.description)}`}
                 className={`group relative flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 ring-1 transition-all ${
                   isActive
                     ? `${tone.bg} ${tone.ring}`
@@ -260,7 +349,7 @@ export default function BookProgressTimeline({
                   <div
                     className={`truncate text-[11px] font-medium ${tone.fg}`}
                   >
-                    {stage.label}
+                    {t(stage.label)}
                   </div>
                 </div>
               </div>
@@ -290,38 +379,42 @@ export default function BookProgressTimeline({
 
 function collectCounters(
   progress: BookProgress,
+  t: Translate,
 ): { label: string; value: string | number }[] {
   const items: { label: string; value: string | number }[] = [];
   if (progress.exploration.queryCount > 0) {
-    items.push({ label: "queries", value: progress.exploration.queryCount });
+    items.push({ label: t("queries"), value: progress.exploration.queryCount });
   }
   if (progress.exploration.chunkCount > 0) {
-    items.push({ label: "chunks", value: progress.exploration.chunkCount });
+    items.push({ label: t("chunks"), value: progress.exploration.chunkCount });
   }
   if (progress.synthesis.chapterCount > 0) {
-    items.push({ label: "chapters", value: progress.synthesis.chapterCount });
+    items.push({
+      label: t("chapters"),
+      value: progress.synthesis.chapterCount,
+    });
   }
   if (progress.synthesis.conceptNodes > 0) {
     items.push({
-      label: "concepts",
+      label: t("concepts"),
       value: `${progress.synthesis.conceptNodes}/${progress.synthesis.conceptEdges}`,
     });
   }
   if (progress.compilation.blocksReady > 0) {
     items.push({
-      label: "blocks ready",
+      label: t("blocks ready"),
       value: progress.compilation.blocksReady,
     });
   }
   if (progress.compilation.pagesReady > 0) {
     items.push({
-      label: "pages ready",
+      label: t("pages ready"),
       value: progress.compilation.pagesReady,
     });
   }
   if (progress.compilation.blocksError > 0) {
     items.push({
-      label: "block errors",
+      label: t("block errors"),
       value: progress.compilation.blocksError,
     });
   }

@@ -82,7 +82,10 @@ export default function KbFilePreview({
     () => (source ? resolveSourceUrl(source, apiUrl) : null),
     [source],
   );
-  const kind = useMemo(() => (source ? previewKindFor(source) : null), [source]);
+  const kind = useMemo(
+    () => (source ? previewKindFor(source) : null),
+    [source],
+  );
 
   if (!source) {
     return (
@@ -92,7 +95,9 @@ export default function KbFilePreview({
             <button
               type="button"
               onClick={onToggleFileList}
-              title={fileListCollapsed ? t("Show file list") : t("Hide file list")}
+              title={
+                fileListCollapsed ? t("Show file list") : t("Hide file list")
+              }
               aria-label={
                 fileListCollapsed ? t("Show file list") : t("Hide file list")
               }
@@ -148,7 +153,9 @@ export default function KbFilePreview({
           <button
             type="button"
             onClick={onToggleFileList}
-            title={fileListCollapsed ? t("Show file list") : t("Hide file list")}
+            title={
+              fileListCollapsed ? t("Show file list") : t("Hide file list")
+            }
             aria-label={
               fileListCollapsed ? t("Show file list") : t("Hide file list")
             }
@@ -198,7 +205,11 @@ export default function KbFilePreview({
               className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             >
               {copied ? (
-                <Check size={13} strokeWidth={1.7} className="text-emerald-500" />
+                <Check
+                  size={13}
+                  strokeWidth={1.7}
+                  className="text-emerald-500"
+                />
               ) : (
                 <Copy size={13} strokeWidth={1.7} />
               )}
@@ -210,7 +221,11 @@ export default function KbFilePreview({
       {/* Body */}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {!previewUrl ? (
-          <FallbackPreview filename={source.filename} url={null} reason="legacy" />
+          <FallbackPreview
+            filename={source.filename}
+            url={null}
+            reason="legacy"
+          />
         ) : kind === "office-text" ? (
           <OfficeTextPreview
             filename={source.filename}

@@ -181,9 +181,7 @@ class ConfigTestRunner:
         return saved
 
     @staticmethod
-    def _capabilities_from_adapter(
-        adapter: Any, model_name: str
-    ) -> dict[str, Any]:
+    def _capabilities_from_adapter(adapter: Any, model_name: str) -> dict[str, Any]:
         """Normalize an adapter's static-model knowledge into a uniform shape.
 
         Adapters disagree on which keys they expose from ``get_model_info()``
@@ -285,10 +283,7 @@ class ConfigTestRunner:
         )
         run.emit(
             "context_window",
-            (
-                f"Context window set to {detection.context_window} tokens "
-                f"({detection.source})."
-            ),
+            (f"Context window set to {detection.context_window} tokens ({detection.source})."),
             context_window=detection.context_window,
             source=detection.source,
             detail=detection.detail,
@@ -429,9 +424,7 @@ class ConfigTestRunner:
         # detected dim is authoritative. ``_persist_embedding_dimension`` also
         # writes the refreshed ``supported_dimensions`` CSV in the same save.
         try:
-            saved_catalog = self._persist_embedding_dimension(
-                catalog, model, detected_dim
-            )
+            saved_catalog = self._persist_embedding_dimension(catalog, model, detected_dim)
             run.emit(
                 "catalog",
                 "Saved detected embedding dimension to model_catalog.json.",

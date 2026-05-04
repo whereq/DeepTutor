@@ -12,6 +12,7 @@ labels:
   final_response: "Final response"
   tool_call: "Tool call"
   retrieve: "Retrieve"
+  answer_now: "Answer now"
 
 # ---------------------------------------------------------------------------
 # Thinking stage
@@ -54,9 +55,10 @@ acting:
     2. For complex questions that need definitions, grounding, outside evidence, papers, calculation, or deeper reasoning, prefer calling multiple complementary tools in parallel so each one covers a distinct information need.
     3. Call tools only when they add value, but when they materially improve answer quality you should use them fully.
     4. Use concrete, executable arguments grounded in the user's request, and adapt the wording when different tools need different query styles.
-    5. If enough evidence already exists, you may skip tool use.
-    6. Do not produce the final student-facing answer here; this stage is only for tool use.
-    7. At most {max_parallel_tools} tools may run in parallel in one turn; if several complementary tools are relevant, prefer issuing them together in the same turn.
+    5. When calling RAG, you MUST provide a non-empty query field. The query should be a natural-language retrieval sentence extracted or rewritten from the user request or thinking. Do not pass an empty object, an empty string, or kb_name.
+    6. If enough evidence already exists, you may skip tool use.
+    7. Do not produce the final student-facing answer here; this stage is only for tool use.
+    8. At most {max_parallel_tools} tools may run in parallel in one turn; if several complementary tools are relevant, prefer issuing them together in the same turn.
 
     Enabled tools:
     {tool_list}
@@ -137,7 +139,7 @@ react_fallback:
     Available actions:
     {tool_table}
 
-    Decide from the user request and the full enabled tool list whether tool use is truly needed; if it is, choose the single tool that best closes the most important information gap. If no tool is needed, set action=done.
+    Decide from the user request and the full enabled tool list whether tool use is truly needed; if it is, choose the single tool that best closes the most important information gap. If you call rag, action_input MUST be {{"query": "non-empty retrieval query"}}; do not pass an empty object, an empty string, or kb_name. If no tool is needed, set action=done.
   done_when_to_use: "Use when the available information is sufficient and no more tools are needed."
   done_input_format: "Empty string."
 

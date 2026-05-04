@@ -66,7 +66,10 @@ const EMPTY: MemoryData = {
   profile_updated_at: null,
 };
 
-function formatUpdatedAt(value: string | null, t: (key: string) => string): string {
+function formatUpdatedAt(
+  value: string | null,
+  t: (key: string) => string,
+): string {
   if (!value) return t("Not updated yet");
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return t("Unknown");

@@ -144,6 +144,39 @@ class TestResolvePython:
                     f"Expected resolved python {python_used!r}, got {cmd[0]!r}"
                 )
 
+    def test_install_commands_support_web_addon_profiles(self) -> None:
+        start_tour = _load_start_tour_module()
+        catalog: dict = {"services": {}}
+
+        tutorbot_cmds = start_tour._install_commands("web-tutorbot", catalog)
+        matrix_cmds = start_tour._install_commands("web-matrix", catalog)
+
+        assert any("requirements/tutorbot.txt" in cmd for cmd, _cwd in tutorbot_cmds)
+        assert any(
+            cmd[0].startswith("npm") or cmd[0].endswith("npm") for cmd, _cwd in tutorbot_cmds
+        )
+        assert any("requirements/matrix.txt" in cmd for cmd, _cwd in matrix_cmds)
+
+    def test_requirements_for_install_can_include_math_animator(self) -> None:
+        start_tour = _load_start_tour_module()
+
+        requirements = start_tour._requirements_for_install(
+            "web-tutorbot",
+            include_math_animator=True,
+        )
+
+        assert requirements == [
+            "requirements/tutorbot.txt",
+            "requirements/math-animator.txt",
+        ]
+
+    def test_node_version_requires_next_compatible_runtime(self) -> None:
+        start_tour = _load_start_tour_module()
+
+        assert start_tour._node_version_supported("v20.9.0")
+        assert start_tour._node_version_supported("v22.1.0")
+        assert not start_tour._node_version_supported("v18.20.0")
+
 
 def test_ensure_env_file_copies_template_when_missing(tmp_path: Path) -> None:
     start_tour = _load_start_tour_module()

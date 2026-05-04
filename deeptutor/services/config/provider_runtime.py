@@ -7,6 +7,7 @@ import json
 from typing import Any
 from urllib.parse import urlparse
 
+from deeptutor.services.model_selection import LLMSelection, apply_llm_selection_to_catalog
 from deeptutor.services.provider_registry import (
     NANOBOT_LLM_PROVIDERS,
     PROVIDERS,
@@ -47,6 +48,7 @@ SEARCH_ENV_FALLBACK = {
 }
 
 LLM_LOCALHOST_PROVIDERS = ("ollama", "vllm")
+
 
 @dataclass(frozen=True)
 class EmbeddingProviderSpec:
@@ -395,11 +397,13 @@ def resolve_llm_runtime_config(
     *,
     env_store: EnvStore | None = None,
     service: ModelCatalogService | None = None,
+    llm_selection: dict[str, Any] | LLMSelection | None = None,
 ) -> ResolvedLLMConfig:
     """Resolve active LLM config with TutorBot-style provider matching."""
     env = env_store or get_env_store()
     catalog_service = service or get_model_catalog_service()
     loaded = _load_catalog(catalog)
+    loaded = apply_llm_selection_to_catalog(loaded, llm_selection)
 
     profile, model = _active_profile_and_model(loaded, catalog_service, "llm")
     summary = env.as_summary()
@@ -420,7 +424,12 @@ def resolve_llm_runtime_config(
         "api_version", ""
     )
     active_extra_headers = _to_headers((profile or {}).get("extra_headers"))
-    reasoning_effort = _as_str((model or {}).get("reasoning_effort")) or None
+    reasoning_effort = (
+        _as_str(env_values.get("LLM_REASONING_EFFORT"))
+        or _as_str(summary.llm.get("reasoning_effort"))
+        or _as_str((model or {}).get("reasoning_effort"))
+        or None
+    )
     context_window = _coerce_optional_int((model or {}).get("context_window"))
     if context_window is None:
         context_window = _coerce_optional_int((model or {}).get("context_window_tokens"))
@@ -652,9 +661,6 @@ def resolve_embedding_runtime_config(
         api_base = spec.default_api_base
     api_version = active_api_version or ((mapped.api_version or "") if mapped else "")
     extra_headers = active_extra_headers or ((mapped.extra_headers or {}) if mapped else {})
-
-    if spec.is_local and not api_key:
-        api_key = "sk-no-key-required"
 
     return ResolvedEmbeddingConfig(
         model=resolved_model,

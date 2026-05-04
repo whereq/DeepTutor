@@ -14,6 +14,8 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useAppShell } from "@/context/AppShellContext";
 import type { BookProposal } from "@/lib/book-types";
 import {
   listKnowledgeBases,
@@ -37,6 +39,8 @@ import {
 } from "@/lib/session-api";
 
 type SourceTab = "knowledge" | "notebooks" | "questions" | "chats";
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 type ParentSelection<TChild extends string | number> =
   | { mode: "all" }
@@ -71,8 +75,11 @@ export default function BookCreator({
   onConfirmProposal,
   confirmLoading = false,
 }: BookCreatorProps) {
+  const { t } = useTranslation();
+  const { language: appLanguage } = useAppShell();
   const [intent, setIntent] = useState("");
-  const [language, setLanguage] = useState("en");
+  const [language, setLanguage] = useState(appLanguage);
+  const languageTouchedRef = useRef(false);
   const [tab, setTab] = useState<SourceTab>("knowledge");
 
   // Knowledge bases (flat selection)
@@ -187,6 +194,10 @@ export default function BookCreator({
     void refreshCategories();
     void refreshSessions();
   }, []);
+
+  useEffect(() => {
+    if (!languageTouchedRef.current) setLanguage(appLanguage);
+  }, [appLanguage]);
 
   // ── selection counts ─────────────────────────────────────────────
   const countSelection = <P extends string | number, C extends string | number>(
@@ -335,15 +346,25 @@ export default function BookCreator({
     icon: typeof Database;
     count: number;
   }> = [
-    { key: "knowledge", label: "KB", icon: Database, count: selectedKbs.size },
-    { key: "notebooks", label: "Notebooks", icon: NotebookPen, count: nbCount },
+    {
+      key: "knowledge",
+      label: t("KB"),
+      icon: Database,
+      count: selectedKbs.size,
+    },
+    {
+      key: "notebooks",
+      label: t("Notebooks"),
+      icon: NotebookPen,
+      count: nbCount,
+    },
     {
       key: "questions",
-      label: "Questions",
+      label: t("Questions"),
       icon: ClipboardList,
       count: qCount,
     },
-    { key: "chats", label: "Chats", icon: MessagesSquare, count: chatCount },
+    { key: "chats", label: t("Chats"), icon: MessagesSquare, count: chatCount },
   ];
 
   // Summary chips shown in the collapsed form header so users always see what
@@ -352,25 +373,35 @@ export default function BookCreator({
   if (selectedKbs.size > 0) {
     summaryChips.push({
       icon: Database,
-      label: `${selectedKbs.size} KB`,
+      label: t("{{count}} KB", { count: selectedKbs.size }),
     });
   }
   if (nbCount > 0) {
     summaryChips.push({
       icon: NotebookPen,
-      label: `${nbCount} notebook record${nbCount === 1 ? "" : "s"}`,
+      label: t(
+        nbCount === 1
+          ? "{{count}} notebook record"
+          : "{{count}} notebook records",
+        { count: nbCount },
+      ),
     });
   }
   if (qCount > 0) {
     summaryChips.push({
       icon: ClipboardList,
-      label: `${qCount} quiz item${qCount === 1 ? "" : "s"}`,
+      label: t(qCount === 1 ? "{{count}} quiz item" : "{{count}} quiz items", {
+        count: qCount,
+      }),
     });
   }
   if (chatCount > 0) {
     summaryChips.push({
       icon: MessagesSquare,
-      label: `${chatCount} chat item${chatCount === 1 ? "" : "s"}`,
+      label: t(
+        chatCount === 1 ? "{{count}} chat item" : "{{count}} chat items",
+        { count: chatCount },
+      ),
     });
   }
 
@@ -378,11 +409,12 @@ export default function BookCreator({
     <div className="mx-auto w-full max-w-2xl space-y-5 p-6">
       <div className="space-y-1.5">
         <h1 className="text-2xl font-semibold text-[var(--foreground)]">
-          Create a new book
+          {t("Create a new book")}
         </h1>
         <p className="text-sm text-[var(--muted-foreground)]">
-          Describe what you want to learn, then pick the knowledge sources to
-          fuse into a structured, interactive book.
+          {t(
+            "Describe what you want to learn, then pick the knowledge sources to fuse into a structured, interactive book.",
+          )}
         </p>
       </div>
 
@@ -395,7 +427,7 @@ export default function BookCreator({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-[var(--foreground)]">
-                {formCollapsed ? "Inputs" : "Configure inputs"}
+                {formCollapsed ? t("Inputs") : t("Configure inputs")}
               </span>
               {formCollapsed && intent.trim() && (
                 <span className="truncate text-xs text-[var(--muted-foreground)]">
@@ -407,7 +439,7 @@ export default function BookCreator({
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 {summaryChips.length === 0 ? (
                   <span className="text-[11px] text-[var(--muted-foreground)]">
-                    No knowledge sources selected
+                    {t("No knowledge sources selected")}
                   </span>
                 ) : (
                   summaryChips.map((chip, i) => (
@@ -427,7 +459,7 @@ export default function BookCreator({
             {formCollapsed ? (
               <>
                 <Pencil className="h-3 w-3" />
-                Edit
+                {t("Edit")}
               </>
             ) : (
               <ChevronUp className="h-3.5 w-3.5" />
@@ -439,13 +471,15 @@ export default function BookCreator({
           <div className="space-y-4 px-5 pb-5">
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-                Learning intent
+                {t("Learning intent")}
               </span>
               <textarea
                 value={intent}
                 onChange={(e) => setIntent(e.target.value)}
                 rows={5}
-                placeholder="e.g. Build intuition for transformer attention with derivations and exercises."
+                placeholder={t(
+                  "e.g. Build intuition for transformer attention with derivations and exercises.",
+                )}
                 className="mt-1.5 w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)]/50"
               />
             </label>
@@ -453,10 +487,10 @@ export default function BookCreator({
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-                  Knowledge sources
+                  {t("Knowledge sources")}
                   {totalSelected > 0 && (
                     <span className="ml-2 rounded-full bg-[var(--primary)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--primary)]">
-                      {totalSelected} selected
+                      {t("{{count}} selected", { count: totalSelected })}
                     </span>
                   )}
                 </span>
@@ -471,7 +505,7 @@ export default function BookCreator({
                   className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                 >
                   <RefreshCw className="h-3 w-3" />
-                  Refresh
+                  {t("Refresh")}
                 </button>
               </div>
 
@@ -508,11 +542,13 @@ export default function BookCreator({
                 {tab === "knowledge" && (
                   <FlatList
                     loading={kbsLoading}
-                    emptyHint="No knowledge bases yet. Create one in the Knowledge page first."
+                    emptyHint={t(
+                      "No knowledge bases yet. Create one in the Knowledge page first.",
+                    )}
                     items={kbs.map((kb) => ({
                       key: kb.name,
                       primary: kb.name,
-                      secondary: kb.is_default ? "default" : kb.status || "",
+                      secondary: kb.is_default ? t("default") : kb.status || "",
                       checked: selectedKbs.has(kb.name),
                       onToggle: () => toggleKb(kb.name),
                     }))}
@@ -522,7 +558,9 @@ export default function BookCreator({
                 {tab === "notebooks" && (
                   <TreeList
                     loading={notebooksLoading}
-                    emptyHint="No notebooks yet. Save chat outputs into a notebook first."
+                    emptyHint={t(
+                      "No notebooks yet. Save chat outputs into a notebook first.",
+                    )}
                     parents={notebooks.map((nb) => {
                       const records = notebookRecords[nb.id];
                       return {
@@ -531,13 +569,15 @@ export default function BookCreator({
                         subtitle: parentSubtitle(
                           notebookSelection.get(nb.id),
                           records?.length ?? nb.record_count ?? 0,
-                          "record",
+                          t("record"),
+                          t("records"),
+                          t,
                         ),
                         expanded: notebookExpanded.has(nb.id),
                         childrenLoading: !!notebookRecordsLoading[nb.id],
                         children: (records ?? []).map((rec) => ({
                           id: rec.id,
-                          title: rec.title || "(untitled)",
+                          title: rec.title || t("(untitled)"),
                           subtitle: rec.summary || "",
                         })),
                         selection: notebookSelection.get(nb.id),
@@ -568,7 +608,9 @@ export default function BookCreator({
                 {tab === "questions" && (
                   <TreeList<number, number>
                     loading={categoriesLoading}
-                    emptyHint="No quiz categories yet. Bookmark questions into a category first."
+                    emptyHint={t(
+                      "No quiz categories yet. Bookmark questions into a category first.",
+                    )}
                     parents={categories.map((cat) => {
                       const entries = questionEntries[cat.id];
                       return {
@@ -577,19 +619,22 @@ export default function BookCreator({
                         subtitle: parentSubtitle(
                           questionSelection.get(cat.id),
                           entries?.length ?? cat.entry_count ?? 0,
-                          "entry",
-                          "entries",
+                          t("entry"),
+                          t("entries"),
+                          t,
                         ),
                         expanded: questionExpanded.has(cat.id),
                         childrenLoading: !!questionEntriesLoading[cat.id],
                         children: (entries ?? []).map((e) => ({
                           id: e.id,
-                          title: e.question || "(no question)",
+                          title: e.question || t("(no question)"),
                           subtitle: `${e.is_correct ? "✓" : "✗"} ${
                             e.user_answer
-                              ? `your: ${e.user_answer}`
-                              : "no attempt"
-                          } · correct: ${e.correct_answer}`,
+                              ? t("your: {{answer}}", { answer: e.user_answer })
+                              : t("no attempt")
+                          } · ${t("correct: {{answer}}", {
+                            answer: e.correct_answer,
+                          })}`,
                         })),
                         selection: questionSelection.get(cat.id),
                       };
@@ -619,16 +664,18 @@ export default function BookCreator({
                 {tab === "chats" && (
                   <TreeList<string, number>
                     loading={sessionsLoading}
-                    emptyHint="No chat sessions yet."
+                    emptyHint={t("No chat sessions yet.")}
                     parents={sessions.map((s) => {
                       const msgs = chatMessages[s.session_id];
                       return {
                         id: s.session_id,
-                        title: s.title || "(untitled chat)",
+                        title: s.title || t("(untitled chat)"),
                         subtitle: parentSubtitle(
                           chatSelection.get(s.session_id),
                           msgs?.length ?? s.message_count ?? 0,
-                          "message",
+                          t("message"),
+                          t("messages"),
+                          t,
                         ),
                         expanded: chatExpanded.has(s.session_id),
                         childrenLoading: !!chatMessagesLoading[s.session_id],
@@ -666,14 +713,17 @@ export default function BookCreator({
 
             <div className="flex items-center justify-between gap-3">
               <label className="text-xs text-[var(--muted-foreground)]">
-                Language{" "}
+                {t("Language")}{" "}
                 <select
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  onChange={(e) => {
+                    languageTouchedRef.current = true;
+                    setLanguage(e.target.value as "en" | "zh");
+                  }}
                   className="ml-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-1.5 py-0.5 text-xs text-[var(--foreground)]"
                 >
-                  <option value="en">English</option>
-                  <option value="zh">中文</option>
+                  <option value="en">{t("language.english")}</option>
+                  <option value="zh">{t("language.chinese")}</option>
                 </select>
               </label>
               <button
@@ -686,7 +736,7 @@ export default function BookCreator({
                 ) : (
                   <Sparkles className="h-4 w-4" />
                 )}
-                Generate proposal
+                {t("Generate proposal")}
               </button>
             </div>
           </div>
@@ -697,10 +747,12 @@ export default function BookCreator({
         <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
           <div>
             <h2 className="text-base font-semibold text-[var(--foreground)]">
-              Proposal
+              {t("Proposal")}
             </h2>
             <p className="text-xs text-[var(--muted-foreground)]">
-              Edit anything below, then confirm to generate the chapter spine.
+              {t(
+                "Edit anything below, then confirm to generate the chapter spine.",
+              )}
             </p>
           </div>
           <ProposalForm
@@ -719,7 +771,7 @@ export default function BookCreator({
               className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90 disabled:opacity-50"
             >
               {confirmLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Confirm proposal & build spine
+              {t("Confirm proposal & build spine")}
             </button>
           </div>
         </div>
@@ -741,16 +793,28 @@ function parentSubtitle<C extends string | number>(
   total: number,
   unit: string,
   unitPlural?: string,
+  t?: Translate,
 ): string {
   const plural = unitPlural || `${unit}s`;
   const fmt = (n: number) => `${n} ${n === 1 ? unit : plural}`;
   if (!sel) return total > 0 ? fmt(total) : `0 ${plural}`;
   if (sel.mode === "all") {
-    return total > 0 ? `All ${fmt(total)}` : "All";
+    return total > 0
+      ? `${t ? t("All") : "All"} ${fmt(total)}`
+      : t
+        ? t("All")
+        : "All";
   }
   return total > 0
-    ? `${sel.ids.size} of ${fmt(total)}`
-    : `${sel.ids.size} selected`;
+    ? t
+      ? t("{{selected}} of {{total}}", {
+          selected: sel.ids.size,
+          total: fmt(total),
+        })
+      : `${sel.ids.size} of ${fmt(total)}`
+    : t
+      ? t("{{count}} selected", { count: sel.ids.size })
+      : `${sel.ids.size} selected`;
 }
 
 // ─── checkbox icon ─────────────────────────────────────────────────────
@@ -800,11 +864,12 @@ function FlatList({
     onToggle: () => void;
   }>;
 }) {
+  const { t } = useTranslation();
   if (loading)
     return (
       <div className="flex items-center justify-center gap-2 py-6 text-xs text-[var(--muted-foreground)]">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Loading…
+        {t("Loading…")}
       </div>
     );
   if (items.length === 0)
@@ -880,11 +945,12 @@ function TreeList<
   onToggleChild: (parentId: P, childId: C, knownChildren: C[]) => void;
   onToggleExpand: (id: P) => void;
 }) {
+  const { t } = useTranslation();
   if (loading)
     return (
       <div className="flex items-center justify-center gap-2 py-6 text-xs text-[var(--muted-foreground)]">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Loading…
+        {t("Loading…")}
       </div>
     );
   if (parents.length === 0)
@@ -915,7 +981,7 @@ function TreeList<
                 type="button"
                 onClick={() => onToggleExpand(p.id)}
                 className="flex h-7 w-6 shrink-0 items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                aria-label={p.expanded ? "Collapse" : "Expand"}
+                aria-label={p.expanded ? t("Collapse") : t("Expand")}
               >
                 {p.expanded ? (
                   <ChevronDown className="h-3.5 w-3.5" />
@@ -947,11 +1013,11 @@ function TreeList<
                 {p.childrenLoading ? (
                   <div className="flex items-center gap-2 px-2 py-2 text-[11px] text-[var(--muted-foreground)]">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    Loading…
+                    {t("Loading…")}
                   </div>
                 ) : p.children.length === 0 ? (
                   <div className="px-2 py-2 text-[11px] text-[var(--muted-foreground)]">
-                    Nothing inside.
+                    {t("Nothing inside.")}
                   </div>
                 ) : (
                   <ul className="max-h-56 space-y-0.5 overflow-y-auto pr-0.5">
@@ -1011,13 +1077,14 @@ function ProposalForm({
   onChange: (p: BookProposal) => void;
   selectedKbs: string[];
 }) {
+  const { t } = useTranslation();
   const update = (patch: Partial<BookProposal>) =>
     onChange({ ...proposal, ...patch });
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="block sm:col-span-2">
         <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-          Title
+          {t("Title")}
         </span>
         <input
           value={proposal.title}
@@ -1027,7 +1094,7 @@ function ProposalForm({
       </label>
       <label className="block sm:col-span-2">
         <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-          Description
+          {t("Description")}
         </span>
         <textarea
           value={proposal.description}
@@ -1038,7 +1105,7 @@ function ProposalForm({
       </label>
       <label className="block">
         <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-          Scope
+          {t("Scope")}
         </span>
         <input
           value={proposal.scope}
@@ -1048,7 +1115,7 @@ function ProposalForm({
       </label>
       <label className="block">
         <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-          Target level
+          {t("Target level")}
         </span>
         <input
           value={proposal.target_level}
@@ -1058,7 +1125,7 @@ function ProposalForm({
       </label>
       <label className="block">
         <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-          Estimated chapters
+          {t("Estimated chapters")}
         </span>
         <input
           type="number"
@@ -1073,13 +1140,14 @@ function ProposalForm({
       </label>
       <div className="block sm:col-span-2">
         <span className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-          Knowledge bases used
+          {t("Knowledge bases used")}
         </span>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {selectedKbs.length === 0 ? (
             <span className="text-xs italic text-[var(--muted-foreground)]">
-              No knowledge bases selected. The book will rely on general
-              knowledge.
+              {t(
+                "No knowledge bases selected. The book will rely on general knowledge.",
+              )}
             </span>
           ) : (
             selectedKbs.map((kb) => (

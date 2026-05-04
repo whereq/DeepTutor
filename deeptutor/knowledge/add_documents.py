@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -15,13 +16,12 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 
-from deeptutor.logging import get_logger
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
 from deeptutor.services.rag.index_versioning import list_kb_versions
 from deeptutor.services.rag.service import RAGService
 
-logger = get_logger("KnowledgeInit")
+logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_DIR = "./data/knowledge_bases"
 

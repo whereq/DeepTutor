@@ -37,8 +37,12 @@ def main() -> None:
         sys.path.insert(0, str(project_root))
 
     # Get port from configuration
+    from deeptutor.logging import configure_logging
+    from deeptutor.runtime.mode import RunMode, set_mode
     from deeptutor.services.setup import get_backend_port
 
+    set_mode(RunMode.SERVER)
+    configure_logging()
     backend_port = get_backend_port(project_root)
 
     # Configure reload_excludes to skip directories that shouldn't trigger reloads

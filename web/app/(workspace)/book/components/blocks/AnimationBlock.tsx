@@ -1,6 +1,7 @@
 "use client";
 
 import { Download, ExternalLink } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { apiUrl } from "@/lib/api";
@@ -25,6 +26,7 @@ function resolveAssetUrl(url: string): string {
 }
 
 export default function AnimationBlock({ block }: AnimationBlockProps) {
+  const { t } = useTranslation();
   const payload = (block.payload || {}) as Record<string, unknown>;
   const rawVideoUrl = String(payload.video_url || "");
   const summary = String(payload.summary || "");
@@ -34,7 +36,7 @@ export default function AnimationBlock({ block }: AnimationBlockProps) {
   if (!rawVideoUrl && artifacts.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)]/40 p-4 text-xs italic text-[var(--muted-foreground)]">
-        (Animation payload is empty)
+        {t("(Animation payload is empty)")}
       </div>
     );
   }
@@ -62,7 +64,7 @@ export default function AnimationBlock({ block }: AnimationBlockProps) {
         ) : (
           <img
             src={primary}
-            alt={description || "Animation frame"}
+            alt={description || t("Animation frame")}
             className="h-auto w-full"
           />
         )}
@@ -72,17 +74,17 @@ export default function AnimationBlock({ block }: AnimationBlockProps) {
               href={primary}
               target="_blank"
               rel="noopener noreferrer"
-              title="Open in new tab"
+              title={t("Open in new tab")}
               className="inline-flex items-center gap-1 rounded-md bg-black/40 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
             >
               <ExternalLink size={11} strokeWidth={1.8} />
-              Open
+              {t("Open")}
             </a>
             {isVideo && (
               <a
                 href={primary}
                 download={filename || true}
-                title="Download video"
+                title={t("Download video")}
                 className="inline-flex items-center gap-1 rounded-md bg-black/40 px-2 py-1 text-[10px] font-medium text-white/90 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
               >
                 <Download size={11} strokeWidth={1.8} />

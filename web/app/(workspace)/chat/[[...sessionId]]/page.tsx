@@ -36,7 +36,7 @@ import {
 } from "@/context/UnifiedChatContext";
 import { useAppShell } from "@/context/AppShellContext";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 import {
   extractBase64FromDataUrl,
   readFileAsDataUrl,
@@ -78,8 +78,13 @@ import {
   type ResearchSource,
 } from "@/lib/research-types";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
+import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
 import { downloadChatMarkdown } from "@/lib/chat-export";
 import type { SpaceMemoryFile } from "@/lib/space-items";
+import {
+  selectedBooksToPayload,
+  type SelectedBookReference,
+} from "@/lib/book-references";
 
 const NotebookRecordPicker = dynamic(
   () => import("@/components/notebook/NotebookRecordPicker"),
@@ -105,6 +110,12 @@ const SkillsPicker = dynamic(() => import("@/components/chat/SkillsPicker"), {
 const MemoryPicker = dynamic(() => import("@/components/chat/MemoryPicker"), {
   ssr: false,
 });
+const BookReferencePicker = dynamic(
+  () => import("@/components/chat/BookReferencePicker"),
+  {
+    ssr: false,
+  },
+);
 const SaveToNotebookModal = dynamic(
   () => import("@/components/notebook/SaveToNotebookModal"),
   {
@@ -249,13 +260,14 @@ export default function ChatPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const sessionIdParam = params.sessionId?.[0] ?? null;
-  const { setActiveSessionId } = useAppShell();
+  const { setActiveSessionId, language: appLanguage } = useAppShell();
 
   const {
     state,
     setTools,
     setCapability,
     setKBs,
+    setLLMSelection,
     sendMessage,
     cancelStreamingTurn,
     regenerateLastMessage,
@@ -264,6 +276,12 @@ export default function ChatPage() {
   } = useUnifiedChat();
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [llmOptions, setLLMOptions] = useState<LLMOption[]>([]);
+  const [activeLLMDefault, setActiveLLMDefault] = useState<LLMSelection | null>(
+    null,
+  );
+  const [llmOptionsLoading, setLLMOptionsLoading] = useState(true);
+  const [llmOptionsError, setLLMOptionsError] = useState(false);
   const [capabilityConfigs, setCapabilityConfigs] =
     useState<CapabilityPlaygroundConfigMap>({});
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -272,7 +290,9 @@ export default function ChatPage() {
   const [previewSource, setPreviewSource] = useState<FilePreviewSource | null>(
     null,
   );
-  const attachmentErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attachmentErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [capMenuOpen, setCapMenuOpen] = useState(false);
   const [quizConfig, setQuizConfig] = useState<DeepQuestionFormConfig>({
     ...DEFAULT_QUIZ_CONFIG,
@@ -294,6 +314,7 @@ export default function ChatPage() {
   const [panelCollapsed, setPanelCollapsed] = useState(true);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showNotebookPicker, setShowNotebookPicker] = useState(false);
+  const [showBookPicker, setShowBookPicker] = useState(false);
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [showQuestionBankPicker, setShowQuestionBankPicker] = useState(false);
   const [showSkillsPicker, setShowSkillsPicker] = useState(false);
@@ -302,6 +323,9 @@ export default function ChatPage() {
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [selectedNotebookRecords, setSelectedNotebookRecords] = useState<
     SelectedRecord[]
+  >([]);
+  const [selectedBookReferences, setSelectedBookReferences] = useState<
+    SelectedBookReference[]
   >([]);
   const [selectedHistorySessions, setSelectedHistorySessions] = useState<
     SelectedHistorySession[]
@@ -379,6 +403,10 @@ export default function ChatPage() {
       record_ids,
     }));
   }, [selectedNotebookRecords]);
+  const bookReferencesPayload = useMemo(
+    () => selectedBooksToPayload(selectedBookReferences),
+    [selectedBookReferences],
+  );
   const historyReferencesPayload = useMemo(
     () => selectedHistorySessions.map((session) => session.sessionId),
     [selectedHistorySessions],
@@ -466,6 +494,7 @@ export default function ChatPage() {
       // back to ``chat`` if the requested capability is missing.
       const answerNowSnapshot: MessageRequestSnapshot = {
         ...snapshot,
+        language: appLanguage,
         config: {
           ...(snapshot.config || {}),
           answer_now_context: {
@@ -486,6 +515,7 @@ export default function ChatPage() {
             displayUserMessage: false,
             persistUserMessage: false,
             requestSnapshotOverride: answerNowSnapshot,
+            bookReferences: answerNowSnapshot.bookReferences,
           },
           answerNowSnapshot.questionNotebookReferences,
           answerNowSnapshot.skills,
@@ -494,7 +524,13 @@ export default function ChatPage() {
         shouldAutoScrollRef.current = true;
       }, 0);
     },
-    [cancelStreamingTurn, sendMessage, shouldAutoScrollRef, state.isStreaming],
+    [
+      appLanguage,
+      cancelStreamingTurn,
+      sendMessage,
+      shouldAutoScrollRef,
+      state.isStreaming,
+    ],
   );
 
   /* ---- URL-driven session loading ---- */
@@ -557,10 +593,36 @@ export default function ChatPage() {
     void refreshKnowledgeBases({ force: true });
   }, [refreshKnowledgeBases]);
 
+  const refreshLLMOptions = useCallback(async () => {
+    setLLMOptionsLoading(true);
+    try {
+      const payload = await listLLMOptions();
+      setLLMOptions(payload.options);
+      setActiveLLMDefault(payload.active);
+      setLLMOptionsError(false);
+    } catch {
+      setLLMOptionsError(true);
+      setLLMOptions([]);
+      setActiveLLMDefault(null);
+    } finally {
+      setLLMOptionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshLLMOptions();
+  }, [refreshLLMOptions]);
+
+  useEffect(() => {
+    if (state.llmSelection || !activeLLMDefault) return;
+    setLLMSelection(activeLLMDefault);
+  }, [activeLLMDefault, setLLMSelection, state.llmSelection]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const refresh = () => {
       void refreshKnowledgeBases({ force: true });
+      void refreshLLMOptions();
     };
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -573,7 +635,7 @@ export default function ChatPage() {
       window.removeEventListener("pageshow", refresh);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [refreshKnowledgeBases]);
+  }, [refreshKnowledgeBases, refreshLLMOptions]);
 
   useEffect(() => {
     setCapabilityConfigs(loadCapabilityPlaygroundConfigs());
@@ -795,20 +857,17 @@ export default function ChatPage() {
     [attachments],
   );
 
-  const handlePreviewMessageAttachment = useCallback(
-    (a: MessageAttachment) => {
-      setPreviewSource({
-        filename: a.filename || "",
-        mimeType: a.mime_type,
-        type: a.type,
-        url: a.url,
-        base64: a.base64,
-        extractedText: a.extracted_text,
-        id: a.id,
-      });
-    },
-    [],
-  );
+  const handlePreviewMessageAttachment = useCallback((a: MessageAttachment) => {
+    setPreviewSource({
+      filename: a.filename || "",
+      mimeType: a.mime_type,
+      type: a.type,
+      url: a.url,
+      base64: a.base64,
+      extractedText: a.extracted_text,
+      id: a.id,
+    });
+  }, []);
 
   const handleClosePreview = useCallback(() => {
     setPreviewSource(null);
@@ -862,6 +921,7 @@ export default function ChatPage() {
       if (
         (!content &&
           !attachments.length &&
+          !selectedBookReferences.length &&
           !selectedNotebookRecords.length &&
           !selectedHistorySessions.length &&
           !selectedQuestionEntries.length &&
@@ -907,18 +967,21 @@ export default function ChatPage() {
       const messageContent =
         content ||
         (selectedNotebookRecords.length ||
+        selectedBookReferences.length ||
         selectedHistorySessions.length ||
         selectedQuestionEntries.length ||
         skillsPayload.length ||
         memoryPayload.length
-          ? "Please use the selected context to help with this request."
+          ? t("Please use the selected context to help with this request.")
           : "") ||
         (isMathAnimatorMode
           ? attachments.some((a) => a.type === "image")
-            ? "Generate a math animation from the attached reference image(s)."
+            ? t(
+                "Generate a math animation from the attached reference image(s).",
+              )
             : ""
           : attachments.some((a) => a.type === "image")
-            ? "Please analyze the attached image(s)."
+            ? t("Please analyze the attached image(s).")
             : "");
       sendMessage(
         messageContent,
@@ -926,7 +989,7 @@ export default function ChatPage() {
         config,
         notebookReferencesPayload,
         historyReferencesPayload,
-        undefined,
+        { bookReferences: bookReferencesPayload },
         questionNotebookReferencesPayload,
         skillsPayload,
         memoryPayload,
@@ -936,6 +999,7 @@ export default function ChatPage() {
       // composer stays compact during conversation.
       setPanelCollapsed(true);
       setAttachments([]);
+      setSelectedBookReferences([]);
       setSelectedNotebookRecords([]);
       setSelectedHistorySessions([]);
       setSelectedQuestionEntries([]);
@@ -945,6 +1009,7 @@ export default function ChatPage() {
     },
     [
       attachments,
+      bookReferencesPayload,
       historyReferencesPayload,
       isMathAnimatorMode,
       isQuizMode,
@@ -959,6 +1024,7 @@ export default function ChatPage() {
       researchConfig,
       selectedHistorySessions.length,
       selectedMemoryFiles.length,
+      selectedBookReferences.length,
       selectedNotebookRecords.length,
       selectedQuestionEntries.length,
       selectedSkills,
@@ -966,6 +1032,7 @@ export default function ChatPage() {
       sendMessage,
       shouldAutoScrollRef,
       state.isStreaming,
+      t,
       visualizeConfig,
     ],
   );
@@ -1006,6 +1073,9 @@ export default function ChatPage() {
   const handleSelectNotebookPicker = useCallback(() => {
     setShowNotebookPicker(true);
   }, []);
+  const handleSelectBookPicker = useCallback(() => {
+    setShowBookPicker(true);
+  }, []);
   const handleSelectHistoryPicker = useCallback(() => {
     setShowHistoryPicker(true);
   }, []);
@@ -1026,6 +1096,11 @@ export default function ChatPage() {
   const handleRemoveNotebook = useCallback((notebookId: string) => {
     setSelectedNotebookRecords((prev) =>
       prev.filter((record) => record.notebookId !== notebookId),
+    );
+  }, []);
+  const handleRemoveBookReference = useCallback((bookId: string) => {
+    setSelectedBookReferences((prev) =>
+      prev.filter((record) => record.bookId !== bookId),
     );
   }, []);
   const handleRemoveQuestion = useCallback((entryId: number) => {
@@ -1059,6 +1134,15 @@ export default function ChatPage() {
   const handleCloseNotebookPicker = useCallback(() => {
     setShowNotebookPicker(false);
   }, []);
+  const handleCloseBookPicker = useCallback(() => {
+    setShowBookPicker(false);
+  }, []);
+  const handleApplyBookReferences = useCallback(
+    (references: SelectedBookReference[]) => {
+      setSelectedBookReferences(references);
+    },
+    [],
+  );
   const handleApplyNotebookRecords = useCallback(
     (records: SelectedRecord[]) => {
       setSelectedNotebookRecords(records);
@@ -1225,6 +1309,12 @@ export default function ChatPage() {
           selectedTools={selectedTools}
           ragActive={ragActive}
           knowledgeBases={knowledgeBases}
+          llmOptions={llmOptions}
+          activeLLMDefault={activeLLMDefault}
+          llmSelection={state.llmSelection}
+          llmOptionsLoading={llmOptionsLoading}
+          llmOptionsError={llmOptionsError}
+          selectedBookReferences={selectedBookReferences}
           selectedNotebookRecords={selectedNotebookRecords}
           selectedHistorySessions={selectedHistorySessions}
           selectedQuestionEntries={selectedQuestionEntries}
@@ -1251,7 +1341,9 @@ export default function ChatPage() {
           onSetToolMenuOpen={setToolMenuOpen}
           onSetSpaceMenuOpen={setSpaceMenuOpen}
           onSetKB={handleSetKB}
+          onSelectLLM={setLLMSelection}
           onSelectNotebookPicker={handleSelectNotebookPicker}
+          onSelectBookPicker={handleSelectBookPicker}
           onSelectHistoryPicker={handleSelectHistoryPicker}
           onSelectQuestionBankPicker={handleSelectQuestionBankPicker}
           onSelectSkillsPicker={handleSelectSkillsPicker}
@@ -1265,6 +1357,7 @@ export default function ChatPage() {
           onRemoveAttachment={removeAttachment}
           onPreviewAttachment={handlePreviewPendingAttachment}
           onRemoveHistory={handleRemoveHistory}
+          onRemoveBookReference={handleRemoveBookReference}
           onRemoveNotebook={handleRemoveNotebook}
           onRemoveQuestion={handleRemoveQuestion}
           onDragEnter={handleDragEnter}
@@ -1287,6 +1380,12 @@ export default function ChatPage() {
         open={showNotebookPicker}
         onClose={handleCloseNotebookPicker}
         onApply={handleApplyNotebookRecords}
+      />
+      <BookReferencePicker
+        open={showBookPicker}
+        initialReferences={selectedBookReferences}
+        onClose={handleCloseBookPicker}
+        onApply={handleApplyBookReferences}
       />
       <HistorySessionPicker
         open={showHistoryPicker}

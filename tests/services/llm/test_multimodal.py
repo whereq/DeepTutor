@@ -29,9 +29,7 @@ def test_openai_compat_passes_url_through() -> None:
     """OpenAI-compatible providers (default vision_url_supported=True) accept
     URL-form image_url blocks unchanged."""
     att = SimpleNamespace(type="image", url="https://example.com/cat.png", base64="")
-    result = prepare_multimodal_messages(
-        _msgs(), [att], binding="openai", model="gpt-4o"
-    )
+    result = prepare_multimodal_messages(_msgs(), [att], binding="openai", model="gpt-4o")
     assert result.images_stripped is False
     assert result.url_images_dropped == 0
     assert _img_part_url(result.messages[0]) == "https://example.com/cat.png"
@@ -45,9 +43,7 @@ def test_openai_compat_prefers_base64_when_both_present() -> None:
         base64="QUJD",  # "ABC"
         mime_type="image/png",
     )
-    result = prepare_multimodal_messages(
-        _msgs(), [att], binding="openai", model="gpt-4o"
-    )
+    result = prepare_multimodal_messages(_msgs(), [att], binding="openai", model="gpt-4o")
     url = _img_part_url(result.messages[0])
     assert url.startswith("data:image/png;base64,QUJD")
 
@@ -57,9 +53,7 @@ def test_moonshot_kimi_drops_external_url_only_attachment(caplog) -> None:
     cannot be resolved locally and must be dropped."""
     att = SimpleNamespace(type="image", url="https://example.com/cat.png", base64="")
     with caplog.at_level("WARNING"):
-        result = prepare_multimodal_messages(
-            _msgs(), [att], binding="moonshot", model="kimi-k2.6"
-        )
+        result = prepare_multimodal_messages(_msgs(), [att], binding="moonshot", model="kimi-k2.6")
     # Vision is supported (k2.6 is a vision model), but the url couldn't be
     # inlined → image part is omitted, drop counter increments.
     assert result.vision_supported is True
@@ -85,9 +79,7 @@ def test_moonshot_kimi_resolves_local_attachment_url(tmp_path, monkeypatch) -> N
     att = SimpleNamespace(type="image", url=url, base64="")
 
     try:
-        result = prepare_multimodal_messages(
-            _msgs(), [att], binding="moonshot", model="kimi-k2.6"
-        )
+        result = prepare_multimodal_messages(_msgs(), [att], binding="moonshot", model="kimi-k2.6")
     finally:
         attachment_store.reset_attachment_store()
 
@@ -118,8 +110,6 @@ def test_text_only_moonshot_model_strips_images() -> None:
     """A plain Moonshot text model still falls through the supports_vision
     gate and strips images entirely, unaffected by vision_url_supported."""
     att = SimpleNamespace(type="image", base64="QUJD", mime_type="image/png")
-    result = prepare_multimodal_messages(
-        _msgs(), [att], binding="moonshot", model="moonshot-v1-8k"
-    )
+    result = prepare_multimodal_messages(_msgs(), [att], binding="moonshot", model="moonshot-v1-8k")
     assert result.images_stripped is True
     assert result.vision_supported is False

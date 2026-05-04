@@ -103,7 +103,11 @@ export function invalidateKnowledgeCaches() {
   invalidateClientCache(KNOWLEDGE_CACHE_PREFIX);
 }
 
-function withDockerUpgradeHint(detail: string, status: number, action: string): string {
+function withDockerUpgradeHint(
+  detail: string,
+  status: number,
+  action: string,
+): string {
   if (status === 404 && detail.trim().toLowerCase() === "not found") {
     return `${action} endpoint not found (404). The web UI may be newer than the backend API. If using Docker, pull and recreate the container, then retry.`;
   }
@@ -127,7 +131,11 @@ export async function listKnowledgeBaseFiles(
           `Failed to list files (${response.status})`,
         );
         throw new Error(
-          withDockerUpgradeHint(detail, response.status, "Knowledge file listing"),
+          withDockerUpgradeHint(
+            detail,
+            response.status,
+            "Knowledge file listing",
+          ),
         );
       }
       const data = await response.json();
@@ -138,7 +146,10 @@ export async function listKnowledgeBaseFiles(
 }
 
 /** Build the `/api/v1/...` path for a raw KB file (caller can pass to apiUrl()). */
-export function knowledgeBaseFilePath(kbName: string, filename: string): string {
+export function knowledgeBaseFilePath(
+  kbName: string,
+  filename: string,
+): string {
   return `/api/v1/knowledge/${encodeURIComponent(kbName)}/files/${filename
     .split("/")
     .map(encodeURIComponent)
@@ -151,7 +162,10 @@ export interface KnowledgeTaskResponse {
   noop?: boolean;
 }
 
-async function readErrorDetail(res: Response, fallback: string): Promise<string> {
+async function readErrorDetail(
+  res: Response,
+  fallback: string,
+): Promise<string> {
   try {
     const body = await res.json();
     if (body?.detail) return String(body.detail);
@@ -176,7 +190,9 @@ export async function createKnowledgeBase(payload: {
     body: form,
   });
   if (!res.ok) {
-    throw new Error(await readErrorDetail(res, "Failed to create knowledge base"));
+    throw new Error(
+      await readErrorDetail(res, "Failed to create knowledge base"),
+    );
   }
   invalidateKnowledgeCaches();
   return (await res.json()) as KnowledgeTaskResponse;
@@ -221,7 +237,10 @@ export async function reindexKnowledgeBase(
     { method: "POST" },
   );
   if (!res.ok) {
-    const detail = await readErrorDetail(res, `Re-index failed (${res.status})`);
+    const detail = await readErrorDetail(
+      res,
+      `Re-index failed (${res.status})`,
+    );
     throw new Error(
       withDockerUpgradeHint(detail, res.status, "Knowledge re-index"),
     );
@@ -236,7 +255,9 @@ export async function deleteKnowledgeBase(name: string): Promise<void> {
     { method: "DELETE" },
   );
   if (!res.ok) {
-    throw new Error(await readErrorDetail(res, `Delete failed (${res.status})`));
+    throw new Error(
+      await readErrorDetail(res, `Delete failed (${res.status})`),
+    );
   }
   invalidateKnowledgeCaches();
 }

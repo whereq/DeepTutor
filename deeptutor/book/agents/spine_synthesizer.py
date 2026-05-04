@@ -31,10 +31,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
+import logging
 from typing import Any
 
 from deeptutor.agents.base_agent import BaseAgent
-from deeptutor.logging import get_logger
 from deeptutor.utils.json_parser import parse_json_response
 
 from ..models import (
@@ -49,7 +49,7 @@ from ..models import (
     Spine,
 )
 
-logger = get_logger("book.spine_synthesizer")
+logger = logging.getLogger(__name__)
 
 
 def _clip(text: str, limit: int) -> str:

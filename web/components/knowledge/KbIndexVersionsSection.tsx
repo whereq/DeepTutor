@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import {
   formatKnowledgeTimestamp,
+  kbCanReindex,
   kbNeedsReindex,
   resolveProgressPercent,
   type IndexVersion,
@@ -54,9 +55,7 @@ export default function KbIndexVersionsSection({
     }
   };
 
-  const showReindexCta =
-    Boolean(kb.statistics?.needs_reindex) ||
-    kb.statistics?.active_match === false;
+  const showReindexCta = kbCanReindex(kb);
 
   return (
     <div className="space-y-4">
@@ -78,7 +77,7 @@ export default function KbIndexVersionsSection({
           </div>
         </div>
 
-        {showReindexCta && kb.statistics?.rag_initialized && (
+        {showReindexCta && (
           <button
             type="button"
             onClick={handleReindex}

@@ -23,17 +23,17 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
 from typing import Any
 
-from deeptutor.logging import get_logger
 from deeptutor.services.path_service import get_path_service
 
 from .models import Book, BookInputs, ExplorationReport, Page, Progress, Spine
 
-logger = get_logger("book.storage")
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

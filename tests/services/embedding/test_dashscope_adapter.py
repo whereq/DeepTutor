@@ -15,9 +15,16 @@ from deeptutor.services.embedding.adapters.dashscope_native import (
 
 
 class _FakeResponse:
-    def __init__(self, *, status_code: int = 200, output: dict | None = None,
-                 usage: dict | None = None, code: str = "", message: str = "",
-                 request_id: str = "req-1") -> None:
+    def __init__(
+        self,
+        *,
+        status_code: int = 200,
+        output: dict | None = None,
+        usage: dict | None = None,
+        code: str = "",
+        message: str = "",
+        request_id: str = "req-1",
+    ) -> None:
         self.status_code = status_code
         self.output = output if output is not None else {"embeddings": []}
         self.usage = usage or {}

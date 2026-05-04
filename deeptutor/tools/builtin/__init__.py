@@ -77,7 +77,9 @@ class RAGTool(_PromptHintsMixin, BaseTool):
     async def execute(self, **kwargs: Any) -> ToolResult:
         from deeptutor.tools.rag_tool import rag_search
 
-        query = kwargs.get("query", "")
+        query = str(kwargs.get("query") or "").strip()
+        if not query:
+            raise ValueError("RAG query must be a non-empty string.")
         kb_name = kwargs.get("kb_name")
         event_sink = kwargs.get("event_sink")
         extra_kwargs = {

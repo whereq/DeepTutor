@@ -15,9 +15,8 @@ Reuses:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
 from typing import Any
-
-from deeptutor.logging import get_logger
 
 from .models import (
     BookInputs,
@@ -26,7 +25,7 @@ from .models import (
     NotebookRef,
 )
 
-logger = get_logger("book.inputs")
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

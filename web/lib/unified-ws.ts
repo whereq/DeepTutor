@@ -41,6 +41,11 @@ export interface StreamEvent {
   timestamp: number;
 }
 
+export interface LLMSelection {
+  profile_id: string;
+  model_id: string;
+}
+
 // ---- Client message ----
 
 export interface StartTurnMessage {
@@ -65,7 +70,12 @@ export interface StartTurnMessage {
   }[];
   history_references?: string[];
   question_notebook_references?: number[];
+  book_references?: {
+    book_id: string;
+    page_ids: string[];
+  }[];
   skills?: string[];
+  llm_selection?: LLMSelection | null;
 }
 
 export interface SubscribeTurnMessage {

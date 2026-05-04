@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronRight, Sparkles, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { Block } from "@/lib/book-types";
 
 interface Suggestion {
@@ -20,6 +21,7 @@ export default function DeepDiveBlock({
   onDeepDive,
   pendingTopic,
 }: DeepDiveBlockProps) {
+  const { t } = useTranslation();
   const suggestions =
     (block.payload?.suggestions as Suggestion[] | undefined) || [];
   const linkedPageId = block.metadata?.deep_dive_page_id as string | undefined;
@@ -32,7 +34,7 @@ export default function DeepDiveBlock({
       <div className="mb-3 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-[var(--primary)]" />
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
-          Go Deeper
+          {t("Go Deeper")}
         </span>
       </div>
       <ul className="space-y-2">
@@ -76,7 +78,7 @@ export default function DeepDiveBlock({
       </ul>
       {linkedPageId && (
         <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
-          Linked sub-page already exists.
+          {t("Linked sub-page already exists.")}
         </p>
       )}
     </div>

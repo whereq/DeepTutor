@@ -26,7 +26,7 @@ def test_public_output_filter_allows_only_whitelisted_artifacts(tmp_path: Path) 
         allowed.parent.mkdir(parents=True, exist_ok=True)
         allowed.write_text("png", encoding="utf-8")
 
-        denied = service._user_data_dir / "settings" / "env.json"
+        denied = service._user_data_dir / "settings" / "model_catalog.json"
         denied.parent.mkdir(parents=True, exist_ok=True)
         denied.write_text("{}", encoding="utf-8")
 
@@ -34,7 +34,7 @@ def test_public_output_filter_allows_only_whitelisted_artifacts(tmp_path: Path) 
             service.is_public_output_path("workspace/chat/deep_solve/solve_1/artifacts/plot.png")
             is True
         )
-        assert service.is_public_output_path("settings/env.json") is False
+        assert service.is_public_output_path("settings/model_catalog.json") is False
         assert service.is_public_output_path("../outside.txt") is False
     finally:
         service._project_root = original_root

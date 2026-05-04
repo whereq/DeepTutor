@@ -175,7 +175,29 @@ def test_embedding_local_fallback_from_base_url(tmp_path: Path) -> None:
     resolved = resolve_embedding_runtime_config(catalog=catalog, env_store=_env(tmp_path, []))
     assert resolved.provider_name == "ollama"
     assert resolved.provider_mode == "local"
-    assert resolved.api_key == "sk-no-key-required"
+    assert resolved.api_key == ""
+
+
+def test_embedding_local_vllm_keeps_explicit_env_key(tmp_path: Path) -> None:
+    catalog = _build_catalog(
+        embedding_profile={
+            "id": "embedding-p",
+            "name": "Embedding",
+            "binding": "vllm",
+            "base_url": "http://localhost:1234/v1/embeddings",
+            "api_key": "",
+            "api_version": "",
+            "extra_headers": {},
+            "models": [{"id": "embedding-m", "name": "m", "model": "text-embedding-model"}],
+        }
+    )
+    resolved = resolve_embedding_runtime_config(
+        catalog=catalog,
+        env_store=_env(tmp_path, ["HOSTED_VLLM_API_KEY=local-secret"]),
+    )
+    assert resolved.provider_name == "vllm"
+    assert resolved.provider_mode == "local"
+    assert resolved.api_key == "local-secret"
 
 
 def test_embedding_openai_default_base_injected(tmp_path: Path) -> None:
@@ -325,9 +347,7 @@ def test_embedding_openrouter_env_key_fallback(tmp_path: Path) -> None:
             "api_key": "",
             "api_version": "",
             "extra_headers": {},
-            "models": [
-                {"id": "embedding-m", "name": "m", "model": "qwen/qwen3-embedding-8b"}
-            ],
+            "models": [{"id": "embedding-m", "name": "m", "model": "qwen/qwen3-embedding-8b"}],
         }
     )
     env = _env(tmp_path, ["OPENROUTER_API_KEY=sk-or-from-env"])

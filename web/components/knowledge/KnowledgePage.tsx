@@ -42,10 +42,7 @@ export default function KnowledgePage() {
   // exists, otherwise fall back to the default KB (or the first one). No
   // useEffect chains — keeps state out of effects.
   const selectedKbName = useMemo<string | null>(() => {
-    if (
-      explicitSelection &&
-      kbs.some((kb) => kb.name === explicitSelection)
-    ) {
+    if (explicitSelection && kbs.some((kb) => kb.name === explicitSelection)) {
       return explicitSelection;
     }
     if (!kbs.length) return null;
@@ -98,11 +95,7 @@ export default function KnowledgePage() {
 
   const handleDelete = useCallback(
     async (name: string) => {
-      if (
-        !window.confirm(
-          t('Delete knowledge base "{{name}}"?', { name }),
-        )
-      ) {
+      if (!window.confirm(t('Delete knowledge base "{{name}}"?', { name }))) {
         return;
       }
       try {

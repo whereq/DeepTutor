@@ -3,13 +3,12 @@ Progress Broadcaster - Manages WebSocket broadcasting of knowledge base progress
 """
 
 import asyncio
+import logging
 from typing import Optional
 
 from fastapi import WebSocket
 
-from deeptutor.logging import get_logger
-
-logger = get_logger("ProgressBroadcaster")
+logger = logging.getLogger(__name__)
 
 
 class ProgressBroadcaster:

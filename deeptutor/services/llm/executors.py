@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+import logging
 import os
 from typing import Any
 import uuid
 
 from openai import AsyncOpenAI, BadRequestError
 
-from deeptutor.logging import get_logger
 from deeptutor.services.llm.capabilities import disable_response_format_at_runtime
 from deeptutor.services.llm.provider_registry import find_by_name, strip_provider_prefix
 
 from .config import get_token_limit_kwargs
 from .utils import extract_response_content
 
-logger = get_logger("LLMExecutors")
+logger = logging.getLogger(__name__)
 
 
 def _is_unsupported_response_format_error(exc: BaseException) -> bool:

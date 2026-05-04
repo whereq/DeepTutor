@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from datetime import datetime
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -16,11 +17,10 @@ import stat
 import sys
 from typing import Any
 
-from deeptutor.logging import get_logger
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
 
-logger = get_logger("KnowledgeBaseManager")
+logger = logging.getLogger(__name__)
 
 
 # Cross-platform file locking
@@ -308,7 +308,9 @@ class KnowledgeBaseManager:
             # permanently carrying a "completed" progress banner.
             kb_config.pop("progress", None)
             if progress is not None:
-                kb_config["last_completed_at"] = progress.get("timestamp") or datetime.now().isoformat()
+                kb_config["last_completed_at"] = (
+                    progress.get("timestamp") or datetime.now().isoformat()
+                )
         elif progress is not None:
             kb_config["progress"] = progress
 
@@ -380,10 +382,9 @@ class KnowledgeBaseManager:
                 from deeptutor.services.rag.index_versioning import list_kb_versions
 
                 rag_storage = item / "rag_storage"
-                is_valid_kb = (
-                    any(bool(version.get("ready")) for version in list_kb_versions(item))
-                    or (rag_storage.exists() and rag_storage.is_dir())
-                )
+                is_valid_kb = any(
+                    bool(version.get("ready")) for version in list_kb_versions(item)
+                ) or (rag_storage.exists() and rag_storage.is_dir())
 
                 if is_valid_kb:
                     # Auto-register this KB to kb_config.json
@@ -639,9 +640,7 @@ class KnowledgeBaseManager:
             from deeptutor.services.rag.index_versioning import list_kb_versions
 
             index_versions = list_kb_versions(kb_dir)
-            has_ready_llamaindex = any(
-                bool(version.get("ready")) for version in index_versions
-            )
+            has_ready_llamaindex = any(bool(version.get("ready")) for version in index_versions)
 
         # For old KBs without status field, determine status from rag_storage
         if effective_needs_reindex:
@@ -854,7 +853,8 @@ class KnowledgeBaseManager:
         legacy_storage_dir = kb_dir / "rag_storage"
 
         flat_version_dirs = [
-            path for path in kb_dir.iterdir()
+            path
+            for path in kb_dir.iterdir()
             if path.is_dir() and path.name.startswith(VERSION_PREFIX)
         ]
 

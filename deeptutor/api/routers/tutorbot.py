@@ -47,6 +47,7 @@ class CreateBotRequest(BaseModel):
     persona: str | None = None
     channels: dict | None = None
     model: str | None = None
+    llm_selection: dict[str, str] | None = None
 
 
 class UpdateBotRequest(BaseModel):
@@ -55,6 +56,7 @@ class UpdateBotRequest(BaseModel):
     persona: str | None = None
     channels: dict | None = None
     model: str | None = None
+    llm_selection: dict[str, str] | None = None
 
 
 class FileUpdateRequest(BaseModel):
@@ -168,6 +170,8 @@ async def create_and_start_bot(payload: CreateBotRequest):
     # fields fall back to the on-disk config — preventing the historical bug
     # where each restart wiped out user-configured channels.
     overrides = payload.model_dump(exclude_unset=True, exclude={"bot_id"})
+    if "llm_selection" in overrides:
+        overrides["llm_selection"] = _validate_llm_selection_payload(overrides["llm_selection"])
     config = mgr.merge_bot_config(payload.bot_id, overrides)
     try:
         instance = await mgr.start_bot(payload.bot_id, config)
@@ -196,6 +200,7 @@ def _stopped_bot_dict(
         "persona": cfg.persona,
         "channels": channels,
         "model": cfg.model,
+        "llm_selection": cfg.llm_selection,
         "running": False,
         "started_at": None,
         "last_reload_error": None,
@@ -265,9 +270,26 @@ def _validate_channels_payload(channels: dict) -> None:
         ) from None
 
 
+def _validate_llm_selection_payload(
+    value: dict[str, str] | None,
+) -> dict[str, str] | None:
+    """Validate a bot model selection against the shared LLM catalog."""
+    from deeptutor.services.config import get_model_catalog_service
+    from deeptutor.services.model_selection import apply_llm_selection_to_catalog
+    from deeptutor.services.tutorbot.model_runtime import normalize_tutorbot_llm_selection
+
+    try:
+        selection = normalize_tutorbot_llm_selection(value)
+        if selection:
+            apply_llm_selection_to_catalog(get_model_catalog_service().load(), selection)
+        return selection
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 def _apply_payload(target: BotConfig | TutorBotInstance, payload: UpdateBotRequest) -> None:
     """Apply non-None fields from ``payload`` onto a ``BotConfig`` (or instance.config)."""
-    cfg: BotConfig = target.config if isinstance(target, TutorBotInstance) else target
+    cfg: BotConfig = getattr(target, "config", target)
     if payload.name is not None:
         cfg.name = payload.name
     if payload.description is not None:
@@ -278,14 +300,19 @@ def _apply_payload(target: BotConfig | TutorBotInstance, payload: UpdateBotReque
         cfg.channels = payload.channels
     if payload.model is not None:
         cfg.model = payload.model
+    if "llm_selection" in payload.model_fields_set:
+        cfg.llm_selection = _validate_llm_selection_payload(payload.llm_selection)
 
 
 @router.patch("/{bot_id}")
 async def update_bot(bot_id: str, payload: UpdateBotRequest):
     if payload.channels is not None:
         _validate_channels_payload(payload.channels)
+    if "llm_selection" in payload.model_fields_set:
+        _validate_llm_selection_payload(payload.llm_selection)
 
     mgr = get_tutorbot_manager()
+    llm_changed = bool({"llm_selection", "model"} & payload.model_fields_set)
     instance = mgr.get_bot(bot_id)
     if instance:
         _apply_payload(instance, payload)
@@ -299,6 +326,20 @@ async def update_bot(bot_id: str, payload: UpdateBotRequest):
                     status_code=500,
                     detail=(
                         "Channels saved but failed to restart listeners "
+                        f"({type(exc).__name__}); try stopping and starting the bot."
+                    ),
+                ) from None
+        if llm_changed:
+            try:
+                reload_llm = getattr(mgr, "reload_llm", None)
+                if reload_llm is not None:
+                    await reload_llm(bot_id)
+            except Exception as exc:
+                logger.exception("reload_llm failed for bot '%s'", bot_id)
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "LLM config saved but failed to reload "
                         f"({type(exc).__name__}); try stopping and starting the bot."
                     ),
                 ) from None

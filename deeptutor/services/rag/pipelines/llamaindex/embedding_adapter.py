@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, List
 
 from llama_index.core import Settings
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.bridge.pydantic import PrivateAttr
 
-from deeptutor.logging import get_logger
 from deeptutor.services.embedding import EmbeddingConfig, get_embedding_client, get_embedding_config
 from deeptutor.services.embedding.validation import validate_embedding_batch
 
@@ -40,7 +40,7 @@ class CustomEmbedding(BaseEmbedding):
         progress_cb = kwargs.pop("progress_callback", None)
         embedding_config = kwargs.pop("embedding_config", None)
         super().__init__(**kwargs)
-        self._logger = get_logger("CustomEmbedding")
+        self._logger = logging.getLogger(__name__)
         self._progress_callback = progress_cb
         client = (
             get_embedding_client(embedding_config)

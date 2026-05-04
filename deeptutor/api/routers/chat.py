@@ -6,10 +6,11 @@ WebSocket endpoint for lightweight chat with session management.
 REST endpoints for session operations.
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from deeptutor.agents.chat import ChatAgent, SessionManager
-from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm.config import get_llm_config
 from deeptutor.services.settings.interface_settings import get_ui_language
@@ -17,7 +18,7 @@ from deeptutor.services.settings.interface_settings import get_ui_language
 # Initialize logger
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
-logger = get_logger("ChatAPI", level="INFO", log_dir=log_dir)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -111,8 +112,16 @@ async def websocket_chat(websocket: WebSocket):
         while True:
             # Receive message
             data = await websocket.receive_json()
-            # Use current UI language (fallback to config/main.yaml system.language)
-            language = get_ui_language(default=config.get("system", {}).get("language", "en"))
+            # Prefer the client-sent UI language for this turn; fall back to
+            # persisted Settings so prompt loading tracks the language switch.
+            requested_language = str(data.get("language") or "").lower().strip()
+            language = (
+                "zh"
+                if requested_language.startswith("zh")
+                else "en"
+                if requested_language.startswith("en")
+                else get_ui_language(default=config.get("system", {}).get("language", "en"))
+            )
             message = data.get("message", "").strip()
             session_id = data.get("session_id")
             explicit_history = data.get("history")  # Optional override

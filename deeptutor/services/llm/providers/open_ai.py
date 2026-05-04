@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+import logging
 import os
 from typing import Callable, Protocol, TypeVar, cast
 
 import httpx
 import openai
-
-from deeptutor.logging import get_logger
 
 from ..config import LLMConfig, get_token_limit_kwargs
 from ..exceptions import LLMConfigError
@@ -18,7 +17,7 @@ from ..telemetry import track_llm_call
 from ..types import AsyncStreamGenerator, TutorResponse, TutorStreamChunk
 from .base_provider import BaseLLMProvider
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., object])
 
 

@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Plus } from "lucide-react";
 import Modal from "@/components/common/Modal";
-import type { KnowledgeUploadPolicy, RagProviderSummary } from "@/lib/knowledge-api";
+import type {
+  KnowledgeUploadPolicy,
+  RagProviderSummary,
+} from "@/lib/knowledge-api";
 import { validateFiles } from "@/lib/knowledge-helpers";
 import FileDropZone from "./FileDropZone";
 

@@ -223,9 +223,7 @@ function CollapsedKbDot({
       {kb.is_default ? (
         <Star className="h-3 w-3 text-amber-500" fill="currentColor" />
       ) : (
-        <span className="uppercase tracking-tight">
-          {kb.name.slice(0, 2)}
-        </span>
+        <span className="uppercase tracking-tight">{kb.name.slice(0, 2)}</span>
       )}
       <span
         className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[var(--card)] ${tone}`}

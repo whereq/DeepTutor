@@ -4,18 +4,18 @@ WebSocket endpoint for real-time image analysis with GeoGebra visualization.
 """
 
 import asyncio
+import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from deeptutor.agents.vision_solver import VisionSolverAgent
-from deeptutor.logging import get_logger
 from deeptutor.services.llm import get_llm_config
 from deeptutor.services.settings.interface_settings import get_ui_language
 from deeptutor.tools.vision import ImageError, resolve_image_input
 
-logger = get_logger("VisionSolverAPI", level="INFO")
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
