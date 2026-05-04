@@ -324,6 +324,7 @@ async def complete(
         response = await provider.chat_with_retry(
             messages=request_messages,
             model=config.model,
+            reasoning_effort=config.reasoning_effort,
             retry_delays=retry_delays,
             **extra_kwargs,
         )
@@ -380,6 +381,7 @@ async def stream(
 
     queue: asyncio.Queue[str | BaseException | None] = asyncio.Queue()
     saw_output = False
+    saw_content = False
     in_think_block = False
 
     async def _on_reasoning_delta(chunk: str) -> None:
@@ -393,10 +395,11 @@ async def stream(
         await queue.put(chunk)
 
     async def _on_content_delta(chunk: str) -> None:
-        nonlocal saw_output, in_think_block
+        nonlocal saw_output, saw_content, in_think_block
         if not chunk:
             return
         saw_output = True
+        saw_content = True
         if in_think_block:
             in_think_block = False
             await queue.put("</think>")
@@ -408,6 +411,7 @@ async def stream(
             response = await provider.chat_stream_with_retry(
                 messages=request_messages,
                 model=config.model,
+                reasoning_effort=config.reasoning_effort,
                 on_content_delta=_on_content_delta,
                 on_reasoning_delta=_on_reasoning_delta,
                 retry_delays=retry_delays,
@@ -416,6 +420,12 @@ async def stream(
             if in_think_block:
                 in_think_block = False
                 await queue.put("</think>")
+            # When the model returns reasoning but no direct content (e.g.
+            # DeepSeek v4 with thinking enabled), emit the fallback content
+            # so downstream consumers do not receive an empty response.
+            if not saw_content and response.content:
+                saw_output = True
+                await queue.put(response.content)
             if response.finish_reason == "error" and not saw_output:
                 await queue.put(
                     map_error(
