@@ -113,6 +113,7 @@ class AgenticChatPipeline:
         self.api_key = getattr(self.llm_config, "api_key", None)
         self.base_url = getattr(self.llm_config, "base_url", None)
         self.api_version = getattr(self.llm_config, "api_version", None)
+        self.extra_headers = getattr(self.llm_config, "extra_headers", None) or {}
         self.registry = get_tool_registry()
         self._usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
         # capabilities.chat in agents.yaml drives token budgets and temperature
@@ -824,6 +825,7 @@ class AgenticChatPipeline:
             base_url=self.base_url,
             api_version=self.api_version,
             binding=self.binding,
+            extra_headers=self.extra_headers or None,
             response_format={"type": "json_object"}
             if supports_response_format(self.binding, self.model)
             else None,
@@ -1007,6 +1009,7 @@ class AgenticChatPipeline:
             api_version=self.api_version,
             binding=self.binding,
             messages=messages,
+            extra_headers=self.extra_headers or None,
             **self._completion_kwargs(max_tokens=max_tokens),
         ):
             output_chars += len(chunk)
@@ -1024,17 +1027,20 @@ class AgenticChatPipeline:
         if os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("true", "1", "yes"):
             http_client = httpx.AsyncClient(verify=False)  # nosec B501
 
+        default_headers = self.extra_headers or None
         if self.binding == "azure_openai" or (self.binding == "openai" and self.api_version):
             return AsyncAzureOpenAI(
                 api_key=self.api_key or "sk-no-key-required",
                 azure_endpoint=self.base_url,
                 api_version=self.api_version,
                 http_client=http_client,
+                default_headers=default_headers,
             )
         return AsyncOpenAI(
             api_key=self.api_key or "sk-no-key-required",
             base_url=self.base_url or None,
             http_client=http_client,
+            default_headers=default_headers,
         )
 
     def _completion_kwargs(self, max_tokens: int) -> dict[str, Any]:
