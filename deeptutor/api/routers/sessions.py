@@ -118,10 +118,10 @@ async def delete_session(session_id: str):
 async def delete_turn_by_message(session_id: str, message_id: int):
     store = get_sqlite_session_store()
     result = await store.delete_turn_by_message(session_id, message_id)
-    if not result["deleted"]:
-        raise HTTPException(status_code=404, detail="Message not found")
     if result["was_running"]:
         raise HTTPException(status_code=409, detail="Cannot delete a message while its turn is running")
+    if not result["deleted"]:
+        raise HTTPException(status_code=404, detail="Message not found")
     attachment_store = get_attachment_store()
     for aid in result["attachment_ids"]:
         try:
