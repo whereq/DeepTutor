@@ -686,15 +686,6 @@ class SQLiteSessionStore:
                     (session_id, int(message_id)),
                 ).fetchone()
 
-            attachment_ids: list[str] = []
-            for m in [msg, paired_msg]:
-                if m is not None:
-                    atts = _json_loads(m["attachments_json"], [])
-                    for att in atts:
-                        aid = att.get("id") or att.get("attachment_id")
-                        if aid:
-                            attachment_ids.append(aid)
-
             user_msg = msg if role == "user" else paired_msg
             turn_id = None
             was_running = False
@@ -713,8 +704,22 @@ class SQLiteSessionStore:
                 if turn_row is not None:
                     turn_id = turn_row["id"]
                     was_running = turn_row["status"] == "running"
-                    conn.execute("DELETE FROM turn_events WHERE turn_id = ?", (turn_id,))
-                    conn.execute("DELETE FROM turns WHERE id = ?", (turn_id,))
+
+            if was_running:
+                return {"deleted": False, "attachment_ids": [], "turn_id": turn_id, "was_running": True}
+
+            attachment_ids: list[str] = []
+            for m in [msg, paired_msg]:
+                if m is not None:
+                    atts = _json_loads(m["attachments_json"], [])
+                    for att in atts:
+                        aid = att.get("id") or att.get("attachment_id")
+                        if aid:
+                            attachment_ids.append(aid)
+
+            if turn_id is not None:
+                conn.execute("DELETE FROM turn_events WHERE turn_id = ?", (turn_id,))
+                conn.execute("DELETE FROM turns WHERE id = ?", (turn_id,))
 
             ids_to_delete = [int(message_id)]
             if paired_msg is not None:

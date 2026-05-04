@@ -1264,14 +1264,28 @@ export function UnifiedChatProvider({
       const session = currentState.sessions[key];
       if (!session || !session.sessionId) return;
       if (session.isStreaming) return;
+      let effectiveId = messageId;
+      if (messageId < 0) {
+        const origIdx = session.messages.findIndex((m) => m.id === messageId);
+        if (origIdx === -1) return;
+        try {
+          await loadSession(session.sessionId);
+        } catch {
+          return;
+        }
+        const refreshed = stateRef.current.sessions[key];
+        const realId = refreshed?.messages[origIdx]?.id;
+        if (realId == null || realId < 0) return;
+        effectiveId = realId;
+      }
       try {
-        await deleteMessage(session.sessionId, messageId);
-        dispatch({ type: "DELETE_TURN", key, messageId });
+        await deleteMessage(session.sessionId, effectiveId);
+        dispatch({ type: "DELETE_TURN", key, messageId: effectiveId });
       } catch (err) {
         console.error("Failed to delete turn:", err);
       }
     },
-    [],
+    [loadSession],
   );
 
   const value: ChatContextValue = {
