@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from collections.abc import AsyncGenerator, Mapping
+import contextlib
 from types import SimpleNamespace
 from typing import Any, TypedDict
 
@@ -104,6 +104,49 @@ def _resolve_provider_spec(
     return find_by_name(fallback) or find_by_name("openai")
 
 
+def _url_matches_current(explicit_url: str | None, current: LLMConfig) -> bool:
+    if explicit_url is None:
+        return True
+    return explicit_url in {
+        url for url in (current.base_url, current.effective_url) if url is not None
+    }
+
+
+def _binding_matches_current(binding: str | None, current: LLMConfig) -> bool:
+    if not binding:
+        return True
+    canonical = canonical_provider_name(binding) or binding
+    return canonical in {current.binding, current.provider_name}
+
+
+def _matching_current_config(
+    *,
+    model: str,
+    api_key: str,
+    base_url: str | None,
+    api_version: str | None,
+    binding: str | None,
+) -> LLMConfig | None:
+    """Return the active config when explicit call fields came from it.
+
+    Several agent call sites pass model/api_key/base_url/binding explicitly
+    after reading ``get_llm_config()``. Treat those fields as a partial
+    override, not as a request to drop profile-only settings such as
+    extra_headers or reasoning_effort.
+    """
+    with contextlib.suppress(Exception):
+        current = get_llm_config()
+        if (
+            model == current.model
+            and api_key == current.api_key
+            and _url_matches_current(base_url, current)
+            and (api_version is None or api_version == current.api_version)
+            and _binding_matches_current(binding, current)
+        ):
+            return current
+    return None
+
+
 def _resolve_call_config(
     *,
     model: str | None,
@@ -115,6 +158,23 @@ def _resolve_call_config(
     reasoning_effort: str | None,
 ) -> tuple[LLMConfig, Any]:
     if model and api_key is not None and (base_url is not None or binding is not None):
+        current = _matching_current_config(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            api_version=api_version,
+            binding=binding,
+        )
+        merged_headers = dict(current.extra_headers or {}) if current is not None else {}
+        if extra_headers:
+            merged_headers.update(extra_headers)
+        resolved_reasoning_effort = (
+            reasoning_effort
+            if reasoning_effort is not None
+            else current.reasoning_effort
+            if current is not None
+            else None
+        )
         provider_spec = _resolve_provider_spec(
             binding=binding,
             model=model,
@@ -137,8 +197,8 @@ def _resolve_call_config(
             provider_name=provider_name,
             provider_mode=provider_mode,
             api_version=api_version,
-            extra_headers=extra_headers or {},
-            reasoning_effort=reasoning_effort,
+            extra_headers=merged_headers,
+            reasoning_effort=resolved_reasoning_effort,
         )
         return config, provider_spec
 
@@ -184,12 +244,16 @@ def _resolve_call_config(
 
 
 def _capability_binding(config: LLMConfig, provider_spec: Any) -> str:
-    backend = getattr(provider_spec, "backend", "openai_compat") if provider_spec else "openai_compat"
+    backend = (
+        getattr(provider_spec, "backend", "openai_compat") if provider_spec else "openai_compat"
+    )
     if backend == "anthropic":
         return "anthropic"
     if backend == "azure_openai":
         return "azure_openai"
-    return getattr(provider_spec, "name", None) or config.provider_name or config.binding or "openai"
+    return (
+        getattr(provider_spec, "name", None) or config.provider_name or config.binding or "openai"
+    )
 
 
 def _build_messages(
@@ -289,7 +353,7 @@ async def complete(
     exponential_backoff: bool = DEFAULT_EXPONENTIAL_BACKOFF,
     **kwargs: Any,
 ) -> str:
-    caller_extra_headers = kwargs.pop("extra_headers", None) or {}
+    caller_extra_headers = kwargs.pop("extra_headers", None)
     reasoning_effort = kwargs.pop("reasoning_effort", None)
     image_data = kwargs.pop("image_data", None)
 
@@ -312,12 +376,15 @@ async def complete(
         image_data=image_data,
     )
     retry_delays = _build_retry_delays(max_retries, retry_delay, exponential_backoff)
-    extra_kwargs = _sanitize_call_kwargs(binding=capability_binding, model=config.model, kwargs=kwargs)
+    extra_kwargs = _sanitize_call_kwargs(
+        binding=capability_binding, model=config.model, kwargs=kwargs
+    )
 
     try:
         response = await provider.chat_with_retry(
             messages=request_messages,
             model=config.model,
+            reasoning_effort=config.reasoning_effort,
             retry_delays=retry_delays,
             **extra_kwargs,
         )
@@ -325,7 +392,9 @@ async def complete(
         raise map_error(exc, provider=config.provider_name) from exc
 
     if response.finish_reason == "error":
-        raise map_error(RuntimeError(response.content or "LLM request failed"), provider=config.provider_name)
+        raise map_error(
+            RuntimeError(response.content or "LLM request failed"), provider=config.provider_name
+        )
     return response.content or ""
 
 
@@ -343,7 +412,7 @@ async def stream(
     exponential_backoff: bool = DEFAULT_EXPONENTIAL_BACKOFF,
     **kwargs: Any,
 ) -> AsyncGenerator[str, None]:
-    caller_extra_headers = kwargs.pop("extra_headers", None) or {}
+    caller_extra_headers = kwargs.pop("extra_headers", None)
     reasoning_effort = kwargs.pop("reasoning_effort", None)
     image_data = kwargs.pop("image_data", None)
 
@@ -366,25 +435,60 @@ async def stream(
         image_data=image_data,
     )
     retry_delays = _build_retry_delays(max_retries, retry_delay, exponential_backoff)
-    extra_kwargs = _sanitize_call_kwargs(binding=capability_binding, model=config.model, kwargs=kwargs)
+    extra_kwargs = _sanitize_call_kwargs(
+        binding=capability_binding, model=config.model, kwargs=kwargs
+    )
 
     queue: asyncio.Queue[str | BaseException | None] = asyncio.Queue()
     saw_output = False
+    saw_content = False
+    in_think_block = False
+
+    async def _on_reasoning_delta(chunk: str) -> None:
+        nonlocal saw_output, in_think_block
+        if not chunk:
+            return
+        saw_output = True
+        if not in_think_block:
+            in_think_block = True
+            await queue.put("<think>")
+        await queue.put(chunk)
 
     async def _on_content_delta(chunk: str) -> None:
-        nonlocal saw_output
+        nonlocal saw_output, saw_content, in_think_block
+        if not chunk:
+            return
         saw_output = True
+        saw_content = True
+        if in_think_block:
+            in_think_block = False
+            await queue.put("</think>")
         await queue.put(chunk)
 
     async def _runner() -> None:
+        nonlocal in_think_block
         try:
             response = await provider.chat_stream_with_retry(
                 messages=request_messages,
                 model=config.model,
+                reasoning_effort=config.reasoning_effort,
                 on_content_delta=_on_content_delta,
+                on_reasoning_delta=_on_reasoning_delta,
                 retry_delays=retry_delays,
                 **extra_kwargs,
             )
+            if in_think_block:
+                in_think_block = False
+                await queue.put("</think>")
+            # Some providers synthesize a final response only after the stream.
+            # Do not replay reasoning_content as user-visible answer text.
+            if (
+                not saw_content
+                and response.content
+                and response.content != response.reasoning_content
+            ):
+                saw_output = True
+                await queue.put(response.content)
             if response.finish_reason == "error" and not saw_output:
                 await queue.put(
                     map_error(

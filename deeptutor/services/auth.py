@@ -27,13 +27,12 @@ Multi-user setup (recommended):
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 import os
 from pathlib import Path
 import secrets
 
-from deeptutor.logging import get_logger
-
-logger = get_logger("Auth")
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Configuration — read once at import time

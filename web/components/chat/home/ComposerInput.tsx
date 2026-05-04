@@ -11,7 +11,10 @@ import {
   type RefObject,
 } from "react";
 import { useTranslation } from "react-i18next";
-import AtMentionPopup from "@/components/chat/AtMentionPopup";
+import ChatSpaceMenu, {
+  type ChatSpaceSelectionCounts,
+} from "@/components/chat/space/ChatSpaceMenu";
+import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
 
 interface ComposerInputProps {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -25,9 +28,13 @@ interface ComposerInputProps {
   onSend: (content: string) => void;
   onInputChange: (content: string) => void;
   onPaste: (e: React.ClipboardEvent) => void;
+  selectedCounts: ChatSpaceSelectionCounts;
   onSelectNotebookPicker: () => void;
+  onSelectBookPicker: () => void;
   onSelectHistoryPicker: () => void;
   onSelectQuestionBankPicker: () => void;
+  onSelectSkillsPicker: () => void;
+  onSelectMemoryPicker: () => void;
 }
 
 export interface ComposerInputHandle {
@@ -55,9 +62,13 @@ export const ComposerInput = memo(
       onSend,
       onInputChange,
       onPaste,
+      selectedCounts,
       onSelectNotebookPicker,
+      onSelectBookPicker,
       onSelectHistoryPicker,
       onSelectQuestionBankPicker,
+      onSelectSkillsPicker,
+      onSelectMemoryPicker,
     },
     ref,
   ) {
@@ -66,11 +77,12 @@ export const ComposerInput = memo(
     const [showAtPopup, setShowAtPopup] = useState(false);
 
     // Latest text mirrored into a ref by the change handlers (never updated
-    // during render). The select-* handlers and the imperative handle read
+    // during render). The @space handlers and the imperative handle read
     // from this ref so their identities stay stable across keystrokes,
-    // letting `memo` on AtMentionPopup actually skip re-renders when
+    // letting `memo` on ChatSpaceMenu actually skip re-renders when
     // `showAtPopup` doesn't change.
     const inputRef = useRef("");
+    const isComposingRef = useRef(false);
     // Helper that always updates state and ref together so they can't drift.
     const setInputBoth = useCallback((value: string) => {
       inputRef.current = value;
@@ -137,7 +149,7 @@ export const ComposerInput = memo(
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (shouldSubmitOnEnter(e, isComposingRef.current)) {
           e.preventDefault();
           doSend();
         } else if (e.key === "Escape") {
@@ -147,43 +159,72 @@ export const ComposerInput = memo(
       [doSend],
     );
 
-    const handleSelectNotebook = useCallback(() => {
-      const next = stripTrailingAtMention(inputRef.current);
-      setInputBoth(next);
-      onInputChange(next);
-      setShowAtPopup(false);
-      onSelectNotebookPicker();
-    }, [setInputBoth, onInputChange, onSelectNotebookPicker]);
+    const handleCompositionStart = useCallback(() => {
+      isComposingRef.current = true;
+    }, []);
 
-    const handleSelectHistory = useCallback(() => {
-      const next = stripTrailingAtMention(inputRef.current);
-      setInputBoth(next);
-      onInputChange(next);
-      setShowAtPopup(false);
-      onSelectHistoryPicker();
-    }, [setInputBoth, onInputChange, onSelectHistoryPicker]);
+    const handleCompositionEnd = useCallback(() => {
+      // Some IMEs fire compositionend before the Enter keydown that confirms
+      // a candidate, so keep the guard through the current event turn.
+      setTimeout(() => {
+        isComposingRef.current = false;
+      }, 0);
+    }, []);
 
-    const handleSelectQuestionBank = useCallback(() => {
+    const clearTrailingMention = useCallback(() => {
       const next = stripTrailingAtMention(inputRef.current);
       setInputBoth(next);
       onInputChange(next);
-      setShowAtPopup(false);
-      onSelectQuestionBankPicker();
-    }, [setInputBoth, onInputChange, onSelectQuestionBankPicker]);
+    }, [setInputBoth, onInputChange]);
+
+    const handleSelectSpaceItem = useCallback(
+      (
+        key:
+          | "chat_history"
+          | "books"
+          | "notebooks"
+          | "question_bank"
+          | "skills"
+          | "memory",
+      ) => {
+        clearTrailingMention();
+        setShowAtPopup(false);
+        if (key === "chat_history") onSelectHistoryPicker();
+        else if (key === "books") onSelectBookPicker();
+        else if (key === "notebooks") onSelectNotebookPicker();
+        else if (key === "question_bank") onSelectQuestionBankPicker();
+        else if (key === "skills") onSelectSkillsPicker();
+        else if (key === "memory") onSelectMemoryPicker();
+      },
+      [
+        clearTrailingMention,
+        onSelectHistoryPicker,
+        onSelectBookPicker,
+        onSelectNotebookPicker,
+        onSelectQuestionBankPicker,
+        onSelectSkillsPicker,
+        onSelectMemoryPicker,
+      ],
+    );
 
     return (
       <div className="px-4 pt-3.5 pb-2">
-        <AtMentionPopup
-          open={showAtPopup}
-          onSelectNotebook={handleSelectNotebook}
-          onSelectHistory={handleSelectHistory}
-          onSelectQuestionBank={handleSelectQuestionBank}
-        />
+        {showAtPopup && (
+          <div className="absolute bottom-full left-0 z-[70] mb-2">
+            <ChatSpaceMenu
+              variant="mention"
+              selectedCounts={selectedCounts}
+              onSelectItem={handleSelectSpaceItem}
+            />
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
           onClick={handleTextareaClick}
           onPaste={onPaste}
           rows={1}

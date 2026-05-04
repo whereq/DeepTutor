@@ -59,7 +59,7 @@ Extended features in `deeptutor/plugins/`:
 
 ```bash
 # Install CLI
-pip install -r requirements/cli.txt && pip install -e .
+pip install -e ".[cli]"
 
 # Run any capability (agent-first entry point)
 deeptutor run chat "Explain Fourier transform"
@@ -78,7 +78,7 @@ deeptutor kb create my-kb --doc textbook.pdf
 deeptutor plugin list
 deeptutor memory show
 
-# API server (requires server.txt)
+# API server (requires .[server])
 deeptutor serve --port 8001
 ```
 
@@ -141,9 +141,15 @@ class MyPlugin(BaseCapability):
 
 ## Dependency Layers
 
+Defined in `pyproject.toml` `[project.optional-dependencies]`. Mirrored as flat
+lists in `requirements/*.txt` for Docker/CI installs without source code.
+
 ```
-requirements/cli.txt            — CLI full (LLM + RAG + providers + tools)
-requirements/server.txt         — CLI + FastAPI/uvicorn (for Web/API)
-requirements/math-animator.txt  — Manim addon (for `deeptutor animate`)
-requirements/dev.txt            — Server + test/lint tools
+.[cli]            — CLI full (LLM + RAG + providers + document parsing)
+.[server]         — .[cli] + FastAPI/uvicorn (for Web/API)
+.[tutorbot]       — .[server] + TutorBot agent engine + channel SDKs
+.[matrix]         — Matrix channel for TutorBot (matrix-nio[e2e]; needs libolm)
+.[math-animator]  — Manim addon (for `deeptutor animate`)
+.[dev]            — .[server] + test/lint tools
+.[all]            — Everything above
 ```

@@ -30,6 +30,14 @@ class EmbeddingRequest:
         truncate: Whether to truncate texts that exceed max tokens (default: True)
         normalized: Whether to return L2-normalized embeddings (Jina/Ollama only)
         late_chunking: Enable late chunking for long context (Jina v3 only)
+        contents: Multimodal content list of dicts like
+            ``[{"text": "..."}, {"image": "url|data: URI"}, {"video": "..."}]``.
+            Adapters that support multimodal (DashScope, SiliconFlow Qwen3-VL,
+            Cohere v4) consume this directly; text-only adapters MUST raise
+            ``ValueError`` if it is set so the caller can route differently.
+            When ``contents`` is set, ``texts`` is ignored.
+        enable_fusion: DashScope-specific. ``True`` fuses all multimodal items
+            into one vector; ``False`` (or None) returns one vector per item.
     """
 
     texts: List[str]
@@ -40,6 +48,8 @@ class EmbeddingRequest:
     truncate: Optional[bool] = True
     normalized: Optional[bool] = True
     late_chunking: Optional[bool] = False
+    contents: Optional[List[Dict[str, Any]]] = None
+    enable_fusion: Optional[bool] = None
 
 
 @dataclass
@@ -50,6 +60,47 @@ class EmbeddingResponse:
     model: str
     dimensions: int
     usage: Dict[str, Any]
+
+
+class EmbeddingProviderError(RuntimeError):
+    """Structured error raised by embedding adapters on provider failures.
+
+    Carries the HTTP status, response body excerpt, model name, and request
+    URL so downstream callers (task log streams, UI surfaces) can show
+    actionable diagnostics instead of a bare exception string.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: Optional[int] = None,
+        body: Optional[str] = None,
+        model: Optional[str] = None,
+        url: Optional[str] = None,
+        provider: Optional[str] = None,
+    ) -> None:
+        super().__init__(message)
+        self.status = status
+        self.body = body
+        self.model = model
+        self.url = url
+        self.provider = provider
+
+    def __str__(self) -> str:  # noqa: D401 - succinct
+        parts = [super().__str__()]
+        if self.provider:
+            parts.append(f"provider={self.provider}")
+        if self.model:
+            parts.append(f"model={self.model}")
+        if self.status is not None:
+            parts.append(f"status={self.status}")
+        if self.url:
+            parts.append(f"url={self.url}")
+        if self.body:
+            snippet = self.body if len(self.body) <= 500 else self.body[:500] + "...(truncated)"
+            parts.append(f"body={snippet}")
+        return " | ".join(parts)
 
 
 class BaseEmbeddingAdapter(ABC):

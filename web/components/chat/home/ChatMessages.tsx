@@ -2,14 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { memo, useCallback, useMemo, useState } from "react";
-import Image from "next/image";
 import {
   BookOpen,
+  Brain,
   ClipboardList,
   Coins,
   Copy,
   MessageSquare,
   RefreshCcw,
+  Wand2,
   X,
   Zap,
   type LucideIcon,
@@ -22,12 +23,15 @@ import type {
   MessageAttachment,
   MessageRequestSnapshot,
 } from "@/context/UnifiedChatContext";
+import { apiUrl } from "@/lib/api";
 import { docIconFor } from "@/lib/doc-attachments";
 import { extractMathAnimatorResult } from "@/lib/math-animator-types";
 import { extractQuizQuestions } from "@/lib/quiz-types";
 import { extractVisualizeResult } from "@/lib/visualize-types";
 import type { StreamEvent } from "@/lib/unified-ws";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
+import type { SelectedBookReference } from "@/lib/book-references";
+import type { SpaceMemoryFile } from "@/lib/space-items";
 import { CallTracePanel } from "./TracePanels";
 
 const MathAnimatorViewer = dynamic(
@@ -71,6 +75,24 @@ function getModeBadgeLabel(capability?: string | null): string {
   if (capability === "math_animator") return "Math Animator";
   if (capability === "visualize") return "Visualize";
   return capability;
+}
+
+function imageSrcForAttachment(attachment: MessageAttachment): string | null {
+  if (attachment.url) {
+    if (
+      attachment.url.startsWith("http") ||
+      attachment.url.startsWith("blob:") ||
+      attachment.url.startsWith("data:")
+    ) {
+      return attachment.url;
+    }
+    return apiUrl(attachment.url);
+  }
+
+  const base64 = attachment.base64?.trim();
+  if (!base64) return null;
+  if (base64.startsWith("data:")) return base64;
+  return `data:${attachment.mime_type || "image/png"};base64,${base64}`;
 }
 
 const AssistantMessage = memo(function AssistantMessage({
@@ -306,9 +328,8 @@ const UserMessage = memo(function UserMessage({
             {msg.attachments
               .filter((a) => a.type === "image" && (a.base64 || a.url))
               .map((a, ai) => {
-                const src = a.url
-                  ? a.url
-                  : `data:image/png;base64,${a.base64}`;
+                const src = imageSrcForAttachment(a);
+                if (!src) return null;
                 return (
                   <button
                     key={`img-${ai}`}
@@ -317,12 +338,10 @@ const UserMessage = memo(function UserMessage({
                     title={a.filename || t("image")}
                     className="overflow-hidden rounded-2xl border border-[var(--border)] transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
                   >
-                    <Image
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
                       src={src}
                       alt={a.filename || t("image")}
-                      width={280}
-                      height={192}
-                      unoptimized
                       className="max-h-48 max-w-[280px] rounded-2xl object-contain"
                     />
                   </button>
@@ -349,11 +368,7 @@ const UserMessage = memo(function UserMessage({
                     className={cardClass}
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[var(--muted)]/60">
-                      <Icon
-                        size={20}
-                        strokeWidth={1.5}
-                        className={spec.tint}
-                      />
+                      <Icon size={20} strokeWidth={1.5} className={spec.tint} />
                     </div>
                     <div className="min-w-0 flex-1 text-left">
                       <div className="truncate text-[12px] font-medium text-[var(--foreground)]">
@@ -372,8 +387,22 @@ const UserMessage = memo(function UserMessage({
           {(() => {
             const snap = msg.requestSnapshot;
             const hasNotebook = Boolean(snap?.notebookReferences?.length);
+            const hasBooks = Boolean(snap?.bookReferences?.length);
             const hasHistory = Boolean(snap?.historyReferences?.length);
-            if (!hasNotebook && !hasHistory) return null;
+            const hasQuestions = Boolean(
+              snap?.questionNotebookReferences?.length,
+            );
+            const hasSkills = Boolean(snap?.skills?.length);
+            const hasMemory = Boolean(snap?.memoryReferences?.length);
+            if (
+              !hasNotebook &&
+              !hasBooks &&
+              !hasHistory &&
+              !hasQuestions &&
+              !hasSkills &&
+              !hasMemory
+            )
+              return null;
             return (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {snap?.notebookReferences?.map((ref) => (
@@ -385,6 +414,15 @@ const UserMessage = memo(function UserMessage({
                     {t("Notebook")} · {ref.record_ids.length} {t("records")}
                   </span>
                 ))}
+                {snap?.bookReferences?.map((ref) => (
+                  <span
+                    key={ref.book_id}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                  >
+                    <BookOpen size={11} strokeWidth={1.8} />
+                    {t("Book")} · {ref.page_ids.length} {t("chapters")}
+                  </span>
+                ))}
                 {snap?.historyReferences?.map((sid) => (
                   <span
                     key={sid}
@@ -392,6 +430,32 @@ const UserMessage = memo(function UserMessage({
                   >
                     <MessageSquare size={11} strokeWidth={1.8} />
                     {t("Chat History")}
+                  </span>
+                ))}
+                {hasQuestions && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]">
+                    <ClipboardList size={11} strokeWidth={1.8} />
+                    {t("Question Bank")} ·{" "}
+                    {snap?.questionNotebookReferences?.length} {t("items")}
+                  </span>
+                )}
+                {snap?.skills?.map((skill) => (
+                  <span
+                    key={skill}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                  >
+                    <Wand2 size={11} strokeWidth={1.8} />
+                    {skill === "auto" ? t("Skills Auto") : skill}
+                  </span>
+                ))}
+                {snap?.memoryReferences?.map((file) => (
+                  <span
+                    key={file}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                  >
+                    <Brain size={11} strokeWidth={1.8} />
+                    {t("Memory")} ·{" "}
+                    {file === "summary" ? t("Summary") : t("Profile")}
                   </span>
                 ))}
               </div>
@@ -406,26 +470,46 @@ const UserMessage = memo(function UserMessage({
 
 UserMessage.displayName = "UserMessage";
 
-export const ReferenceChips = memo(function ReferenceChips({
+export const SpaceContextChips = memo(function SpaceContextChips({
   historySessions,
+  bookReferences,
   notebookGroups,
   questionEntries,
+  selectedSkills,
+  skillsAutoMode,
+  memoryFiles,
   onRemoveHistory,
+  onRemoveBookReference,
   onRemoveNotebook,
   onRemoveQuestion,
+  onRemoveSkill,
+  onClearSkillsAuto,
+  onRemoveMemoryFile,
 }: {
   historySessions: SelectedHistorySession[];
+  bookReferences: SelectedBookReference[];
   notebookGroups: NotebookReferenceGroup[];
   questionEntries: SelectedQuestionEntry[];
+  selectedSkills: string[];
+  skillsAutoMode: boolean;
+  memoryFiles: SpaceMemoryFile[];
   onRemoveHistory: (sessionId: string) => void;
+  onRemoveBookReference: (bookId: string) => void;
   onRemoveNotebook: (notebookId: string) => void;
   onRemoveQuestion: (entryId: number) => void;
+  onRemoveSkill: (skill: string) => void;
+  onClearSkillsAuto: () => void;
+  onRemoveMemoryFile: (file: SpaceMemoryFile) => void;
 }) {
   const { t } = useTranslation();
   if (
     historySessions.length === 0 &&
+    bookReferences.length === 0 &&
     notebookGroups.length === 0 &&
-    questionEntries.length === 0
+    questionEntries.length === 0 &&
+    selectedSkills.length === 0 &&
+    !skillsAutoMode &&
+    memoryFiles.length === 0
   )
     return null;
 
@@ -443,6 +527,24 @@ export const ReferenceChips = memo(function ReferenceChips({
           </span>
           <button
             onClick={() => onRemoveHistory(session.sessionId)}
+            className="shrink-0 opacity-60 transition hover:opacity-100"
+          >
+            <X size={12} />
+          </button>
+        </span>
+      ))}
+      {bookReferences.map((book) => (
+        <span
+          key={book.bookId}
+          className="inline-flex max-w-full items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-[12px] text-teal-800 shadow-sm dark:border-teal-900/60 dark:bg-teal-950/30 dark:text-teal-200"
+        >
+          <BookOpen size={12} strokeWidth={1.8} className="shrink-0" />
+          <span className="shrink-0 font-medium">{t("Book")}</span>
+          <span className="truncate text-teal-700/90 dark:text-teal-200/90">
+            {book.bookTitle} ({book.pages.length})
+          </span>
+          <button
+            onClick={() => onRemoveBookReference(book.bookId)}
             className="shrink-0 opacity-60 transition hover:opacity-100"
           >
             <X size={12} />
@@ -487,11 +589,62 @@ export const ReferenceChips = memo(function ReferenceChips({
           </button>
         </span>
       ))}
+      {skillsAutoMode && (
+        <span className="inline-flex max-w-full items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-[12px] text-violet-800 shadow-sm dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-200">
+          <Wand2 size={12} strokeWidth={1.8} className="shrink-0" />
+          <span className="shrink-0 font-medium">{t("Skills")}</span>
+          <span className="truncate text-violet-700/90 dark:text-violet-200/90">
+            {t("Auto")}
+          </span>
+          <button
+            onClick={onClearSkillsAuto}
+            className="shrink-0 opacity-60 transition hover:opacity-100"
+          >
+            <X size={12} />
+          </button>
+        </span>
+      )}
+      {selectedSkills.map((skill) => (
+        <span
+          key={skill}
+          className="inline-flex max-w-full items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-[12px] text-violet-800 shadow-sm dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-200"
+        >
+          <Wand2 size={12} strokeWidth={1.8} className="shrink-0" />
+          <span className="shrink-0 font-medium">{t("Skill")}</span>
+          <span className="truncate text-violet-700/90 dark:text-violet-200/90">
+            {skill}
+          </span>
+          <button
+            onClick={() => onRemoveSkill(skill)}
+            className="shrink-0 opacity-60 transition hover:opacity-100"
+          >
+            <X size={12} />
+          </button>
+        </span>
+      ))}
+      {memoryFiles.map((file) => (
+        <span
+          key={file}
+          className="inline-flex max-w-full items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[12px] text-emerald-800 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200"
+        >
+          <Brain size={12} strokeWidth={1.8} className="shrink-0" />
+          <span className="shrink-0 font-medium">{t("Memory")}</span>
+          <span className="truncate text-emerald-700/90 dark:text-emerald-200/90">
+            {file === "summary" ? t("Summary") : t("Profile")}
+          </span>
+          <button
+            onClick={() => onRemoveMemoryFile(file)}
+            className="shrink-0 opacity-60 transition hover:opacity-100"
+          >
+            <X size={12} />
+          </button>
+        </span>
+      ))}
     </div>
   );
 });
 
-ReferenceChips.displayName = "ReferenceChips";
+SpaceContextChips.displayName = "SpaceContextChips";
 
 export const ChatMessageList = memo(function ChatMessageList({
   messages,

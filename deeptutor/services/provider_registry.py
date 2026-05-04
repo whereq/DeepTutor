@@ -42,10 +42,16 @@ class ProviderSpec:
     strip_model_prefix: bool = False
     supports_max_completion_tokens: bool = False
     supports_prompt_caching: bool = False
+    supports_stream_options: bool = True
     model_overrides: tuple[tuple[str, dict[str, Any]], ...] = ()
     is_oauth: bool = False
     is_direct: bool = False
     thinking_style: str = ""
+    # Substring patterns (case-insensitive) marking models whose native
+    # reasoning trace should be surfaced. When the caller does not pass an
+    # explicit reasoning_effort, the provider auto-injects "high" so the
+    # thinking_style flag (e.g. extra_body.thinking.type=enabled) is sent.
+    reasoning_model_patterns: tuple[str, ...] = ()
 
     @property
     def mode(self) -> str:
@@ -253,6 +259,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         backend="openai_compat",
         default_api_base="https://api.deepseek.com",
         thinking_style="thinking_type",
+        reasoning_model_patterns=("deepseek-v4-pro", "deepseek-reasoner"),
     ),
     ProviderSpec(
         name="gemini",
@@ -383,6 +390,18 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         default_api_base="http://localhost:8000/v3",
     ),
     # === Auxiliary ==========================================================
+    ProviderSpec(
+        name="nvidia_nim",
+        keywords=("nvidia_nim", "nvidia-nim", "nim"),
+        env_key="NVIDIA_NIM_API_KEY",
+        display_name="NVIDIA NIM",
+        backend="openai_compat",
+        is_gateway=True,
+        detect_by_key_prefix="nvapi-",
+        detect_by_base_keyword="api.nvidia.com",
+        default_api_base="https://integrate.api.nvidia.com/v1",
+        supports_stream_options=False,
+    ),
     ProviderSpec(
         name="groq",
         keywords=("groq",),

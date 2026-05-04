@@ -10,6 +10,10 @@ import { firstParam } from "@/lib/route-params";
 import AssistantResponse from "@/components/common/AssistantResponse";
 import { SimpleComposerInput } from "@/components/chat/home/SimpleComposerInput";
 import { downloadChatMarkdown } from "@/lib/chat-export";
+import {
+  normalizeMessageContent,
+  type RawMessageContent,
+} from "@/lib/message-content";
 import type { MessageItem } from "@/context/UnifiedChatContext";
 import type {
   NotebookSaveMessage,
@@ -102,46 +106,63 @@ export default function BotChatPage() {
 
   const handleCloseSaveModal = useCallback(() => setShowSaveModal(false), []);
 
-  const scrollToBottom = useCallback(
-    (behavior: ScrollBehavior = "smooth") => {
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior,
-        });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior,
       });
-    },
-    [],
-  );
+    });
+  }, []);
 
   useEffect(() => {
     if (!botId) {
       return;
     }
+    let cancelled = false;
+    setMessages([]);
+    setThinking([]);
+    thinkingRef.current = [];
+    setStreaming(false);
+
     fetch(apiUrl(`/api/v1/tutorbot/${botId}`))
       .then((r) => (r.ok ? r.json() : null))
-      .then(setBot)
-      .catch(() => setBot(null));
+      .then((data) => {
+        if (!cancelled) setBot(data);
+      })
+      .catch(() => {
+        if (!cancelled) setBot(null);
+      });
 
     fetch(apiUrl(`/api/v1/tutorbot/${botId}/history`))
       .then((r) => (r.ok ? r.json() : []))
-      .then((history: { role: string; content: string }[]) => {
-        const restored: ChatMsg[] = history
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .map((m) => ({
-            role: m.role as "user" | "assistant",
-            content: m.content,
-          }));
-        if (restored.length) {
+      .then(
+        (
+          history: {
+            role: string;
+            content: RawMessageContent;
+            reasoning_content?: unknown;
+          }[],
+        ) => {
+          const restored: ChatMsg[] = history
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .map((m) => ({
+              role: m.role as "user" | "assistant",
+              content: normalizeMessageContent(m.content),
+            }));
+          if (cancelled) return;
           setMessages(restored);
-          // Markdown/KaTeX inside AssistantResponse can grow the container after
-          // the first paint — re-snap a few times so we land at the bottom.
-          requestAnimationFrame(() => scrollToBottom("instant"));
-          window.setTimeout(() => scrollToBottom("instant"), 80);
-          window.setTimeout(() => scrollToBottom("instant"), 250);
-        }
-      })
+          if (restored.length) {
+            requestAnimationFrame(() => scrollToBottom("instant"));
+            window.setTimeout(() => scrollToBottom("instant"), 80);
+            window.setTimeout(() => scrollToBottom("instant"), 250);
+          }
+        },
+      )
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [botId, scrollToBottom]);
 
   useEffect(() => {

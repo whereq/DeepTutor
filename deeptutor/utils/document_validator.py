@@ -7,6 +7,7 @@ import mimetypes
 import os
 import re
 from typing import ClassVar
+import unicodedata
 
 
 class DocumentValidator:
@@ -80,23 +81,26 @@ class DocumentValidator:
                 f"File too large: {file_size} bytes. Maximum allowed: {DocumentValidator.MAX_FILE_SIZE} bytes"
             )
 
-        # Additional size check for PDFs to prevent resource exhaustion
-        _, ext = os.path.splitext(filename.lower())
-        if ext == ".pdf" and file_size is not None and file_size > DocumentValidator.MAX_PDF_SIZE:
-            raise ValueError(
-                f"PDF file too large: {file_size} bytes. Maximum allowed for PDFs: {DocumentValidator.MAX_PDF_SIZE} bytes"
-            )
-
         # Sanitize filename - remove path components and dangerous characters
-        # Extract just the filename, removing any path components
-        safe_name = os.path.basename(filename)
+        # Normalize Unicode and strip both POSIX and Windows path components.
+        normalized_filename = unicodedata.normalize("NFC", filename)
+        safe_name = normalized_filename.replace("\\", "/").rsplit("/", 1)[-1]
         # Remove null bytes and other control characters
         safe_name = re.sub(r"[\x00-\x1f\x7f]", "", safe_name)
         # Replace problematic characters
         safe_name = re.sub(r'[<>:"/\\|?*]', "_", safe_name)
+        stem, ext = os.path.splitext(safe_name)
+        ext = ext.lower()
+        safe_name = f"{stem}{ext}"
 
         if not safe_name or safe_name in (".", "..") or safe_name.strip("_") == "":
             raise ValueError("Invalid filename")
+
+        # Additional size check for PDFs to prevent resource exhaustion
+        if ext == ".pdf" and file_size is not None and file_size > DocumentValidator.MAX_PDF_SIZE:
+            raise ValueError(
+                f"PDF file too large: {file_size} bytes. Maximum allowed for PDFs: {DocumentValidator.MAX_PDF_SIZE} bytes"
+            )
 
         # Check file extension
         exts_to_check = allowed_extensions or DocumentValidator.ALLOWED_EXTENSIONS
@@ -105,9 +109,17 @@ class DocumentValidator:
                 f"Unsupported file type: {ext}. Allowed types: {', '.join(exts_to_check)}"
             )
 
-        # Additional MIME type validation for security
-        guessed_mime, _ = mimetypes.guess_type(filename.lower())
-        if guessed_mime and guessed_mime not in DocumentValidator.ALLOWED_MIME_TYPES:
+        # Additional MIME type validation for the legacy/default policy. For
+        # caller-provided extension policies (for example the KB router's
+        # FileTypeRouter list), the extension set is already the source of
+        # truth; mimetypes is extension-derived and incomplete for many code
+        # and config formats.
+        guessed_mime, _ = mimetypes.guess_type(safe_name.lower())
+        if (
+            allowed_extensions is None
+            and guessed_mime
+            and guessed_mime not in DocumentValidator.ALLOWED_MIME_TYPES
+        ):
             raise ValueError(
                 f"MIME type validation failed: {guessed_mime}. File may be malicious or corrupted."
             )

@@ -230,7 +230,7 @@ class PathService:
     def get_memory_dir(self) -> Path:
         new_dir = self.project_root / "data" / "memory"
         old_dir = self.get_workspace_feature_dir("memory")
-        if old_dir.exists() and not new_dir.exists():
+        if old_dir.exists():
             new_dir.mkdir(parents=True, exist_ok=True)
             for f in old_dir.iterdir():
                 if f.is_file() and f.suffix == ".md":

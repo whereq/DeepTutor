@@ -9,9 +9,9 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 import hashlib
-import time
 import secrets
 import string
+import time
 from typing import TYPE_CHECKING, Any
 import uuid
 
@@ -21,6 +21,7 @@ from openai import AsyncOpenAI
 from deeptutor.services.llm.capabilities import disable_response_format_at_runtime
 from deeptutor.services.llm.provider_core.base import LLMProvider, LLMResponse, ToolCallRequest
 from deeptutor.services.llm.provider_core.openai_responses import (
+    adapt_chat_kwargs_to_responses,
     consume_sdk_stream,
     convert_messages,
     convert_tools,
@@ -50,9 +51,7 @@ _DEFAULT_OPENROUTER_HEADERS = {
 _RESPONSES_FAILURE_THRESHOLD = 2
 _RESPONSES_PROBE_INTERVAL_S = 300.0
 _THINKING_STYLE_MAP = {
-    "thinking_type": lambda enabled: {
-        "thinking": {"type": "enabled" if enabled else "disabled"}
-    },
+    "thinking_type": lambda enabled: {"thinking": {"type": "enabled" if enabled else "disabled"}},
     "enable_thinking": lambda enabled: {"enable_thinking": enabled},
     "reasoning_split": lambda enabled: {"reasoning_split": enabled},
 }
@@ -293,6 +292,11 @@ class OpenAICompatProvider(LLMProvider):
                 if pattern in model_lower:
                     kwargs.update(overrides)
                     break
+
+        if reasoning_effort is None and spec and spec.reasoning_model_patterns:
+            model_lower = model_name.lower()
+            if any(p.lower() in model_lower for p in spec.reasoning_model_patterns):
+                reasoning_effort = "high"
 
         semantic_effort: str | None = None
         if isinstance(reasoning_effort, str):
@@ -615,8 +619,11 @@ class OpenAICompatProvider(LLMProvider):
             for tc in (delta.tool_calls or []) if delta else []:
                 _accum_tc(tc, getattr(tc, "index", 0))
 
+        content = "".join(content_parts) or None
+        reasoning_content = "".join(reasoning_parts) or None
+
         return LLMResponse(
-            content="".join(content_parts) or None,
+            content=content,
             tool_calls=[
                 ToolCallRequest(
                     id=b["id"] or _short_tool_id(),
@@ -627,7 +634,7 @@ class OpenAICompatProvider(LLMProvider):
             ],
             finish_reason=finish_reason,
             usage=usage,
-            reasoning_content="".join(reasoning_parts) or None,
+            reasoning_content=reasoning_content,
         )
 
     @staticmethod
@@ -689,7 +696,7 @@ class OpenAICompatProvider(LLMProvider):
                         reasoning_effort,
                         tool_choice,
                     )
-                    body.update({k: v for k, v in extra_kwargs.items() if v is not None})
+                    body.update(adapt_chat_kwargs_to_responses(extra_kwargs))
                     result = parse_response_output(await self._client.responses.create(**body))
                     self._record_responses_success(model, reasoning_effort)
                     return result
@@ -713,9 +720,9 @@ class OpenAICompatProvider(LLMProvider):
             try:
                 return self._parse(await self._client.chat.completions.create(**request_kwargs))
             except Exception as exc:
-                if request_kwargs.get("response_format") is not None and self._is_response_format_error(
-                    exc
-                ):
+                if request_kwargs.get(
+                    "response_format"
+                ) is not None and self._is_response_format_error(exc):
                     binding = self._provider_name or (self._spec.name if self._spec else "openai")
                     disable_response_format_at_runtime(binding, request_kwargs.get("model"))
                     retry_kwargs = dict(request_kwargs)
@@ -746,6 +753,7 @@ class OpenAICompatProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         **extra_kwargs: Any,
     ) -> LLMResponse:
         request_kwargs = self._build_kwargs(
@@ -771,7 +779,7 @@ class OpenAICompatProvider(LLMProvider):
                         reasoning_effort,
                         tool_choice,
                     )
-                    body.update({k: v for k, v in extra_kwargs.items() if v is not None})
+                    body.update(adapt_chat_kwargs_to_responses(extra_kwargs))
                     body["stream"] = True
                     stream = await self._client.responses.create(**body)
 
@@ -786,8 +794,16 @@ class OpenAICompatProvider(LLMProvider):
                             except StopAsyncIteration:
                                 break
 
-                    content, tool_calls, finish_reason, usage, reasoning_content = (
-                        await consume_sdk_stream(_timed_stream(), on_content_delta)
+                    (
+                        content,
+                        tool_calls,
+                        finish_reason,
+                        usage,
+                        reasoning_content,
+                    ) = await consume_sdk_stream(
+                        _timed_stream(),
+                        on_content_delta,
+                        on_reasoning_delta=on_reasoning_delta,
                     )
                     self._record_responses_success(model, reasoning_effort)
                     return LLMResponse(
@@ -805,13 +821,14 @@ class OpenAICompatProvider(LLMProvider):
                     self._record_responses_failure(model, reasoning_effort)
 
             request_kwargs["stream"] = True
-            request_kwargs["stream_options"] = {"include_usage": True}
+            if self._spec is None or self._spec.supports_stream_options:
+                request_kwargs["stream_options"] = {"include_usage": True}
             try:
                 stream = await self._client.chat.completions.create(**request_kwargs)
             except Exception as exc:
-                if request_kwargs.get("response_format") is not None and self._is_response_format_error(
-                    exc
-                ):
+                if request_kwargs.get(
+                    "response_format"
+                ) is not None and self._is_response_format_error(exc):
                     binding = self._provider_name or (self._spec.name if self._spec else "openai")
                     disable_response_format_at_runtime(binding, request_kwargs.get("model"))
                     retry_kwargs = dict(request_kwargs)
@@ -831,10 +848,18 @@ class OpenAICompatProvider(LLMProvider):
                 except StopAsyncIteration:
                     break
                 chunks.append(chunk)
-                if on_content_delta and chunk.choices:
-                    text = getattr(chunk.choices[0].delta, "content", None)
-                    if text:
-                        await on_content_delta(text)
+                if chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if on_reasoning_delta and delta is not None:
+                        reasoning_text = getattr(delta, "reasoning_content", None) or getattr(
+                            delta, "reasoning", None
+                        )
+                        if reasoning_text:
+                            await on_reasoning_delta(reasoning_text)
+                    if on_content_delta and delta is not None:
+                        text = getattr(delta, "content", None)
+                        if text:
+                            await on_content_delta(text)
             return self._parse_chunks(chunks)
         except asyncio.TimeoutError:
             return LLMResponse(

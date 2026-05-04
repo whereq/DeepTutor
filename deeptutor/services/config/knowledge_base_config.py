@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
-from deeptutor.logging import get_logger
 from deeptutor.services.path_service import get_path_service
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
+from deeptutor.services.rag.index_versioning import list_kb_versions
 
-logger = get_logger("KBConfigService")
+logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = (
     get_path_service().project_root / "data" / "knowledge_bases" / "kb_config.json"
@@ -75,12 +76,10 @@ class KnowledgeBaseConfigService:
 
             kb_dir = kb_base_dir / kb_name
             legacy_storage = kb_dir / "rag_storage"
-            new_storage = kb_dir / "llamaindex_storage"
-            if (
-                legacy_storage.exists()
-                and legacy_storage.is_dir()
-                and not (new_storage.exists() and new_storage.is_dir())
-            ):
+            has_llamaindex_index = any(
+                bool(version.get("ready")) for version in list_kb_versions(kb_dir)
+            )
+            if legacy_storage.exists() and legacy_storage.is_dir() and not has_llamaindex_index:
                 config["needs_reindex"] = True
 
         return payload

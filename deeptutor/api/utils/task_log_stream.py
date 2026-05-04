@@ -3,36 +3,15 @@ from collections import deque
 from collections.abc import AsyncGenerator
 import contextlib
 import json
-import logging
 import threading
+import time
 from typing import Any
+
+from deeptutor.logging import ProcessLogEvent, bind_log_context, capture_process_logs
 
 
 def _format_sse(event: str, payload: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
-
-
-_PIPELINE_LOGGER_NAMES = [
-    "deeptutor.LlamaIndexPipeline",
-    "deeptutor.CustomEmbedding",
-    "deeptutor.EmbeddingClient",
-    "deeptutor.KnowledgeInit",
-]
-
-
-class _TaskStreamHandler(logging.Handler):
-    """Forwards log records from pipeline loggers into a task's SSE stream."""
-
-    def __init__(self, task_id: str, manager: "KnowledgeTaskStreamManager"):
-        super().__init__(level=logging.INFO)
-        self._task_id = task_id
-        self._manager = manager
-
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            self._manager.emit_log(self._task_id, record.getMessage())
-        except Exception:
-            pass
 
 
 class KnowledgeTaskStreamManager:
@@ -69,14 +48,29 @@ class KnowledgeTaskStreamManager:
             except RuntimeError:
                 continue
 
+    def emit_process_log(self, task_id: str, event: ProcessLogEvent):
+        payload = event.to_dict()
+        payload.setdefault("context", {})["task_id"] = task_id
+        self.emit(task_id, "process_log", payload)
+
     def emit_log(self, task_id: str, line: str):
-        self.emit(task_id, "log", {"line": line, "task_id": task_id})
+        event = ProcessLogEvent(
+            level="INFO",
+            message=line,
+            logger="deeptutor.knowledge.task",
+            timestamp=time.time(),
+            context={"task_id": task_id, "capability": "knowledge", "sink": "ui"},
+        )
+        self.emit_process_log(task_id, event)
 
     def emit_complete(self, task_id: str, detail: str = "Task completed"):
         self.emit(task_id, "complete", {"detail": detail, "task_id": task_id})
 
-    def emit_failed(self, task_id: str, detail: str):
-        self.emit(task_id, "failed", {"detail": detail, "task_id": task_id})
+    def emit_failed(self, task_id: str, detail: str, *, details: str | None = None):
+        payload: dict[str, Any] = {"detail": detail, "task_id": task_id}
+        if details:
+            payload["details"] = details
+        self.emit(task_id, "failed", payload)
 
     def subscribe(
         self, task_id: str
@@ -127,29 +121,16 @@ class KnowledgeTaskStreamManager:
 
 @contextlib.contextmanager
 def capture_task_logs(task_id: str):
-    """Capture logs from pipeline loggers and forward them to the task's SSE stream.
-
-    Only loggers in ``_PIPELINE_LOGGER_NAMES`` are tapped so that unrelated
-    concurrent request logs do not leak into the stream.  The handler is also
-    safe to call from ``run_in_executor`` threads because Python logging
-    handlers are global and ``emit_log`` uses ``call_soon_threadsafe``.
-    """
+    """Forward all logs bound to ``task_id`` into the task's SSE stream."""
     manager = KnowledgeTaskStreamManager.get_instance()
     manager.ensure_task(task_id)
 
-    handler = _TaskStreamHandler(task_id, manager)
-    attached: list[logging.Logger] = []
+    def emit(event: ProcessLogEvent) -> None:
+        manager.emit_process_log(task_id, event)
 
-    for name in _PIPELINE_LOGGER_NAMES:
-        lg = logging.getLogger(name)
-        lg.addHandler(handler)
-        attached.append(lg)
-
-    try:
-        yield
-    finally:
-        for lg in attached:
-            lg.removeHandler(handler)
+    with bind_log_context(task_id=task_id, capability="knowledge", sink="ui"):
+        with capture_process_logs(emit, task_id=task_id):
+            yield
 
 
 def get_task_stream_manager() -> KnowledgeTaskStreamManager:

@@ -12,6 +12,7 @@ from deeptutor.services.rag.factory import (
 )
 from deeptutor.tools.rag_tool import (
     RAGService,
+    _resolve_kb_name,
     get_available_providers,
     get_current_provider,
 )
@@ -85,3 +86,29 @@ class TestRAGServiceClassHelpers:
 class TestToolLayerExports:
     def test_get_available_providers_matches_class_method(self) -> None:
         assert get_available_providers() == RAGService.list_providers()
+
+    def test_resolve_default_alias_to_configured_default(self, tmp_path) -> None:
+        from deeptutor.knowledge.manager import KnowledgeBaseManager
+
+        base_dir = tmp_path / "knowledge_bases"
+        manager = KnowledgeBaseManager(base_dir=str(base_dir))
+        manager.config["knowledge_bases"]["actual-kb"] = {
+            "path": "actual-kb",
+            "status": "ready",
+        }
+        manager._save_config()
+
+        assert _resolve_kb_name("default", kb_base_dir=str(base_dir)) == "actual-kb"
+
+    def test_resolve_exact_kb_named_default_before_alias(self, tmp_path) -> None:
+        from deeptutor.knowledge.manager import KnowledgeBaseManager
+
+        base_dir = tmp_path / "knowledge_bases"
+        manager = KnowledgeBaseManager(base_dir=str(base_dir))
+        manager.config["knowledge_bases"] = {
+            "default": {"path": "default", "status": "ready"},
+            "z-kb": {"path": "z-kb", "status": "ready"},
+        }
+        manager._save_config()
+
+        assert _resolve_kb_name("default", kb_base_dir=str(base_dir)) == "default"

@@ -20,7 +20,7 @@ class EmbeddingConfig:
     provider_mode: str = "standard"
     api_version: str | None = None
     extra_headers: dict[str, str] | None = None
-    dim: int = 3072
+    dim: int = 0
     send_dimensions: bool | None = None
     request_timeout: int = 60
     batch_size: int = 10

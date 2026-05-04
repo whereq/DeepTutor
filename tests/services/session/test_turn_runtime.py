@@ -8,6 +8,7 @@ from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.services.session.turn_runtime import (
     _clip_text,
     _extract_followup_question_context,
+    _extract_memory_references,
     _extract_persist_user_message,
     _format_followup_question_context,
     _should_capture_assistant_content,
@@ -68,6 +69,26 @@ class TestClipText:
 
     def test_none_becomes_empty(self) -> None:
         assert _clip_text(None) == ""  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# _extract_memory_references
+# ---------------------------------------------------------------------------
+
+
+class TestExtractMemoryReferences:
+    def test_extracts_valid_memory_files_in_order(self) -> None:
+        payload = {"memory_references": ["profile", "summary"]}
+
+        assert _extract_memory_references(payload) == ["profile", "summary"]
+
+    def test_filters_unknown_and_duplicate_memory_files(self) -> None:
+        payload = {"memory_references": ["summary", "unknown", "summary", "profile"]}
+
+        assert _extract_memory_references(payload) == ["summary", "profile"]
+
+    def test_non_list_memory_references_are_ignored(self) -> None:
+        assert _extract_memory_references({"memory_references": "summary"}) == []
 
 
 # ---------------------------------------------------------------------------

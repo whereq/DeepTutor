@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import asdict
 from datetime import datetime
 import json
+import logging
 import traceback
 from typing import AsyncGenerator, Literal
 import uuid
@@ -26,8 +27,8 @@ from deeptutor.co_writer.storage import (
 )
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
-from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
+from deeptutor.services.llm import clean_thinking_tags
 from deeptutor.services.settings.interface_settings import get_ui_language
 
 router = APIRouter()
@@ -35,7 +36,7 @@ router = APIRouter()
 # Initialize logger with config
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
-logger = get_logger("CoWriter", level="INFO", log_dir=log_dir)
+logger = logging.getLogger(__name__)
 
 _edit_agent: EditAgent | None = None
 
@@ -183,6 +184,10 @@ def _strip_markdown_fence(text: str) -> str:
     return cleaned
 
 
+def _clean_react_edit_output(text: str, *, binding: str | None, model: str | None) -> str:
+    return _strip_markdown_fence(clean_thinking_tags(text, binding, model))
+
+
 def _prepare_react_edit_request(
     request: ReactEditRequest, language: str
 ) -> tuple[str, str, list[str], list[str], str]:
@@ -309,7 +314,11 @@ async def _run_react_edit(
                     stage="responding",
                 )
 
-    edited_text = _strip_markdown_fence("".join(response_chunks))
+    edited_text = _clean_react_edit_output(
+        "".join(response_chunks),
+        binding=agent.binding,
+        model=agent.get_model(),
+    )
 
     tool_call_file = None
     if tool_traces:

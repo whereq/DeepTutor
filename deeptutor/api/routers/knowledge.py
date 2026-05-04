@@ -7,6 +7,9 @@ Handles knowledge base CRUD operations, file uploads, and initialization.
 
 import asyncio
 from datetime import datetime
+import json
+import logging
+import mimetypes
 import os
 from pathlib import Path
 import traceback
@@ -22,7 +25,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from deeptutor.api.utils.progress_broadcaster import ProgressBroadcaster
@@ -31,8 +34,8 @@ from deeptutor.api.utils.task_log_stream import capture_task_logs, get_task_stre
 from deeptutor.knowledge.add_documents import DocumentAdder
 from deeptutor.knowledge.initializer import KnowledgeBaseInitializer
 from deeptutor.knowledge.manager import KnowledgeBaseManager
+from deeptutor.knowledge.naming import validate_knowledge_base_name
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
-from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
@@ -42,7 +45,7 @@ from deeptutor.utils.error_utils import format_exception_message
 # Initialize logger with config
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
-logger = get_logger("Knowledge", level="INFO", log_dir=log_dir)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -62,6 +65,7 @@ def format_bytes_human_readable(size_bytes: int) -> str:
 
 
 _kb_base_dir = PROJECT_ROOT / "data" / "knowledge_bases"
+DEFAULT_KB_ALIASES = {"", "default", "current", "selected", "默认", "默认知识库", "当前知识库"}
 
 # Lazy initialization
 kb_manager = None
@@ -191,9 +195,7 @@ def _save_uploaded_files(
                     except OSError:
                         pass
 
-                error_message = (
-                    f"Validation failed for file '{original_filename}': {format_exception_message(e)}"
-                )
+                error_message = f"Validation failed for file '{original_filename}': {format_exception_message(e)}"
                 logger.error(error_message, exc_info=True)
                 raise HTTPException(status_code=400, detail=error_message) from e
     except Exception:
@@ -304,6 +306,22 @@ def _validate_registered_provider(raw_provider: str | None) -> str:
     return DEFAULT_PROVIDER
 
 
+def _resolve_registered_kb_name(manager: KnowledgeBaseManager, kb_name: str | None) -> str:
+    """Resolve route-level default aliases to the configured default KB."""
+    requested = str(kb_name or "").strip()
+    kb_names = manager.list_knowledge_bases()
+    if requested and requested in kb_names:
+        return requested
+
+    if requested.lower() in DEFAULT_KB_ALIASES:
+        default_kb = manager.get_default()
+        if default_kb and default_kb in kb_names:
+            return default_kb
+        raise HTTPException(status_code=404, detail="No default knowledge base is configured")
+
+    raise HTTPException(status_code=404, detail=f"Knowledge base '{requested}' not found")
+
+
 def _load_kb_entry_or_404(manager: KnowledgeBaseManager, kb_name: str) -> dict:
     manager.config = manager._load_config()
     kb_entry = manager.config.get("knowledge_bases", {}).get(kb_name)
@@ -321,6 +339,26 @@ def _assert_kb_writable_or_409(kb_name: str, kb_entry: dict) -> None:
                 "before accepting incremental uploads."
             ),
         )
+
+
+def _matching_index_is_valid(kb_name: str, matching_version: dict | None) -> bool:
+    """Return whether a matching active index can safely satisfy retrieval."""
+    if not matching_version:
+        return False
+    try:
+        from deeptutor.services.rag.pipelines.llamaindex.storage import (
+            validate_storage_embeddings,
+        )
+
+        validate_storage_embeddings(Path(str(matching_version["storage_path"])))
+        return True
+    except Exception as exc:
+        logger.warning(
+            "Matching index for KB '%s' is invalid; forcing re-index: %s",
+            kb_name,
+            exc,
+        )
+        return False
 
 
 async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id: str):
@@ -344,12 +382,16 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
             _task_log(task_id, "Document processing complete")
             initializer.extract_numbered_items()
             _task_log(task_id, "Finalizing initialization")
+            indexed_count = len(FileTypeRouter.collect_supported_files(initializer.raw_dir))
 
             initializer.progress_tracker.update(
                 ProgressStage.COMPLETED,
                 "Knowledge base initialization complete!",
                 current=1,
                 total=1,
+                indexed_count=indexed_count,
+                index_changed=True,
+                index_action="create",
             )
 
             manager = get_kb_manager()
@@ -364,6 +406,9 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
                     "total": 1,
                     "task_id": task_id,
                     "timestamp": datetime.now().isoformat(),
+                    "indexed_count": indexed_count,
+                    "index_changed": True,
+                    "index_action": "create",
                 },
             )
 
@@ -375,9 +420,13 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
                 task_id, f"Knowledge base '{initializer.kb_name}' initialization complete"
             )
         except Exception as e:
+            import traceback as _tb
+
             error_msg = str(e)
+            trace = _tb.format_exc()
 
             _task_log(task_id, f"Initialization failed: {error_msg}", level="error")
+            _task_log(task_id, f"Stack trace:\n{trace}", level="error")
 
             task_manager.update_task_status(task_id, "error", error=error_msg)
 
@@ -399,7 +448,7 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
                 initializer.progress_tracker.update(
                     ProgressStage.ERROR, f"Initialization failed: {error_msg}", error=error_msg
                 )
-            task_stream_manager.emit_failed(task_id, error_msg)
+            task_stream_manager.emit_failed(task_id, error_msg, details=trace)
 
 
 async def run_upload_processing_task(
@@ -492,6 +541,9 @@ async def run_upload_processing_task(
                 f"Successfully processed {num_processed} files!",
                 current=num_processed,
                 total=num_processed,
+                indexed_count=num_processed,
+                index_changed=num_processed > 0,
+                index_action="upload",
             )
 
             _task_log(
@@ -502,15 +554,19 @@ async def run_upload_processing_task(
                 task_id, f"Successfully processed {num_processed} files for '{kb_name}'"
             )
         except Exception as e:
+            import traceback as _tb
+
             error_msg = f"Upload processing failed (KB '{kb_name}'): {e}"
+            trace = _tb.format_exc()
             _task_log(task_id, error_msg, level="error")
+            _task_log(task_id, f"Stack trace:\n{trace}", level="error")
 
             task_manager.update_task_status(task_id, "error", error=error_msg)
 
             progress_tracker.update(
                 ProgressStage.ERROR, f"Processing failed: {error_msg}", error=error_msg
             )
-            task_stream_manager.emit_failed(task_id, error_msg)
+            task_stream_manager.emit_failed(task_id, error_msg, details=trace)
 
 
 @router.get("/health")
@@ -738,6 +794,71 @@ async def get_knowledge_base_details(kb_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _resolve_kb_raw_dir(kb_name: str) -> Path:
+    """Resolve the raw/ directory for a KB, validating that it exists."""
+    manager = get_kb_manager()
+    resolved_name = _resolve_registered_kb_name(manager, kb_name)
+    kb_path = manager.get_knowledge_base_path(resolved_name)
+    return kb_path / "raw"
+
+
+@router.get("/{kb_name}/files")
+async def list_kb_raw_files(kb_name: str):
+    """List raw documents stored under data/knowledge_bases/<kb>/raw/."""
+    raw_dir = _resolve_kb_raw_dir(kb_name)
+    if not raw_dir.exists() or not raw_dir.is_dir():
+        return {"files": []}
+
+    files = []
+    for entry in sorted(raw_dir.iterdir(), key=lambda p: p.name.lower()):
+        if not entry.is_file():
+            continue
+        try:
+            stat = entry.stat()
+        except OSError:
+            continue
+        media_type, _ = mimetypes.guess_type(entry.name)
+        files.append(
+            {
+                "name": entry.name,
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+                "mime_type": media_type,
+            }
+        )
+    return {"files": files}
+
+
+@router.get("/{kb_name}/files/{filename:path}")
+async def serve_kb_raw_file(kb_name: str, filename: str):
+    """Serve a single raw document for inline preview / download.
+
+    Resolution is sandboxed to the KB's raw/ directory; any path that
+    escapes via traversal yields 403.
+    """
+    raw_dir = _resolve_kb_raw_dir(kb_name)
+    if not raw_dir.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    raw_resolved = raw_dir.resolve()
+    target = (raw_dir / filename).resolve()
+    try:
+        target.relative_to(raw_resolved)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    media_type, _ = mimetypes.guess_type(target.name)
+    return FileResponse(
+        target,
+        media_type=media_type or "application/octet-stream",
+        filename=target.name,
+        content_disposition_type="inline",
+    )
+
+
 @router.delete("/{kb_name}")
 async def delete_knowledge_base(kb_name: str):
     """Delete a knowledge base."""
@@ -840,6 +961,11 @@ async def create_knowledge_base(
 ):
     """Create a new knowledge base and initialize it with files."""
     try:
+        try:
+            name = validate_knowledge_base_name(name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
         manager = get_kb_manager()
         if name in manager.list_knowledge_bases():
             raise HTTPException(status_code=400, detail=f"Knowledge base '{name}' already exists")
@@ -903,7 +1029,7 @@ async def create_knowledge_base(
 
         background_tasks.add_task(run_initialization_task, initializer, task_id)
 
-        logger.success(f"KB '{name}' created, processing {len(uploaded_files)} files in background")
+        logger.info(f"KB '{name}' created, processing {len(uploaded_files)} files in background")
 
         return {
             "message": f"Knowledge base '{name}' created. Processing {len(uploaded_files)} files in background.",
@@ -918,6 +1044,229 @@ async def create_knowledge_base(
         logger.error(f"Failed to create KB: {e}")
         logger.debug(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def run_reindex_task(kb_name: str, base_dir: str, task_id: str, signature_hash: str) -> None:
+    """Re-index a KB's raw documents against the currently-active embedding config.
+
+    Each ``(profile, model, dimension, base_url)`` combination gets its own
+    flat ``<kb>/version-N/`` storage directory. Prior versions are preserved
+    untouched so switching the active embedding model back to a
+    previously-indexed one reuses the existing version with no extra work.
+    """
+    task_manager = TaskIDManager.get_instance()
+    task_stream_manager = get_task_stream_manager()
+    task_stream_manager.ensure_task(task_id)
+
+    with capture_task_logs(task_id):
+        try:
+            base_path = Path(base_dir)
+            kb_dir = base_path / kb_name
+            raw_dir = kb_dir / "raw"
+            if not raw_dir.is_dir():
+                raise FileNotFoundError(f"KB '{kb_name}' has no `raw/` directory; cannot reindex.")
+            file_paths = [str(path) for path in FileTypeRouter.collect_supported_files(raw_dir)]
+            if not file_paths:
+                raise ValueError(f"KB '{kb_name}' has no source files in `raw/` to reindex.")
+
+            _task_log(
+                task_id,
+                f"Re-indexing '{kb_name}' ({len(file_paths)} files) against signature {signature_hash}",
+            )
+
+            progress_tracker = ProgressTracker(kb_name, base_path)
+            progress_tracker.task_id = task_id
+            progress_tracker.update(
+                ProgressStage.PROCESSING_DOCUMENTS,
+                f"Re-indexing {len(file_paths)} document(s) with the active embedding model...",
+                current=0,
+                total=len(file_paths),
+            )
+
+            from deeptutor.services.rag.service import RAGService
+
+            rag_service = RAGService(kb_base_dir=str(base_path), provider=DEFAULT_PROVIDER)
+
+            def _on_progress(batch_num: int, total_batches: int) -> None:
+                progress_tracker.update(
+                    ProgressStage.PROCESSING_DOCUMENTS,
+                    f"Embedding batches: {batch_num}/{total_batches}",
+                    current=batch_num,
+                    total=total_batches,
+                )
+
+            # The pipeline now raises the underlying error (embedding API
+            # failure, parse error, etc.) so it surfaces in the task log
+            # rather than being swallowed into a generic wrapper. A False
+            # return is reserved for "no documents to index" — surface that
+            # specifically too.
+            success = await rag_service.initialize(
+                kb_name=kb_name,
+                file_paths=file_paths,
+                progress_callback=_on_progress,
+            )
+            if not success:
+                raise RuntimeError(f"Re-index found no valid documents to index in '{kb_name}'.")
+
+            completed_at = datetime.now().isoformat()
+            metadata_file = kb_dir / "metadata.json"
+            try:
+                metadata = {}
+                if metadata_file.exists():
+                    with open(metadata_file, encoding="utf-8") as handle:
+                        loaded_metadata = json.load(handle)
+                    if isinstance(loaded_metadata, dict):
+                        metadata = loaded_metadata
+                metadata["last_updated"] = completed_at
+                metadata["last_indexed_at"] = completed_at
+                metadata["last_indexed_count"] = len(file_paths)
+                metadata["last_indexed_action"] = "reindex"
+                with open(metadata_file, "w", encoding="utf-8") as handle:
+                    json.dump(metadata, handle, indent=2, ensure_ascii=False)
+            except Exception as meta_err:
+                logger.warning(
+                    "Failed to update re-index metadata for '%s': %s",
+                    kb_name,
+                    meta_err,
+                )
+
+            manager = get_kb_manager()
+            manager.update_kb_status(
+                name=kb_name,
+                status="ready",
+                progress={
+                    "stage": "completed",
+                    "message": "Re-index complete",
+                    "percent": 100,
+                    "current": len(file_paths),
+                    "total": len(file_paths),
+                    "task_id": task_id,
+                    "timestamp": completed_at,
+                    "indexed_count": len(file_paths),
+                    "index_changed": True,
+                    "index_action": "reindex",
+                },
+            )
+            # Clear the legacy mismatch / needs_reindex flags now that an
+            # index version matching the active config exists on disk.
+            kb_entry = manager.config.get("knowledge_bases", {}).get(kb_name) or {}
+            mutated = False
+            if kb_entry.get("needs_reindex"):
+                kb_entry["needs_reindex"] = False
+                mutated = True
+            if kb_entry.get("embedding_mismatch"):
+                kb_entry.pop("embedding_mismatch", None)
+                mutated = True
+            if mutated:
+                manager._save_config()
+
+            _task_log(task_id, f"Re-index of '{kb_name}' complete", level="success")
+            task_manager.update_task_status(task_id, "completed")
+            task_stream_manager.emit_complete(task_id, f"Re-index of '{kb_name}' complete")
+        except Exception as e:
+            import traceback as _tb
+
+            error_msg = str(e)
+            trace = _tb.format_exc()
+            _task_log(task_id, f"Re-index failed: {error_msg}", level="error")
+            _task_log(task_id, f"Stack trace:\n{trace}", level="error")
+            task_manager.update_task_status(task_id, "error", error=error_msg)
+            try:
+                ProgressTracker(kb_name, Path(base_dir)).update(
+                    ProgressStage.ERROR,
+                    f"Re-index failed: {error_msg}",
+                    error=error_msg,
+                )
+            except Exception:
+                pass
+            task_stream_manager.emit_failed(task_id, error_msg, details=trace)
+
+
+@router.post("/{kb_name}/reindex")
+async def reindex_knowledge_base(
+    kb_name: str,
+    background_tasks: BackgroundTasks,
+):
+    """Re-index ``kb_name`` against the currently-active embedding model.
+
+    The new index lands in a flat ``<kb>/version-N/`` directory so prior
+    versions stay intact. Legacy nested versions remain readable, but a
+    manual re-index will converge them onto the flat layout.
+    """
+    try:
+        manager = get_kb_manager()
+        kb_name = _resolve_registered_kb_name(manager, kb_name)
+        kb_entry = _load_kb_entry_or_404(manager, kb_name)
+        force_reindex = str(kb_entry.get("status") or "").lower() == "error"
+
+        from deeptutor.services.rag.embedding_signature import signature_from_embedding_config
+        from deeptutor.services.rag.index_versioning import (
+            find_matching_version,
+        )
+
+        signature = signature_from_embedding_config()
+        if signature is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "No embedding model is configured. Set up the embedding "
+                    "profile in Settings before re-indexing."
+                ),
+            )
+
+        kb_dir = _kb_base_dir / kb_name
+        matching_version = find_matching_version(kb_dir, signature)
+        matching_valid = _matching_index_is_valid(kb_name, matching_version)
+        if (
+            matching_version
+            and matching_version.get("layout") == "flat"
+            and matching_valid
+            and not force_reindex
+        ):
+            return {
+                "message": (
+                    f"Knowledge base '{kb_name}' already has an index for the "
+                    "active embedding configuration; no reindex needed."
+                ),
+                "task_id": None,
+                "signature": signature.hash(),
+                "noop": True,
+            }
+
+        task_id = _build_unique_task_id("kb_reindex", kb_name)
+        get_task_stream_manager().ensure_task(task_id)
+
+        manager.update_kb_status(
+            name=kb_name,
+            status="initializing",
+            progress={
+                "stage": "starting",
+                "message": "Queueing re-index...",
+                "percent": 0,
+                "task_id": task_id,
+                "timestamp": datetime.now().isoformat(),
+            },
+        )
+
+        background_tasks.add_task(
+            run_reindex_task,
+            kb_name=kb_name,
+            base_dir=str(_kb_base_dir),
+            task_id=task_id,
+            signature_hash=signature.hash(),
+        )
+
+        return {
+            "message": f"Re-indexing '{kb_name}' in the background.",
+            "task_id": task_id,
+            "signature": signature.hash(),
+            "noop": False,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to start reindex for '{kb_name}': {e}")
+        raise HTTPException(status_code=500, detail=format_exception_message(e))
 
 
 @router.get("/{kb_name}/progress")
@@ -961,8 +1310,9 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
         expected_task_id = websocket.query_params.get("task_id")
 
         kb_dir = _kb_base_dir / kb_name
-        llamaindex_storage_dir = kb_dir / "llamaindex_storage"
-        kb_is_ready = llamaindex_storage_dir.exists() and llamaindex_storage_dir.is_dir()
+        from deeptutor.services.rag.index_versioning import list_kb_versions
+
+        kb_is_ready = any(bool(version.get("ready")) for version in list_kb_versions(kb_dir))
 
         # Fast path: no active task — send current state and close immediately
         # This prevents infinite polling loops for ready or legacy KBs.

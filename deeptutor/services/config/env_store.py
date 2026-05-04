@@ -18,6 +18,7 @@ ENV_KEY_ORDER = (
     "LLM_API_KEY",
     "LLM_HOST",
     "LLM_API_VERSION",
+    "LLM_REASONING_EFFORT",
     "EMBEDDING_BINDING",
     "EMBEDDING_MODEL",
     "EMBEDDING_API_KEY",
@@ -25,6 +26,11 @@ ENV_KEY_ORDER = (
     "EMBEDDING_DIMENSION",
     "EMBEDDING_SEND_DIMENSIONS",
     "EMBEDDING_API_VERSION",
+    "SILICONFLOW_API_KEY",
+    "DASHSCOPE_API_KEY",
+    "COHERE_API_KEY",
+    "JINA_API_KEY",
+    "GEMINI_API_KEY",
     "SEARCH_PROVIDER",
     "SEARCH_API_KEY",
     "SEARCH_BASE_URL",
@@ -105,6 +111,9 @@ class EnvStore:
                 "api_key": values.get("LLM_API_KEY", os.getenv("LLM_API_KEY", "")),
                 "host": values.get("LLM_HOST", os.getenv("LLM_HOST", "")),
                 "api_version": values.get("LLM_API_VERSION", os.getenv("LLM_API_VERSION", "")),
+                "reasoning_effort": values.get(
+                    "LLM_REASONING_EFFORT", os.getenv("LLM_REASONING_EFFORT", "")
+                ),
             },
             embedding={
                 "binding": values.get(
@@ -114,7 +123,7 @@ class EnvStore:
                 "api_key": values.get("EMBEDDING_API_KEY", os.getenv("EMBEDDING_API_KEY", "")),
                 "host": values.get("EMBEDDING_HOST", os.getenv("EMBEDDING_HOST", "")),
                 "dimension": values.get(
-                    "EMBEDDING_DIMENSION", os.getenv("EMBEDDING_DIMENSION", "3072")
+                    "EMBEDDING_DIMENSION", os.getenv("EMBEDDING_DIMENSION", "")
                 ),
                 "send_dimensions": values.get(
                     "EMBEDDING_SEND_DIMENSIONS",
@@ -182,7 +191,7 @@ class EnvStore:
             "EMBEDDING_MODEL": str(embedding_map.get("model") or ""),
             "EMBEDDING_API_KEY": str(embedding_map.get("api_key") or ""),
             "EMBEDDING_HOST": str(embedding_map.get("host") or ""),
-            "EMBEDDING_DIMENSION": str(embedding_map.get("dimension") or 3072),
+            "EMBEDDING_DIMENSION": str(embedding_map.get("dimension") or ""),
             "EMBEDDING_SEND_DIMENSIONS": _render_optional_bool(
                 embedding_map.get("send_dimensions")
             ),
@@ -218,7 +227,7 @@ class EnvStore:
             "EMBEDDING_MODEL": str((embedding_model or {}).get("model") or ""),
             "EMBEDDING_API_KEY": str((embedding_profile or {}).get("api_key") or ""),
             "EMBEDDING_HOST": str((embedding_profile or {}).get("base_url") or ""),
-            "EMBEDDING_DIMENSION": str((embedding_model or {}).get("dimension") or 3072),
+            "EMBEDDING_DIMENSION": str((embedding_model or {}).get("dimension") or ""),
             "EMBEDDING_SEND_DIMENSIONS": _render_optional_bool(
                 (embedding_model or {}).get("send_dimensions")
             ),

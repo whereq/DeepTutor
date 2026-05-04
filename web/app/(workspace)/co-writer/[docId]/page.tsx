@@ -63,6 +63,7 @@ const MarkdownRenderer = dynamic(
 type EditAction = "rewrite" | "shorten" | "expand";
 type SelectionMode = EditAction | "none";
 type SourceOption = "none" | "rag" | "web";
+type ConfirmAction = "clear" | "template";
 type ToolName =
   | "brainstorm"
   | "rag"
@@ -203,6 +204,8 @@ export default function CoWriterPage() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [pendingConfirmAction, setPendingConfirmAction] =
+    useState<ConfirmAction | null>(null);
   const [notebookSavePayload, setNotebookSavePayload] =
     useState<NotebookSavePayload | null>(null);
   const [selectedRange, setSelectedRange] = useState<SelectedRange | null>(
@@ -237,6 +240,7 @@ export default function CoWriterPage() {
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUndoSnapshotRef = useRef<string | null>(null);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
 
   useEffect(() => {
@@ -413,17 +417,50 @@ export default function CoWriterPage() {
     setRedoStack([]);
   }, []);
 
+  const commitPendingTypingUndo = useCallback(() => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    const snapshot = pendingUndoSnapshotRef.current;
+    pendingUndoSnapshotRef.current = null;
+    if (snapshot !== null && snapshot !== markdown) {
+      pushUndo(snapshot);
+    }
+  }, [markdown, pushUndo]);
+
   const handleMarkdownChange = useCallback(
     (value: string) => {
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-      const prev = markdown;
-      undoTimerRef.current = setTimeout(() => pushUndo(prev), 400);
+      if (pendingUndoSnapshotRef.current === null) {
+        pendingUndoSnapshotRef.current = markdown;
+      }
+      const snapshot = pendingUndoSnapshotRef.current;
+      undoTimerRef.current = setTimeout(() => {
+        pendingUndoSnapshotRef.current = null;
+        undoTimerRef.current = null;
+        if (snapshot !== null && snapshot !== value) {
+          pushUndo(snapshot);
+        }
+      }, 400);
       setMarkdown(value);
     },
     [markdown, pushUndo],
   );
 
   const handleUndo = useCallback(() => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    const pendingSnapshot = pendingUndoSnapshotRef.current;
+    pendingUndoSnapshotRef.current = null;
+    if (pendingSnapshot !== null && pendingSnapshot !== markdown) {
+      setRedoStack((s) => [...s, markdown]);
+      setMarkdown(pendingSnapshot);
+      return;
+    }
+
     if (undoStack.length === 0) return;
     const prev = undoStack[undoStack.length - 1];
     setRedoStack((s) => [...s, markdown]);
@@ -438,6 +475,32 @@ export default function CoWriterPage() {
     setRedoStack((s) => s.slice(0, -1));
     setMarkdown(next);
   }, [redoStack, markdown]);
+
+  const handleEditorKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      const key = event.key.toLowerCase();
+      const hasUndoModifier = event.metaKey || event.ctrlKey;
+      if (!hasUndoModifier || event.altKey) return;
+
+      if (key === "z" && event.shiftKey) {
+        event.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if (key === "z") {
+        event.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      if (key === "y") {
+        event.preventDefault();
+        handleRedo();
+      }
+    },
+    [handleRedo, handleUndo],
+  );
 
   const startEditingTitle = useCallback(() => {
     if (isLoadingDoc) return;
@@ -631,6 +694,7 @@ export default function CoWriterPage() {
 
   const insertSnippet = useCallback(
     (snippet: string) => {
+      commitPendingTypingUndo();
       pushUndo(markdown);
       const textarea = textareaRef.current;
       if (!textarea) {
@@ -647,15 +711,21 @@ export default function CoWriterPage() {
         textarea.setSelectionRange(cursor, cursor);
       });
     },
-    [markdown, pushUndo],
+    [commitPendingTypingUndo, markdown, pushUndo],
   );
 
-  const clearDocument = () => {
+  const clearDocument = useCallback(() => {
+    if (!markdown) {
+      setStatus(t("Draft is already empty."));
+      setError("");
+      return;
+    }
+    commitPendingTypingUndo();
     pushUndo(markdown);
     setMarkdown("");
-    setStatus("");
+    setStatus(t("Draft cleared. Press Ctrl/Cmd+Z or use Undo to restore it."));
     setError("");
-  };
+  }, [commitPendingTypingUndo, markdown, pushUndo, t]);
 
   const loadExampleTemplate = useCallback(() => {
     if (markdown === CO_WRITER_SAMPLE_TEMPLATE) {
@@ -664,11 +734,58 @@ export default function CoWriterPage() {
       return;
     }
 
+    commitPendingTypingUndo();
     pushUndo(markdown);
     setMarkdown(CO_WRITER_SAMPLE_TEMPLATE);
-    setStatus(t("Loaded example template."));
+    setStatus(
+      t("Loaded example template. Press Ctrl/Cmd+Z or use Undo to restore it."),
+    );
     setError("");
-  }, [markdown, pushUndo]);
+  }, [commitPendingTypingUndo, markdown, pushUndo, t]);
+
+  const requestClearDocument = useCallback(() => {
+    if (!markdown) {
+      clearDocument();
+      return;
+    }
+    setPendingConfirmAction("clear");
+  }, [clearDocument, markdown]);
+
+  const requestLoadExampleTemplate = useCallback(() => {
+    if (markdown === CO_WRITER_SAMPLE_TEMPLATE) {
+      loadExampleTemplate();
+      return;
+    }
+    setPendingConfirmAction("template");
+  }, [loadExampleTemplate, markdown]);
+
+  const confirmActionCopy = useMemo(() => {
+    if (pendingConfirmAction === "clear") {
+      return {
+        title: t("Clear this draft?"),
+        description: t(
+          "This will empty the editor. The previous content is kept in Undo until you leave this draft.",
+        ),
+        confirmLabel: t("Clear draft"),
+        tone: "danger" as const,
+        onConfirm: clearDocument,
+      };
+    }
+
+    if (pendingConfirmAction === "template") {
+      return {
+        title: t("Replace with the example template?"),
+        description: t(
+          "This will replace the current editor content. The previous content is kept in Undo until you leave this draft.",
+        ),
+        confirmLabel: t("Load template"),
+        tone: "warning" as const,
+        onConfirm: loadExampleTemplate,
+      };
+    }
+
+    return null;
+  }, [clearDocument, loadExampleTemplate, pendingConfirmAction, t]);
 
   const handleDownload = () => {
     const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
@@ -943,6 +1060,7 @@ export default function CoWriterPage() {
     selectionInstruction,
     selectionMode,
     selectionTools,
+    t,
     updateSelectionTraceFromEvent,
   ]);
 
@@ -1627,7 +1745,11 @@ export default function CoWriterPage() {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <ToolbarIconBtn title={t("Clear")} onClick={clearDocument}>
+          <ToolbarIconBtn
+            title={t("Clear")}
+            onClick={requestClearDocument}
+            tone="danger"
+          >
             <Eraser size={17} strokeWidth={1.7} />
           </ToolbarIconBtn>
           <ToolbarIconBtn title={t("Export Markdown")} onClick={handleDownload}>
@@ -1641,7 +1763,8 @@ export default function CoWriterPage() {
           </ToolbarIconBtn>
           <ToolbarIconBtn
             title={t("Load Example Template")}
-            onClick={loadExampleTemplate}
+            onClick={requestLoadExampleTemplate}
+            tone="warning"
           >
             <FileText size={17} strokeWidth={1.7} />
           </ToolbarIconBtn>
@@ -1761,6 +1884,7 @@ export default function CoWriterPage() {
               value={markdown}
               onChange={(e) => handleMarkdownChange(e.target.value)}
               onSelect={updateSelectionPopover}
+              onKeyDown={handleEditorKeyDown}
               onKeyUp={updateSelectionPopover}
               onMouseUp={updateSelectionPopover}
               onScroll={handleEditorScrollSync}
@@ -2218,6 +2342,69 @@ export default function CoWriterPage() {
         </div>
       )}
 
+      {confirmActionCopy && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPendingConfirmAction(null);
+          }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="co-writer-confirm-title"
+            aria-describedby="co-writer-confirm-description"
+            className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl"
+          >
+            <div className="border-b border-[var(--border)] px-4 py-3">
+              <h2
+                id="co-writer-confirm-title"
+                className="text-sm font-semibold text-[var(--foreground)]"
+              >
+                {confirmActionCopy.title}
+              </h2>
+              <p
+                id="co-writer-confirm-description"
+                className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]"
+              >
+                {confirmActionCopy.description}
+              </p>
+            </div>
+
+            <div className="px-4 py-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                {t("Undo is available with Ctrl/Cmd+Z or the toolbar Undo button.")}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-[var(--border)] px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setPendingConfirmAction(null)}
+                className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const onConfirm = confirmActionCopy.onConfirm;
+                  setPendingConfirmAction(null);
+                  onConfirm();
+                }}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 ${
+                  confirmActionCopy.tone === "danger"
+                    ? "bg-red-600"
+                    : "bg-amber-600"
+                }`}
+              >
+                {confirmActionCopy.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <SaveToNotebookModal
         open={notebookSavePayload !== null}
         payload={notebookSavePayload}
@@ -2235,18 +2422,34 @@ function ToolbarIconBtn({
   title,
   onClick,
   children,
+  tone = "default",
 }: {
   title: string;
   onClick: () => void;
   children: React.ReactNode;
+  tone?: "default" | "danger" | "warning";
 }) {
+  const toneClass =
+    tone === "danger"
+      ? "hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
+      : tone === "warning"
+        ? "hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300"
+        : "hover:bg-[var(--muted)] hover:text-[var(--foreground)]";
+
   return (
     <button
-      title={title}
+      type="button"
+      aria-label={title}
       onClick={onClick}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+      className={`group relative inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/35 ${toneClass}`}
     >
       {children}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-full z-30 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-[10px] font-medium text-[var(--foreground)] opacity-0 shadow-lg transition-opacity delay-[120ms] duration-100 group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-visible:delay-0"
+      >
+        {title}
+      </span>
     </button>
   );
 }

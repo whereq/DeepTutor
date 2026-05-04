@@ -34,8 +34,9 @@ import {
   type MessageAttachment,
   type MessageRequestSnapshot,
 } from "@/context/UnifiedChatContext";
+import { useAppShell } from "@/context/AppShellContext";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 import {
   extractBase64FromDataUrl,
   readFileAsDataUrl,
@@ -77,8 +78,13 @@ import {
   type ResearchSource,
 } from "@/lib/research-types";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
-import { listSkills, type SkillInfo } from "@/lib/skills-api";
+import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
 import { downloadChatMarkdown } from "@/lib/chat-export";
+import type { SpaceMemoryFile } from "@/lib/space-items";
+import {
+  selectedBooksToPayload,
+  type SelectedBookReference,
+} from "@/lib/book-references";
 
 const NotebookRecordPicker = dynamic(
   () => import("@/components/notebook/NotebookRecordPicker"),
@@ -94,6 +100,18 @@ const HistorySessionPicker = dynamic(
 );
 const QuestionBankPicker = dynamic(
   () => import("@/components/chat/QuestionBankPicker"),
+  {
+    ssr: false,
+  },
+);
+const SkillsPicker = dynamic(() => import("@/components/chat/SkillsPicker"), {
+  ssr: false,
+});
+const MemoryPicker = dynamic(() => import("@/components/chat/MemoryPicker"), {
+  ssr: false,
+});
+const BookReferencePicker = dynamic(
+  () => import("@/components/chat/BookReferencePicker"),
   {
     ssr: false,
   },
@@ -242,12 +260,14 @@ export default function ChatPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const sessionIdParam = params.sessionId?.[0] ?? null;
+  const { setActiveSessionId, language: appLanguage } = useAppShell();
 
   const {
     state,
     setTools,
     setCapability,
     setKBs,
+    setLLMSelection,
     sendMessage,
     cancelStreamingTurn,
     regenerateLastMessage,
@@ -256,6 +276,12 @@ export default function ChatPage() {
   } = useUnifiedChat();
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [llmOptions, setLLMOptions] = useState<LLMOption[]>([]);
+  const [activeLLMDefault, setActiveLLMDefault] = useState<LLMSelection | null>(
+    null,
+  );
+  const [llmOptionsLoading, setLLMOptionsLoading] = useState(true);
+  const [llmOptionsError, setLLMOptionsError] = useState(false);
   const [capabilityConfigs, setCapabilityConfigs] =
     useState<CapabilityPlaygroundConfigMap>({});
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -264,7 +290,9 @@ export default function ChatPage() {
   const [previewSource, setPreviewSource] = useState<FilePreviewSource | null>(
     null,
   );
-  const attachmentErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attachmentErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [capMenuOpen, setCapMenuOpen] = useState(false);
   const [quizConfig, setQuizConfig] = useState<DeepQuestionFormConfig>({
     ...DEFAULT_QUIZ_CONFIG,
@@ -286,13 +314,18 @@ export default function ChatPage() {
   const [panelCollapsed, setPanelCollapsed] = useState(true);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showNotebookPicker, setShowNotebookPicker] = useState(false);
+  const [showBookPicker, setShowBookPicker] = useState(false);
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [showQuestionBankPicker, setShowQuestionBankPicker] = useState(false);
+  const [showSkillsPicker, setShowSkillsPicker] = useState(false);
+  const [showMemoryPicker, setShowMemoryPicker] = useState(false);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
-  const [refMenuOpen, setRefMenuOpen] = useState(false);
-  const [skillMenuOpen, setSkillMenuOpen] = useState(false);
+  const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [selectedNotebookRecords, setSelectedNotebookRecords] = useState<
     SelectedRecord[]
+  >([]);
+  const [selectedBookReferences, setSelectedBookReferences] = useState<
+    SelectedBookReference[]
   >([]);
   const [selectedHistorySessions, setSelectedHistorySessions] = useState<
     SelectedHistorySession[]
@@ -300,18 +333,18 @@ export default function ChatPage() {
   const [selectedQuestionEntries, setSelectedQuestionEntries] = useState<
     SelectedQuestionEntry[]
   >([]);
-  const [availableSkills, setAvailableSkills] = useState<SkillInfo[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [skillsAutoMode, setSkillsAutoMode] = useState(false);
+  const [selectedMemoryFiles, setSelectedMemoryFiles] = useState<
+    SpaceMemoryFile[]
+  >([]);
   const dragCounter = useRef(0);
   const capMenuRef = useRef<HTMLDivElement>(null);
   const capBtnRef = useRef<HTMLButtonElement>(null);
   const toolMenuRef = useRef<HTMLDivElement>(null);
   const toolBtnRef = useRef<HTMLButtonElement>(null);
-  const refMenuRef = useRef<HTMLDivElement>(null);
-  const refBtnRef = useRef<HTMLButtonElement>(null);
-  const skillMenuRef = useRef<HTMLDivElement>(null);
-  const skillBtnRef = useRef<HTMLButtonElement>(null);
+  const spaceMenuRef = useRef<HTMLDivElement>(null);
+  const spaceBtnRef = useRef<HTMLButtonElement>(null);
   const initialLoadRef = useRef(false);
 
   const activeCap = useMemo(
@@ -370,6 +403,10 @@ export default function ChatPage() {
       record_ids,
     }));
   }, [selectedNotebookRecords]);
+  const bookReferencesPayload = useMemo(
+    () => selectedBooksToPayload(selectedBookReferences),
+    [selectedBookReferences],
+  );
   const historyReferencesPayload = useMemo(
     () => selectedHistorySessions.map((session) => session.sessionId),
     [selectedHistorySessions],
@@ -377,6 +414,10 @@ export default function ChatPage() {
   const questionNotebookReferencesPayload = useMemo(
     () => selectedQuestionEntries.map((entry) => entry.id),
     [selectedQuestionEntries],
+  );
+  const memoryReferencesPayload = useMemo(
+    () => [...selectedMemoryFiles],
+    [selectedMemoryFiles],
   );
   const chatSaveMessages = useMemo(
     () =>
@@ -453,6 +494,7 @@ export default function ChatPage() {
       // back to ``chat`` if the requested capability is missing.
       const answerNowSnapshot: MessageRequestSnapshot = {
         ...snapshot,
+        language: appLanguage,
         config: {
           ...(snapshot.config || {}),
           answer_now_context: {
@@ -473,13 +515,22 @@ export default function ChatPage() {
             displayUserMessage: false,
             persistUserMessage: false,
             requestSnapshotOverride: answerNowSnapshot,
+            bookReferences: answerNowSnapshot.bookReferences,
           },
           answerNowSnapshot.questionNotebookReferences,
+          answerNowSnapshot.skills,
+          answerNowSnapshot.memoryReferences,
         );
         shouldAutoScrollRef.current = true;
       }, 0);
     },
-    [cancelStreamingTurn, sendMessage, shouldAutoScrollRef, state.isStreaming],
+    [
+      appLanguage,
+      cancelStreamingTurn,
+      sendMessage,
+      shouldAutoScrollRef,
+      state.isStreaming,
+    ],
   );
 
   /* ---- URL-driven session loading ---- */
@@ -501,13 +552,14 @@ export default function ChatPage() {
     if (sessionIdParam === prevSessionIdParam.current) return;
     prevSessionIdParam.current = sessionIdParam;
     if (sessionIdParam) {
+      if (sessionIdParam === state.sessionId) return;
       void loadSession(sessionIdParam).catch(() => {
         router.replace("/chat", { scroll: false });
       });
     } else {
       newSession();
     }
-  }, [sessionIdParam, loadSession, newSession, router]);
+  }, [sessionIdParam, loadSession, newSession, router, state.sessionId]);
 
   // When a new session_id is assigned by the server, update the URL
   useEffect(() => {
@@ -516,11 +568,14 @@ export default function ChatPage() {
     }
   }, [state.sessionId, sessionIdParam, router]);
 
-  /* Load KBs */
   useEffect(() => {
-    (async () => {
+    setActiveSessionId(state.sessionId || sessionIdParam || null);
+  }, [state.sessionId, sessionIdParam, setActiveSessionId]);
+
+  const refreshKnowledgeBases = useCallback(
+    async (options?: { force?: boolean }) => {
       try {
-        const list = await listKnowledgeBases();
+        const list = await listKnowledgeBases({ force: options?.force });
         setKnowledgeBases(list);
         if (!state.knowledgeBases.length && list.length) {
           const def = list.find((k: KnowledgeBase) => k.is_default);
@@ -529,8 +584,58 @@ export default function ChatPage() {
       } catch {
         setKnowledgeBases([]);
       }
-    })();
-  }, [setKBs, state.knowledgeBases.length]);
+    },
+    [setKBs, state.knowledgeBases.length],
+  );
+
+  /* Load KBs */
+  useEffect(() => {
+    void refreshKnowledgeBases({ force: true });
+  }, [refreshKnowledgeBases]);
+
+  const refreshLLMOptions = useCallback(async () => {
+    setLLMOptionsLoading(true);
+    try {
+      const payload = await listLLMOptions();
+      setLLMOptions(payload.options);
+      setActiveLLMDefault(payload.active);
+      setLLMOptionsError(false);
+    } catch {
+      setLLMOptionsError(true);
+      setLLMOptions([]);
+      setActiveLLMDefault(null);
+    } finally {
+      setLLMOptionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshLLMOptions();
+  }, [refreshLLMOptions]);
+
+  useEffect(() => {
+    if (state.llmSelection || !activeLLMDefault) return;
+    setLLMSelection(activeLLMDefault);
+  }, [activeLLMDefault, setLLMSelection, state.llmSelection]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refresh = () => {
+      void refreshKnowledgeBases({ force: true });
+      void refreshLLMOptions();
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshKnowledgeBases, refreshLLMOptions]);
 
   useEffect(() => {
     setCapabilityConfigs(loadCapabilityPlaygroundConfigs());
@@ -570,36 +675,15 @@ export default function ChatPage() {
       )
         setToolMenuOpen(false);
       if (
-        refMenuRef.current &&
-        !refMenuRef.current.contains(t) &&
-        refBtnRef.current &&
-        !refBtnRef.current.contains(t)
+        spaceMenuRef.current &&
+        !spaceMenuRef.current.contains(t) &&
+        spaceBtnRef.current &&
+        !spaceBtnRef.current.contains(t)
       )
-        setRefMenuOpen(false);
-      if (
-        skillMenuRef.current &&
-        !skillMenuRef.current.contains(t) &&
-        skillBtnRef.current &&
-        !skillBtnRef.current.contains(t)
-      )
-        setSkillMenuOpen(false);
+        setSpaceMenuOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    listSkills()
-      .then((items) => {
-        if (!cancelled) setAvailableSkills(items);
-      })
-      .catch(() => {
-        if (!cancelled) setAvailableSkills([]);
-      });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -773,20 +857,17 @@ export default function ChatPage() {
     [attachments],
   );
 
-  const handlePreviewMessageAttachment = useCallback(
-    (a: MessageAttachment) => {
-      setPreviewSource({
-        filename: a.filename || "",
-        mimeType: a.mime_type,
-        type: a.type,
-        url: a.url,
-        base64: a.base64,
-        extractedText: a.extracted_text,
-        id: a.id,
-      });
-    },
-    [],
-  );
+  const handlePreviewMessageAttachment = useCallback((a: MessageAttachment) => {
+    setPreviewSource({
+      filename: a.filename || "",
+      mimeType: a.mime_type,
+      type: a.type,
+      url: a.url,
+      base64: a.base64,
+      extractedText: a.extracted_text,
+      id: a.id,
+    });
+  }, []);
 
   const handleClosePreview = useCallback(() => {
     setPreviewSource(null);
@@ -840,9 +921,13 @@ export default function ChatPage() {
       if (
         (!content &&
           !attachments.length &&
+          !selectedBookReferences.length &&
           !selectedNotebookRecords.length &&
           !selectedHistorySessions.length &&
-          !selectedQuestionEntries.length) ||
+          !selectedQuestionEntries.length &&
+          !selectedSkills.length &&
+          !skillsAutoMode &&
+          !selectedMemoryFiles.length) ||
         state.isStreaming
       )
         return;
@@ -877,65 +962,77 @@ export default function ChatPage() {
       if (isVisualizeMode) config = buildVisualizeWSConfig(visualizeConfig);
       if (isResearchMode) config = buildResearchWSConfig(researchConfig);
 
-      const isChatMode = !state.activeCapability;
-      const skillsPayload = isChatMode
-        ? skillsAutoMode
-          ? ["auto"]
-          : selectedSkills
-        : undefined;
-      sendMessage(
+      const skillsPayload = skillsAutoMode ? ["auto"] : [...selectedSkills];
+      const memoryPayload = [...memoryReferencesPayload];
+      const messageContent =
         content ||
-          (selectedNotebookRecords.length ||
-          selectedHistorySessions.length ||
-          selectedQuestionEntries.length
-            ? "Please use the selected context to help with this request."
-            : "") ||
-          (isMathAnimatorMode
-            ? attachments.some((a) => a.type === "image")
-              ? "Generate a math animation from the attached reference image(s)."
-              : ""
-            : attachments.some((a) => a.type === "image")
-              ? "Please analyze the attached image(s)."
-              : ""),
+        (selectedNotebookRecords.length ||
+        selectedBookReferences.length ||
+        selectedHistorySessions.length ||
+        selectedQuestionEntries.length ||
+        skillsPayload.length ||
+        memoryPayload.length
+          ? t("Please use the selected context to help with this request.")
+          : "") ||
+        (isMathAnimatorMode
+          ? attachments.some((a) => a.type === "image")
+            ? t(
+                "Generate a math animation from the attached reference image(s).",
+              )
+            : ""
+          : attachments.some((a) => a.type === "image")
+            ? t("Please analyze the attached image(s).")
+            : "");
+      sendMessage(
+        messageContent,
         extraAttachments,
         config,
         notebookReferencesPayload,
         historyReferencesPayload,
-        undefined,
+        { bookReferences: bookReferencesPayload },
         questionNotebookReferencesPayload,
         skillsPayload,
+        memoryPayload,
       );
       shouldAutoScrollRef.current = true;
       // Auto-collapse the per-capability settings panel after sending so the
       // composer stays compact during conversation.
       setPanelCollapsed(true);
       setAttachments([]);
+      setSelectedBookReferences([]);
       setSelectedNotebookRecords([]);
       setSelectedHistorySessions([]);
       setSelectedQuestionEntries([]);
+      setSelectedSkills([]);
+      setSkillsAutoMode(false);
+      setSelectedMemoryFiles([]);
     },
     [
       attachments,
+      bookReferencesPayload,
       historyReferencesPayload,
       isMathAnimatorMode,
       isQuizMode,
       isResearchMode,
       isVisualizeMode,
       mathAnimatorConfig,
+      memoryReferencesPayload,
       notebookReferencesPayload,
       questionNotebookReferencesPayload,
       quizConfig,
       quizPdf,
       researchConfig,
       selectedHistorySessions.length,
+      selectedMemoryFiles.length,
+      selectedBookReferences.length,
       selectedNotebookRecords.length,
       selectedQuestionEntries.length,
       selectedSkills,
       skillsAutoMode,
       sendMessage,
       shouldAutoScrollRef,
-      state.activeCapability,
       state.isStreaming,
+      t,
       visualizeConfig,
     ],
   );
@@ -976,11 +1073,20 @@ export default function ChatPage() {
   const handleSelectNotebookPicker = useCallback(() => {
     setShowNotebookPicker(true);
   }, []);
+  const handleSelectBookPicker = useCallback(() => {
+    setShowBookPicker(true);
+  }, []);
   const handleSelectHistoryPicker = useCallback(() => {
     setShowHistoryPicker(true);
   }, []);
   const handleSelectQuestionBankPicker = useCallback(() => {
     setShowQuestionBankPicker(true);
+  }, []);
+  const handleSelectSkillsPicker = useCallback(() => {
+    setShowSkillsPicker(true);
+  }, []);
+  const handleSelectMemoryPicker = useCallback(() => {
+    setShowMemoryPicker(true);
   }, []);
   const handleRemoveHistory = useCallback((sessionId: string) => {
     setSelectedHistorySessions((prev) =>
@@ -990,6 +1096,11 @@ export default function ChatPage() {
   const handleRemoveNotebook = useCallback((notebookId: string) => {
     setSelectedNotebookRecords((prev) =>
       prev.filter((record) => record.notebookId !== notebookId),
+    );
+  }, []);
+  const handleRemoveBookReference = useCallback((bookId: string) => {
+    setSelectedBookReferences((prev) =>
+      prev.filter((record) => record.bookId !== bookId),
     );
   }, []);
   const handleRemoveQuestion = useCallback((entryId: number) => {
@@ -1009,12 +1120,29 @@ export default function ChatPage() {
     if (auto) setSelectedSkills([]);
   }, []);
 
+  const handleToggleMemoryFile = useCallback((file: SpaceMemoryFile) => {
+    setSelectedMemoryFiles((prev) =>
+      prev.includes(file)
+        ? prev.filter((item) => item !== file)
+        : [...prev, file],
+    );
+  }, []);
+
   const handleTogglePanelCollapsed = useCallback(() => {
     setPanelCollapsed((prev) => !prev);
   }, []);
   const handleCloseNotebookPicker = useCallback(() => {
     setShowNotebookPicker(false);
   }, []);
+  const handleCloseBookPicker = useCallback(() => {
+    setShowBookPicker(false);
+  }, []);
+  const handleApplyBookReferences = useCallback(
+    (references: SelectedBookReference[]) => {
+      setSelectedBookReferences(references);
+    },
+    [],
+  );
   const handleApplyNotebookRecords = useCallback(
     (records: SelectedRecord[]) => {
       setSelectedNotebookRecords(records);
@@ -1039,6 +1167,22 @@ export default function ChatPage() {
     },
     [],
   );
+  const handleCloseSkillsPicker = useCallback(() => {
+    setShowSkillsPicker(false);
+  }, []);
+  const handleApplySkillsSelection = useCallback(
+    (selection: { auto: boolean; skills: string[] }) => {
+      setSkillsAutoMode(selection.auto);
+      setSelectedSkills(selection.auto ? [] : selection.skills);
+    },
+    [],
+  );
+  const handleCloseMemoryPicker = useCallback(() => {
+    setShowMemoryPicker(false);
+  }, []);
+  const handleApplyMemoryFiles = useCallback((files: SpaceMemoryFile[]) => {
+    setSelectedMemoryFiles(files);
+  }, []);
   const handleCloseSaveModal = useCallback(() => {
     setShowSaveModal(false);
   }, []);
@@ -1150,16 +1294,13 @@ export default function ChatPage() {
           capBtnRef={capBtnRef}
           toolMenuRef={toolMenuRef}
           toolBtnRef={toolBtnRef}
-          refMenuRef={refMenuRef}
-          refBtnRef={refBtnRef}
-          skillMenuRef={skillMenuRef}
-          skillBtnRef={skillBtnRef}
+          spaceMenuRef={spaceMenuRef}
+          spaceBtnRef={spaceBtnRef}
           dragCounter={dragCounter}
           dragging={dragging}
           capMenuOpen={capMenuOpen}
           toolMenuOpen={toolMenuOpen}
-          refMenuOpen={refMenuOpen}
-          skillMenuOpen={skillMenuOpen}
+          spaceMenuOpen={spaceMenuOpen}
           hasMessages={hasMessages}
           attachments={attachments}
           attachmentError={attachmentError}
@@ -1168,13 +1309,19 @@ export default function ChatPage() {
           selectedTools={selectedTools}
           ragActive={ragActive}
           knowledgeBases={knowledgeBases}
+          llmOptions={llmOptions}
+          activeLLMDefault={activeLLMDefault}
+          llmSelection={state.llmSelection}
+          llmOptionsLoading={llmOptionsLoading}
+          llmOptionsError={llmOptionsError}
+          selectedBookReferences={selectedBookReferences}
           selectedNotebookRecords={selectedNotebookRecords}
           selectedHistorySessions={selectedHistorySessions}
           selectedQuestionEntries={selectedQuestionEntries}
           notebookReferenceGroups={notebookReferenceGroups}
-          availableSkills={availableSkills}
           selectedSkills={selectedSkills}
           skillsAutoMode={skillsAutoMode}
+          selectedMemoryFiles={selectedMemoryFiles}
           stateKnowledgeBase={state.knowledgeBases[0] || ""}
           isStreaming={state.isStreaming}
           isResearchMode={isResearchMode}
@@ -1192,20 +1339,25 @@ export default function ChatPage() {
           researchSources={RESEARCH_SOURCES}
           onSetCapMenuOpen={setCapMenuOpen}
           onSetToolMenuOpen={setToolMenuOpen}
-          onSetRefMenuOpen={setRefMenuOpen}
-          onSetSkillMenuOpen={setSkillMenuOpen}
+          onSetSpaceMenuOpen={setSpaceMenuOpen}
           onSetKB={handleSetKB}
+          onSelectLLM={setLLMSelection}
           onSelectNotebookPicker={handleSelectNotebookPicker}
+          onSelectBookPicker={handleSelectBookPicker}
           onSelectHistoryPicker={handleSelectHistoryPicker}
           onSelectQuestionBankPicker={handleSelectQuestionBankPicker}
+          onSelectSkillsPicker={handleSelectSkillsPicker}
+          onSelectMemoryPicker={handleSelectMemoryPicker}
           onToggleTool={toggleTool}
           onToggleSkill={handleToggleSkill}
           onSetSkillsAuto={handleSetSkillsAuto}
+          onToggleMemoryFile={handleToggleMemoryFile}
           onToggleResearchSource={toggleResearchSource}
           onSend={handleSend}
           onRemoveAttachment={removeAttachment}
           onPreviewAttachment={handlePreviewPendingAttachment}
           onRemoveHistory={handleRemoveHistory}
+          onRemoveBookReference={handleRemoveBookReference}
           onRemoveNotebook={handleRemoveNotebook}
           onRemoveQuestion={handleRemoveQuestion}
           onDragEnter={handleDragEnter}
@@ -1229,6 +1381,12 @@ export default function ChatPage() {
         onClose={handleCloseNotebookPicker}
         onApply={handleApplyNotebookRecords}
       />
+      <BookReferencePicker
+        open={showBookPicker}
+        initialReferences={selectedBookReferences}
+        onClose={handleCloseBookPicker}
+        onApply={handleApplyBookReferences}
+      />
       <HistorySessionPicker
         open={showHistoryPicker}
         onClose={handleCloseHistoryPicker}
@@ -1238,6 +1396,19 @@ export default function ChatPage() {
         open={showQuestionBankPicker}
         onClose={handleCloseQuestionBankPicker}
         onApply={handleApplyQuestionEntries}
+      />
+      <SkillsPicker
+        open={showSkillsPicker}
+        initialAuto={skillsAutoMode}
+        initialSkills={selectedSkills}
+        onClose={handleCloseSkillsPicker}
+        onApply={handleApplySkillsSelection}
+      />
+      <MemoryPicker
+        open={showMemoryPicker}
+        initialFiles={selectedMemoryFiles}
+        onClose={handleCloseMemoryPicker}
+        onApply={handleApplyMemoryFiles}
       />
       <SaveToNotebookModal
         open={showSaveModal}

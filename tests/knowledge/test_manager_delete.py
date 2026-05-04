@@ -11,7 +11,8 @@ from deeptutor.knowledge.manager import KnowledgeBaseManager
 def _create_kb(manager: KnowledgeBaseManager, name: str) -> Path:
     kb_dir = manager.base_dir / name
     (kb_dir / "raw").mkdir(parents=True, exist_ok=True)
-    (kb_dir / "llamaindex_storage").mkdir(parents=True, exist_ok=True)
+    (kb_dir / "version-1").mkdir(parents=True, exist_ok=True)
+    (kb_dir / "version-1" / "docstore.json").write_text("{}", encoding="utf-8")
     manager.config.setdefault("knowledge_bases", {})[name] = {
         "path": name,
         "description": "",

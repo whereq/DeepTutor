@@ -34,6 +34,7 @@ from deeptutor.services.llm import (
     stream as llm_stream,
 )
 from deeptutor.services.prompt import get_prompt_manager
+from deeptutor.services.prompt.language import append_language_directive
 from deeptutor.tools.builtin import BUILTIN_TOOL_NAMES
 from deeptutor.utils.json_parser import parse_json_response
 
@@ -112,6 +113,7 @@ class AgenticChatPipeline:
         self.api_key = getattr(self.llm_config, "api_key", None)
         self.base_url = getattr(self.llm_config, "base_url", None)
         self.api_version = getattr(self.llm_config, "api_version", None)
+        self.extra_headers = getattr(self.llm_config, "extra_headers", None) or {}
         self.registry = get_tool_registry()
         self._usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "calls": 0}
         # capabilities.chat in agents.yaml drives token budgets and temperature
@@ -178,7 +180,15 @@ class AgenticChatPipeline:
             await stream.result(result_payload, source="chat")
             return
 
-        enabled_tools = self._normalize_enabled_tools(context.enabled_tools)
+        requested_tools = self._normalize_enabled_tools(context.enabled_tools)
+        enabled_tools = self._drop_rag_without_selected_kb(requested_tools, context)
+        if "rag" in requested_tools and "rag" not in enabled_tools:
+            await stream.progress(
+                self._rag_without_kb_message(),
+                source="chat",
+                stage="thinking",
+                metadata={"reason": "rag_without_kb"},
+            )
         thinking_text = await self._stage_thinking(context, enabled_tools, stream)
         tool_traces = await self._stage_acting(
             context=context,
@@ -510,7 +520,7 @@ class AgenticChatPipeline:
         trace_meta = build_trace_metadata(
             call_id=new_call_id("chat-answer-now"),
             phase="responding",
-            label="Answer now",
+            label=self._t("labels.answer_now", default="Answer now"),
             call_kind="llm_final_response",
             trace_id="chat-answer-now",
             trace_role="response",
@@ -577,7 +587,7 @@ class AgenticChatPipeline:
         thinking_text: str,
         stream: StreamBus,
     ) -> list[ToolTrace]:
-        tool_schemas = self.registry.build_openai_schemas(enabled_tools)
+        tool_schemas = self._build_llm_tool_schemas(enabled_tools)
         messages = self._build_messages(
             context=context,
             system_prompt=self._acting_system_prompt(enabled_tools, context),
@@ -646,7 +656,7 @@ class AgenticChatPipeline:
             )
             return tool_traces
 
-        pending_calls: list[tuple[str, str, dict[str, Any]]] = []
+        pending_calls: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
         if len(raw_tool_calls) > MAX_PARALLEL_TOOL_CALLS:
             await stream.progress(
                 self._t(
@@ -667,13 +677,23 @@ class AgenticChatPipeline:
             )
             if not isinstance(tool_args, dict):
                 tool_args = {}
-            tool_args = self._augment_tool_kwargs(tool_name, tool_args, context, thinking_text)
-            pending_calls.append((tool_call.id, tool_name, tool_args))
+            display_args = self._llm_visible_tool_args(tool_name, tool_args)
+            execution_args = self._augment_tool_kwargs(
+                tool_name,
+                display_args,
+                context,
+                thinking_text,
+            )
+            if tool_name == "rag":
+                display_args = self._llm_visible_tool_args(tool_name, execution_args)
+            pending_calls.append((tool_call.id, tool_name, display_args, execution_args))
 
-        for tool_index, (tool_call_id, tool_name, tool_args) in enumerate(pending_calls):
+        for tool_index, (tool_call_id, tool_name, display_args, _execution_args) in enumerate(
+            pending_calls
+        ):
             await stream.tool_call(
                 tool_name=tool_name,
-                args=tool_args,
+                args=display_args,
                 source="chat",
                 stage="acting",
                 metadata=self._tool_trace_metadata(
@@ -689,7 +709,7 @@ class AgenticChatPipeline:
             *[
                 self._execute_tool_call(
                     tool_name,
-                    tool_args,
+                    execution_args,
                     stream=stream,
                     retrieve_meta=self._retrieve_trace_metadata(
                         trace_meta,
@@ -697,16 +717,22 @@ class AgenticChatPipeline:
                         tool_call_id=tool_call_id,
                         tool_name=tool_name,
                         tool_index=tool_index,
-                        tool_args=tool_args,
+                        tool_args=execution_args,
                     ),
                 )
-                for tool_index, (tool_call_id, tool_name, tool_args) in enumerate(pending_calls)
+                for tool_index, (
+                    tool_call_id,
+                    tool_name,
+                    _display_args,
+                    execution_args,
+                ) in enumerate(pending_calls)
             ]
         )
 
-        for tool_index, ((tool_call_id, tool_name, tool_args), tool_result) in enumerate(
-            zip(pending_calls, tool_results, strict=False)
-        ):
+        for tool_index, (
+            (tool_call_id, tool_name, display_args, _execution_args),
+            tool_result,
+        ) in enumerate(zip(pending_calls, tool_results, strict=False)):
             result_text = tool_result["result_text"]
             success = bool(tool_result["success"])
             sources = tool_result["sources"]
@@ -729,7 +755,7 @@ class AgenticChatPipeline:
             tool_traces.append(
                 ToolTrace(
                     name=tool_name,
-                    arguments=tool_args,
+                    arguments=display_args,
                     result=result_text,
                     success=success,
                     sources=sources,
@@ -799,6 +825,7 @@ class AgenticChatPipeline:
             base_url=self.base_url,
             api_version=self.api_version,
             binding=self.binding,
+            extra_headers=self.extra_headers or None,
             response_format={"type": "json_object"}
             if supports_response_format(self.binding, self.model)
             else None,
@@ -818,8 +845,12 @@ class AgenticChatPipeline:
             payload = {}
 
         action = str(payload.get("action") or "done").strip()
-        action_input = payload.get("action_input") or {}
-        if not isinstance(action_input, dict):
+        raw_action_input = payload.get("action_input")
+        if isinstance(raw_action_input, dict):
+            action_input = raw_action_input
+        elif action == "rag" and isinstance(raw_action_input, str):
+            action_input = {"query": raw_action_input}
+        else:
             action_input = {}
 
         if action == "done":
@@ -847,7 +878,10 @@ class AgenticChatPipeline:
             )
             return tool_traces
 
-        tool_args = self._augment_tool_kwargs(action, action_input, context, thinking_text)
+        display_args = self._llm_visible_tool_args(action, action_input)
+        tool_args = self._augment_tool_kwargs(action, display_args, context, thinking_text)
+        if action == "rag":
+            display_args = self._llm_visible_tool_args(action, tool_args)
         if response:
             await stream.thinking(
                 response,
@@ -857,7 +891,7 @@ class AgenticChatPipeline:
             )
         await stream.tool_call(
             tool_name=action,
-            args=tool_args,
+            args=display_args,
             source="chat",
             stage="acting",
             metadata=merge_trace_metadata(
@@ -904,7 +938,7 @@ class AgenticChatPipeline:
         tool_traces.append(
             ToolTrace(
                 name=action,
-                arguments=tool_args,
+                arguments=display_args,
                 result=result_text,
                 success=success,
                 sources=sources,
@@ -930,6 +964,9 @@ class AgenticChatPipeline:
         user_content: str,
     ) -> list[dict[str, Any]]:
         system_parts = [system_prompt]
+        kb_note = self._current_kb_system_note(context)
+        if kb_note:
+            system_parts.append(kb_note)
         if context.memory_context:
             system_parts.append(context.memory_context)
         if context.skills_context:
@@ -972,6 +1009,7 @@ class AgenticChatPipeline:
             api_version=self.api_version,
             binding=self.binding,
             messages=messages,
+            extra_headers=self.extra_headers or None,
             **self._completion_kwargs(max_tokens=max_tokens),
         ):
             output_chars += len(chunk)
@@ -989,17 +1027,20 @@ class AgenticChatPipeline:
         if os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("true", "1", "yes"):
             http_client = httpx.AsyncClient(verify=False)  # nosec B501
 
+        default_headers = self.extra_headers or None
         if self.binding == "azure_openai" or (self.binding == "openai" and self.api_version):
             return AsyncAzureOpenAI(
                 api_key=self.api_key or "sk-no-key-required",
                 azure_endpoint=self.base_url,
                 api_version=self.api_version,
                 http_client=http_client,
+                default_headers=default_headers,
             )
         return AsyncOpenAI(
             api_key=self.api_key or "sk-no-key-required",
             base_url=self.base_url or None,
             http_client=http_client,
+            default_headers=default_headers,
         )
 
     def _completion_kwargs(self, max_tokens: int) -> dict[str, Any]:
@@ -1027,6 +1068,40 @@ class AgenticChatPipeline:
             for tool in self.registry.get_enabled(selected)
             if tool.name not in CHAT_EXCLUDED_TOOLS
         ]
+
+    def _build_llm_tool_schemas(self, enabled_tools: list[str]) -> list[dict[str, Any]]:
+        """Return tool schemas for the acting LLM.
+
+        RAG's knowledge-base choice is a trusted UI/session value, not an LLM
+        argument. The model only sees whether it can call ``rag`` and what
+        retrieval query to send.
+        """
+        schemas = self.registry.build_openai_schemas(enabled_tools)
+        for schema in schemas:
+            function = schema.get("function") if isinstance(schema, dict) else None
+            if not isinstance(function, dict) or function.get("name") != "rag":
+                continue
+            parameters = function.get("parameters")
+            if not isinstance(parameters, dict):
+                continue
+            properties = parameters.get("properties")
+            if isinstance(properties, dict):
+                properties.pop("kb_name", None)
+                query_schema = properties.get("query")
+                if isinstance(query_schema, dict):
+                    query_schema.setdefault("minLength", 1)
+            required = parameters.get("required")
+            if isinstance(required, list):
+                parameters["required"] = [name for name in required if name != "kb_name"]
+            parameters["additionalProperties"] = False
+        return schemas
+
+    @staticmethod
+    def _llm_visible_tool_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+        if tool_name != "rag":
+            return dict(args)
+        query = str(args.get("query") or "").strip()
+        return {"query": query} if query else {}
 
     @staticmethod
     def _extract_answer_now_context(context: UnifiedContext) -> dict[str, Any] | None:
@@ -1061,6 +1136,27 @@ class AgenticChatPipeline:
                     **(metadata or {}),
                 ),
             )
+
+        if tool_name == "rag" and not str(tool_args.get("kb_name") or "").strip():
+            message = self._rag_without_kb_message()
+            if stream is not None and retrieve_meta is not None:
+                await stream.progress(
+                    message,
+                    source="chat",
+                    stage="acting",
+                    metadata=derive_trace_metadata(
+                        retrieve_meta,
+                        trace_kind="call_status",
+                        call_state="skipped",
+                        reason="no_kb_selected",
+                    ),
+                )
+            return {
+                "result_text": message,
+                "success": True,
+                "sources": [],
+                "metadata": {"status": "skipped", "reason": "no_kb_selected"},
+            }
 
         if stream is not None and retrieve_meta is not None:
             query = str(retrieve_meta.get("query") or tool_args.get("query") or "").strip()
@@ -1183,8 +1279,13 @@ class AgenticChatPipeline:
         task_dir = None
         if turn_id:
             task_dir = get_path_service().get_task_workspace("chat", turn_id)
-        if tool_name == "rag" and context.knowledge_bases:
-            kwargs.setdefault("kb_name", context.knowledge_bases[0])
+        if tool_name == "rag":
+            selected_kbs = self._selected_kbs(context)
+            if not str(kwargs.get("query") or "").strip():
+                fallback_query = self._fallback_rag_query(context)
+                if fallback_query:
+                    kwargs["query"] = fallback_query
+            kwargs["kb_name"] = selected_kbs[0] if selected_kbs else ""
             kwargs.setdefault("mode", "hybrid")
         elif tool_name == "code_execution":
             kwargs.setdefault("intent", context.user_message)
@@ -1205,6 +1306,14 @@ class AgenticChatPipeline:
             if task_dir is not None:
                 kwargs.setdefault("output_dir", str(task_dir / "web_search"))
         return kwargs
+
+    @staticmethod
+    def _fallback_rag_query(context: UnifiedContext) -> str:
+        message = str(context.user_message or "")
+        marker = "[User Question]\n"
+        if marker in message:
+            message = message.rsplit(marker, 1)[-1]
+        return " ".join(message.split())[:800]
 
     def _acting_system_prompt(self, enabled_tools: list[str], context: UnifiedContext) -> str:
         kb_name = context.knowledge_bases[0] if context.knowledge_bases else ""
@@ -1245,6 +1354,41 @@ class AgenticChatPipeline:
             kb_hint=kb_hint,
         )
 
+    def _selected_kbs(self, context: UnifiedContext) -> list[str]:
+        return [str(kb).strip() for kb in context.knowledge_bases if str(kb).strip()]
+
+    def _drop_rag_without_selected_kb(
+        self,
+        enabled_tools: list[str],
+        context: UnifiedContext,
+    ) -> list[str]:
+        if "rag" not in enabled_tools or self._selected_kbs(context):
+            return enabled_tools
+        return [tool for tool in enabled_tools if tool != "rag"]
+
+    def _current_kb_system_note(self, context: UnifiedContext) -> str:
+        if not self._selected_kbs(context):
+            return ""
+        if getattr(self, "language", "en") == "zh":
+            return (
+                "本轮已有系统态选中的知识库。如果需要知识库检索，只需调用 RAG 并提供非空 query；"
+                "不要输出、猜测或沿用任何知识库名称，也不要传 kb_name。系统会把 query 发到当前选中的知识库。"
+            )
+        return (
+            "A knowledge base is selected in system state for this turn. "
+            "If retrieval is useful, call RAG with only a non-empty query; do not output, "
+            "guess, reuse, or pass any knowledge-base name. The system will route "
+            "the query to the currently selected knowledge base."
+        )
+
+    def _rag_without_kb_message(self) -> str:
+        if getattr(self, "language", "en") == "zh":
+            return "已启用 RAG，但当前没有选择知识库；本轮将跳过知识库检索。"
+        return (
+            "RAG is enabled, but no knowledge base is selected; "
+            "skipping KB retrieval for this turn."
+        )
+
     def _observing_system_prompt(self, enabled_tools: list[str]) -> str:
         tool_list = self.registry.build_prompt_text(
             enabled_tools,
@@ -1267,11 +1411,12 @@ class AgenticChatPipeline:
         )
         has_rag = "rag" in enabled_tools
         rag_hint = self._t("responding.rag_hint") if has_rag else ""
-        return self._t(
+        system_prompt = self._t(
             "responding.system",
             tool_list=tool_list or self._fallback_empty_tool_list(),
             rag_hint=rag_hint,
         )
+        return append_language_directive(system_prompt, self.language)
 
     def _acting_user_prompt(self, context: UnifiedContext, thinking_text: str) -> str:
         return self._t(

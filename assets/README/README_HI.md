@@ -10,7 +10,7 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](../../LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/HKUDS/DeepTutor?style=flat-square&color=brightgreen)](https://github.com/HKUDS/DeepTutor/releases)
-[![arXiv](https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](#)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.26962-b31b1b?style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.26962)
 
 [![Discord](https://img.shields.io/badge/Discord-Community-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/eRsjPgMU4t)
 [![Feishu](https://img.shields.io/badge/Feishu-Group-00D4AA?style=flat-square&logo=feishu&logoColor=white)](../../Communication.md)
@@ -18,7 +18,7 @@
 
 [मुख्य विशेषताएँ](#key-features) · [शुरू करें](#get-started) · [अन्वेषण](#explore-deeptutor) · [TutorBot](#tutorbot) · [CLI](#deeptutor-cli-guide) · [रोडमैप](#roadmap) · [समुदाय](#community)
 
-[🇬🇧 English](../../README.md) · [🇨🇳 中文](README_CN.md) · [🇯🇵 日本語](README_JA.md) · [🇪🇸 Español](README_ES.md) · [🇫🇷 Français](README_FR.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md)
+[🇬🇧 English](../../README.md) · [🇨🇳 中文](README_CN.md) · [🇯🇵 日本語](README_JA.md) · [🇪🇸 Español](README_ES.md) · [🇫🇷 Français](README_FR.md) · [🇸🇦 العربية](README_AR.md) · [🇷🇺 Русский](README_RU.md) · [🇮🇳 हिन्दी](README_HI.md) · [🇵🇹 Português](README_PT.md) · [🇹🇭 ภาษาไทย](README_TH.md) · 🇵🇱 [Polski](README_PL.md)
 
 </div>
 
@@ -28,17 +28,33 @@
 
 ### 📦 रिलीज़
 
-> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — चैट में दस्तावेज़ संलग्नक (PDF/DOCX/XLSX/PPTX), तर्क मॉडल की सोच-ब्लॉक प्रदर्शन, एम्बेडिंग `send_dimensions` त्रि-स्थिति टॉगल, LLM प्रदाता कोर रिफैक्टर, Soul टेम्पलेट संपादक, Co-Writer से नोटबुक में सहेजें, नॉलेज बेस ड्रैग-एंड-ड्रॉप अपलोड व हटाने में लचीलेपन, प्रश्न निर्माण में भाषा निष्ठा।
+> **[2026.4.30]** [v1.3.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.3) — NVIDIA NIM + Gemini एम्बेडिंग समर्थन, चैट इतिहास / स्किल / मेमोरी के लिए एकीकृत Space संदर्भ, सत्र स्नैपशॉट, RAG पुनः-अनुक्रमण लचीलापन।
 
-> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — उपयोगकर्ता-लिखित Skills प्रणाली (CRUD + चैट एकीकरण), चैट इनपुट प्रदर्शन ओवरहॉल व state सह-स्थान, असंगत प्रदाताओं के लिए `response_format` ऑटो-फ़ॉलबैक, LAN रिमोट एक्सेस फिक्स, साइडबार संस्करण बैज, Deep Solve में चित्र संलग्नक, TutorBot WebSocket ऑटो-स्टार्ट, बुक लाइब्रेरी UI, विज़ुअलाइज़ेशन फ़ुलस्क्रीन।
+> **[2026.4.29]** [v1.3.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.2) — पारदर्शी एम्बेडिंग एंडपॉइंट URL, अमान्य स्थायी वेक्टर पर RAG पुनः-अनुक्रमण लचीलापन, थिंकिंग-मॉडल आउटपुट के लिए मेमोरी सफाई, Deep Solve रनटाइम फिक्स।
 
-> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — `agents.yaml` में चरण-दर-चरण चैट टोकन सीमाएँ (8000-टोकन उत्तर), CLI / WebSocket / वेब UI पर अंतिम उत्तर पुनर्जनन, RAG `None`-एम्बेडिंग क्रैश ठीक, Gemma `json_object` अनुकूलता, गहरे कोड ब्लॉक पठनीयता।
+> **[2026.4.28]** [v1.3.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.1) — स्थिरता: सुरक्षित RAG रूटिंग व एम्बेडिंग सत्यापन, Docker स्थिरता, IME-सुरक्षित इनपुट, Windows/GBK मजबूती।
 
-> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine: 14 ब्लॉक प्रकारों के साथ मल्टी-एजेंट «जीवंत पुस्तक» संकलक, मल्टी-दस्तावेज़ Co-Workspace, इंटरैक्टिव HTML विज़ुअलाइज़ेशन, चैट में प्रश्न बैंक @-उल्लेख, प्रॉम्प्ट बाहरीकरण चरण 2, साइडबार ओवरहॉल।
+> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — संस्करणित KB इंडेक्स व पुनः-अनुक्रमण वर्कफ़्लो, नॉलेज वर्कस्पेस पुनर्निर्माण, नए अडैप्टर के साथ एम्बेडिंग ऑटो-डिस्कवरी, Space हब।
 
-> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — स्कीमा-चालित Channels टैब व सीक्रेट मास्किंग; एकल RAG पाइपलाइन; RAG/KB स्थिरता मजबूत; चैट प्रॉम्प्ट बाहरी फ़ाइलों में; थाई README।
+> **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — फ़ाइल-पूर्वावलोकन दराज के साथ स्थायी चैट संलग्नक, संलग्नक-जागरूक क्षमता पाइपलाइन, TutorBot Markdown निर्यात।
 
-> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — सभी क्षमताओं पर सार्वभौमिक «अभी उत्तर दें»; Co-Writer स्क्रॉल सिंक; नोटबुक में सहेजते समय संदेश चयन; एकीकृत सेटिंग्स पैनल; स्ट्रीमिंग Stop बटन; TutorBot कॉन्फ़िगरेशन परमाणु लेखन।
+> **[2026.4.25]** [v1.2.4](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.4) — टेक्स्ट / कोड / SVG संलग्नक, एक-कमांड सेटअप टूर, Markdown चैट निर्यात, कॉम्पैक्ट KB प्रबंधन UI।
+
+> **[2026.4.24]** [v1.2.3](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.3) — दस्तावेज़ संलग्नक (PDF/DOCX/XLSX/PPTX), तर्क मॉडल सोच-ब्लॉक, Soul टेम्पलेट संपादक, Co-Writer से नोटबुक सहेजें।
+
+> **[2026.4.22]** [v1.2.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.2) — उपयोगकर्ता-लिखित Skills, चैट इनपुट प्रदर्शन ओवरहॉल, TutorBot ऑटो-स्टार्ट, बुक लाइब्रेरी UI, विज़ुअलाइज़ेशन फ़ुलस्क्रीन।
+
+> **[2026.4.21]** [v1.2.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.1) — चरण-दर-चरण टोकन सीमाएँ, सभी प्रवेश बिंदुओं पर उत्तर पुनर्जनन, RAG व Gemma अनुकूलता फिक्स।
+
+> **[2026.4.20]** [v1.2.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.0) — Book Engine «जीवंत पुस्तक» संकलक, मल्टी-दस्तावेज़ Co-Writer, इंटरैक्टिव HTML विज़ुअलाइज़ेशन, चैट में प्रश्न बैंक @-उल्लेख।
+
+> **[2026.4.18]** [v1.1.2](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.2) — स्कीमा-चालित Channels टैब, एकल RAG पाइपलाइन, चैट प्रॉम्प्ट बाहरी फ़ाइलों में।
+
+> **[2026.4.17]** [v1.1.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.1) — सार्वभौमिक «अभी उत्तर दें», Co-Writer स्क्रॉल सिंक, एकीकृत सेटिंग्स पैनल, स्ट्रीमिंग Stop बटन।
+
+
+<details>
+<summary><b>पुराने रिलीज़ (2 सप्ताह से अधिक पहले)</b></summary>
 
 > **[2026.4.15]** [v1.1.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.1.0) — LaTeX ब्लॉक गणित पार्सिंग ओवरहॉल; `agents.yaml` के माध्यम से LLM डायग्नोस्टिक प्रोब; अतिरिक्त हेडर फॉरवर्डिंग फिक्स; SaveToNotebook UUID फिक्स; Docker + स्थानीय LLM मार्गदर्शिका।
 
@@ -58,9 +74,6 @@
 
 > **[2026.4.4]** [v1.0.0-beta.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.0.0-beta.1) — एजेंट-नेटिव आर्किटेक्चर रिराइट (~200k पंक्तियाँ): Tools + Capabilities प्लगइन मॉडल, CLI व SDK, TutorBot, Co-Writer, Guided Learning, स्थायी मेमोरी।
 
-<details>
-<summary><b>पिछले रिलीज़</b></summary>
-
 > **[2026.1.23]** [v0.6.0](https://github.com/HKUDS/DeepTutor/releases/tag/v0.6.0) — सत्र स्थिरता, इंक्रीमेंटल अपलोड, लचीला RAG, पूर्ण चीनी स्थानीयकरण।
 
 > **[2026.1.18]** [v0.5.2](https://github.com/HKUDS/DeepTutor/releases/tag/v0.5.2) — Docling, लॉग, बग फिक्स।
@@ -78,6 +91,8 @@
 ### 📰 समाचार
 
 > **[2026.4.19]** 🎉 111 दिनों में 20k सितारे! समर्थन के लिए धन्यवाद — हम वास्तव में व्यक्तिगत, बुद्धिमान शिक्षण की दिशा में निरंतर सुधार करते रहेंगे।
+
+> **[2026.4.10]** 📄 हमारा पेपर अब arXiv पर है! [प्रीप्रिंट](https://arxiv.org/abs/2604.26962) पढ़ें और DeepTutor की रचना व विचारधारा जानें।
 
 > **[2026.4.4]** बहुत दिन बाद! ✨ DeepTutor v1.0.0 आ गया — Apache-2.0 के तहत एजेंट-नेटिव विकास: ज़मीन से आर्किटेक्चर रिराइट, TutorBot, लचीले मोड। नया अध्याय शुरू!
 

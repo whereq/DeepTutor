@@ -238,6 +238,10 @@ class IdeaAgent(BaseAgent):
                 _chunks.append(_c)
             response = "".join(_chunks)
             payload = parse_json_response(response, logger_instance=self.logger)
+            if isinstance(payload, list):
+                payload = {"ideas": payload}
+            elif not isinstance(payload, dict):
+                payload = {"ideas": []}
             ideas_raw = payload.get("ideas", [])
             if not isinstance(ideas_raw, list):
                 ideas_raw = []

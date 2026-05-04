@@ -11,12 +11,11 @@ import logging
 from pathlib import Path
 
 # Use unified logging system
-from deeptutor.logging import get_logger
 
-_logger = get_logger("KnowledgeInit")
+_logger = logging.getLogger(__name__)
 
 
-def _get_logger():
+def _logger_instance():
     return _logger
 
 
@@ -79,7 +78,7 @@ class ProgressTracker:
             try:
                 callback(progress)
             except Exception as e:
-                _get_logger().debug("Progress callback error: %s", e)
+                _logger_instance().debug("Progress callback error: %s", e)
 
     def _save_progress(self, progress: dict):
         """Save progress to kb_config.json and local .progress.json file"""
@@ -119,10 +118,13 @@ class ProgressTracker:
                     "error": progress.get("error"),
                     "timestamp": progress.get("timestamp"),
                     "task_id": progress.get("task_id"),
+                    "indexed_count": progress.get("indexed_count"),
+                    "index_changed": progress.get("index_changed"),
+                    "index_action": progress.get("index_action"),
                 },
             )
         except Exception as e:
-            _get_logger().warning("Failed to save progress to kb_config.json: %s", e)
+            _logger_instance().warning("Failed to save progress to kb_config.json: %s", e)
 
         # Persist the last seen progress snapshot so websocket subscribers and
         # page reloads can recover the live state without relying on in-memory callbacks.
@@ -134,7 +136,9 @@ class ProgressTracker:
                 f.flush()
             temp_progress_file.replace(self.progress_file)
         except Exception as e:
-            _get_logger().warning("Failed to persist progress snapshot for '%s': %s", self.kb_name, e)
+            _logger_instance().warning(
+                "Failed to persist progress snapshot for '%s': %s", self.kb_name, e
+            )
 
     def update(
         self,
@@ -144,6 +148,9 @@ class ProgressTracker:
         total: int = 0,
         file_name: str = "",
         error: str | None = None,
+        indexed_count: int | None = None,
+        index_changed: bool | None = None,
+        index_action: str | None = None,
     ):
         """Update progress"""
         progress = {
@@ -157,6 +164,12 @@ class ProgressTracker:
             "progress_percent": int(current / total * 100) if total > 0 else 0,
             "timestamp": datetime.now().isoformat(),
         }
+        if indexed_count is not None:
+            progress["indexed_count"] = indexed_count
+        if index_changed is not None:
+            progress["index_changed"] = index_changed
+        if index_action:
+            progress["index_action"] = index_action
 
         if error:
             progress["error"] = error
@@ -164,7 +177,7 @@ class ProgressTracker:
 
         # Output to logger (terminal and log file)
         try:
-            logger = _get_logger()
+            logger = _logger_instance()
             prefix = f"[{self.task_id}]" if self.task_id else ""
 
             if total > 0:
@@ -180,7 +193,7 @@ class ProgressTracker:
             if error:
                 logger.error(f"{progress_msg} - Error: {error}")
             else:
-                logger.progress(progress_msg)
+                logger.info(progress_msg)
         except Exception:
             # If unified logging fails unexpectedly, use stdlib logger as fallback.
             fallback_logger = logging.getLogger("deeptutor.ProgressTracker")
@@ -203,7 +216,7 @@ class ProgressTracker:
 
                 get_task_stream_manager().emit(self.task_id, "progress", progress)
             except Exception as e:
-                _get_logger().debug("Failed to emit task progress event: %s", e)
+                _logger_instance().debug("Failed to emit task progress event: %s", e)
 
         self._notify(progress)
 
@@ -214,7 +227,7 @@ class ProgressTracker:
                 with open(self.progress_file, encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
-                _get_logger().debug(f"Failed to read progress file for '{self.kb_name}': {e}")
+                _logger_instance().debug(f"Failed to read progress file for '{self.kb_name}': {e}")
 
         try:
             from deeptutor.knowledge.manager import KnowledgeBaseManager
@@ -224,7 +237,7 @@ class ProgressTracker:
             if status and status.get("progress"):
                 return status.get("progress")
         except Exception as e:
-            _get_logger().debug(
+            _logger_instance().debug(
                 "Failed to recover progress snapshot from kb_config for '%s': %s",
                 self.kb_name,
                 e,
@@ -238,4 +251,4 @@ class ProgressTracker:
             try:
                 self.progress_file.unlink()
             except Exception as e:
-                _get_logger().debug(f"Failed to clear progress file for '{self.kb_name}': {e}")
+                _logger_instance().debug(f"Failed to clear progress file for '{self.kb_name}': {e}")

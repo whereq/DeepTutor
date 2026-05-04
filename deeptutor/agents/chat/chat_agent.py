@@ -15,6 +15,7 @@ from typing import Any, AsyncGenerator
 
 from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
+from deeptutor.services.prompt.language import append_language_directive
 
 
 class ChatAgent(BaseAgent):
@@ -245,7 +246,12 @@ class ChatAgent(BaseAgent):
         """
         messages = []
 
-        system_parts = [self.get_prompt("system", "You are a helpful AI assistant.")]
+        system_parts = [
+            append_language_directive(
+                self.get_prompt("system", "You are a helpful AI assistant."),
+                self.language,
+            )
+        ]
         if context:
             context_template = self.get_prompt("context_template", "Reference context:\n{context}")
             system_parts.append(context_template.format(context=context))

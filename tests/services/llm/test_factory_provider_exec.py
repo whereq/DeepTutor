@@ -18,12 +18,14 @@ class _FakeProvider:
         complete_response: LLMResponse | None = None,
         stream_response: LLMResponse | None = None,
         stream_chunk: str = "chunk",
+        reasoning_chunk: str = "",
     ) -> None:
         self.complete_kwargs: dict[str, Any] = {}
         self.stream_kwargs: dict[str, Any] = {}
         self.complete_response = complete_response or LLMResponse(content="ok")
         self.stream_response = stream_response or LLMResponse(content=stream_chunk)
         self.stream_chunk = stream_chunk
+        self.reasoning_chunk = reasoning_chunk
 
     async def chat_with_retry(self, **kwargs: Any) -> LLMResponse:
         self.complete_kwargs = kwargs
@@ -31,6 +33,9 @@ class _FakeProvider:
 
     async def chat_stream_with_retry(self, **kwargs: Any) -> LLMResponse:
         self.stream_kwargs = kwargs
+        on_reasoning_delta = kwargs.get("on_reasoning_delta")
+        if on_reasoning_delta is not None and self.reasoning_chunk:
+            await on_reasoning_delta(self.reasoning_chunk)
         on_content_delta = kwargs.get("on_content_delta")
         if on_content_delta is not None:
             await on_content_delta(self.stream_chunk)
@@ -64,7 +69,9 @@ async def test_complete_merges_config_and_caller_extra_headers(monkeypatch) -> N
         captured_config["config"] = config
         return provider
 
-    monkeypatch.setattr("deeptutor.services.llm.factory.get_runtime_provider", _fake_get_runtime_provider)
+    monkeypatch.setattr(
+        "deeptutor.services.llm.factory.get_runtime_provider", _fake_get_runtime_provider
+    )
 
     result = await complete("hello", extra_headers={"X-Caller": "from-caller"})
 
@@ -85,7 +92,9 @@ async def test_stream_merges_config_and_caller_extra_headers(monkeypatch) -> Non
         captured_config["config"] = config
         return provider
 
-    monkeypatch.setattr("deeptutor.services.llm.factory.get_runtime_provider", _fake_get_runtime_provider)
+    monkeypatch.setattr(
+        "deeptutor.services.llm.factory.get_runtime_provider", _fake_get_runtime_provider
+    )
 
     chunks = []
     async for chunk in stream("hello", extra_headers={"X-Caller": "clr"}):
@@ -94,6 +103,66 @@ async def test_stream_merges_config_and_caller_extra_headers(monkeypatch) -> Non
     assert chunks == ["A"]
     merged = captured_config["config"].extra_headers
     assert merged == {"X-Config": "cfg", "X-Caller": "clr"}
+
+
+@pytest.mark.asyncio
+async def test_explicit_call_inherits_matching_profile_headers_and_reasoning(
+    monkeypatch,
+) -> None:
+    cfg = _make_cfg(
+        extra_headers={"User-Agent": "DeepTutor-Test"},
+        reasoning_effort="minimal",
+    )
+    provider = _FakeProvider()
+    captured_config: dict[str, LLMConfig] = {}
+
+    monkeypatch.setattr("deeptutor.services.llm.factory.get_llm_config", lambda: cfg)
+
+    def _fake_get_runtime_provider(config: LLMConfig):
+        captured_config["config"] = config
+        return provider
+
+    monkeypatch.setattr(
+        "deeptutor.services.llm.factory.get_runtime_provider", _fake_get_runtime_provider
+    )
+
+    result = await complete(
+        "hello",
+        model=cfg.model,
+        api_key=cfg.api_key,
+        base_url=cfg.base_url,
+        binding=cfg.binding,
+    )
+
+    assert result == "ok"
+    assert captured_config["config"].extra_headers == {"User-Agent": "DeepTutor-Test"}
+    assert captured_config["config"].reasoning_effort == "minimal"
+    assert provider.complete_kwargs["reasoning_effort"] == "minimal"
+
+
+@pytest.mark.asyncio
+async def test_stream_does_not_replay_reasoning_as_final_content(monkeypatch) -> None:
+    cfg = _make_cfg()
+    provider = _FakeProvider(
+        stream_chunk="",
+        reasoning_chunk="scratchpad",
+        stream_response=LLMResponse(
+            content="scratchpad",
+            reasoning_content="scratchpad",
+        ),
+    )
+
+    monkeypatch.setattr("deeptutor.services.llm.factory.get_llm_config", lambda: cfg)
+    monkeypatch.setattr(
+        "deeptutor.services.llm.factory.get_runtime_provider",
+        lambda _config: provider,
+    )
+
+    chunks = []
+    async for chunk in stream("hello"):
+        chunks.append(chunk)
+
+    assert chunks == ["<think>", "scratchpad", "</think>"]
 
 
 @pytest.mark.asyncio

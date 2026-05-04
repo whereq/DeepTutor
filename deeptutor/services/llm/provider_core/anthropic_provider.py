@@ -41,6 +41,7 @@ class AnthropicProvider(LLMProvider):
         self._supports_prompt_caching = supports_prompt_caching
 
         from anthropic import AsyncAnthropic
+
         from deeptutor.services.llm.utils import sanitize_url
 
         client_kw: dict[str, Any] = {"max_retries": 0}
@@ -475,6 +476,7 @@ class AnthropicProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         **extra_kwargs: Any,
     ) -> LLMResponse:
         kwargs = self._build_kwargs(

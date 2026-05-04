@@ -50,12 +50,20 @@ class CohereEmbeddingAdapter(BaseEmbeddingAdapter):
 
         model_name = request.model or self.model
         model_info = self.MODELS_INFO.get(model_name, {})
-        api_version = model_info.get("api_version", "v2")
+        # `api_version` is now purely a request-shape selector (v1 vs v2 payload).
+        # The URL itself is whatever the user configured. Resolution order:
+        #   explicit self.api_version (catalog/env override) → MODELS_INFO entry → "v2"
+        api_version = self.api_version or model_info.get("api_version") or "v2"
         dimension = request.dimensions or self.dimensions
 
         input_type = request.input_type or "search_document"
 
         if api_version == "v1":
+            if request.contents:
+                raise ValueError(
+                    "Cohere v1 API does not support multimodal `contents`. "
+                    "Use embed-v4.0 (v2 API) for multimodal."
+                )
             payload = {
                 "texts": request.texts,
                 "model": model_name,
@@ -66,11 +74,32 @@ class CohereEmbeddingAdapter(BaseEmbeddingAdapter):
                 payload["truncate"] = "NONE"
         else:
             payload = {
-                "texts": request.texts,
                 "model": model_name,
                 "embedding_types": ["float"],
                 "input_type": input_type,
             }
+
+            if request.contents:
+                # Cohere v2 multimodal: `inputs: [{content: [{type, text|image_url}]}]`
+                # We translate the simple [{text|image|video}] contract into v2's
+                # nested form. v2 cannot mix text+image in one input, so each
+                # content dict becomes its own input item.
+                inputs = []
+                for item in request.contents:
+                    if not isinstance(item, dict):
+                        continue
+                    kind, value = next(iter(item.items()))
+                    if kind == "text":
+                        inputs.append({"content": [{"type": "text", "text": value}]})
+                    elif kind == "image":
+                        inputs.append(
+                            {"content": [{"type": "image_url", "image_url": {"url": value}}]}
+                        )
+                    else:
+                        raise ValueError(f"Cohere v2 does not support content type '{kind}'")
+                payload["inputs"] = inputs
+            else:
+                payload["texts"] = request.texts
 
             supported_dims = model_info.get("dimensions", [])
             if isinstance(supported_dims, list) and len(supported_dims) > 1:
@@ -79,7 +108,7 @@ class CohereEmbeddingAdapter(BaseEmbeddingAdapter):
             if not request.truncate:
                 payload["truncate"] = "NONE"
 
-        url = f"{self.base_url}/{api_version}/embed"
+        url = self.base_url
 
         logger.debug(f"Sending embedding request to {url} with {len(request.texts)} texts")
 

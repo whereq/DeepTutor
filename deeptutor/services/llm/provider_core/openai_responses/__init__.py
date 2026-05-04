@@ -1,6 +1,12 @@
 """Shared helpers for Responses API providers."""
 
-from .converters import convert_messages, convert_tools, convert_user_message, split_tool_call_id
+from .converters import (
+    adapt_chat_kwargs_to_responses,
+    convert_messages,
+    convert_tools,
+    convert_user_message,
+    split_tool_call_id,
+)
 from .parsing import (
     FINISH_REASON_MAP,
     consume_sdk_stream,
@@ -11,6 +17,7 @@ from .parsing import (
 )
 
 __all__ = [
+    "adapt_chat_kwargs_to_responses",
     "convert_messages",
     "convert_tools",
     "convert_user_message",

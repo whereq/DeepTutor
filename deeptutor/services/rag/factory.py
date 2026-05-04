@@ -34,7 +34,7 @@ def get_pipeline(
     The ``name`` argument is accepted for backward compatibility but is
     ignored — only the LlamaIndex pipeline is supported.
     """
-    from .pipelines.llamaindex import LlamaIndexPipeline
+    from .pipelines.llamaindex.pipeline import LlamaIndexPipeline
 
     if kwargs:
         # When custom kwargs are provided, build a fresh instance and skip

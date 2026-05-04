@@ -5,18 +5,24 @@ Turn-level runtime manager for unified chat streaming.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Sequence
 import contextlib
+from contextvars import Token
 from dataclasses import dataclass, field
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.services.path_service import get_path_service
 from deeptutor.services.session.protocol import SessionStoreProtocol
 
+if TYPE_CHECKING:
+    from deeptutor.services.llm.config import LLMConfig
+
 logger = logging.getLogger(__name__)
+
+MemoryReference = Literal["summary", "profile"]
 
 
 def _should_capture_assistant_content(event: StreamEvent) -> bool:
@@ -34,6 +40,76 @@ def _clip_text(value: str, limit: int = 4000) -> str:
     if len(text) <= limit:
         return text
     return text[:limit].rstrip() + "\n...[truncated]"
+
+
+def _extract_memory_references(payload: dict[str, Any]) -> list[MemoryReference]:
+    """Return the explicit public memory files requested for this turn."""
+    refs = payload.get("memory_references", []) or []
+    if not isinstance(refs, list):
+        return []
+
+    out: list[MemoryReference] = []
+    for item in refs:
+        if item in {"summary", "profile"} and item not in out:
+            out.append(item)
+    return out
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
+def _llm_selection_dict(value: Any) -> dict[str, str] | None:
+    from deeptutor.services.model_selection import LLMSelection
+
+    selection = LLMSelection.from_payload(value)
+    return selection.to_dict() if selection else None
+
+
+def _request_snapshot_metadata(
+    *,
+    payload: dict[str, Any],
+    content: str,
+    capability: str,
+    config: dict[str, Any],
+    attachments: list[dict[str, Any]],
+    notebook_references: list[Any],
+    history_references: list[Any],
+    question_notebook_references: list[Any],
+    book_references: list[Any],
+    requested_skills: list[str],
+    memory_references: Sequence[str],
+    llm_selection: dict[str, str] | None,
+) -> dict[str, Any]:
+    """Persist the front-end context chips with the user message."""
+    snapshot: dict[str, Any] = {
+        "content": content,
+        "capability": capability,
+        "enabledTools": _string_list(payload.get("tools")),
+        "knowledgeBases": _string_list(payload.get("knowledge_bases")),
+        "language": str(payload.get("language", "en") or "en"),
+    }
+    if attachments:
+        snapshot["attachments"] = attachments
+    if config:
+        snapshot["config"] = dict(config)
+    if notebook_references:
+        snapshot["notebookReferences"] = notebook_references
+    if history_references:
+        snapshot["historyReferences"] = history_references
+    if question_notebook_references:
+        snapshot["questionNotebookReferences"] = question_notebook_references
+    if book_references:
+        snapshot["bookReferences"] = book_references
+    if requested_skills:
+        snapshot["skills"] = requested_skills
+    if memory_references:
+        snapshot["memoryReferences"] = memory_references
+    if llm_selection:
+        snapshot["llmSelection"] = llm_selection
+    return {"request_snapshot": snapshot}
 
 
 def _format_question_bank_entry(entry: dict[str, Any]) -> str:
@@ -310,15 +386,38 @@ class TurnRuntimeManager:
             "config": {**validated_public_config, **runtime_only_config},
         }
         session = await self.store.ensure_session(payload.get("session_id"))
-        await self.store.update_session_preferences(
-            session["id"],
-            {
-                "capability": capability,
-                "tools": list(payload.get("tools") or []),
-                "knowledge_bases": list(payload.get("knowledge_bases") or []),
-                "language": str(payload.get("language") or "en"),
-            },
-        )
+        preferences = session.get("preferences") or {}
+        raw_llm_selection = payload.get("llm_selection")
+        if raw_llm_selection is None:
+            raw_llm_selection = preferences.get("llm_selection")
+        try:
+            llm_selection = _llm_selection_dict(raw_llm_selection)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+        if llm_selection:
+            from deeptutor.services.config import get_model_catalog_service
+            from deeptutor.services.model_selection import (
+                LLMSelection,
+                apply_llm_selection_to_catalog,
+            )
+
+            try:
+                apply_llm_selection_to_catalog(
+                    get_model_catalog_service().load(),
+                    LLMSelection.from_payload(llm_selection),
+                )
+            except ValueError as exc:
+                raise RuntimeError(str(exc)) from exc
+        payload = {**payload, "llm_selection": llm_selection}
+        preference_update: dict[str, Any] = {
+            "capability": capability,
+            "tools": list(payload.get("tools") or []),
+            "knowledge_bases": list(payload.get("knowledge_bases") or []),
+            "language": str(payload.get("language") or "en"),
+        }
+        if llm_selection:
+            preference_update["llm_selection"] = llm_selection
+        await self.store.update_session_preferences(session["id"], preference_update)
         turn = await self.store.create_turn(session["id"], capability=capability)
         execution = _TurnExecution(
             turn_id=turn["id"],
@@ -391,6 +490,12 @@ class TurnRuntimeManager:
 
         preferences = session.get("preferences") or {}
         overrides = overrides or {}
+        snapshot = {}
+        metadata = last_user.get("metadata") or {}
+        if isinstance(metadata, dict):
+            candidate = metadata.get("request_snapshot") or metadata.get("requestSnapshot")
+            if isinstance(candidate, dict):
+                snapshot = candidate
 
         capability = str(
             overrides.get("capability")
@@ -420,6 +525,11 @@ class TurnRuntimeManager:
         )
         if previous_turn_id:
             config["_superseded_turn_id"] = previous_turn_id
+        llm_selection = (
+            overrides.get("llm_selection")
+            if overrides.get("llm_selection") is not None
+            else snapshot.get("llmSelection") or preferences.get("llm_selection")
+        )
 
         payload: dict[str, Any] = {
             "session_id": session_id,
@@ -439,8 +549,15 @@ class TurnRuntimeManager:
                 if overrides.get("history_references") is not None
                 else preferences.get("history_references") or []
             ),
+            "book_references": list(
+                overrides.get("book_references")
+                if overrides.get("book_references") is not None
+                else snapshot.get("bookReferences") or []
+            ),
             "config": config,
         }
+        if llm_selection:
+            payload["llm_selection"] = llm_selection
         return await self.start_turn(payload)
 
     async def cancel_turn(self, turn_id: str) -> bool:
@@ -527,13 +644,21 @@ class TurnRuntimeManager:
         attachment_records = []
         assistant_events: list[dict[str, Any]] = []
         assistant_content = ""
+        llm_scope_token: Token[LLMConfig | None] | None = None
+        reset_active_llm_selection: Callable[[Token[LLMConfig | None] | None], None] | None = None
 
         try:
             from deeptutor.agents.notebook import NotebookAnalysisAgent
+            from deeptutor.book.context import build_book_context
             from deeptutor.core.context import Attachment, UnifiedContext
             from deeptutor.runtime.orchestrator import ChatOrchestrator
-            from deeptutor.services.llm.config import get_llm_config
             from deeptutor.services.memory import get_memory_service
+            from deeptutor.services.model_selection.runtime import (
+                activate_llm_selection,
+            )
+            from deeptutor.services.model_selection.runtime import (
+                reset_llm_selection as reset_active_llm_selection,
+            )
             from deeptutor.services.notebook import notebook_manager
             from deeptutor.services.session.context_builder import ContextBuilder
             from deeptutor.services.skill import get_skill_service
@@ -548,9 +673,13 @@ class TurnRuntimeManager:
             notebook_references = payload.get("notebook_references", []) or []
             history_references = payload.get("history_references", []) or []
             question_notebook_references = payload.get("question_notebook_references", []) or []
+            book_context_result = build_book_context(payload.get("book_references", []) or [])
+            book_references = book_context_result.references
+            memory_references = _extract_memory_references(payload)
             notebook_context = ""
             history_context = ""
             question_bank_context = ""
+            book_context = book_context_result.text
 
             import base64 as _b64
             import uuid as _uuid
@@ -606,9 +735,7 @@ class TurnRuntimeManager:
 
             from deeptutor.utils.document_extractor import extract_documents_from_records
 
-            document_texts, attachment_records = extract_documents_from_records(
-                attachment_records
-            )
+            document_texts, attachment_records = extract_documents_from_records(attachment_records)
             attachments = [
                 Attachment(
                     type=r.get("type", "file"),
@@ -646,7 +773,7 @@ class TurnRuntimeManager:
                         capability=capability_name or "chat",
                     )
 
-            llm_config = get_llm_config()
+            llm_config, llm_scope_token = activate_llm_selection(payload.get("llm_selection"))
             builder = ContextBuilder(self.store)
 
             async def _emit_context_event(event: StreamEvent) -> None:
@@ -659,10 +786,10 @@ class TurnRuntimeManager:
                 on_event=_emit_context_event,
             )
             memory_service = get_memory_service()
-            memory_context = memory_service.build_memory_context()
+            memory_context = memory_service.build_memory_context(memory_references)
 
             skill_service = get_skill_service()
-            requested_skills = list(payload.get("skills") or [])
+            requested_skills = _string_list(payload.get("skills"))
             if not requested_skills or requested_skills == ["auto"]:
                 resolved_skills = skill_service.auto_select(raw_user_content)
             else:
@@ -769,6 +896,8 @@ class TurnRuntimeManager:
             context_parts: list[str] = []
             if document_texts:
                 context_parts.append("[Attached Documents]\n" + "\n\n".join(document_texts))
+            if book_context:
+                context_parts.append(f"[Book Context]\n{book_context}")
             if notebook_context:
                 context_parts.append(f"[Notebook Context]\n{notebook_context}")
             if history_context:
@@ -789,6 +918,20 @@ class TurnRuntimeManager:
                     content=raw_user_content,
                     capability=capability_name,
                     attachments=persisted_attachment_records,
+                    metadata=_request_snapshot_metadata(
+                        payload=payload,
+                        content=raw_user_content,
+                        capability=capability_name,
+                        config=request_config,
+                        attachments=persisted_attachment_records,
+                        notebook_references=notebook_references,
+                        history_references=history_references,
+                        question_notebook_references=question_notebook_references,
+                        book_references=book_references,
+                        requested_skills=requested_skills,
+                        memory_references=memory_references,
+                        llm_selection=payload.get("llm_selection"),
+                    ),
                 )
 
             context = UnifiedContext(
@@ -815,9 +958,16 @@ class TurnRuntimeManager:
                     "notebook_references": notebook_references,
                     "history_references": history_references,
                     "question_notebook_references": question_notebook_references,
+                    "book_references": book_references,
+                    "book_context": book_context,
+                    "book_context_warnings": book_context_result.warnings,
+                    "memory_references": memory_references,
                     "question_bank_context": question_bank_context,
                     "memory_context": memory_context,
                     "active_skills": resolved_skills,
+                    "llm_selection": payload.get("llm_selection") or {},
+                    "llm_model": str(getattr(llm_config, "model", "") or ""),
+                    "llm_provider": str(getattr(llm_config, "provider_name", "") or ""),
                 },
             )
 
@@ -891,6 +1041,8 @@ class TurnRuntimeManager:
                 ),
             )
         finally:
+            if llm_scope_token is not None and reset_active_llm_selection is not None:
+                reset_active_llm_selection(llm_scope_token)
             async with self._lock:
                 current = self._executions.get(turn_id)
                 if current is not None:

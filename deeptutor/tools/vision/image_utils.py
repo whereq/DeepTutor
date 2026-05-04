@@ -1,13 +1,12 @@
 """Image processing utilities - URL download and format conversion."""
 
 import base64
+import logging
 from urllib.parse import urlparse
 
 import httpx
 
-from deeptutor.logging import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Supported image MIME types
 SUPPORTED_IMAGE_TYPES = {

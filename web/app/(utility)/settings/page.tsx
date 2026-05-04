@@ -4,6 +4,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Brain,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Database,
@@ -34,6 +35,9 @@ type CatalogModel = {
   model: string;
   dimension?: string;
   send_dimensions?: boolean;
+  // CSV of dims supported natively by the current model — refreshed by the
+  // backend on every successful "Run test" for an embedding service.
+  supported_dimensions?: string;
   context_window?: string;
   context_window_source?: string;
   context_window_detected_at?: string;
@@ -93,6 +97,8 @@ type SystemStatus = {
   search: { status: string; provider?: string; error?: string };
 };
 
+const SERVICES = ["llm", "embedding", "search"] as const;
+
 // ---------------------------------------------------------------------------
 
 function cloneCatalog(catalog: Catalog): Catalog {
@@ -134,6 +140,46 @@ function serviceIcon(service: ServiceName) {
   return <Search className="h-3.5 w-3.5" />;
 }
 
+function serviceLabel(
+  service: ServiceName,
+  t: (key: string) => string,
+): string {
+  if (service === "llm") return t("LLM");
+  if (service === "embedding") return t("Embedding");
+  return t("Search");
+}
+
+function activeProfileDetail(
+  profile: CatalogProfile | null,
+  service: ServiceName,
+  t: (key: string) => string,
+): string {
+  if (!profile) return t("No profile");
+  if (service === "search") return profile.provider || t("No provider");
+  return profile.base_url || t("No endpoint");
+}
+
+function activeModelDetail(
+  profile: CatalogProfile | null,
+  model: CatalogModel | null,
+  service: ServiceName,
+  t: (key: string) => string,
+): string {
+  if (service === "search") return profile?.provider || t("No provider");
+  return model?.model || model?.name || t("No model selected");
+}
+
+function servicePendingApply(
+  catalog: Catalog,
+  draft: Catalog,
+  service: ServiceName,
+): boolean {
+  return (
+    JSON.stringify(catalog.services[service]) !==
+    JSON.stringify(draft.services[service])
+  );
+}
+
 function statusDotClass(configured: boolean, hasError: boolean): string {
   if (hasError) return "bg-red-400";
   if (configured) return "bg-emerald-500";
@@ -155,11 +201,16 @@ function defaultCatalog(): Catalog {
   };
 }
 
-const inputClass =
-  "w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] placeholder:text-[var(--muted-foreground)]/40";
+const fieldControlClass =
+  "w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)]";
 
-const selectClass =
-  "w-full appearance-none rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[14px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--ring)] cursor-pointer";
+const inputClass = `${fieldControlClass} bg-transparent placeholder:text-[var(--muted-foreground)]/40`;
+
+const nativeSelectClass = `${fieldControlClass} bg-[var(--background)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`;
+
+const selectClass = `${nativeSelectClass} appearance-none`;
+
+const selectOptionClass = "bg-[var(--background)] text-[var(--foreground)]";
 
 function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
   if (!value) return "";
@@ -263,11 +314,11 @@ function SpotlightOverlay({
 
   useEffect(() => {
     if (!guideStep) return;
-    const el = document.querySelector(`[data-tour="${guideStep.target}"]`);
-    if (el) {
-      const r = el.getBoundingClientRect();
-      setRect(r);
-    }
+    const frame = window.requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-tour="${guideStep.target}"]`);
+      setRect(el ? el.getBoundingClientRect() : null);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [guideStep]);
 
   if (!guideStep || !rect) return null;
@@ -326,6 +377,203 @@ function SpotlightOverlay({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Embedding dimension field — dropdown when supported list is known, free
+// input otherwise, with a "Detected: Xd · Use this" affordance after a test.
+// ---------------------------------------------------------------------------
+
+const CUSTOM_DIM_SENTINEL = "__custom__";
+const AUTO_DIM_SENTINEL = "";
+
+function parseSupportedCsv(csv: string | undefined): number[] {
+  if (!csv) return [];
+  return csv
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => Number(s))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+type EmbeddingCapabilities = {
+  detected_dim?: number;
+  default_dim?: number;
+  supported_dimensions?: number[];
+  supports_variable_dimensions?: boolean;
+  model_known?: boolean;
+  active_dim?: number;
+  active_dim_source?: string;
+};
+
+function sourceBadge(
+  source: string | undefined,
+  t: (key: string) => string,
+): { label: string; tone: "muted" | "ok" | "warn" } | null {
+  // The probe is the single source of truth: a successful test always emits
+  // ``"detected"``. Other codes are legacy and no longer produced.
+  if (source === "detected") {
+    return { label: t("Source: detected from API probe"), tone: "ok" };
+  }
+  return null;
+}
+
+function DimensionField({
+  activeModel,
+  activeBinding,
+  capabilities,
+  embeddingDefaultDim,
+  inputClass,
+  onChangeDimension,
+}: {
+  activeModel: CatalogModel;
+  activeBinding?: string;
+  capabilities: EmbeddingCapabilities | null;
+  embeddingDefaultDim: (binding?: string) => string;
+  inputClass: string;
+  onChangeDimension: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const fallback = embeddingDefaultDim(activeBinding);
+  // Raw catalog state — empty string means "not yet configured / auto on
+  // next test". We never substitute the fallback into the input value, only
+  // into the placeholder, so the user can fully clear the field.
+  const rawValue = activeModel.dimension ?? "";
+  const isEmpty = rawValue === "";
+  const currentNum = isEmpty ? NaN : Number(rawValue);
+
+  // Live capabilities (from current run) override the cached CSV on disk.
+  const liveSupported = capabilities?.supported_dimensions;
+  const cachedSupported = parseSupportedCsv(activeModel.supported_dimensions);
+  const supported =
+    liveSupported && liveSupported.length > 0 ? liveSupported : cachedSupported;
+  const supportsVariable =
+    capabilities?.supports_variable_dimensions ?? supported.length > 1;
+
+  const useDropdown = supported.length > 1 && supportsVariable;
+  const currentInList =
+    Number.isFinite(currentNum) && supported.includes(currentNum);
+  // True when the user explicitly opted out of the dropdown by picking
+  // "Custom…". Stays true until they click "Use a supported value" or pick
+  // a real value from the dropdown again.
+  const [customRequested, setCustomRequested] = useState<boolean>(false);
+  // Force custom mode when the catalog has a non-empty value that isn't in
+  // the list — that's a sign the user typed something custom and we should
+  // respect it. Empty catalog stays in dropdown mode (showing "Auto").
+  const customMode =
+    customRequested || (useDropdown && !isEmpty && !currentInList);
+
+  const detected = capabilities?.detected_dim;
+  const showDetectedBadge =
+    typeof detected === "number" &&
+    detected > 0 &&
+    detected !== currentNum &&
+    !isEmpty;
+
+  const sourceInfo = sourceBadge(capabilities?.active_dim_source, t);
+
+  const disabled = activeModel.send_dimensions === false;
+
+  const handleSelect = (value: string) => {
+    if (value === CUSTOM_DIM_SENTINEL) {
+      setCustomRequested(true);
+      return;
+    }
+    setCustomRequested(false);
+    // AUTO_DIM_SENTINEL is "" — clears the catalog, triggers auto-fill on
+    // the next test. Real numeric values flow through unchanged.
+    onChangeDimension(value);
+  };
+
+  const dropdownValue = isEmpty
+    ? AUTO_DIM_SENTINEL
+    : currentInList
+      ? String(currentNum)
+      : CUSTOM_DIM_SENTINEL;
+
+  return (
+    <div className="space-y-1.5">
+      {useDropdown && !customMode ? (
+        <select
+          className={nativeSelectClass}
+          value={dropdownValue}
+          onChange={(e) => handleSelect(e.target.value)}
+          disabled={disabled}
+        >
+          <option className={selectOptionClass} value={AUTO_DIM_SENTINEL}>
+            {t("Auto (probe on next test)")}
+          </option>
+          {supported.map((dim) => (
+            <option className={selectOptionClass} key={dim} value={String(dim)}>
+              {dim}
+            </option>
+          ))}
+          <option className={selectOptionClass} value={CUSTOM_DIM_SENTINEL}>
+            {t("Custom…")}
+          </option>
+        </select>
+      ) : (
+        <input
+          className={inputClass}
+          value={rawValue}
+          placeholder={fallback}
+          onChange={(e) => onChangeDimension(e.target.value)}
+          disabled={disabled}
+          inputMode="numeric"
+        />
+      )}
+      {useDropdown && customMode && (
+        <button
+          type="button"
+          onClick={() => {
+            setCustomRequested(false);
+            if (isEmpty) {
+              return;
+            }
+            // Snap to the closest supported value to keep the catalog honest.
+            const closest = supported.reduce((acc, dim) =>
+              Math.abs(dim - currentNum) < Math.abs(acc - currentNum)
+                ? dim
+                : acc,
+            );
+            onChangeDimension(String(closest));
+          }}
+          className="text-[11px] text-[var(--muted-foreground)] underline-offset-2 hover:underline"
+        >
+          {t("Use a supported value")}
+        </button>
+      )}
+      {sourceInfo && (
+        <div
+          className={`text-[11px] ${
+            sourceInfo.tone === "warn"
+              ? "text-amber-600 dark:text-amber-400"
+              : sourceInfo.tone === "ok"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-[var(--muted-foreground)]"
+          }`}
+        >
+          {sourceInfo.label}
+        </div>
+      )}
+      {showDetectedBadge && (
+        <div className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+          <span>
+            {t("Detected")}: <strong>{detected}d</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => onChangeDimension(String(detected))}
+            className="rounded-md border border-[var(--border)]/60 px-1.5 py-0.5 text-[10px] text-[var(--foreground)] transition-colors hover:border-[var(--border)]"
+            disabled={disabled}
+          >
+            {t("Use this")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════
@@ -351,6 +599,12 @@ function SettingsPageContent() {
   const [providers, setProviders] = useState<
     Record<ServiceName, ProviderOption[]>
   >({ llm: [], embedding: [], search: [] });
+  // Most-recent capabilities snapshot from the embedding test run. Cleared
+  // when the user kicks off another run, populated when the backend emits
+  // the `capabilities` SSE event. Drives the source badge + "Detected: Xd"
+  // affordance.
+  const [embeddingCapabilities, setEmbeddingCapabilities] =
+    useState<EmbeddingCapabilities | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Tour-specific state
@@ -399,6 +653,16 @@ function SettingsPageContent() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // Reset stale ``embeddingCapabilities`` whenever the active embedding
+  // profile or model changes. Without this, a 4096d detection on profile A
+  // bleeds into profile B's "Detected: …" affordance after a switch.
+  useEffect(() => {
+    setEmbeddingCapabilities(null);
+  }, [
+    draft.services.embedding.active_profile_id,
+    draft.services.embedding.active_model_id,
+  ]);
+
   // -- Tour guide auto-switch active service tab --------------------------
 
   useEffect(() => {
@@ -428,6 +692,22 @@ function SettingsPageContent() {
     activeService === "search" &&
     searchProviderRaw === "perplexity" &&
     !String(activeProfile?.api_key || "").trim();
+
+  // Category-label typography. English looks great with `uppercase` + wide
+  // letter-spacing, but CJK glyphs are already square blocks — extra tracking
+  // pushes them apart and `uppercase` is a no-op. For zh we drop both and
+  // bump size by ~1px to keep visual weight comparable.
+  const labelClass = (size: "sm" | "md" | "lg"): string => {
+    if (language === "zh") {
+      if (size === "sm") return "text-[10.5px] font-medium";
+      if (size === "lg") return "text-[12px] font-medium";
+      return "text-[11px] font-medium";
+    }
+    if (size === "sm")
+      return "text-[9.5px] font-semibold uppercase tracking-[0.16em]";
+    if (size === "lg") return "text-[11px] uppercase tracking-[0.16em]";
+    return "text-[10px] font-semibold uppercase tracking-[0.16em]";
+  };
 
   useEffect(() => {
     setShowApiKey(false);
@@ -599,10 +879,7 @@ function SettingsPageContent() {
     });
   };
 
-  const updateModelBoolField = (
-    field: keyof CatalogModel,
-    value: boolean,
-  ) => {
+  const updateModelBoolField = (field: keyof CatalogModel, value: boolean) => {
     if (activeService === "search") return;
     mutateCatalog((next) => {
       const model = getActiveModel(next, activeService);
@@ -658,6 +935,9 @@ function SettingsPageContent() {
     }
     setLogs(`Preparing ${activeService} diagnostics...\n`);
     setTestRunning(activeService);
+    if (activeService === "embedding") {
+      setEmbeddingCapabilities(null);
+    }
     try {
       const response = await apiFetch(
         apiUrl(`/api/v1/settings/tests/${activeService}/start`),
@@ -685,8 +965,26 @@ function SettingsPageContent() {
           type: string;
           message: string;
           catalog?: Catalog;
+          detected_dim?: number;
+          default_dim?: number;
+          supported_dimensions?: number[];
+          supports_variable_dimensions?: boolean;
+          model_known?: boolean;
+          active_dim?: number;
+          active_dim_source?: string;
         };
         setLogs((current) => `${current}[${entry.type}] ${entry.message}\n`);
+        if (entry.type === "capabilities") {
+          setEmbeddingCapabilities({
+            detected_dim: entry.detected_dim,
+            default_dim: entry.default_dim,
+            supported_dimensions: entry.supported_dimensions,
+            supports_variable_dimensions: entry.supports_variable_dimensions,
+            model_known: entry.model_known,
+            active_dim: entry.active_dim,
+            active_dim_source: entry.active_dim_source,
+          });
+        }
         if (entry.catalog) {
           setCatalog(entry.catalog);
           setDraft(cloneCatalog(entry.catalog));
@@ -784,8 +1082,8 @@ function SettingsPageContent() {
           </div>
         </div>
 
-        {/* ── Preferences & Runtime ── */}
-        <div className="mb-8 flex flex-wrap items-center gap-x-8 gap-y-3 border-b border-[var(--border)]/50 pb-6">
+        {/* ── Preferences ── */}
+        <div className="mb-5 flex flex-wrap items-center gap-x-8 gap-y-3">
           <div className="flex items-center gap-2">
             <span className="text-[12px] text-[var(--muted-foreground)]">
               {t("Theme")}
@@ -833,38 +1131,114 @@ function SettingsPageContent() {
               ))}
             </div>
           </div>
+        </div>
 
-          <div className="ml-auto flex items-center gap-4 text-[12px] text-[var(--muted-foreground)]">
-            <span className="flex items-center gap-1.5">
+        {/* ── Runtime status ── */}
+        <div className="mb-8 grid grid-cols-2 overflow-hidden rounded-xl border border-[var(--border)]/60 sm:grid-cols-4">
+          <div
+            className="px-4 py-3.5"
+            title={status?.backend.timestamp || t("Backend status")}
+          >
+            <div className="flex items-center gap-2">
               <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(status?.backend.status === "online", false)}`}
+                className={`h-1.5 w-1.5 rounded-full ${statusDotClass(
+                  status?.backend.status === "online",
+                  false,
+                )}`}
               />
-              {t("Backend")}
-            </span>
-            <span className="flex items-center gap-1.5">
               <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.llm.model), Boolean(status?.llm.error))}`}
-              />
-              {t("LLM")}
-              {status?.llm.model && (
-                <span className="text-[var(--muted-foreground)]/50">
-                  · {status.llm.model}
-                </span>
-              )}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.embeddings.model), Boolean(status?.embeddings.error))}`}
-              />
-              {t("Emb")}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(Boolean(status?.search.provider), false)}`}
-              />
-              {t("Search")}
-            </span>
+                className={`${labelClass("md")} text-[var(--muted-foreground)]`}
+              >
+                {t("Backend")}
+              </span>
+            </div>
+            <div className="mt-2 truncate text-[13px] font-medium text-[var(--foreground)]">
+              {status?.backend.status === "online"
+                ? t("Online")
+                : t("Checking")}
+            </div>
+            <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+              {(() => {
+                const ts = status?.backend.timestamp;
+                if (!ts) return "—";
+                const parsed = new Date(ts);
+                if (Number.isNaN(parsed.getTime())) return "";
+                return parsed.toLocaleTimeString(
+                  language === "zh" ? "zh-CN" : "en-US",
+                  { hour: "2-digit", minute: "2-digit" },
+                );
+              })()}
+            </div>
           </div>
+
+          {SERVICES.map((service, i) => {
+            const profile = getActiveProfile(draft, service);
+            const model = getActiveModel(draft, service);
+            const serviceStatus =
+              service === "llm"
+                ? status?.llm
+                : service === "embedding"
+                  ? status?.embeddings
+                  : status?.search;
+            const runtimeModel =
+              service === "llm"
+                ? status?.llm.model
+                : service === "embedding"
+                  ? status?.embeddings.model
+                  : undefined;
+            const configured =
+              service === "search"
+                ? Boolean(profile?.provider || status?.search.provider)
+                : Boolean(model?.model || runtimeModel);
+            const pendingApply = servicePendingApply(catalog, draft, service);
+            const detail = activeModelDetail(profile, model, service, t);
+            const profileName = profile?.name || t("No profile");
+            const isActiveTab = activeService === service;
+            const borderClasses =
+              i === 0
+                ? "border-l border-[var(--border)]/40"
+                : i === 1
+                  ? "border-t border-[var(--border)]/40 sm:border-t-0 sm:border-l"
+                  : "border-t border-l border-[var(--border)]/40 sm:border-t-0";
+            return (
+              <button
+                key={service}
+                type="button"
+                onClick={() => setActiveService(service)}
+                title={`${serviceLabel(service, t)} · ${profileName} · ${detail}`}
+                className={`relative px-4 py-3.5 text-left transition-colors ${borderClasses} ${
+                  isActiveTab
+                    ? "bg-[var(--muted)]/55"
+                    : "hover:bg-[var(--muted)]/30"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${statusDotClass(
+                      configured,
+                      Boolean(serviceStatus?.error),
+                    )}`}
+                  />
+                  <span
+                    className={`truncate ${labelClass("md")} text-[var(--muted-foreground)]`}
+                  >
+                    {serviceLabel(service, t)}
+                  </span>
+                  {pendingApply && (
+                    <span className="ml-auto shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                      {t("Pending")}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 truncate text-[13px] font-medium text-[var(--foreground)]">
+                  {detail}
+                </div>
+                <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                  {profileName}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* ── Service Configuration ── */}
@@ -913,35 +1287,85 @@ function SettingsPageContent() {
           {activeProfile ? (
             <div className="grid grid-cols-[200px_1fr] gap-5">
               {/* ── Profile list ── */}
-              <div className="space-y-1">
-                {draft.services[activeService].profiles.map((profile) => (
-                  <button
-                    key={profile.id}
-                    onClick={() =>
-                      mutateCatalog((next) => {
-                        next.services[activeService].active_profile_id =
-                          profile.id;
-                        if (activeService !== "search") {
-                          next.services[activeService].active_model_id =
-                            profile.models[0]?.id ?? null;
-                        }
-                      })
-                    }
-                    className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
-                      profile.id ===
-                      draft.services[activeService].active_profile_id
-                        ? "bg-[var(--muted)] text-[var(--foreground)]"
-                        : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/50"
-                    }`}
-                  >
-                    <div className="text-[13px] font-medium">
-                      {profile.name}
-                    </div>
-                    <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
-                      {profile.base_url || t("No endpoint")}
-                    </div>
-                  </button>
-                ))}
+              <div className="space-y-2">
+                {draft.services[activeService].profiles.map((profile) => {
+                  const isActive =
+                    profile.id ===
+                    draft.services[activeService].active_profile_id;
+                  const activeProfileModel =
+                    activeService === "search"
+                      ? null
+                      : (profile.models.find(
+                          (model) =>
+                            model.id ===
+                            draft.services[activeService].active_model_id,
+                        ) ??
+                        profile.models[0] ??
+                        null);
+                  const profileDetail = activeProfileDetail(
+                    profile,
+                    activeService,
+                    t,
+                  );
+                  const modelDetail = activeModelDetail(
+                    profile,
+                    activeProfileModel,
+                    activeService,
+                    t,
+                  );
+                  return (
+                    <button
+                      key={profile.id}
+                      onClick={() =>
+                        mutateCatalog((next) => {
+                          next.services[activeService].active_profile_id =
+                            profile.id;
+                          if (activeService !== "search") {
+                            next.services[activeService].active_model_id =
+                              profile.models[0]?.id ?? null;
+                          }
+                        })
+                      }
+                      className={`relative w-full overflow-hidden rounded-xl px-3.5 py-3 text-left transition-colors ${
+                        isActive
+                          ? "bg-[var(--muted)]/60 text-[var(--foreground)]"
+                          : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/30"
+                      }`}
+                    >
+                      {isActive && (
+                        <span className="absolute inset-y-3 left-0 w-0.5 rounded-r-full bg-[var(--foreground)]/80" />
+                      )}
+                      <div className="truncate text-[13px] font-semibold">
+                        {profile.name}
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                        {profileDetail}
+                      </div>
+                      {isActive ? (
+                        <div className="mt-2.5 border-t border-[var(--border)]/40 pt-2">
+                          <div
+                            className={`${labelClass("sm")} text-[var(--muted-foreground)]/70`}
+                          >
+                            {activeService === "search"
+                              ? t("Active provider")
+                              : t("Active model")}
+                          </div>
+                          <div className="mt-0.5 truncate text-[12px] font-medium text-[var(--foreground)]">
+                            {modelDetail}
+                          </div>
+                        </div>
+                      ) : (
+                        activeService !== "search" && (
+                          <div className="mt-1 text-[11px] text-[var(--muted-foreground)]/60">
+                            {t("{{count}} models", {
+                              count: profile.models.length,
+                            })}
+                          </div>
+                        )
+                      )}
+                    </button>
+                  );
+                })}
                 <button
                   onClick={removeActiveProfile}
                   disabled={!activeProfile}
@@ -1004,9 +1428,15 @@ function SettingsPageContent() {
                             }
                           }}
                         >
-                          <option value="">{t("Select provider...")}</option>
+                          <option className={selectOptionClass} value="">
+                            {t("Select provider...")}
+                          </option>
                           {(providers[activeService] || []).map((p) => (
-                            <option key={p.value} value={p.value}>
+                            <option
+                              className={selectOptionClass}
+                              key={p.value}
+                              value={p.value}
+                            >
                               {p.label}
                             </option>
                           ))}
@@ -1041,7 +1471,9 @@ function SettingsPageContent() {
                     </div>
                     <div className="sm:col-span-2">
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                        {t("Base URL")}
+                        {activeService === "embedding"
+                          ? t("Endpoint URL")
+                          : t("Base URL")}
                       </div>
                       <input
                         className={inputClass}
@@ -1049,8 +1481,19 @@ function SettingsPageContent() {
                         onChange={(e) =>
                           updateProfileField("base_url", e.target.value)
                         }
-                        placeholder="https://api.openai.com/v1"
+                        placeholder={
+                          activeService === "embedding"
+                            ? "https://api.openai.com/v1/embeddings"
+                            : "https://api.openai.com/v1"
+                        }
                       />
+                      {activeService === "embedding" && (
+                        <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                          {t(
+                            "Embedding requests are sent to this URL exactly; DeepTutor does not append /embeddings or /api/embed at request time.",
+                          )}
+                        </p>
+                      )}
                     </div>
                     <div className="sm:col-span-2">
                       <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
@@ -1163,11 +1606,18 @@ function SettingsPageContent() {
                             className={`rounded-lg px-3 py-1.5 text-[13px] transition-colors ${
                               model.id ===
                               draft.services[activeService].active_model_id
-                                ? "bg-[var(--muted)] font-medium text-[var(--foreground)]"
+                                ? "bg-[var(--foreground)] font-medium text-[var(--background)] shadow-sm"
                                 : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/50"
                             }`}
                           >
-                            {model.name}
+                            <span className="inline-flex items-center gap-1.5">
+                              {model.id ===
+                                draft.services[activeService]
+                                  .active_model_id && (
+                                <CheckCircle2 className="h-3 w-3" />
+                              )}
+                              {model.name}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -1217,7 +1667,9 @@ function SettingsPageContent() {
                             </div>
                             <div className="rounded-xl border border-[var(--border)]/70 bg-[var(--muted)]/30 px-3.5 py-3">
                               <div className="flex items-center justify-between gap-3">
-                                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]/70">
+                                <div
+                                  className={`${labelClass("lg")} text-[var(--muted-foreground)]/70`}
+                                >
                                   {t("Source")}
                                 </div>
                                 <span className="rounded-full border border-[var(--border)]/70 bg-[var(--card)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
@@ -1269,7 +1721,9 @@ function SettingsPageContent() {
                                 <input
                                   type="checkbox"
                                   className="h-3 w-3 cursor-pointer accent-[var(--foreground)]"
-                                  checked={activeModel.send_dimensions !== false}
+                                  checked={
+                                    activeModel.send_dimensions !== false
+                                  }
                                   onChange={(e) =>
                                     updateModelBoolField(
                                       "send_dimensions",
@@ -1294,16 +1748,15 @@ function SettingsPageContent() {
                                 </span>
                               </label>
                             </div>
-                            <input
-                              className={inputClass}
-                              value={
-                                activeModel.dimension ||
-                                embeddingDefaultDim(activeProfile?.binding)
+                            <DimensionField
+                              activeModel={activeModel}
+                              activeBinding={activeProfile?.binding}
+                              capabilities={embeddingCapabilities}
+                              embeddingDefaultDim={embeddingDefaultDim}
+                              inputClass={inputClass}
+                              onChangeDimension={(value) =>
+                                updateModelField("dimension", value)
                               }
-                              onChange={(e) =>
-                                updateModelField("dimension", e.target.value)
-                              }
-                              disabled={activeModel.send_dimensions === false}
                             />
                           </div>
                         )}
@@ -1389,21 +1842,19 @@ function SettingsPageContent() {
       </div>
 
       {/* ── Spotlight overlay (tour onboarding) ── */}
-      {tourGuideStep >= 0 &&
-        tourGuideStep < TOUR_GUIDE_STEPS.length &&
-        (
-          <SpotlightOverlay
-            stepIndex={tourGuideStep}
-            onNext={() => {
-              if (tourGuideStep < TOUR_GUIDE_STEPS.length - 1) {
-                setTourGuideStep((s) => s + 1);
-              } else {
-                setTourGuideStep(-1);
-              }
-            }}
-            onSkip={() => setTourGuideStep(-1)}
-          />
-        )}
+      {tourGuideStep >= 0 && tourGuideStep < TOUR_GUIDE_STEPS.length && (
+        <SpotlightOverlay
+          stepIndex={tourGuideStep}
+          onNext={() => {
+            if (tourGuideStep < TOUR_GUIDE_STEPS.length - 1) {
+              setTourGuideStep((s) => s + 1);
+            } else {
+              setTourGuideStep(-1);
+            }
+          }}
+          onSkip={() => setTourGuideStep(-1)}
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Check, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type SessionSummary } from "@/lib/session-api";
+import { normalizeMessageContent, truncateText } from "@/lib/message-content";
 
 type SessionRuntimeStatus =
   | "idle"
@@ -296,13 +297,13 @@ export default function SessionList({
 
   /* ---- Classic style ---- */
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {grouped.map(([label, items]) => (
         <div key={label}>
-          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
+          <div className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
             {label}
           </div>
-          <div className="space-y-px">
+          <div className="divide-y divide-[var(--border)]/45 overflow-hidden rounded-lg border border-[var(--border)]/45 bg-[var(--card)]/50">
             {items.map((session) => {
               const active = activeSessionId === session.session_id;
               const isEditing = editingId === session.session_id;
@@ -318,14 +319,14 @@ export default function SessionList({
                   }}
                   role="button"
                   tabIndex={0}
-                  className={`group relative w-full rounded-lg px-2.5 py-2 text-left transition-all duration-150 ${
+                  className={`group relative w-full px-3 py-2.5 text-left transition-colors duration-150 ${
                     active
                       ? "bg-[var(--background)]/70 text-[var(--foreground)]"
                       : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
                   }`}
                 >
                   {active && (
-                    <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--primary)]" />
+                    <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--primary)]" />
                   )}
                   <div className="flex items-start gap-1.5">
                     <div className="min-w-0 flex-1">
@@ -361,8 +362,10 @@ export default function SessionList({
                       )}
                       {!isEditing && (
                         <div className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-[var(--muted-foreground)]">
-                          {session.last_message ||
-                            relativeTime(session.updated_at)}
+                          {truncateText(
+                            normalizeMessageContent(session.last_message),
+                            120,
+                          ) || relativeTime(session.updated_at)}
                         </div>
                       )}
                     </div>

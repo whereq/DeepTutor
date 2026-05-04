@@ -8,11 +8,10 @@ Prompts live in ``deeptutor/book/prompts/{en,zh}/timeline.yaml``.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from ..models import BlockType, SourceAnchor
-from ._llm_writer import llm_text
+from ._llm_writer import llm_json
 from ._prompts import get_book_prompt, load_book_prompts
 from .base import BlockContext, BlockGenerator, GenerationFailure
 
@@ -33,18 +32,14 @@ class TimelineGenerator(BlockGenerator):
             chapter_title=chapter_title,
             chapter_summary=chapter_summary or none_label,
         )
-        raw = await llm_text(
+        data = await llm_json(
             user_prompt=user_prompt,
             system_prompt=get_book_prompt(prompts, "system"),
             max_tokens=800,
             temperature=0.4,
-            response_format={"type": "json_object"},
             language=ctx.language,
+            expected_key="events",
         )
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            data = {}
         events_raw = data.get("events") if isinstance(data, dict) else None
         events: list[dict[str, str]] = []
         if isinstance(events_raw, list):
@@ -60,7 +55,11 @@ class TimelineGenerator(BlockGenerator):
                 )
         if not events:
             raise GenerationFailure("LLM did not return any timeline events.")
-        return ({"events": events}, [], {})
+        return (
+            {"events": events},
+            [],
+            data.get("_metadata") if isinstance(data.get("_metadata"), dict) else {},
+        )
 
 
 __all__ = ["TimelineGenerator"]

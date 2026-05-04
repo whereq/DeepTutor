@@ -7,7 +7,10 @@ import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
 import "katex/dist/katex.min.css";
 import { processMarkdownContent } from "@/lib/latex";
-import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
+import {
+  escapeUnknownHtmlTagsForDisplay,
+  normalizeMarkdownForDisplay,
+} from "@/lib/markdown-display";
 import type { MarkdownRendererProps } from "./MarkdownRenderer";
 
 function MermaidLoading() {
@@ -114,10 +117,13 @@ export default function RichMarkdownRenderer({
   // attributes that map back to the *original* markdown lines (e.g. for
   // editor/preview scroll sync). `normalizeMarkdownForDisplay` strips empty
   // blocks, collapses runs of blank lines, etc, all of which shift line
-  // numbers and break that contract. In that mode we forward the raw text
-  // straight to react-markdown so AST positions stay faithful.
+  // numbers and break that contract. In that mode we only escape unknown
+  // pseudo-HTML tags (preserving line count) so AST positions stay faithful.
   const normalizedContent = useMemo(
-    () => (trackSourceLines ? content : normalizeMarkdownForDisplay(content)),
+    () =>
+      trackSourceLines
+        ? escapeUnknownHtmlTagsForDisplay(content)
+        : normalizeMarkdownForDisplay(content),
     [content, trackSourceLines],
   );
   const [plugins, setPlugins] = useState<PluginBundle>({});

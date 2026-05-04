@@ -22,13 +22,12 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from typing import Any
 
-from deeptutor.logging import get_logger
-
-logger = get_logger("PocketBase")
+logger = logging.getLogger(__name__)
 
 _POCKETBASE_URL: str = os.getenv("POCKETBASE_URL", "").rstrip("/")
 _ADMIN_EMAIL: str = os.getenv("POCKETBASE_ADMIN_EMAIL", "")

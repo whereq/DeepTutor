@@ -1,5 +1,6 @@
 """Auth router — login, logout, status, registration, and user-management endpoints."""
 
+import logging
 import os
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
@@ -13,7 +14,6 @@ from pydantic import BaseModel, field_validator
 _SECURE = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
 _SAMESITE = "none" if _SECURE else "lax"
 
-from deeptutor.logging import get_logger
 from deeptutor.services.auth import (
     AUTH_ENABLED,
     POCKETBASE_ENABLED,
@@ -31,7 +31,7 @@ from deeptutor.services.auth import (
     set_role,
 )
 
-logger = get_logger("Auth")
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 _bearer = HTTPBearer(auto_error=False)

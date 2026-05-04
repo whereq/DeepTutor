@@ -14,15 +14,11 @@ import Image from "next/image";
 import {
   ArrowUp,
   AtSign,
-  BookOpen,
   ChevronDown,
-  ClipboardList,
   Layers,
-  MessageSquare,
   Paperclip,
   Sparkles,
   Square,
-  Wand2,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -39,11 +35,26 @@ import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { DeepQuestionFormConfig } from "@/lib/quiz-types";
 import type { MathAnimatorFormConfig } from "@/lib/math-animator-types";
 import type { VisualizeFormConfig } from "@/lib/visualize-types";
+import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMOption } from "@/lib/llm-options";
 import type {
   DeepResearchFormConfig,
   ResearchSource,
 } from "@/lib/research-types";
-import { ReferenceChips } from "./ChatMessages";
+import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
+import type { SpaceMemoryFile } from "@/lib/space-items";
+import type { SelectedBookReference } from "@/lib/book-references";
+import ModelSelector from "./ModelSelector";
+
+type SpaceSelectionCounts = {
+  chatHistory: number;
+  books: number;
+  notebooks: number;
+  questionBank: number;
+  skills: number;
+  memory: number;
+};
+import { SpaceContextChips } from "./ChatMessages";
 import { ComposerInput, type ComposerInputHandle } from "./ComposerInput";
 
 const QuizConfigPanel = dynamic(
@@ -104,16 +115,13 @@ export default memo(function ChatComposer({
   capBtnRef,
   toolMenuRef,
   toolBtnRef,
-  refMenuRef,
-  refBtnRef,
-  skillMenuRef,
-  skillBtnRef,
+  spaceMenuRef,
+  spaceBtnRef,
   dragCounter,
   dragging,
   capMenuOpen,
   toolMenuOpen,
-  refMenuOpen,
-  skillMenuOpen,
+  spaceMenuOpen,
   hasMessages,
   attachments,
   attachmentError,
@@ -122,13 +130,19 @@ export default memo(function ChatComposer({
   selectedTools,
   ragActive,
   knowledgeBases,
+  llmOptions,
+  activeLLMDefault,
+  llmSelection,
+  llmOptionsLoading,
+  llmOptionsError,
   selectedNotebookRecords,
+  selectedBookReferences,
   selectedHistorySessions,
   selectedQuestionEntries,
   notebookReferenceGroups,
-  availableSkills,
   selectedSkills,
   skillsAutoMode,
+  selectedMemoryFiles,
   stateKnowledgeBase,
   isStreaming,
   isResearchMode,
@@ -146,20 +160,25 @@ export default memo(function ChatComposer({
   researchSources,
   onSetCapMenuOpen,
   onSetToolMenuOpen,
-  onSetRefMenuOpen,
-  onSetSkillMenuOpen,
+  onSetSpaceMenuOpen,
   onSetKB,
+  onSelectLLM,
   onSelectNotebookPicker,
+  onSelectBookPicker,
   onSelectHistoryPicker,
   onSelectQuestionBankPicker,
+  onSelectSkillsPicker,
+  onSelectMemoryPicker,
   onToggleTool,
   onToggleSkill,
   onSetSkillsAuto,
+  onToggleMemoryFile,
   onToggleResearchSource,
   onSend,
   onRemoveAttachment,
   onPreviewAttachment,
   onRemoveHistory,
+  onRemoveBookReference,
   onRemoveNotebook,
   onRemoveQuestion,
   onDragEnter,
@@ -182,16 +201,13 @@ export default memo(function ChatComposer({
   capBtnRef: RefObject<HTMLButtonElement | null>;
   toolMenuRef: RefObject<HTMLDivElement | null>;
   toolBtnRef: RefObject<HTMLButtonElement | null>;
-  refMenuRef: RefObject<HTMLDivElement | null>;
-  refBtnRef: RefObject<HTMLButtonElement | null>;
-  skillMenuRef: RefObject<HTMLDivElement | null>;
-  skillBtnRef: RefObject<HTMLButtonElement | null>;
+  spaceMenuRef: RefObject<HTMLDivElement | null>;
+  spaceBtnRef: RefObject<HTMLButtonElement | null>;
   dragCounter: RefObject<number>;
   dragging: boolean;
   capMenuOpen: boolean;
   toolMenuOpen: boolean;
-  refMenuOpen: boolean;
-  skillMenuOpen: boolean;
+  spaceMenuOpen: boolean;
   hasMessages: boolean;
   attachments: PendingAttachment[];
   attachmentError: string | null;
@@ -200,7 +216,13 @@ export default memo(function ChatComposer({
   selectedTools: Set<string>;
   ragActive: boolean;
   knowledgeBases: KnowledgeBase[];
+  llmOptions: LLMOption[];
+  activeLLMDefault: LLMSelection | null;
+  llmSelection: LLMSelection | null;
+  llmOptionsLoading: boolean;
+  llmOptionsError: boolean;
   selectedNotebookRecords: SelectedRecord[];
+  selectedBookReferences: SelectedBookReference[];
   selectedHistorySessions: SelectedHistorySession[];
   selectedQuestionEntries: SelectedQuestionEntry[];
   notebookReferenceGroups: Array<{
@@ -208,9 +230,9 @@ export default memo(function ChatComposer({
     notebookName: string;
     count: number;
   }>;
-  availableSkills: Array<{ name: string; description: string }>;
   selectedSkills: string[];
   skillsAutoMode: boolean;
+  selectedMemoryFiles: SpaceMemoryFile[];
   stateKnowledgeBase: string;
   isStreaming: boolean;
   isResearchMode: boolean;
@@ -228,20 +250,25 @@ export default memo(function ChatComposer({
   researchSources: ResearchSourceDef[];
   onSetCapMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetToolMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
-  onSetRefMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
-  onSetSkillMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  onSetSpaceMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetKB: (kb: string) => void;
+  onSelectLLM: (selection: LLMSelection | null) => void;
   onSelectNotebookPicker: () => void;
+  onSelectBookPicker: () => void;
   onSelectHistoryPicker: () => void;
   onSelectQuestionBankPicker: () => void;
+  onSelectSkillsPicker: () => void;
+  onSelectMemoryPicker: () => void;
   onToggleTool: (tool: ToolDef["name"]) => void;
   onToggleSkill: (skill: string) => void;
   onSetSkillsAuto: (auto: boolean) => void;
+  onToggleMemoryFile: (file: SpaceMemoryFile) => void;
   onToggleResearchSource: (source: ResearchSource) => void;
   onSend: (content: string) => void;
   onRemoveAttachment: (index: number) => void;
   onPreviewAttachment?: (index: number) => void;
   onRemoveHistory: (sessionId: string) => void;
+  onRemoveBookReference: (bookId: string) => void;
   onRemoveNotebook: (notebookId: string) => void;
   onRemoveQuestion: (entryId: number) => void;
   onDragEnter: (event: React.DragEvent) => void;
@@ -306,14 +333,38 @@ export default memo(function ChatComposer({
 
   const hasReferences =
     !!attachments.length ||
+    !!selectedBookReferences.length ||
     !!selectedNotebookRecords.length ||
     !!selectedHistorySessions.length ||
-    !!selectedQuestionEntries.length;
+    !!selectedQuestionEntries.length ||
+    !!selectedSkills.length ||
+    skillsAutoMode ||
+    !!selectedMemoryFiles.length;
 
   const canSend =
     (hasContent || hasReferences) &&
     !isStreaming &&
     !(isResearchMode && Object.keys(researchValidationErrors).length > 0);
+
+  const skillsCount = skillsAutoMode ? 1 : selectedSkills.length;
+  const spaceSelectionCounts: SpaceSelectionCounts = {
+    chatHistory: selectedHistorySessions.length,
+    books: selectedBookReferences.reduce(
+      (total, ref) => total + ref.pages.length,
+      0,
+    ),
+    notebooks: selectedNotebookRecords.length,
+    questionBank: selectedQuestionEntries.length,
+    skills: skillsCount,
+    memory: selectedMemoryFiles.length,
+  };
+  const spaceSelectionCount =
+    spaceSelectionCounts.chatHistory +
+    spaceSelectionCounts.books +
+    spaceSelectionCounts.notebooks +
+    spaceSelectionCounts.questionBank +
+    spaceSelectionCounts.skills +
+    spaceSelectionCounts.memory;
 
   const handleManualSend = useCallback(() => {
     if (!canSend) return;
@@ -414,13 +465,21 @@ export default memo(function ChatComposer({
 
           {hasReferences && (
             <div className="px-4 pt-3.5 [&>div]:mb-0">
-              <ReferenceChips
+              <SpaceContextChips
                 historySessions={selectedHistorySessions}
+                bookReferences={selectedBookReferences}
                 notebookGroups={notebookReferenceGroups}
                 questionEntries={selectedQuestionEntries}
+                selectedSkills={selectedSkills}
+                skillsAutoMode={skillsAutoMode}
+                memoryFiles={selectedMemoryFiles}
                 onRemoveHistory={onRemoveHistory}
+                onRemoveBookReference={onRemoveBookReference}
                 onRemoveNotebook={onRemoveNotebook}
                 onRemoveQuestion={onRemoveQuestion}
+                onRemoveSkill={onToggleSkill}
+                onClearSkillsAuto={() => onSetSkillsAuto(false)}
+                onRemoveMemoryFile={onToggleMemoryFile}
               />
             </div>
           )}
@@ -434,9 +493,13 @@ export default memo(function ChatComposer({
             onSend={doSend}
             onInputChange={handleInputChange}
             onPaste={onPaste}
+            selectedCounts={spaceSelectionCounts}
             onSelectNotebookPicker={onSelectNotebookPicker}
+            onSelectBookPicker={onSelectBookPicker}
             onSelectHistoryPicker={onSelectHistoryPicker}
             onSelectQuestionBankPicker={onSelectQuestionBankPicker}
+            onSelectSkillsPicker={onSelectSkillsPicker}
+            onSelectMemoryPicker={onSelectMemoryPicker}
           />
 
           {!!attachments.length && (
@@ -446,10 +509,7 @@ export default memo(function ChatComposer({
                 const removeLabel = t("Remove attachment");
                 if (a.type === "image" && a.previewUrl) {
                   return (
-                    <div
-                      key={`${a.filename}-${i}`}
-                      className="group relative"
-                    >
+                    <div key={`${a.filename}-${i}`} className="group relative">
                       <button
                         type="button"
                         onClick={() => onPreviewAttachment?.(i)}
@@ -543,7 +603,9 @@ export default memo(function ChatComposer({
                           {a.filename}
                         </div>
                         <div className="truncate text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
-                          {sizeLabel ? `${spec.label} · ${sizeLabel}` : spec.label}
+                          {sizeLabel
+                            ? `${spec.label} · ${sizeLabel}`
+                            : spec.label}
                         </div>
                       </div>
                     </button>
@@ -741,182 +803,58 @@ export default memo(function ChatComposer({
 
                 <div className="relative flex items-center gap-0.5">
                   <button
-                    ref={refBtnRef}
-                    onClick={() => onSetRefMenuOpen((v) => !v)}
+                    ref={spaceBtnRef}
+                    type="button"
+                    onClick={() => onSetSpaceMenuOpen((v) => !v)}
                     className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
                   >
                     <AtSign size={12} strokeWidth={1.7} />
-                    {t("Reference")}
+                    {t("Space")}
                     <ChevronDown
                       size={10}
-                      className={`transition-transform ${refMenuOpen ? "rotate-180" : ""}`}
+                      className={`transition-transform ${spaceMenuOpen ? "rotate-180" : ""}`}
                     />
                   </button>
-                  {(selectedNotebookRecords.length > 0 ||
-                    selectedHistorySessions.length > 0 ||
-                    selectedQuestionEntries.length > 0) && (
+                  {spaceSelectionCount > 0 && (
                     <span className="shrink-0 rounded-full bg-[var(--primary)]/10 px-1.5 py-px text-[9px] font-semibold text-[var(--primary)]">
-                      {selectedNotebookRecords.length +
-                        selectedHistorySessions.length +
-                        selectedQuestionEntries.length}
+                      {spaceSelectionCount}
                     </span>
                   )}
-                  {refMenuOpen && (
+                  {spaceMenuOpen && (
                     <div
-                      ref={refMenuRef}
-                      className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
+                      ref={spaceMenuRef}
+                      className="absolute bottom-full left-0 z-50 mb-1.5"
                     >
-                      <button
-                        onClick={() => {
-                          onSetRefMenuOpen(false);
-                          onSelectNotebookPicker();
+                      <ChatSpaceMenu
+                        variant="toolbar"
+                        selectedCounts={spaceSelectionCounts}
+                        onSelectItem={(key) => {
+                          onSetSpaceMenuOpen(false);
+                          if (key === "chat_history") onSelectHistoryPicker();
+                          else if (key === "books") onSelectBookPicker();
+                          else if (key === "notebooks")
+                            onSelectNotebookPicker();
+                          else if (key === "question_bank")
+                            onSelectQuestionBankPicker();
+                          else if (key === "skills") onSelectSkillsPicker();
+                          else if (key === "memory") onSelectMemoryPicker();
                         }}
-                        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] hover:bg-[var(--muted)]/40"
-                      >
-                        <BookOpen size={13} strokeWidth={1.7} />
-                        <span className="flex-1 font-medium">
-                          {t("Notebook")}
-                        </span>
-                        {selectedNotebookRecords.length > 0 && (
-                          <span className="text-[10px] text-[var(--primary)]">
-                            {selectedNotebookRecords.length}
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          onSetRefMenuOpen(false);
-                          onSelectHistoryPicker();
-                        }}
-                        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] hover:bg-[var(--muted)]/40"
-                      >
-                        <MessageSquare size={13} strokeWidth={1.7} />
-                        <span className="flex-1 font-medium">
-                          {t("Chat History")}
-                        </span>
-                        {selectedHistorySessions.length > 0 && (
-                          <span className="text-[10px] text-[var(--primary)]">
-                            {selectedHistorySessions.length}
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          onSetRefMenuOpen(false);
-                          onSelectQuestionBankPicker();
-                        }}
-                        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] hover:bg-[var(--muted)]/40"
-                      >
-                        <ClipboardList size={13} strokeWidth={1.7} />
-                        <span className="flex-1 font-medium">
-                          {t("Question Bank")}
-                        </span>
-                        {selectedQuestionEntries.length > 0 && (
-                          <span className="text-[10px] text-[var(--primary)]">
-                            {selectedQuestionEntries.length}
-                          </span>
-                        )}
-                      </button>
+                      />
                     </div>
                   )}
                 </div>
-
-                {!activeCap.value && (
-                  <div className="relative flex items-center gap-0.5">
-                    <button
-                      ref={skillBtnRef}
-                      onClick={() => onSetSkillMenuOpen((v) => !v)}
-                      className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                    >
-                      <Wand2 size={12} strokeWidth={1.7} />
-                      {t("Skills")}
-                      <ChevronDown
-                        size={10}
-                        className={`transition-transform ${skillMenuOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                    {(skillsAutoMode || selectedSkills.length > 0) && (
-                      <div className="flex items-center gap-[3px] overflow-hidden">
-                        {skillsAutoMode ? (
-                          <span className="shrink-0 text-[10px] text-[var(--muted-foreground)]/35">
-                            {t("Auto")}
-                          </span>
-                        ) : (
-                          selectedSkills.map((name, i) => (
-                            <span
-                              key={name}
-                              className="shrink-0 text-[10px] text-[var(--muted-foreground)]/35"
-                            >
-                              {i > 0 && (
-                                <span className="text-[12px] leading-none">
-                                  ·
-                                </span>
-                              )}
-                              {name}
-                            </span>
-                          ))
-                        )}
-                      </div>
-                    )}
-                    {skillMenuOpen && (
-                      <div
-                        ref={skillMenuRef}
-                        className="absolute bottom-full left-0 z-50 mb-1.5 max-h-[280px] min-w-[220px] overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
-                      >
-                        <button
-                          onClick={() => onSetSkillsAuto(!skillsAutoMode)}
-                          className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] transition-colors ${
-                            skillsAutoMode
-                              ? "text-[var(--primary)]"
-                              : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                          } hover:bg-[var(--muted)]/40`}
-                        >
-                          <Sparkles size={13} strokeWidth={1.7} />
-                          <span className="flex-1 font-medium">
-                            {t("Auto")}
-                          </span>
-                          {skillsAutoMode && (
-                            <div className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
-                          )}
-                        </button>
-                        {availableSkills.length > 0 && (
-                          <div className="my-1 h-px bg-[var(--border)]/40" />
-                        )}
-                        {availableSkills.map((skill) => {
-                          const active = selectedSkills.includes(skill.name);
-                          return (
-                            <button
-                              key={skill.name}
-                              onClick={() => onToggleSkill(skill.name)}
-                              title={skill.description}
-                              className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] transition-colors ${
-                                active
-                                  ? "text-[var(--primary)]"
-                                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                              } hover:bg-[var(--muted)]/40`}
-                            >
-                              <Wand2 size={13} strokeWidth={1.7} />
-                              <span className="flex-1 truncate font-medium">
-                                {skill.name}
-                              </span>
-                              {active && (
-                                <div className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
-                              )}
-                            </button>
-                          );
-                        })}
-                        {availableSkills.length === 0 && (
-                          <div className="px-3 py-2 text-[11px] text-[var(--muted-foreground)]/60">
-                            {t("No skills yet")}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <ModelSelector
+                  options={llmOptions}
+                  activeDefault={activeLLMDefault}
+                  value={llmSelection}
+                  loading={llmOptionsLoading}
+                  error={llmOptionsError}
+                  onChange={onSelectLLM}
+                />
+
                 <select
                   value={stateKnowledgeBase}
                   onChange={(e) => onSetKB(e.target.value)}

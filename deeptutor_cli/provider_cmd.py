@@ -32,9 +32,7 @@ def _login_openai_codex() -> None:
     try:
         from oauth_cli_kit import get_token, login_oauth_interactive
     except ImportError:
-        typer.echo(
-            "oauth_cli_kit is not installed. Install CLI deps: pip install -r requirements/cli.txt"
-        )
+        typer.echo("oauth_cli_kit is not installed. Install CLI deps: pip install -e '.[cli]'")
         raise typer.Exit(code=1)
 
     token = None
@@ -58,7 +56,7 @@ async def _login_github_copilot() -> None:
     try:
         from openai import AsyncOpenAI
     except ImportError:
-        typer.echo("openai is not installed. Install CLI deps: pip install -r requirements/cli.txt")
+        typer.echo("openai is not installed. Install CLI deps: pip install -e '.[cli]'")
         raise typer.Exit(code=1)
     try:
         client = AsyncOpenAI(

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import asyncio
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 import json
 from typing import Any
-from collections.abc import Awaitable, Callable, Sequence
 
 from loguru import logger
 
@@ -276,6 +276,7 @@ class LLMProvider(ABC):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         **kwargs: Any,
     ) -> LLMResponse:
         """Fallback streaming implementation that emits the full response once."""
@@ -289,6 +290,8 @@ class LLMProvider(ABC):
             tool_choice=tool_choice,
             **kwargs,
         )
+        if on_reasoning_delta and response.reasoning_content:
+            await on_reasoning_delta(response.reasoning_content)
         if on_content_delta and response.content:
             await on_content_delta(response.content)
         return response
@@ -424,6 +427,7 @@ class LLMProvider(ABC):
         reasoning_effort: object = _SENTINEL,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         retry_delays: Sequence[float] | None = None,
         **kwargs: Any,
     ) -> LLMResponse:
@@ -454,6 +458,7 @@ class LLMProvider(ABC):
             tool_choice=tool_choice,
             retry_delays=retry_delays,
             on_content_delta=on_content_delta,
+            on_reasoning_delta=on_reasoning_delta,
             **kwargs,
         )
 

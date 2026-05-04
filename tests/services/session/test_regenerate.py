@@ -138,6 +138,7 @@ def _seed_session(
     *,
     user_content: str = "what is 2+2?",
     assistant_content: str | None = "4",
+    user_metadata: dict[str, Any] | None = None,
 ) -> tuple[str, int, int | None]:
     """Create a session with a user (and optional assistant) message."""
     session = asyncio.run(store.create_session())
@@ -160,6 +161,7 @@ def _seed_session(
             content=user_content,
             capability="chat",
             attachments=[{"type": "file", "filename": "a.pdf"}],
+            metadata=user_metadata,
         )
     )
     assistant_id: int | None = None
@@ -202,6 +204,25 @@ class TestRegenerateLastTurn:
         remaining = asyncio.run(store.get_messages(sid))
         assert [m["id"] for m in remaining] == [user_id]
         assert assistant_id is not None and assistant_id not in {m["id"] for m in remaining}
+
+    def test_replays_book_references_from_request_snapshot(self, store: SQLiteSessionStore) -> None:
+        sid, _, _ = _seed_session(
+            store,
+            user_metadata={
+                "request_snapshot": {
+                    "bookReferences": [{"book_id": "book-1", "page_ids": ["page-1"]}]
+                }
+            },
+        )
+        runtime = TurnRuntimeManager(store=store)
+        recorder = _FakeStartTurnRecorder()
+
+        with patch.object(runtime, "start_turn", new=recorder):
+            asyncio.run(runtime.regenerate_last_turn(sid))
+
+        assert recorder.calls[0]["book_references"] == [
+            {"book_id": "book-1", "page_ids": ["page-1"]}
+        ]
 
     def test_user_tail_is_kept_and_no_delete(self, store: SQLiteSessionStore) -> None:
         sid, user_id, _ = _seed_session(store, assistant_content=None)
@@ -298,7 +319,7 @@ class TestRegenerateLastTurn:
         monkeypatch.setattr(
             "deeptutor.services.memory.get_memory_service",
             lambda: SimpleNamespace(
-                build_memory_context=lambda: "",
+                build_memory_context=lambda *_args, **_kwargs: "",
                 refresh_from_turn=tracking_refresh,
             ),
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typer
 
+from deeptutor.logging import configure_logging
 from deeptutor.runtime.mode import RunMode, set_mode
 from deeptutor.services.setup import get_backend_port
 
@@ -20,6 +21,7 @@ from .provider_cmd import register as register_provider
 from .session_cmd import register as register_session
 
 set_mode(RunMode.CLI)
+configure_logging()
 
 app = typer.Typer(
     name="deeptutor",
@@ -124,7 +126,7 @@ def serve(
     except ImportError:
         console.print(
             "[bold red]Error:[/] API server dependencies not installed.\n"
-            "Run: pip install -r requirements/server.txt"
+            "Run: pip install -e '.[server]'"
         )
         raise typer.Exit(code=1)
 

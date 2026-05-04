@@ -13,9 +13,8 @@ from __future__ import annotations
 
 import asyncio
 from importlib import import_module
+import logging
 from typing import Protocol, cast
-
-from deeptutor.logging import get_logger
 
 from ..config import LLMConfig
 from ..exceptions import LLMConfigError
@@ -27,7 +26,7 @@ from .base_provider import BaseLLMProvider
 cloud_provider = import_module("deeptutor.services.llm.cloud_provider")
 local_provider = import_module("deeptutor.services.llm.local_provider")
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class CacheModule(Protocol):

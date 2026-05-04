@@ -20,6 +20,7 @@ from deeptutor.services.config import get_config_test_runner, get_model_catalog_
 from deeptutor.services.embedding.client import reset_embedding_client
 from deeptutor.services.llm.client import reset_llm_client
 from deeptutor.services.llm.config import clear_llm_config_cache
+from deeptutor.services.model_selection import list_llm_options
 from deeptutor.services.path_service import get_path_service
 
 router = APIRouter()
@@ -127,6 +128,7 @@ def _provider_choices() -> dict[str, list[dict[str, str]]]:
                 "default_dim": str(spec.default_dim) if spec.default_dim else "",
             }
             for name, spec in EMBEDDING_PROVIDERS.items()
+            if name != "custom_openai_sdk"
         ],
         key=lambda p: p["label"].lower(),
     )
@@ -153,6 +155,11 @@ async def get_settings():
 @router.get("/catalog")
 async def get_catalog():
     return {"catalog": get_model_catalog_service().load()}
+
+
+@router.get("/llm-options")
+async def get_llm_options():
+    return list_llm_options(get_model_catalog_service().load())
 
 
 @router.put("/catalog")

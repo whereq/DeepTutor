@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { Block, BlockType, Page } from "@/lib/book-types";
 import BlockRenderer from "./blocks/BlockRenderer";
 import PageOutlineNav from "./PageOutlineNav";
@@ -60,6 +61,7 @@ export default function PageReader({
   bookId,
   bookLanguage,
 }: PageReaderProps) {
+  const { t } = useTranslation();
   const [showInsertMenu, setShowInsertMenu] = useState(false);
   const [inserting, setInserting] = useState(false);
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(
@@ -106,14 +108,15 @@ export default function PageReader({
   if (!page) {
     return (
       <div className="flex h-full items-center justify-center text-[var(--muted-foreground)]">
-        Select a chapter to start reading.
+        {t("Select a chapter to start reading.")}
       </div>
     );
   }
 
-  const isZh = (bookLanguage || "").toLowerCase().startsWith("zh");
-  const expandTip = isZh ? "展开标题栏" : "Expand header";
-  const collapseTip = isZh ? "折叠标题栏" : "Collapse header";
+  const expandTip = t("Expand header");
+  const collapseTip = t("Collapse header");
+  const failedBlocks = page.blocks.filter((block) => block.status === "error");
+  const hasFailedBlocks = failedBlocks.length > 0;
 
   return (
     // The outer container is `relative` so the floating outline nav can
@@ -133,9 +136,9 @@ export default function PageReader({
                 "font-semibold leading-tight tracking-tight text-[var(--foreground)] transition-all duration-200",
                 headerCollapsed ? "truncate text-[15px]" : "text-[26px]",
               ].join(" ")}
-              title={page.title || "Untitled chapter"}
+              title={page.title || t("Untitled chapter")}
             >
-              {page.title || "Untitled chapter"}
+              {page.title || t("Untitled chapter")}
             </h1>
             {!headerCollapsed && page.learning_objectives.length > 0 && (
               <ul className="mt-3 space-y-0.5 text-[12.5px] text-[var(--muted-foreground)]">
@@ -148,7 +151,7 @@ export default function PageReader({
           <div className="flex shrink-0 items-center gap-2">
             {!headerCollapsed && (
               <span className="rounded-full bg-[var(--muted)] px-2.5 py-0.5 text-[11px] uppercase tracking-wider text-[var(--muted-foreground)]">
-                {page.status}
+                {t(page.status)}
               </span>
             )}
             {!headerCollapsed && onRecompile && (
@@ -156,7 +159,7 @@ export default function PageReader({
                 onClick={onRecompile}
                 className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-xs font-medium text-[var(--muted-foreground)] hover:border-[var(--primary)]/40 hover:text-[var(--primary)]"
               >
-                <RefreshCcw className="h-3.5 w-3.5" /> Recompile
+                <RefreshCcw className="h-3.5 w-3.5" /> {t("Force regenerate")}
               </button>
             )}
             <button
@@ -186,10 +189,65 @@ export default function PageReader({
         {loading && page.blocks.length === 0 ? (
           <div className="mx-auto flex w-full max-w-[78ch] items-center gap-2 text-sm text-[var(--muted-foreground)]">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Compiling page…
+            {t("Compiling page…")}
           </div>
         ) : (
           <article className="mx-auto flex w-full max-w-[78ch] flex-col gap-6 [&>:first-child]:mt-0">
+            {hasFailedBlocks && (
+              <div className="rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="font-semibold">
+                    {failedBlocks.length === 1
+                      ? t("{{count}} block failed", {
+                          count: failedBlocks.length,
+                        })
+                      : t("{{count}} blocks failed", {
+                          count: failedBlocks.length,
+                        })}
+                  </div>
+                  {onRecompile && (
+                    <button
+                      onClick={onRecompile}
+                      className="inline-flex items-center gap-1 rounded-md border border-current px-2 py-1 text-xs font-medium hover:bg-white/40 dark:hover:bg-white/10"
+                    >
+                      <RefreshCcw className="h-3.5 w-3.5" />
+                      {t("Regenerate page")}
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1.5 text-xs opacity-90">
+                  {failedBlocks.slice(0, 5).map((block) => {
+                    const failure = block.metadata?.failure as
+                      | { kind?: string; message?: string }
+                      | undefined;
+                    return (
+                      <div
+                        key={block.id}
+                        className="flex flex-wrap items-center gap-2"
+                      >
+                        <code className="rounded bg-white/50 px-1.5 py-0.5 dark:bg-white/10">
+                          {block.type}
+                        </code>
+                        <span>
+                          {failure?.kind || t("error")}:{" "}
+                          {block.error ||
+                            failure?.message ||
+                            t("Unknown error")}
+                        </span>
+                        {onRegenerateBlock && (
+                          <button
+                            onClick={() => onRegenerateBlock(block)}
+                            className="rounded border border-current px-1.5 py-0.5 text-[11px] font-medium hover:bg-white/40 dark:hover:bg-white/10"
+                          >
+                            {t("Retry block")}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {page.blocks.map((block) => (
               <div
                 key={block.id}
@@ -213,7 +271,7 @@ export default function PageReader({
             ))}
             {page.blocks.length === 0 && (
               <div className="text-sm text-[var(--muted-foreground)]">
-                This page has no blocks yet.
+                {t("This page has no blocks yet.")}
               </div>
             )}
 
@@ -229,25 +287,25 @@ export default function PageReader({
                   ) : (
                     <Plus className="h-3.5 w-3.5" />
                   )}
-                  Insert block
+                  {t("Insert block")}
                 </button>
                 {showInsertMenu && (
                   <div className="absolute top-full mt-1 z-10 grid w-72 grid-cols-2 gap-1 rounded-lg border border-[var(--border)] bg-[var(--card)] p-2 shadow-lg">
-                    {INSERTABLE_TYPES.map((t) => (
+                    {INSERTABLE_TYPES.map((blockType) => (
                       <button
-                        key={t}
+                        key={blockType}
                         onClick={async () => {
                           setShowInsertMenu(false);
                           setInserting(true);
                           try {
-                            await onInsertBlock(t);
+                            await onInsertBlock(blockType);
                           } finally {
                             setInserting(false);
                           }
                         }}
                         className="rounded px-2 py-1 text-left text-xs text-[var(--foreground)] hover:bg-[var(--background)]"
                       >
-                        {t}
+                        {t(blockType)}
                       </button>
                     ))}
                   </div>

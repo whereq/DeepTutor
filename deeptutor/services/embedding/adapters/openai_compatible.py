@@ -6,17 +6,31 @@ from typing import Any, Dict
 
 import httpx
 
-from .base import BaseEmbeddingAdapter, EmbeddingRequest, EmbeddingResponse
+from .base import (
+    BaseEmbeddingAdapter,
+    EmbeddingProviderError,
+    EmbeddingRequest,
+    EmbeddingResponse,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
+    NO_KEY_SENTINEL = "sk-no-key-required"
+
     MODELS_INFO = {
         "text-embedding-3-large": {"default": 3072, "dimensions": [256, 512, 1024, 3072]},
         "text-embedding-3-small": {"default": 1536, "dimensions": [512, 1536]},
         "text-embedding-ada-002": 1536,
     }
+
+    def _auth_api_key(self) -> str:
+        """Return a real API key, suppressing local-provider placeholder keys."""
+        key = str(self.api_key or "").strip()
+        if key == self.NO_KEY_SENTINEL:
+            return ""
+        return key
 
     @staticmethod
     def _extract_embeddings_from_response(data: Any) -> list[list[float]]:
@@ -106,27 +120,43 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         Tri-state semantics driven by `self.send_dimensions`:
         * ``True``  -> always send (user explicitly opted in)
         * ``False`` -> never send (user explicitly opted out)
-        * ``None``  -> auto: send only for OpenAI ``text-embedding-3*`` family
+        * ``None``  -> auto: send for known model families that accept the
+          OpenAI-style ``dimensions`` parameter — OpenAI ``text-embedding-3*``,
+          Qwen3-Embedding, Qwen3-VL-Embedding.
         """
         if self.send_dimensions is True:
             return True
         if self.send_dimensions is False:
             return False
-        return (model_name or "").startswith("text-embedding-3")
+        if not model_name:
+            return False
+        lname = model_name.lower()
+        if lname.startswith("text-embedding-3"):
+            return True
+        if "qwen3-embedding" in lname or "qwen3-vl-embedding" in lname:
+            return True
+        return False
 
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         import asyncio
 
         headers = {"Content-Type": "application/json"}
+        api_key = self._auth_api_key()
         if self.api_version:
-            if self.api_key:
-                headers["api-key"] = self.api_key
-        elif self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+            if api_key:
+                headers["api-key"] = api_key
+        elif api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         headers.update({str(k): str(v) for k, v in self.extra_headers.items()})
 
+        # Multimodal: pass `contents` through as `input` when set. SiliconFlow's
+        # Qwen3-VL family accepts mixed [{"text"}, {"image"}] arrays in `input`.
+        # Pure text-only OpenAI rejects them; that's on the user to pair models
+        # and providers correctly.
+        input_payload: Any = request.contents if request.contents else request.texts
+
         payload = {
-            "input": request.texts,
+            "input": input_payload,
             "model": request.model or self.model,
             "encoding_format": request.encoding_format or "float",
         }
@@ -140,11 +170,9 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         if dim_value and self._should_send_dimensions(request.model or self.model):
             payload["dimensions"] = dim_value
 
-        base = self.base_url.rstrip("/")
-        if base.endswith("/embeddings"):
-            url = base
-        else:
-            url = f"{base}/embeddings"
+        # URL transparency: hit `base_url` verbatim. Azure's `?api-version=...`
+        # is a query param (not a path component) so we still append it.
+        url = self.base_url
         if self.api_version:
             if "?" not in url:
                 url += f"?api-version={self.api_version}"
@@ -178,10 +206,53 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
                         continue
 
                     if response.status_code >= 400:
-                        logger.error(f"HTTP {response.status_code} response body: {response.text}")
+                        body_text = response.text
+                        logger.error(f"HTTP {response.status_code} from {url}: {body_text[:2000]}")
+                        raise EmbeddingProviderError(
+                            f"Embedding provider returned HTTP {response.status_code}",
+                            status=response.status_code,
+                            body=body_text,
+                            model=request.model or self.model,
+                            url=url,
+                            provider="openai_compat",
+                        )
 
-                    response.raise_for_status()
-                    data = response.json()
+                    # A 2xx response with non-JSON body usually means the
+                    # endpoint/model pairing is wrong or a gateway routed us to
+                    # an HTML page. Surface that as structured diagnostics.
+                    try:
+                        data = response.json()
+                    except (json.JSONDecodeError, ValueError) as exc:
+                        body_text = response.text
+                        content_type = response.headers.get("content-type", "")
+                        body_preview = body_text.strip()[:200] or "<empty body>"
+                        hint = ""
+                        if not body_text.strip():
+                            hint = (
+                                " The response body was empty — the endpoint may "
+                                "not support embeddings or the selected model "
+                                "may not be an embedding model."
+                            )
+                        elif (
+                            "text/html" in content_type.lower()
+                            or body_preview.lstrip().startswith("<")
+                        ):
+                            hint = (
+                                " The response was HTML, not JSON — the URL is "
+                                "likely wrong or the gateway does not expose "
+                                "`/v1/embeddings`."
+                            )
+                        raise EmbeddingProviderError(
+                            (
+                                f"Embedding provider returned non-JSON response "
+                                f"(content-type={content_type!r}): {exc}.{hint}"
+                            ),
+                            status=response.status_code,
+                            body=body_text,
+                            model=request.model or self.model,
+                            url=url,
+                            provider="openai_compat",
+                        ) from exc
                 break
             except httpx.TransportError as exc:
                 # httpx.TransportError covers all transient transport-layer

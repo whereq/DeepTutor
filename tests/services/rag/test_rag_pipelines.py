@@ -7,6 +7,7 @@ from typing import Any, Dict
 import pytest
 
 from deeptutor.services.rag.service import RAGService
+from deeptutor.services.rag.smart_retriever import SmartRetriever
 
 
 class _FakePipeline:
@@ -22,6 +23,10 @@ class _FakePipeline:
 
     async def initialize(self, kb_name: str, file_paths, **kwargs) -> bool:
         self.calls.append({"op": "initialize", "kb_name": kb_name, "files": list(file_paths)})
+        return True
+
+    async def add_documents(self, kb_name: str, file_paths, **kwargs) -> bool:
+        self.calls.append({"op": "add_documents", "kb_name": kb_name, "files": list(file_paths)})
         return True
 
     async def search(self, query: str, kb_name: str, **kwargs) -> Dict[str, Any]:
@@ -87,6 +92,18 @@ async def test_search_aliases_answer_and_content(fake_service) -> None:
 
 
 @pytest.mark.asyncio
+async def test_add_documents_delegates_to_pipeline(fake_service) -> None:
+    service, pipeline = fake_service
+
+    assert await service.add_documents(kb_name="kb", file_paths=["doc.txt"]) is True
+    assert pipeline.calls[-1] == {
+        "op": "add_documents",
+        "kb_name": "kb",
+        "files": ["doc.txt"],
+    }
+
+
+@pytest.mark.asyncio
 async def test_smart_retrieve_aggregates_passages_with_query_hints(
     fake_service,
     monkeypatch: pytest.MonkeyPatch,
@@ -97,7 +114,7 @@ async def test_smart_retrieve_aggregates_passages_with_query_hints(
     async def _fake_aggregate(_self, _ctx, passages):
         return "AGG:" + "|".join(passages)
 
-    monkeypatch.setattr(RAGService, "_aggregate", _fake_aggregate, raising=True)
+    monkeypatch.setattr(SmartRetriever, "_aggregate", _fake_aggregate, raising=True)
 
     out = await service.smart_retrieve(
         context="anything",

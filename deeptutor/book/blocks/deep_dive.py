@@ -10,11 +10,10 @@ Prompts live in ``deeptutor/book/prompts/{en,zh}/deep_dive.yaml``.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from ..models import BlockType, SourceAnchor
-from ._llm_writer import llm_text
+from ._llm_writer import llm_json
 from ._prompts import get_book_prompt, load_book_prompts
 from .base import BlockContext, BlockGenerator, GenerationFailure
 
@@ -35,18 +34,14 @@ class DeepDiveGenerator(BlockGenerator):
             chapter_title=chapter_title,
             chapter_summary=chapter_summary or none_label,
         )
-        raw = await llm_text(
+        data = await llm_json(
             user_prompt=user_prompt,
             system_prompt=get_book_prompt(prompts, "system"),
             max_tokens=500,
             temperature=0.4,
-            response_format={"type": "json_object"},
             language=ctx.language,
+            expected_key="suggestions",
         )
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            data = {}
         suggestions_raw = data.get("suggestions") if isinstance(data, dict) else None
         suggestions: list[dict[str, str]] = []
         if isinstance(suggestions_raw, list):
@@ -64,7 +59,11 @@ class DeepDiveGenerator(BlockGenerator):
                 )
         if not suggestions:
             raise GenerationFailure("LLM returned no deep-dive suggestions.")
-        return ({"suggestions": suggestions}, [], {})
+        return (
+            {"suggestions": suggestions},
+            [],
+            data.get("_metadata") if isinstance(data.get("_metadata"), dict) else {},
+        )
 
 
 __all__ = ["DeepDiveGenerator"]

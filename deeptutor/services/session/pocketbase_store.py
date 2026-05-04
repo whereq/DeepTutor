@@ -20,15 +20,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 import time
 from typing import Any
 import uuid
 
-from deeptutor.logging import get_logger
 from deeptutor.services.path_service import get_path_service
 
-logger = get_logger("PocketBaseStore")
+logger = logging.getLogger(__name__)
 
 
 def _json_loads(value: Any, default: Any) -> Any:

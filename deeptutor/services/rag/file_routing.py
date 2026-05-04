@@ -8,12 +8,11 @@ Determines the appropriate processing method for each document type.
 
 from dataclasses import dataclass
 from enum import Enum
+import logging
 from pathlib import Path
 from typing import List
 
-from deeptutor.logging import get_logger
-
-logger = get_logger("FileTypeRouter")
+logger = logging.getLogger(__name__)
 
 
 class DocumentType(Enum):
@@ -23,6 +22,8 @@ class DocumentType(Enum):
     TEXT = "text"
     MARKDOWN = "markdown"
     DOCX = "docx"
+    SPREADSHEET = "spreadsheet"
+    PRESENTATION = "presentation"
     IMAGE = "image"
     UNKNOWN = "unknown"
 
@@ -40,12 +41,14 @@ class FileTypeRouter:
     """File type router for the RAG pipeline.
 
     Classifies files before processing to route them to appropriate handlers:
-    - PDF files -> PDF parsing
+    - PDF / Office files -> parser-based text extraction
     - Text files -> Direct read (fast, simple)
     - Unsupported -> Skip with warning
     """
 
-    PARSER_EXTENSIONS = {".pdf"}
+    PDF_EXTENSIONS = {".pdf"}
+    OFFICE_EXTENSIONS = {".docx", ".xlsx", ".pptx"}
+    PARSER_EXTENSIONS = PDF_EXTENSIONS | OFFICE_EXTENSIONS
 
     TEXT_EXTENSIONS = {
         # Plain text & docs
@@ -170,7 +173,6 @@ class FileTypeRouter:
         ".dockerfile",
     }
 
-    DOCX_EXTENSIONS = {".docx", ".doc"}
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
 
     @classmethod
@@ -178,12 +180,16 @@ class FileTypeRouter:
         """Classify a single file by its type."""
         ext = Path(file_path).suffix.lower()
 
-        if ext in cls.PARSER_EXTENSIONS:
+        if ext in cls.PDF_EXTENSIONS:
             return DocumentType.PDF
         elif ext in cls.TEXT_EXTENSIONS:
             return DocumentType.TEXT
-        elif ext in cls.DOCX_EXTENSIONS:
+        elif ext == ".docx":
             return DocumentType.DOCX
+        elif ext == ".xlsx":
+            return DocumentType.SPREADSHEET
+        elif ext == ".pptx":
+            return DocumentType.PRESENTATION
         elif ext in cls.IMAGE_EXTENSIONS:
             return DocumentType.IMAGE
         else:
@@ -216,7 +222,12 @@ class FileTypeRouter:
         for path in file_paths:
             doc_type = cls.get_document_type(path)
 
-            if doc_type == DocumentType.PDF:
+            if doc_type in (
+                DocumentType.PDF,
+                DocumentType.DOCX,
+                DocumentType.SPREADSHEET,
+                DocumentType.PRESENTATION,
+            ):
                 parser_files.append(path)
             elif doc_type in (DocumentType.TEXT, DocumentType.MARKDOWN):
                 text_files.append(path)
@@ -275,7 +286,13 @@ class FileTypeRouter:
     def needs_parser(cls, file_path: str) -> bool:
         """Quick check if a single file needs parser processing."""
         doc_type = cls.get_document_type(file_path)
-        return doc_type in (DocumentType.PDF, DocumentType.DOCX, DocumentType.IMAGE)
+        return doc_type in (
+            DocumentType.PDF,
+            DocumentType.DOCX,
+            DocumentType.SPREADSHEET,
+            DocumentType.PRESENTATION,
+            DocumentType.IMAGE,
+        )
 
     @classmethod
     def is_text_readable(cls, file_path: str) -> bool:
@@ -287,6 +304,28 @@ class FileTypeRouter:
     def get_supported_extensions(cls) -> set[str]:
         """Get the set of all supported file extensions."""
         return cls.PARSER_EXTENSIONS | cls.TEXT_EXTENSIONS
+
+    @classmethod
+    def has_supported_extension(cls, file_path: str | Path) -> bool:
+        """Return True when ``file_path`` has a supported extension.
+
+        The check is case-insensitive so files such as ``Report.PDF`` are
+        discovered consistently across upload, CLI, folder sync, and reindex.
+        """
+        return Path(file_path).suffix.lower() in cls.get_supported_extensions()
+
+    @classmethod
+    def collect_supported_files(cls, directory: str | Path, recursive: bool = False) -> list[Path]:
+        """Collect supported files from a directory with case-insensitive suffix matching."""
+        root = Path(directory)
+        if not root.exists() or not root.is_dir():
+            return []
+
+        paths = root.rglob("*") if recursive else root.iterdir()
+        return sorted(
+            (path for path in paths if path.is_file() and cls.has_supported_extension(path)),
+            key=lambda path: str(path).lower(),
+        )
 
     @classmethod
     def get_glob_patterns(cls) -> list[str]:

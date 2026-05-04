@@ -6,11 +6,11 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from deeptutor.logging import get_logger
+from deeptutor.logging import configure_logging
 from deeptutor.services.path_service import get_path_service
 
-# Note: Don't set service_prefix here - start_web.py already adds [Backend] prefix
-logger = get_logger("API")
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class _SuppressWsNoise(logging.Filter):
@@ -128,7 +128,7 @@ async def lifespan(app: FastAPI):
     try:
         from deeptutor.services.tutorbot import get_tutorbot_manager
 
-        await get_tutorbot_manager().stop_all()
+        await get_tutorbot_manager().stop_all(preserve_auto_start=True)
         logger.info("TutorBots stopped")
     except Exception as e:
         logger.warning(f"Failed to stop TutorBots: {e}")

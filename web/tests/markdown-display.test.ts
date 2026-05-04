@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  escapeUnknownHtmlTagsForDisplay,
   hasVisibleMarkdownContent,
   normalizeMarkdownForDisplay,
 } from "../lib/markdown-display";
@@ -29,6 +30,25 @@ test("normalizeMarkdownForDisplay removes empty html tables", () => {
 test("normalizeMarkdownForDisplay keeps meaningful tables", () => {
   const input = "Before\n\n| Topic |\n|---|\n| Math |\n\nAfter";
   assert.equal(normalizeMarkdownForDisplay(input), input);
+});
+
+test("escapeUnknownHtmlTagsForDisplay escapes LLM pseudo tags", () => {
+  const input = "Before\n<think>internal scratchpad</think>\nAfter";
+  assert.equal(
+    escapeUnknownHtmlTagsForDisplay(input),
+    "Before\n`<think>`internal scratchpad`</think>`\nAfter",
+  );
+});
+
+test("escapeUnknownHtmlTagsForDisplay preserves line count for previews", () => {
+  const input = "A\n\n<thinking>hidden</thinking>\nB";
+  const output = escapeUnknownHtmlTagsForDisplay(input);
+  assert.equal(output.split("\n").length, input.split("\n").length);
+});
+
+test("escapeUnknownHtmlTagsForDisplay keeps allowed html tags", () => {
+  const input = "<details><summary>More</summary>Body</details>";
+  assert.equal(escapeUnknownHtmlTagsForDisplay(input), input);
 });
 
 test("hasVisibleMarkdownContent rejects empty raw-html placeholders", () => {

@@ -1,16 +1,17 @@
 # ============================================
 # DeepTutor TutorBot — Agent Engine Dependencies
 # ============================================
-# Install: pip install -r requirements/tutorbot.txt
-# These are the extra dependencies needed for TutorBot channels and agent features.
-# DeepTutor's core dependencies (litellm, pydantic, httpx, etc.) are NOT repeated here.
+# Mirrors pyproject.toml `[project.optional-dependencies].tutorbot`.
+# Keep in sync with pyproject.toml when adding/updating dependencies.
+#
+# Preferred install (from a source clone): pip install -e ".[tutorbot]"
+# Use this file for Docker/CI when pyproject.toml/source code aren't yet available.
 
 -r server.txt
 
 # --- Agent core ---
-loguru>=0.7.3,<1.0.0
+# (loguru and json-repair are pulled in transitively via server.txt — used by provider_core.)
 croniter>=6.0.0,<7.0.0
-json-repair>=0.57.0,<1.0.0
 tiktoken>=0.12.0,<1.0.0
 chardet>=3.0.2,<6.0.0
 mcp>=1.26.0,<2.0.0

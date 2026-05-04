@@ -8,11 +8,10 @@ Prompts live in ``deeptutor/book/prompts/{en,zh}/flash_cards.yaml``.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from ..models import BlockType, SourceAnchor
-from ._llm_writer import llm_text
+from ._llm_writer import llm_json
 from ._prompts import get_book_prompt, load_book_prompts
 from .base import BlockContext, BlockGenerator, GenerationFailure
 
@@ -37,18 +36,14 @@ class FlashCardsGenerator(BlockGenerator):
             chapter_summary=chapter_summary or none_label,
             objectives_inline="; ".join(objectives) or none_label,
         )
-        raw = await llm_text(
+        data = await llm_json(
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             max_tokens=900,
             temperature=0.4,
-            response_format={"type": "json_object"},
             language=ctx.language,
+            expected_key="cards",
         )
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            data = {}
         cards_raw = data.get("cards") if isinstance(data, dict) else None
         cards: list[dict[str, str]] = []
         if isinstance(cards_raw, list):
@@ -68,7 +63,11 @@ class FlashCardsGenerator(BlockGenerator):
                 )
         if not cards:
             raise GenerationFailure("LLM did not return any flashcards.")
-        return ({"cards": cards}, [], {})
+        return (
+            {"cards": cards},
+            [],
+            data.get("_metadata") if isinstance(data.get("_metadata"), dict) else {},
+        )
 
 
 __all__ = ["FlashCardsGenerator"]

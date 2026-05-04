@@ -21,8 +21,24 @@ from deeptutor.services.config.provider_runtime import _coerce_optional_bool
 
 @pytest.fixture(autouse=True)
 def _clean_send_dimensions_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``EnvStore`` mutates ``os.environ`` on load/write — isolate each test."""
+    """``EnvStore`` mutates ``os.environ`` on load/write — isolate each test.
+
+    monkeypatch's ``delenv`` reverts only what it deleted; if the test then
+    has ``EnvStore.write()`` set ``EMBEDDING_SEND_DIMENSIONS`` again, that
+    value leaks into subsequent test files. Snapshot the current value here
+    and use a yield-style teardown to restore it.
+    """
+    import os
+
+    sentinel = object()
+    original = os.environ.get("EMBEDDING_SEND_DIMENSIONS", sentinel)
     monkeypatch.delenv("EMBEDDING_SEND_DIMENSIONS", raising=False)
+    yield
+    # Restore the pre-test value so EnvStore.write() side-effects don't leak.
+    if original is sentinel:
+        os.environ.pop("EMBEDDING_SEND_DIMENSIONS", None)
+    else:
+        os.environ["EMBEDDING_SEND_DIMENSIONS"] = original  # type: ignore[assignment]
 
 
 def _embedding_catalog(send_dimensions: object | None) -> dict:
@@ -143,6 +159,17 @@ def test_write_persists_send_dimensions_when_set(tmp_path: Path) -> None:
     env.write(env.render_from_catalog(_embedding_catalog(send_dimensions=False)))
     text = (tmp_path / ".env").read_text(encoding="utf-8")
     assert "EMBEDDING_SEND_DIMENSIONS=false" in text
+
+
+def test_write_preserves_provider_specific_embedding_key(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text("GEMINI_API_KEY=gemini-existing\n", encoding="utf-8")
+    env = EnvStore(path=env_path)
+
+    env.write(env.render_from_catalog(_embedding_catalog(send_dimensions=None)))
+
+    text = env_path.read_text(encoding="utf-8")
+    assert "GEMINI_API_KEY=gemini-existing" in text
 
 
 # ---------------------------------------------------------------------------

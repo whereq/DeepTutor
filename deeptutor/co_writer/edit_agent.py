@@ -10,6 +10,7 @@ import uuid
 
 from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
+from deeptutor.services.llm import clean_thinking_tags
 from deeptutor.services.path_service import get_path_service
 from deeptutor.tools.rag_tool import rag_search
 from deeptutor.tools.web_search import web_search
@@ -205,7 +206,7 @@ class EditAgent(BaseAgent):
             stage=f"edit_{action}",
         ):
             _chunks.append(_c)
-        response = "".join(_chunks)
+        response = clean_thinking_tags("".join(_chunks), self.binding, self.get_model())
 
         # Record operation history
         history = load_history()
@@ -252,7 +253,7 @@ class EditAgent(BaseAgent):
             stage="auto_mark",
         ):
             _chunks.append(_c)
-        response = "".join(_chunks)
+        response = clean_thinking_tags("".join(_chunks), self.binding, self.get_model())
 
         # Record operation history
         history = load_history()

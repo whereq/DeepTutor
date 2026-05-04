@@ -5,19 +5,28 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
 } from "react";
 import {
+  LANGUAGE_EVENT,
+  LANGUAGE_STORAGE_KEY,
+  normalizeLanguage,
   readStoredLanguage,
   writeStoredActiveSessionId,
 } from "@/context/app-shell-storage";
-import type { StreamEvent, ChatMessage } from "@/lib/unified-ws";
+import type { StreamEvent, ChatMessage, LLMSelection } from "@/lib/unified-ws";
 import { UnifiedWSClient } from "@/lib/unified-ws";
 import { getSession, type SessionMessage } from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
+import { normalizeMessageContent } from "@/lib/message-content";
 import { shouldAppendEventContent } from "@/lib/stream";
+import {
+  normalizeBookReferences,
+  type BookReferencePayload,
+} from "@/lib/book-references";
 
 type SessionRuntimeStatus =
   | "idle"
@@ -44,10 +53,13 @@ type HistoryReferencePayload = string[];
 
 type QuestionNotebookReferencePayload = number[];
 
+type MemoryReferencePayload = Array<"summary" | "profile">;
+
 export interface SendMessageOptions {
   displayUserMessage?: boolean;
   persistUserMessage?: boolean;
   requestSnapshotOverride?: MessageRequestSnapshot;
+  bookReferences?: BookReferencePayload[];
 }
 
 export interface ChatState {
@@ -55,6 +67,7 @@ export interface ChatState {
   enabledTools: string[];
   activeCapability: string | null;
   knowledgeBases: string[];
+  llmSelection: LLMSelection | null;
   messages: MessageItem[];
   isStreaming: boolean;
   currentStage: string;
@@ -92,7 +105,10 @@ export interface MessageRequestSnapshot {
   notebookReferences?: NotebookReferencePayload[];
   historyReferences?: HistoryReferencePayload;
   questionNotebookReferences?: QuestionNotebookReferencePayload;
+  bookReferences?: BookReferencePayload[];
   skills?: string[];
+  memoryReferences?: MemoryReferencePayload;
+  llmSelection?: LLMSelection | null;
 }
 
 export interface MessageItem {
@@ -122,6 +138,7 @@ type Action =
   | { type: "SET_TOOLS"; tools: string[] }
   | { type: "SET_CAPABILITY"; cap: string | null }
   | { type: "SET_KB"; kbs: string[] }
+  | { type: "SET_LLM_SELECTION"; selection: LLMSelection | null }
   | { type: "SET_LANGUAGE"; lang: string }
   | {
       type: "ADD_USER_MSG";
@@ -157,6 +174,7 @@ type Action =
       tools?: string[];
       capability?: string | null;
       knowledgeBases?: string[];
+      llmSelection?: LLMSelection | null;
       language?: string;
     }
   | { type: "NEW_SESSION"; key: string };
@@ -171,6 +189,7 @@ function createSessionEntry(
     enabledTools: [],
     activeCapability: null,
     knowledgeBases: [],
+    llmSelection: null,
     messages: [],
     isStreaming: false,
     currentStage: "",
@@ -222,6 +241,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
       return updateSelectedSession(state, (session) => ({
         ...session,
         knowledgeBases: action.kbs,
+      }));
+    case "SET_LLM_SELECTION":
+      return updateSelectedSession(state, (session) => ({
+        ...session,
+        llmSelection: action.selection,
       }));
     case "SET_LANGUAGE":
       return updateSelectedSession(state, (session) => ({
@@ -436,6 +460,10 @@ function reducer(state: ProviderState, action: Action): ProviderState {
                 ? action.capability
                 : existing.activeCapability,
             knowledgeBases: action.knowledgeBases ?? existing.knowledgeBases,
+            llmSelection:
+              action.llmSelection !== undefined
+                ? action.llmSelection
+                : existing.llmSelection,
             messages: action.messages,
             isStreaming: (action.status || "idle") === "running",
             currentStage: "",
@@ -483,6 +511,7 @@ interface ChatContextValue {
   setTools: (tools: string[]) => void;
   setCapability: (cap: string | null) => void;
   setKBs: (kbs: string[]) => void;
+  setLLMSelection: (selection: LLMSelection | null) => void;
   setLanguage: (lang: string) => void;
   sendMessage: (
     content: string,
@@ -493,6 +522,7 @@ interface ChatContextValue {
     options?: SendMessageOptions,
     questionNotebookReferences?: QuestionNotebookReferencePayload,
     skills?: string[],
+    memoryReferences?: MemoryReferencePayload,
   ) => void;
   cancelStreamingTurn: () => void;
   regenerateLastMessage: () => void;
@@ -504,6 +534,125 @@ interface ChatContextValue {
 }
 
 const ChatCtx = createContext<ChatContextValue | null>(null);
+
+function hydrateMessageAttachments(
+  attachments: SessionMessage["attachments"],
+): MessageAttachment[] {
+  return Array.isArray(attachments)
+    ? attachments.map((item) => ({
+        type: item.type,
+        filename: item.filename,
+        base64: item.base64,
+        url: item.url,
+        mime_type: item.mime_type,
+        id: item.id,
+        extracted_text: item.extracted_text,
+      }))
+    : [];
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is string => typeof item === "string" && item.length > 0,
+      )
+    : [];
+}
+
+function asLLMSelection(value: unknown): LLMSelection | null {
+  const record = asRecord(value);
+  const profileId =
+    typeof record?.profile_id === "string" ? record.profile_id.trim() : "";
+  const modelId =
+    typeof record?.model_id === "string" ? record.model_id.trim() : "";
+  return profileId && modelId
+    ? { profile_id: profileId, model_id: modelId }
+    : null;
+}
+
+function asMemoryReferences(value: unknown): MemoryReferencePayload {
+  return asStringArray(value).filter(
+    (item): item is "summary" | "profile" =>
+      item === "summary" || item === "profile",
+  );
+}
+
+function asNotebookReferences(value: unknown): NotebookReferencePayload[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const ref = asRecord(item);
+    const notebookId =
+      typeof ref?.notebook_id === "string" ? ref.notebook_id : "";
+    const recordIds = asStringArray(ref?.record_ids);
+    return notebookId && recordIds.length
+      ? [{ notebook_id: notebookId, record_ids: recordIds }]
+      : [];
+  });
+}
+
+function asQuestionReferences(
+  value: unknown,
+): QuestionNotebookReferencePayload {
+  return Array.isArray(value)
+    ? value
+        .map((item) => (typeof item === "number" ? item : Number(item)))
+        .filter((item) => Number.isInteger(item))
+    : [];
+}
+
+function hydrateRequestSnapshot(
+  message: SessionMessage,
+  content: string,
+  attachments: MessageAttachment[],
+): MessageRequestSnapshot | undefined {
+  const metadata = asRecord(message.metadata);
+  const stored = asRecord(
+    metadata?.request_snapshot ?? metadata?.requestSnapshot,
+  );
+  if (!stored) return undefined;
+
+  const snapshot: MessageRequestSnapshot = {
+    content: typeof stored.content === "string" ? stored.content : content,
+    capability:
+      typeof stored.capability === "string"
+        ? stored.capability
+        : message.capability || "",
+    enabledTools: asStringArray(stored.enabledTools),
+    knowledgeBases: asStringArray(stored.knowledgeBases),
+    language: typeof stored.language === "string" ? stored.language : "en",
+    ...(attachments.length ? { attachments } : {}),
+  };
+
+  const config = asRecord(stored.config);
+  const notebookReferences = asNotebookReferences(stored.notebookReferences);
+  const historyReferences = asStringArray(stored.historyReferences);
+  const questionNotebookReferences = asQuestionReferences(
+    stored.questionNotebookReferences,
+  );
+  const skills = asStringArray(stored.skills);
+  const memoryReferences = asMemoryReferences(stored.memoryReferences);
+  const bookReferences = normalizeBookReferences(stored.bookReferences);
+  const llmSelection = asLLMSelection(stored.llmSelection);
+
+  if (config && Object.keys(config).length) snapshot.config = config;
+  if (notebookReferences.length)
+    snapshot.notebookReferences = notebookReferences;
+  if (historyReferences.length) snapshot.historyReferences = historyReferences;
+  if (questionNotebookReferences.length) {
+    snapshot.questionNotebookReferences = questionNotebookReferences;
+  }
+  if (bookReferences.length) snapshot.bookReferences = bookReferences;
+  if (skills.length) snapshot.skills = skills;
+  if (memoryReferences.length) snapshot.memoryReferences = memoryReferences;
+  if (llmSelection) snapshot.llmSelection = llmSelection;
+  return snapshot;
+}
 
 export function UnifiedChatProvider({
   children,
@@ -528,7 +677,7 @@ export function UnifiedChatProvider({
   // or ``nothing_to_regenerate``). Keyed by session entry key.
   const pendingRegenerateRef = useRef<Map<string, MessageItem>>(new Map());
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     stateRef.current = state;
   }, [state]);
 
@@ -549,30 +698,28 @@ export function UnifiedChatProvider({
 
   const hydrateMessages = useCallback(
     (messages: SessionMessage[]): MessageItem[] => {
-      // System messages (e.g. quiz follow-up grounding context written by the
-      // backend turn runtime) are LLM-only and must not surface in the chat UI.
       return messages
         .filter((message) => message.role !== "system")
-        .map((message) => ({
-          role: message.role,
-          content:
-            message.role === "assistant"
-              ? normalizeMarkdownForDisplay(message.content)
-              : message.content,
-          capability: message.capability || "",
-          events: Array.isArray(message.events) ? message.events : [],
-          attachments: Array.isArray(message.attachments)
-            ? message.attachments.map((item) => ({
-                type: item.type,
-                filename: item.filename,
-                base64: item.base64,
-                url: item.url,
-                mime_type: item.mime_type,
-                id: item.id,
-                extracted_text: item.extracted_text,
-              }))
-            : [],
-        }));
+        .map((message) => {
+          const raw = normalizeMessageContent(message.content as unknown);
+          const attachments = hydrateMessageAttachments(message.attachments);
+          const requestSnapshot = hydrateRequestSnapshot(
+            message,
+            raw,
+            attachments,
+          );
+          return {
+            role: message.role,
+            content:
+              message.role === "assistant"
+                ? normalizeMarkdownForDisplay(raw)
+                : raw,
+            capability: message.capability || "",
+            events: Array.isArray(message.events) ? message.events : [],
+            attachments,
+            ...(requestSnapshot ? { requestSnapshot } : {}),
+          };
+        });
     },
     [],
   );
@@ -747,7 +894,11 @@ export function UnifiedChatProvider({
         knowledgeBases: Array.isArray(session.preferences?.knowledge_bases)
           ? session.preferences.knowledge_bases
           : [],
-        language: session.preferences?.language || "en",
+        llmSelection: asLLMSelection(session.preferences?.llm_selection),
+        // The Settings language is global UI state. Historical sessions may
+        // have stale persisted preferences, so new turns follow the current
+        // app language rather than the language saved when the session began.
+        language: readStoredLanguage(),
       });
       if (activeTurn?.turn_id || activeTurn?.id) {
         const key = session.session_id || session.id;
@@ -768,6 +919,28 @@ export function UnifiedChatProvider({
       : null;
     writeStoredActiveSessionId(current?.sessionId ?? null);
   }, [state.selectedKey, state.sessions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncLanguage = (language: string | null | undefined) => {
+      dispatch({ type: "SET_LANGUAGE", lang: normalizeLanguage(language) });
+    };
+    const onLanguage = (event: Event) => {
+      const detail = (event as CustomEvent<{ language?: string }>).detail;
+      syncLanguage(detail?.language);
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === LANGUAGE_STORAGE_KEY) syncLanguage(event.newValue);
+    };
+
+    window.addEventListener(LANGUAGE_EVENT, onLanguage);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(LANGUAGE_EVENT, onLanguage);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   // URL is now the source of truth for session loading.
   // Chat pages load sessions based on URL params; no sessionStorage restore needed.
@@ -826,6 +999,7 @@ export function UnifiedChatProvider({
       options?: SendMessageOptions,
       questionNotebookReferences?: QuestionNotebookReferencePayload,
       skills?: string[],
+      memoryReferences?: MemoryReferencePayload,
     ) => {
       const msgAttachments = attachments?.map((a) => ({
         type: a.type,
@@ -848,7 +1022,12 @@ export function UnifiedChatProvider({
         replaySnapshot?.enabledTools ?? session.enabledTools;
       const effectiveKnowledgeBases =
         replaySnapshot?.knowledgeBases ?? session.knowledgeBases;
-      const effectiveLanguage = replaySnapshot?.language ?? session.language;
+      const effectiveLLMSelection =
+        replaySnapshot && "llmSelection" in replaySnapshot
+          ? (replaySnapshot.llmSelection ?? null)
+          : session.llmSelection;
+      const effectiveLanguage =
+        replaySnapshot?.language ?? readStoredLanguage();
       const researchSources = Array.isArray(config?.sources)
         ? config.sources.filter(
             (value): value is string => typeof value === "string",
@@ -859,6 +1038,10 @@ export function UnifiedChatProvider({
         (effectiveCapability === "deep_research" &&
           researchSources.includes("kb"));
       const effectiveSkills = replaySnapshot?.skills ?? skills;
+      const effectiveMemoryReferences =
+        replaySnapshot?.memoryReferences ?? memoryReferences;
+      const effectiveBookReferences =
+        replaySnapshot?.bookReferences ?? options?.bookReferences;
       const requestSnapshot: MessageRequestSnapshot = replaySnapshot ?? {
         content,
         capability: effectiveCapability,
@@ -876,7 +1059,16 @@ export function UnifiedChatProvider({
         ...(questionNotebookReferences?.length
           ? { questionNotebookReferences: [...questionNotebookReferences] }
           : {}),
+        ...(effectiveBookReferences?.length
+          ? { bookReferences: effectiveBookReferences }
+          : {}),
         ...(effectiveSkills?.length ? { skills: [...effectiveSkills] } : {}),
+        ...(effectiveMemoryReferences?.length
+          ? { memoryReferences: [...effectiveMemoryReferences] }
+          : {}),
+        ...(effectiveLLMSelection
+          ? { llmSelection: effectiveLLMSelection }
+          : {}),
       };
       if (options?.displayUserMessage !== false) {
         dispatch({
@@ -913,7 +1105,16 @@ export function UnifiedChatProvider({
         ...(questionNotebookReferences?.length
           ? { question_notebook_references: questionNotebookReferences }
           : {}),
+        ...(effectiveBookReferences?.length
+          ? { book_references: effectiveBookReferences }
+          : {}),
         ...(effectiveSkills?.length ? { skills: effectiveSkills } : {}),
+        ...(effectiveMemoryReferences?.length
+          ? { memory_references: effectiveMemoryReferences }
+          : {}),
+        ...(effectiveLLMSelection
+          ? { llm_selection: effectiveLLMSelection }
+          : {}),
         ...(effectiveConfig && Object.keys(effectiveConfig).length > 0
           ? { config: effectiveConfig }
           : {}),
@@ -963,6 +1164,9 @@ export function UnifiedChatProvider({
     sendThroughRunner(key, {
       type: "regenerate",
       session_id: session.sessionId,
+      overrides: {
+        language: readStoredLanguage(),
+      },
     });
   }, [sendThroughRunner]);
 
@@ -973,6 +1177,7 @@ export function UnifiedChatProvider({
       enabledTools: current.enabledTools,
       activeCapability: current.activeCapability,
       knowledgeBases: current.knowledgeBases,
+      llmSelection: current.llmSelection,
       messages: current.messages,
       isStreaming: current.isStreaming,
       currentStage: current.currentStage,
@@ -1006,6 +1211,10 @@ export function UnifiedChatProvider({
     dispatch({ type: "SET_KB", kbs });
   }, []);
 
+  const setLLMSelection = useCallback((selection: LLMSelection | null) => {
+    dispatch({ type: "SET_LLM_SELECTION", selection });
+  }, []);
+
   const setLanguage = useCallback((lang: string) => {
     dispatch({ type: "SET_LANGUAGE", lang });
   }, []);
@@ -1019,6 +1228,7 @@ export function UnifiedChatProvider({
     setTools,
     setCapability,
     setKBs,
+    setLLMSelection,
     setLanguage,
     sendMessage,
     cancelStreamingTurn,

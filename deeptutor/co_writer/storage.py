@@ -16,6 +16,7 @@ Layout (relative to ``data/user/workspace/co-writer/``)::
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -25,10 +26,9 @@ import uuid
 
 from pydantic import BaseModel, Field
 
-from deeptutor.logging import get_logger
 from deeptutor.services.path_service import get_path_service
 
-logger = get_logger("co_writer.storage")
+logger = logging.getLogger(__name__)
 
 
 class CoWriterDocument(BaseModel):

@@ -1,8 +1,11 @@
 # ============================================
 # DeepTutor Development Dependencies
 # ============================================
-# Install: pip install -r requirements/dev.txt
-# Includes full runtime + development tooling.
+# Mirrors pyproject.toml `[project.optional-dependencies].dev`.
+# Keep in sync with pyproject.toml when adding/updating dependencies.
+#
+# Preferred install (from a source clone): pip install -e ".[dev]"
+# Use this file for Docker/CI when pyproject.toml/source code aren't yet available.
 
 -r server.txt
 

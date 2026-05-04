@@ -10,12 +10,15 @@ workspace directory, not in the shared memory dir.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
+import logging
 from pathlib import Path
 import re
 from typing import Literal
 
+from deeptutor.services.llm import clean_thinking_tags
 from deeptutor.services.llm import stream as llm_stream
 from deeptutor.services.path_service import PathService, get_path_service
 from deeptutor.services.session.protocol import SessionStoreProtocol
@@ -24,6 +27,8 @@ MemoryFile = Literal["summary", "profile"]
 MEMORY_FILES: list[MemoryFile] = ["summary", "profile"]
 
 _NO_CHANGE = "NO_CHANGE"
+
+logger = logging.getLogger(__name__)
 
 _FILENAMES: dict[MemoryFile, str] = {
     "summary": "SUMMARY.md",
@@ -58,6 +63,7 @@ class MemoryService:
 
         self._path_service = path_service or get_path_service()
         self._store = store or get_session_store()
+        self._refresh_lock = asyncio.Lock()
         self._migrate_legacy()
 
     @property
@@ -101,7 +107,17 @@ class MemoryService:
         if not path.exists():
             return ""
         try:
-            return path.read_text(encoding="utf-8").strip()
+            raw = path.read_text(encoding="utf-8").strip()
+            cleaned = _clean_memory_content(raw)
+            if cleaned != raw:
+                try:
+                    if cleaned:
+                        path.write_text(cleaned, encoding="utf-8")
+                    else:
+                        path.unlink()
+                except Exception:
+                    pass
+            return cleaned
         except Exception:
             return ""
 
@@ -131,7 +147,7 @@ class MemoryService:
     # ── Write ─────────────────────────────────────────────────────────
 
     def write_file(self, which: MemoryFile, content: str) -> MemorySnapshot:
-        normalized = str(content or "").strip()
+        normalized = _clean_memory_content(str(content or ""))
         path = self._path(which)
         path.parent.mkdir(parents=True, exist_ok=True)
         if not normalized:
@@ -157,14 +173,22 @@ class MemoryService:
 
     # ── Context building (injected into LLM prompts) ─────────────────
 
-    def build_memory_context(self, max_chars: int = 4000) -> str:
+    def build_memory_context(
+        self,
+        files: list[MemoryFile] | None = None,
+        max_chars: int = 4000,
+    ) -> str:
+        requested = {item for item in files or [] if item in MEMORY_FILES}
+        if not requested:
+            return ""
+
         parts: list[str] = []
 
-        profile = self.read_profile()
+        profile = self.read_profile() if "profile" in requested else ""
         if profile:
             parts.append(f"### User Profile\n{profile}")
 
-        summary = self.read_summary()
+        summary = self.read_summary() if "summary" in requested else ""
         if summary:
             parts.append(f"### Learning Context\n{summary}")
 
@@ -208,10 +232,11 @@ class MemoryService:
             f"[Assistant]\n{assistant_message.strip()}"
         )
 
-        p_changed = await self._rewrite_one("profile", source, language)
-        s_changed = await self._rewrite_one("summary", source, language)
+        async with self._refresh_lock:
+            p_changed = await self._rewrite_one("profile", source, language)
+            s_changed = await self._rewrite_one("summary", source, language)
 
-        snap = self.read_snapshot()
+            snap = self.read_snapshot()
         return MemoryUpdateResult(
             content=snap.profile,
             changed=p_changed or s_changed,
@@ -260,10 +285,11 @@ class MemoryService:
             f"[Session] {target}\n[Capability] {cap or 'chat'}\n\n[Recent Transcript]\n{transcript}"
         )
 
-        p_changed = await self._rewrite_one("profile", source, language)
-        s_changed = await self._rewrite_one("summary", source, language)
+        async with self._refresh_lock:
+            p_changed = await self._rewrite_one("profile", source, language)
+            s_changed = await self._rewrite_one("summary", source, language)
 
-        snap = self.read_snapshot()
+            snap = self.read_snapshot()
         return MemoryUpdateResult(
             content=snap.profile,
             changed=p_changed or s_changed,
@@ -291,11 +317,18 @@ class MemoryService:
         ):
             chunks.append(c)
 
-        raw = _strip_code_fence("".join(chunks)).strip()
+        raw = _clean_memory_content("".join(chunks))
         if not raw or raw == _NO_CHANGE:
             return False
 
         if raw == current:
+            return False
+
+        if not _is_valid_memory_rewrite(which, raw):
+            logger.warning(
+                "Skipping invalid %s memory rewrite: missing expected section heading",
+                which,
+            )
             return False
 
         self.write_file(which, raw)
@@ -377,6 +410,60 @@ def _strip_code_fence(content: str) -> str:
         cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", cleaned)
         cleaned = re.sub(r"\n?```$", "", cleaned)
     return cleaned.strip()
+
+
+_EXPECTED_MEMORY_HEADINGS: dict[MemoryFile, set[str]] = {
+    "profile": {
+        "identity",
+        "user identity",
+        "learning style",
+        "knowledge level",
+        "preferences",
+        "preference",
+        "身份",
+        "用户身份",
+        "学习风格",
+        "学习方式",
+        "知识水平",
+        "偏好",
+        "用户偏好",
+    },
+    "summary": {
+        "current focus",
+        "accomplishments",
+        "open questions",
+        "learning journey",
+        "context",
+        "当前关注",
+        "当前学习",
+        "学习重点",
+        "已完成",
+        "学习成果",
+        "成就",
+        "开放问题",
+        "待解决问题",
+        "学习旅程",
+        "上下文",
+    },
+}
+
+
+def _normalize_heading(value: str) -> str:
+    heading = re.sub(r"[*_`]+", "", str(value or "")).strip()
+    heading = re.sub(r"[:：#\s]+$", "", heading).strip()
+    return heading.lower()
+
+
+def _is_valid_memory_rewrite(which: MemoryFile, content: str) -> bool:
+    """Accept only target-shaped LLM rewrites, not arbitrary model answers."""
+    allowed = _EXPECTED_MEMORY_HEADINGS[which]
+    headings = re.findall(r"^##(?!#)\s*(.+?)\s*$", content, flags=re.MULTILINE)
+    return any(_normalize_heading(heading) in allowed for heading in headings)
+
+
+def _clean_memory_content(content: str) -> str:
+    """Remove code fences and model scratchpad tags before durable memory writes."""
+    return clean_thinking_tags(_strip_code_fence(content)).strip()
 
 
 _memory_service: MemoryService | None = None

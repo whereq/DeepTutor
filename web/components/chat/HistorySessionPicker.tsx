@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { listSessions, type SessionSummary } from "@/lib/session-api";
+import { normalizeMessageContent, truncateText } from "@/lib/message-content";
 
 export interface SelectedHistorySession {
   sessionId: string;
@@ -74,7 +75,9 @@ export default function HistorySessionPicker({
     if (!keyword) return sessions;
     return sessions.filter((session) => {
       const title = String(session.title || "").toLowerCase();
-      const lastMessage = String(session.last_message || "").toLowerCase();
+      const lastMessage = normalizeMessageContent(
+        session.last_message,
+      ).toLowerCase();
       return title.includes(keyword) || lastMessage.includes(keyword);
     });
   }, [query, sessions]);
@@ -191,7 +194,10 @@ export default function HistorySessionPicker({
                         </div>
                         {session.last_message ? (
                           <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--muted-foreground)]">
-                            {session.last_message}
+                            {truncateText(
+                              normalizeMessageContent(session.last_message),
+                              200,
+                            )}
                           </p>
                         ) : null}
                         <div className="mt-2 flex items-center gap-3 text-[11px] text-[var(--muted-foreground)]/85">
@@ -216,14 +222,14 @@ export default function HistorySessionPicker({
             <div className="text-[12px] text-[var(--muted-foreground)]">
               {selectedIds.length === 1
                 ? t("1 session selected")
-                : t("{n} sessions selected", { n: selectedIds.length })}
+                : t("{{n}} sessions selected", { n: selectedIds.length })}
             </div>
             <button
               onClick={handleApply}
               disabled={!selectedIds.length}
               className="btn-primary rounded-xl bg-[var(--primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {t("Use Selected Sessions ({n})", { n: selectedIds.length })}
+              {t("Use Selected Sessions ({{n}})", { n: selectedIds.length })}
             </button>
           </div>
         </div>

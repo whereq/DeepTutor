@@ -22,19 +22,16 @@ for ``SectionBlock.tsx`` on the frontend (see Phase 4.d).
 from __future__ import annotations
 
 import asyncio
-import json
+import logging
 from typing import Any
 
-from deeptutor.logging import get_logger
-from deeptutor.utils.json_parser import parse_json_response
-
 from ..models import BlockType, SourceAnchor, SourceChunk
-from ._llm_writer import llm_text
+from ._llm_writer import llm_json, llm_text
 from ._prompts import get_book_prompt, load_book_prompts
 from ._rag_helpers import optional_rag_lookup
 from .base import BlockContext, BlockGenerator, GenerationFailure
 
-logger = get_logger("book.blocks.section")
+logger = logging.getLogger(__name__)
 
 
 _DEFAULT_SUBSECTION_WORDS = 320
@@ -189,19 +186,18 @@ class SectionGenerator(BlockGenerator):
             rag_section=rag_section,
         )
         try:
-            raw = await llm_text(
+            payload = await llm_json(
                 user_prompt=user_prompt,
                 system_prompt=get_book_prompt(prompts, "outline_system"),
                 max_tokens=900,
                 temperature=0.4,
-                response_format={"type": "json_object"},
                 language=ctx.language,
+                expected_key="subsections",
             )
         except Exception as exc:
             logger.warning(f"SectionGenerator outline LLM failed: {exc}")
             return _fallback_outline(focus_topic, objectives, target_words, ctx.language)
 
-        payload = parse_json_response(raw, logger_instance=logger, fallback={})
         if not isinstance(payload, dict):
             return _fallback_outline(focus_topic, objectives, target_words, ctx.language)
 
@@ -352,8 +348,3 @@ def _fallback_outline(
 
 
 __all__ = ["SectionGenerator"]
-
-
-# Tiny safety net — keep ``json`` import in use even when only the
-# ``parse_json_response`` path runs (avoids ``F401`` in some lint setups).
-_unused = json  # noqa: F841

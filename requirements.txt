@@ -3,12 +3,19 @@
 # ============================================
 # Python >= 3.11 required
 #
-# For targeted installs:
-#   pip install -r requirements/cli.txt            # CLI (full, with RAG + tools)
-#   pip install -r requirements/server.txt         # CLI + API server
-#   pip install -r requirements/math-animator.txt  # + Manim animation engine
-#   pip install -r requirements/dev.txt            # + dev/test tools
+# Single source of truth: pyproject.toml `[project.optional-dependencies]`.
+# Files under requirements/ mirror those extras for Docker/CI installs that
+# don't yet have access to pyproject.toml + source code.
 #
-# This file installs the server runtime (CLI + API + TutorBot).
+# Preferred install (from a source clone):
+#   pip install -e ".[cli]"            # CLI (RAG + providers + document parsing)
+#   pip install -e ".[server]"         # CLI + FastAPI/uvicorn (Web/API)
+#   pip install -e ".[tutorbot]"       # Server + TutorBot agent engine
+#   pip install -e ".[matrix]"         # Matrix channel for TutorBot (needs libolm)
+#   pip install -e ".[math-animator]"  # Manim animation engine (addon)
+#   pip install -e ".[dev]"            # Server + dev/test tools
+#   pip install -e ".[all]"            # Everything
+#
+# This file installs the full server runtime (CLI + API + TutorBot).
 
 -r requirements/tutorbot.txt

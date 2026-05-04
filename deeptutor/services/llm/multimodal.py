@@ -12,15 +12,18 @@ Supports:
 
 from __future__ import annotations
 
+import base64 as _b64
 from dataclasses import dataclass
 import logging
 from typing import Any
+from urllib.parse import unquote, urlparse
 
-from .capabilities import supports_vision
+from .capabilities import supports_vision, supports_vision_url
 
 logger = logging.getLogger(__name__)
 
 MIME_FALLBACK = "image/png"
+_LOCAL_ATTACHMENT_PREFIX = "/api/attachments/"
 
 
 @dataclass
@@ -30,6 +33,10 @@ class MultimodalResult:
     messages: list[dict[str, Any]]
     vision_supported: bool
     images_stripped: bool
+    # Number of url-only images we had to drop because the provider requires
+    # base64 and we couldn't resolve the URL locally (external URL or missing
+    # file). The caller can surface this to the user.
+    url_images_dropped: int = 0
 
 
 def _guess_mime_type(filename: str, fallback: str = MIME_FALLBACK) -> str:
@@ -75,6 +82,42 @@ def _build_anthropic_image_part(
 def _image_placeholder(url: str = "", filename: str = "") -> str:
     label = filename or url
     return f"[image: {label}]" if label else "[image omitted]"
+
+
+def _resolve_local_attachment_url(url: str) -> tuple[str, str] | None:
+    """Resolve a ``/api/attachments/<sid>/<aid>/<name>`` URL to (base64, mime).
+
+    External URLs (http/https) are not fetched here — that would be sync
+    network IO inside an async-friendly path and a security footgun. Returns
+    None for anything we cannot resolve from the local AttachmentStore.
+    """
+    if not url:
+        return None
+    parsed = urlparse(url)
+    path = parsed.path or url
+    if not path.startswith(_LOCAL_ATTACHMENT_PREFIX):
+        return None
+    parts = path[len(_LOCAL_ATTACHMENT_PREFIX) :].split("/")
+    if len(parts) != 3:
+        return None
+    sid, aid, name = (unquote(p) for p in parts)
+    try:
+        # Local import to avoid an import-time cycle: storage already imports
+        # capabilities indirectly via path service.
+        from deeptutor.services.storage import get_attachment_store
+
+        store = get_attachment_store()
+        resolve = getattr(store, "resolve_path", None)
+        if resolve is None:
+            return None
+        target = resolve(session_id=sid, attachment_id=aid, filename=name)
+        if target is None:
+            return None
+        data = target.read_bytes()
+    except Exception as exc:
+        logger.warning("failed to resolve local attachment %s: %s", url, exc)
+        return None
+    return _b64.b64encode(data).decode("ascii"), _guess_mime_type(name)
 
 
 def prepare_multimodal_messages(
@@ -142,17 +185,23 @@ def prepare_multimodal_messages(
         )
 
     is_anthropic = (binding or "").lower() in ("anthropic", "claude")
-    _inject_images(
+    # Anthropic adapter only emits base64 source blocks, and providers like
+    # Moonshot reject URL form outright. In both cases url-only attachments
+    # must be resolved to bytes before injection.
+    require_base64 = is_anthropic or not supports_vision_url(binding, model)
+    dropped = _inject_images(
         messages,
         last_user_idx,
         image_attachments,
         anthropic=is_anthropic,
+        require_base64=require_base64,
     )
 
     return MultimodalResult(
         messages=messages,
         vision_supported=True,
         images_stripped=False,
+        url_images_dropped=dropped,
     )
 
 
@@ -169,7 +218,13 @@ def _inject_images(
     image_attachments: list[Any],
     *,
     anthropic: bool = False,
-) -> None:
+    require_base64: bool = False,
+) -> int:
+    """Inject image parts into the user message at *user_idx*.
+
+    Returns the count of url-only attachments we had to drop because the
+    provider needs base64 and the URL could not be resolved locally.
+    """
     msg = messages[user_idx]
     original_content = msg.get("content", "")
 
@@ -180,6 +235,7 @@ def _inject_images(
     else:
         content_parts = [{"type": "text", "text": str(original_content)}]
 
+    dropped = 0
     for att in image_attachments:
         mime = getattr(att, "mime_type", "") or _guess_mime_type(
             getattr(att, "filename", "image.png")
@@ -190,12 +246,42 @@ def _inject_images(
         if not b64 and not url:
             continue
 
+        # If the provider needs base64 and the attachment only carries a URL,
+        # resolve it from the local AttachmentStore. External URLs cannot be
+        # resolved synchronously here and are dropped with a warning.
+        if not b64 and require_base64 and url:
+            resolved = _resolve_local_attachment_url(url)
+            if resolved is not None:
+                b64, resolved_mime = resolved
+                mime = mime or resolved_mime
+            else:
+                logger.warning(
+                    "Dropping url-only image %r: provider requires base64 but"
+                    " URL is not a local attachment-store path",
+                    url,
+                )
+                dropped += 1
+                continue
+
         if anthropic:
+            if not b64:
+                logger.warning("Anthropic image part requires base64; dropping %r", url)
+                dropped += 1
+                continue
             content_parts.append(_build_anthropic_image_part(base64_data=b64, mime_type=mime))
         else:
-            content_parts.append(_build_openai_image_part(base64_data=b64, mime_type=mime, url=url))
+            if b64:
+                # Always prefer inline base64 when available — providers that
+                # reject URL form (Moonshot) accept this; providers that
+                # accept URLs accept this too.
+                content_parts.append(_build_openai_image_part(base64_data=b64, mime_type=mime))
+            else:
+                content_parts.append(
+                    _build_openai_image_part(base64_data="", mime_type=mime, url=url)
+                )
 
     messages[user_idx] = {**msg, "content": content_parts}
+    return dropped
 
 
 def has_image_parts(messages: list[dict[str, Any]]) -> bool:
