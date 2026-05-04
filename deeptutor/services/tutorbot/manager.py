@@ -88,9 +88,7 @@ def normalize_message_content(content: Any) -> str:
         return content
     if isinstance(content, list):
         return " ".join(
-            part
-            for part in (normalize_message_content(item) for item in content)
-            if part
+            part for part in (normalize_message_content(item) for item in content) if part
         )
     if isinstance(content, dict):
         for key in ("text", "content", "message", "alt"):
@@ -106,6 +104,17 @@ def normalize_message_content(content: Any) -> str:
     return str(content)
 
 
+def _history_sort_timestamp(message: dict[str, Any], fallback: float) -> float:
+    """Return a numeric timestamp for stable cross-session history ordering."""
+    raw = message.get("timestamp")
+    if isinstance(raw, str) and raw:
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            pass
+    return fallback
+
+
 @dataclass
 class BotConfig:
     """Configuration for a single TutorBot instance."""
@@ -115,6 +124,7 @@ class BotConfig:
     persona: str = ""
     channels: dict[str, Any] = field(default_factory=dict)
     model: str | None = None
+    llm_selection: dict[str, str] | None = None
 
 
 @dataclass
@@ -171,6 +181,7 @@ class TutorBotInstance:
             "persona": self.config.persona,
             "channels": channels,
             "model": self.config.model,
+            "llm_selection": self.config.llm_selection,
             "running": self.running,
             "started_at": self.started_at.isoformat(),
             "last_reload_error": self.last_reload_error,
@@ -293,7 +304,14 @@ class TutorBotManager:
     # ── Config persistence ────────────────────────────────────────
 
     # Field names from BotConfig that are persisted via merge.
-    _MERGEABLE_FIELDS = ("name", "description", "persona", "channels", "model")
+    _MERGEABLE_FIELDS = (
+        "name",
+        "description",
+        "persona",
+        "channels",
+        "model",
+        "llm_selection",
+    )
 
     def load_bot_config(self, bot_id: str) -> BotConfig | None:
         """Read the on-disk ``config.yaml`` for a bot, or ``None`` if missing."""
@@ -308,6 +326,7 @@ class TutorBotManager:
                 persona=data.get("persona", ""),
                 channels=data.get("channels", {}),
                 model=data.get("model"),
+                llm_selection=data.get("llm_selection"),
             )
         except Exception:
             logger.exception("Failed to load bot config %s", bot_id)
@@ -331,6 +350,8 @@ class TutorBotManager:
         }
         if config.model:
             data["model"] = config.model
+        if config.llm_selection:
+            data["llm_selection"] = config.llm_selection
 
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         tmp_path.write_text(yaml.dump(data, allow_unicode=True), encoding="utf-8")
@@ -380,13 +401,17 @@ class TutorBotManager:
             config = BotConfig(name=bot_id)
             self.save_bot_config(bot_id, config)
 
+        from deeptutor.services.tutorbot.model_runtime import (
+            resolve_tutorbot_llm_config,
+        )
         from deeptutor.tutorbot.agent.loop import AgentLoop
         from deeptutor.tutorbot.bus.queue import MessageBus
         from deeptutor.tutorbot.config.schema import ExecToolConfig
         from deeptutor.tutorbot.providers.deeptutor_adapter import create_deeptutor_provider
         from deeptutor.tutorbot.session.manager import SessionManager
 
-        provider = create_deeptutor_provider()
+        llm_config = resolve_tutorbot_llm_config(config)
+        provider = create_deeptutor_provider(llm_config)
         bus = MessageBus()
 
         workspace = self._bot_workspace(bot_id)
@@ -405,7 +430,8 @@ class TutorBotManager:
             bus=bus,
             provider=provider,
             workspace=workspace,
-            model=config.model,
+            model=llm_config.model,
+            context_window_tokens=llm_config.context_window or 65_536,
             exec_config=exec_config,
             session_manager=session_adapter,
             shared_memory_dir=self._shared_memory_dir,
@@ -477,6 +503,32 @@ class TutorBotManager:
         logger.info("TutorBot '%s' started (workspace=%s)", bot_id, workspace)
         return instance
 
+    async def reload_llm(self, bot_id: str) -> None:
+        """Apply the bot's current LLM config to an already-running instance."""
+        instance = self._bots.get(bot_id)
+        if not instance or not instance.running or not instance.agent_loop:
+            return
+
+        from deeptutor.services.tutorbot.model_runtime import (
+            resolve_tutorbot_llm_config,
+        )
+        from deeptutor.tutorbot.providers.deeptutor_adapter import create_deeptutor_provider
+
+        llm_config = resolve_tutorbot_llm_config(instance.config)
+        provider = create_deeptutor_provider(llm_config)
+        context_window_tokens = (
+            llm_config.context_window or instance.agent_loop.context_window_tokens
+        )
+        instance.agent_loop.update_llm(
+            provider=provider,
+            model=llm_config.model,
+            context_window_tokens=context_window_tokens,
+        )
+        if instance.heartbeat:
+            instance.heartbeat.provider = provider
+            instance.heartbeat.model = instance.agent_loop.model
+        logger.info("Reloaded LLM for TutorBot '%s' (model=%s)", bot_id, llm_config.model)
+
     async def _outbound_router(self, bot_id: str, bus: Any, instance: TutorBotInstance) -> None:
         """Route outbound messages to channels, web notify_queue, and EventBus.
 
@@ -541,9 +593,7 @@ class TutorBotManager:
         instance = self._bots.get(bot_id)
         if not instance:
             return False
-        auto_start = (
-            self._load_auto_start(bot_id, default=True) if preserve_auto_start else False
-        )
+        auto_start = self._load_auto_start(bot_id, default=True) if preserve_auto_start else False
 
         for task in instance.tasks:
             if not task.done():
@@ -724,6 +774,7 @@ class TutorBotManager:
                 "persona": cfg.persona if cfg else "",
                 "channels": list(cfg.channels.keys()) if cfg else [],
                 "model": cfg.model if cfg else None,
+                "llm_selection": cfg.llm_selection if cfg else None,
                 "running": False,
                 "started_at": None,
             }
@@ -739,10 +790,10 @@ class TutorBotManager:
         if not sessions_dir.exists():
             return []
 
-        all_messages: list[dict[str, Any]] = []
-        for path in sorted(
-            sessions_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
-        ):
+        indexed_messages: list[tuple[float, int, dict[str, Any]]] = []
+        sequence = 0
+        for path in sorted(sessions_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime):
+            file_mtime = path.stat().st_mtime
             try:
                 with open(path, encoding="utf-8") as f:
                     for line in f:
@@ -755,13 +806,20 @@ class TutorBotManager:
                         if data.get("role") in ("user", "assistant") and data.get("content"):
                             data["content"] = normalize_message_content(data["content"])
                             data.pop("reasoning_content", None)
-                            all_messages.append(data)
+                            indexed_messages.append(
+                                (
+                                    _history_sort_timestamp(data, file_mtime),
+                                    sequence,
+                                    data,
+                                )
+                            )
+                            sequence += 1
             except Exception:
                 continue
-            if len(all_messages) >= limit:
-                break
 
-        return all_messages[-limit:]
+        indexed_messages.sort(key=lambda item: (item[0], item[1]))
+        messages = [item[2] for item in indexed_messages]
+        return messages[-limit:]
 
     def get_recent_active_bots(self, limit: int = 3) -> list[dict[str, Any]]:
         """Return the most recently active bots with their last message preview."""
@@ -883,6 +941,7 @@ class TutorBotManager:
                     persona=data.get("persona", ""),
                     channels=data.get("channels", {}),
                     model=data.get("model"),
+                    llm_selection=data.get("llm_selection"),
                 )
                 await self.start_bot(bid, config)
                 logger.info("Auto-started bot '%s'", bid)

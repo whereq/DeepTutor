@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
-from deeptutor.logging import get_logger
 from deeptutor.services.config import (
     DEPRECATED_SEARCH_PROVIDERS,
     PROJECT_ROOT,
@@ -29,7 +29,7 @@ from .providers import (
 )
 from .types import Citation, SearchResult, WebSearchResponse
 
-_logger = get_logger("Search", level="INFO")
+_logger = logging.getLogger(__name__)
 
 _PROVIDER_KEY_ENV = {
     "brave": "BRAVE_API_KEY",
@@ -138,7 +138,7 @@ def web_search(
         provider_kwargs["proxy"] = resolved.proxy
 
     search_provider = get_provider(provider_name, **provider_kwargs)
-    _logger.progress(f"[{search_provider.name}] Searching: {query[:50]}...")
+    _logger.info(f"[{search_provider.name}] Searching: {query[:50]}...")
     try:
         response = search_provider.search(query, **provider_kwargs)
     except Exception as exc:

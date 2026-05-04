@@ -30,10 +30,10 @@ via ``asyncio.gather``.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from deeptutor.agents.base_agent import BaseAgent
-from deeptutor.logging import get_logger
 from deeptutor.utils.json_parser import parse_json_response
 
 from ..models import (
@@ -43,7 +43,7 @@ from ..models import (
     SourceChunk,
 )
 
-logger = get_logger("book.source_explorer")
+logger = logging.getLogger(__name__)
 
 
 def _clip(text: str, limit: int) -> str:

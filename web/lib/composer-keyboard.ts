@@ -20,12 +20,12 @@ export function isImeComposing(
   const nativeEvent = event.nativeEvent;
   return Boolean(
     compositionActive ||
-      event.isComposing ||
-      nativeEvent?.isComposing ||
-      event.keyCode === IME_PROCESS_KEY_CODE ||
-      event.which === IME_PROCESS_KEY_CODE ||
-      nativeEvent?.keyCode === IME_PROCESS_KEY_CODE ||
-      nativeEvent?.which === IME_PROCESS_KEY_CODE,
+    event.isComposing ||
+    nativeEvent?.isComposing ||
+    event.keyCode === IME_PROCESS_KEY_CODE ||
+    event.which === IME_PROCESS_KEY_CODE ||
+    nativeEvent?.keyCode === IME_PROCESS_KEY_CODE ||
+    nativeEvent?.which === IME_PROCESS_KEY_CODE,
   );
 }
 

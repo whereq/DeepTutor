@@ -20,14 +20,11 @@ VALID_SOLVE_TOOLS = [
     "finish",
 ]
 
-# Standard log level tags (used in unified logging format)
+# Standard stdlib log level tags.
 LOG_LEVEL_TAGS = [
     "DEBUG",
     "INFO",
-    "SUCCESS",
     "WARNING",
     "ERROR",
     "CRITICAL",
-    "PROGRESS",
-    "COMPLETE",
 ]

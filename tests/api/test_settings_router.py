@@ -16,17 +16,6 @@ from deeptutor.services.llm import client as llm_client_module
 from deeptutor.services.llm import config as llm_config_module
 
 
-class _DummyLogger:
-    def debug(self, *_args, **_kwargs) -> None:
-        pass
-
-    def error(self, *_args, **_kwargs) -> None:
-        pass
-
-    def info(self, *_args, **_kwargs) -> None:
-        pass
-
-
 class _FakeEmbeddingAdapter:
     def __init__(self, config: dict[str, Any]):
         self.config = config
@@ -134,12 +123,6 @@ def _patch_runtime(
     service: _FakeCatalogService,
 ) -> None:
     monkeypatch.setattr(settings_router, "get_model_catalog_service", lambda: service)
-    monkeypatch.setattr(llm_client_module, "get_logger", lambda *_args, **_kwargs: _DummyLogger())
-    monkeypatch.setattr(
-        embedding_client_module,
-        "get_logger",
-        lambda *_args, **_kwargs: _DummyLogger(),
-    )
     monkeypatch.setattr(
         embedding_client_module,
         "_resolve_adapter_class",
@@ -203,6 +186,30 @@ def test_embedding_provider_choices_use_full_endpoint_urls() -> None:
     assert embedding["ollama"]["base_url"] == "http://localhost:11434/api/embed"
     assert embedding["openai"]["base_url"] == "https://api.openai.com/v1/embeddings"
     assert "custom_openai_sdk" not in embedding
+
+
+@pytest.mark.asyncio
+async def test_get_llm_options_returns_redacted_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    catalog = _build_catalog(
+        llm_model="gpt-4o-mini",
+        llm_base_url="https://llm.example/v1",
+        llm_api_key="secret-key",
+        embedding_model="text-embedding-3-small",
+        embedding_base_url="https://emb.example/v1/embeddings",
+        embedding_api_key="emb-key",
+    )
+    service = _FakeCatalogService(catalog)
+    monkeypatch.setattr(settings_router, "get_model_catalog_service", lambda: service)
+
+    response = await settings_router.get_llm_options()
+
+    assert response["active"] == {
+        "profile_id": "llm-profile-default",
+        "model_id": "llm-model-default",
+    }
+    assert response["options"][0]["model"] == "gpt-4o-mini"
+    assert "api_key" not in response["options"][0]
+    assert "base_url" not in response["options"][0]
 
 
 @pytest.fixture(autouse=True)

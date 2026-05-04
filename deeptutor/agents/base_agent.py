@@ -11,12 +11,13 @@ This is the single source of truth for agent base functionality across:
 
 from abc import ABC, abstractmethod
 import inspect
+import logging
 import os
 import time
 from typing import Any, AsyncGenerator, Awaitable, Callable
 
 from deeptutor.config.settings import settings
-from deeptutor.logging import LLMStats, get_logger
+from deeptutor.logging import LLMStats
 from deeptutor.services.config import get_agent_params
 from deeptutor.services.llm import complete as llm_complete
 from deeptutor.services.llm import (
@@ -130,7 +131,7 @@ class BaseAgent(ABC):
 
         # Initialize logger
         logger_name = f"{module_name.capitalize()}.{agent_name}"
-        self.logger = get_logger(logger_name, log_dir=log_dir)
+        self.logger = logging.getLogger(f"deeptutor.{logger_name}")
 
         # Load prompts using unified PromptManager
         try:
@@ -451,14 +452,14 @@ class BaseAgent(ABC):
             **(trace_meta or {}),
         }
         await self._emit_trace_event(trace_payload_base)
-        if hasattr(self.logger, "log_llm_input"):
-            self.logger.log_llm_input(
-                agent_name=self.agent_name,
-                stage=stage_label,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                metadata={"model": model, "temperature": temperature, "max_tokens": max_tokens},
-            )
+        self.logger.debug(
+            "LLM input %s:%s model=%s system_chars=%d user_chars=%d",
+            self.agent_name,
+            stage_label,
+            model,
+            len(system_prompt),
+            len(user_prompt),
+        )
 
         # Call LLM via factory (routes to cloud or local provider)
         response = None
@@ -506,13 +507,13 @@ class BaseAgent(ABC):
                 "duration": call_duration,
             }
         )
-        if hasattr(self.logger, "log_llm_output"):
-            self.logger.log_llm_output(
-                agent_name=self.agent_name,
-                stage=stage_label,
-                response=response,
-                metadata={"length": len(response), "duration": call_duration},
-            )
+        self.logger.debug(
+            "LLM output %s:%s chars=%d duration=%.2fs",
+            self.agent_name,
+            stage_label,
+            len(response),
+            call_duration,
+        )
 
         # Verbose output
         if verbose:
@@ -612,14 +613,14 @@ class BaseAgent(ABC):
             **(trace_meta or {}),
         }
         await self._emit_trace_event(trace_payload_base)
-        if hasattr(self.logger, "log_llm_input"):
-            self.logger.log_llm_input(
-                agent_name=self.agent_name,
-                stage=stage_label,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                metadata={"model": model, "temperature": temperature, "streaming": True},
-            )
+        self.logger.debug(
+            "LLM stream input %s:%s model=%s system_chars=%d user_chars=%d",
+            self.agent_name,
+            stage_label,
+            model,
+            len(system_prompt),
+            len(user_prompt),
+        )
 
         # Track start time
         start_time = time.time()
@@ -668,19 +669,13 @@ class BaseAgent(ABC):
                     "duration": call_duration,
                 }
             )
-            if hasattr(self.logger, "log_llm_output"):
-                self.logger.log_llm_output(
-                    agent_name=self.agent_name,
-                    stage=stage_label,
-                    response=full_response[:200] + "..."
-                    if len(full_response) > 200
-                    else full_response,
-                    metadata={
-                        "length": len(full_response),
-                        "duration": call_duration,
-                        "streaming": True,
-                    },
-                )
+            self.logger.debug(
+                "LLM stream output %s:%s chars=%d duration=%.2fs",
+                self.agent_name,
+                stage_label,
+                len(full_response),
+                call_duration,
+            )
 
         except Exception as e:
             await self._emit_trace_event(

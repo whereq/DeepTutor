@@ -157,6 +157,11 @@ def _validate_persisted_embeddings(index: Any, storage_dir: Path | None = None) 
         ) from exc
 
 
+def validate_storage_embeddings(storage_dir: Path) -> None:
+    """Validate persisted vector-store files without running a retrieval."""
+    _validate_persisted_embeddings(None, storage_dir)
+
+
 def retrieve_nodes(storage_dir: Path, query: str, *, top_k: int = 5) -> list[Any]:
     storage_context = StorageContext.from_defaults(persist_dir=str(storage_dir))
     index = load_index_from_storage(storage_context)

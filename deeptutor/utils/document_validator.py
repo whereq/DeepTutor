@@ -6,8 +6,8 @@ Document Validator - Validation utilities for document uploads
 import mimetypes
 import os
 import re
-import unicodedata
 from typing import ClassVar
+import unicodedata
 
 
 class DocumentValidator:
@@ -97,11 +97,7 @@ class DocumentValidator:
             raise ValueError("Invalid filename")
 
         # Additional size check for PDFs to prevent resource exhaustion
-        if (
-            ext == ".pdf"
-            and file_size is not None
-            and file_size > DocumentValidator.MAX_PDF_SIZE
-        ):
+        if ext == ".pdf" and file_size is not None and file_size > DocumentValidator.MAX_PDF_SIZE:
             raise ValueError(
                 f"PDF file too large: {file_size} bytes. Maximum allowed for PDFs: {DocumentValidator.MAX_PDF_SIZE} bytes"
             )
@@ -113,9 +109,17 @@ class DocumentValidator:
                 f"Unsupported file type: {ext}. Allowed types: {', '.join(exts_to_check)}"
             )
 
-        # Additional MIME type validation for security
+        # Additional MIME type validation for the legacy/default policy. For
+        # caller-provided extension policies (for example the KB router's
+        # FileTypeRouter list), the extension set is already the source of
+        # truth; mimetypes is extension-derived and incomplete for many code
+        # and config formats.
         guessed_mime, _ = mimetypes.guess_type(safe_name.lower())
-        if guessed_mime and guessed_mime not in DocumentValidator.ALLOWED_MIME_TYPES:
+        if (
+            allowed_extensions is None
+            and guessed_mime
+            and guessed_mime not in DocumentValidator.ALLOWED_MIME_TYPES
+        ):
             raise ValueError(
                 f"MIME type validation failed: {guessed_mime}. File may be malicious or corrupted."
             )

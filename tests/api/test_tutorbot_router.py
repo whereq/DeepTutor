@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -49,12 +50,20 @@ def _make_fake_manager(existing: dict | None = None):
             "persona": "existing persona",
             "channels": {},
             "model": None,
+            "llm_selection": None,
         }
         defaults.update(existing)
         return BotConfig(**defaults)
 
     class FakeManager:
-        _MERGEABLE_FIELDS = ("name", "description", "persona", "channels", "model")
+        _MERGEABLE_FIELDS = (
+            "name",
+            "description",
+            "persona",
+            "channels",
+            "model",
+            "llm_selection",
+        )
 
         def load_bot_config(self, bot_id: str) -> BotConfig | None:
             return _build_existing()
@@ -73,6 +82,7 @@ def _make_fake_manager(existing: dict | None = None):
                 "bot_id": bot_id,
                 "name": config.name,
                 "channels": config.channels,
+                "llm_selection": config.llm_selection,
                 "running": True,
             }
             return instance
@@ -90,6 +100,57 @@ def _make_client(monkeypatch, existing: dict | None = None):
     app = FastAPI()
     app.include_router(tutorbot_router_mod.router, prefix="/api/v1/tutorbot")
     return TestClient(app), saved
+
+
+def _catalog_with_llm_options() -> dict[str, Any]:
+    return {
+        "version": 1,
+        "services": {
+            "llm": {
+                "active_profile_id": "p-default",
+                "active_model_id": "m-default",
+                "profiles": [
+                    {
+                        "id": "p-default",
+                        "name": "OpenAI",
+                        "binding": "openai",
+                        "base_url": "https://api.openai.com/v1",
+                        "api_key": "sk-test",
+                        "models": [
+                            {
+                                "id": "m-default",
+                                "name": "GPT Mini",
+                                "model": "gpt-4o-mini",
+                            }
+                        ],
+                    },
+                    {
+                        "id": "p-alt",
+                        "name": "OpenRouter",
+                        "binding": "openrouter",
+                        "base_url": "https://openrouter.ai/api/v1",
+                        "api_key": "sk-or-test",
+                        "models": [
+                            {
+                                "id": "m-alt",
+                                "name": "Claude",
+                                "model": "anthropic/claude-sonnet-4",
+                            }
+                        ],
+                    },
+                ],
+            }
+        },
+    }
+
+
+def _patch_llm_catalog(monkeypatch) -> None:
+    config_mod = importlib.import_module("deeptutor.services.config")
+    monkeypatch.setattr(
+        config_mod,
+        "get_model_catalog_service",
+        lambda: SimpleNamespace(load=_catalog_with_llm_options),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +277,7 @@ class TestCreateBotExplicitClearSemantics:
                 "persona": "Disk Persona",
                 "channels": {"telegram": {"enabled": True}},
                 "model": "gpt-4o",
+                "llm_selection": {"profile_id": "p-default", "model_id": "m-default"},
             },
         )
 
@@ -231,6 +293,7 @@ class TestCreateBotExplicitClearSemantics:
         assert cfg.persona == "New Persona"
         assert cfg.channels == {"telegram": {"enabled": True}}
         assert cfg.model == "gpt-4o"
+        assert cfg.llm_selection == {"profile_id": "p-default", "model_id": "m-default"}
 
     def test_null_field_in_payload_falls_back_to_existing(self, monkeypatch):
         """Explicit ``null`` for an optional field is treated as 'not provided'.
@@ -248,6 +311,37 @@ class TestCreateBotExplicitClearSemantics:
 
         assert resp.status_code == 200
         assert saved["config"].description == "Disk Desc"
+
+    def test_create_bot_saves_valid_llm_selection(self, monkeypatch):
+        """A new UI-managed bot should persist the selected catalog model."""
+        _patch_llm_catalog(monkeypatch)
+        client, saved = _make_client(monkeypatch, existing=None)
+
+        selection = {"profile_id": "p-alt", "model_id": "m-alt"}
+        resp = client.post(
+            "/api/v1/tutorbot",
+            json={"bot_id": "my-bot", "name": "My Bot", "llm_selection": selection},
+        )
+
+        assert resp.status_code == 200
+        assert saved["config"].llm_selection == selection
+
+    def test_create_bot_rejects_invalid_llm_selection(self, monkeypatch):
+        """Unknown catalog references fail at the API boundary."""
+        _patch_llm_catalog(monkeypatch)
+        client, _saved = _make_client(monkeypatch, existing=None)
+
+        resp = client.post(
+            "/api/v1/tutorbot",
+            json={
+                "bot_id": "my-bot",
+                "name": "My Bot",
+                "llm_selection": {"profile_id": "missing", "model_id": "m-alt"},
+            },
+        )
+
+        assert resp.status_code == 422
+        assert "Invalid LLM selection" in resp.json()["detail"]
 
 
 class TestGetBotStoppedSecretHandling:
@@ -267,7 +361,11 @@ class TestGetBotStoppedSecretHandling:
                 return None
 
             def load_bot_config(self, bot_id: str) -> BotConfig | None:
-                return BotConfig(name="b", channels=TestGetBotStoppedSecretHandling._CHANNELS)
+                return BotConfig(
+                    name="b",
+                    channels=TestGetBotStoppedSecretHandling._CHANNELS,
+                    llm_selection={"profile_id": "p-default", "model_id": "m-default"},
+                )
 
         tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
         monkeypatch.setattr(tutorbot_router_mod, "get_tutorbot_manager", lambda: FakeMgr())
@@ -288,6 +386,7 @@ class TestGetBotStoppedSecretHandling:
         assert body["channels"]["send_progress"] is True
         assert body["running"] is False
         assert body["last_reload_error"] is None
+        assert body["llm_selection"] == {"profile_id": "p-default", "model_id": "m-default"}
 
     def test_explicit_include_secrets_reveals_token(self, monkeypatch):
         client = self._client(monkeypatch)
@@ -337,6 +436,39 @@ class TestPatchBotStoppedAndRunning:
         # Response masks the token
         assert body["channels"]["telegram"]["token"] == "***"
         assert body["channels"]["telegram"]["enabled"] is True
+
+    def test_patch_stopped_can_clear_llm_selection(self, monkeypatch):
+        from deeptutor.services.tutorbot.manager import BotConfig
+
+        saved_cfg: list[BotConfig | None] = []
+
+        class FakeMgr:
+            def get_bot(self, bot_id: str):
+                return None
+
+            def load_bot_config(self, bot_id: str) -> BotConfig | None:
+                return BotConfig(
+                    name="b",
+                    llm_selection={"profile_id": "p-alt", "model_id": "m-alt"},
+                )
+
+            def save_bot_config(
+                self, bot_id: str, config: BotConfig, *, auto_start: bool = True
+            ) -> None:
+                saved_cfg.append(config)
+
+        tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
+        monkeypatch.setattr(tutorbot_router_mod, "get_tutorbot_manager", lambda: FakeMgr())
+
+        app = FastAPI()
+        app.include_router(tutorbot_router_mod.router, prefix="/api/v1/tutorbot")
+        client = TestClient(app)
+
+        resp = client.patch("/api/v1/tutorbot/b", json={"llm_selection": None})
+
+        assert resp.status_code == 200
+        assert saved_cfg[0].llm_selection is None
+        assert resp.json()["llm_selection"] is None
 
     def test_patch_running_channels_calls_reload(self, monkeypatch):
         from deeptutor.services.tutorbot.manager import BotConfig
@@ -390,6 +522,59 @@ class TestPatchBotStoppedAndRunning:
         )
         assert resp.status_code == 200
         assert reloaded == [True]
+
+    def test_patch_running_llm_selection_calls_reload_llm(self, monkeypatch):
+        from deeptutor.services.tutorbot.manager import BotConfig
+
+        _patch_llm_catalog(monkeypatch)
+        reloaded: list[str] = []
+        saved_cfg: list[BotConfig] = []
+        selection = {"profile_id": "p-alt", "model_id": "m-alt"}
+
+        class FakeInst:
+            def __init__(self):
+                self.config = BotConfig(name="b")
+
+            @property
+            def running(self) -> bool:
+                return True
+
+            def to_dict(self, *, include_secrets: bool = False, mask_secrets: bool = False):
+                return {
+                    "bot_id": "b",
+                    "name": self.config.name,
+                    "channels": [],
+                    "running": True,
+                    "llm_selection": self.config.llm_selection,
+                }
+
+        inst = FakeInst()
+
+        class FakeMgr:
+            def get_bot(self, bot_id: str):
+                return inst if bot_id == "b" else None
+
+            def save_bot_config(
+                self, bot_id: str, config: BotConfig, *, auto_start: bool = True
+            ) -> None:
+                saved_cfg.append(config)
+
+            async def reload_llm(self, bot_id: str) -> None:
+                reloaded.append(bot_id)
+
+        tutorbot_router_mod = importlib.import_module("deeptutor.api.routers.tutorbot")
+        monkeypatch.setattr(tutorbot_router_mod, "get_tutorbot_manager", lambda: FakeMgr())
+
+        app = FastAPI()
+        app.include_router(tutorbot_router_mod.router, prefix="/api/v1/tutorbot")
+        client = TestClient(app)
+
+        resp = client.patch("/api/v1/tutorbot/b", json={"llm_selection": selection})
+
+        assert resp.status_code == 200
+        assert saved_cfg[0].llm_selection == selection
+        assert reloaded == ["b"]
+        assert resp.json()["llm_selection"] == selection
 
     def test_patch_invalid_channels_rejected_422(self, monkeypatch):
         """Malformed channels must be rejected at the boundary, not after disk write."""

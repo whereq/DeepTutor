@@ -31,8 +31,7 @@ const MEMORY_OPTIONS: MemoryOption[] = [
   {
     key: "profile",
     label: "Profile",
-    description:
-      "Inject the learner profile (preferences, goals, background).",
+    description: "Inject the learner profile (preferences, goals, background).",
     icon: FileText,
   },
 ];

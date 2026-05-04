@@ -18,6 +18,7 @@ ENV_KEY_ORDER = (
     "LLM_API_KEY",
     "LLM_HOST",
     "LLM_API_VERSION",
+    "LLM_REASONING_EFFORT",
     "EMBEDDING_BINDING",
     "EMBEDDING_MODEL",
     "EMBEDDING_API_KEY",
@@ -110,6 +111,9 @@ class EnvStore:
                 "api_key": values.get("LLM_API_KEY", os.getenv("LLM_API_KEY", "")),
                 "host": values.get("LLM_HOST", os.getenv("LLM_HOST", "")),
                 "api_version": values.get("LLM_API_VERSION", os.getenv("LLM_API_VERSION", "")),
+                "reasoning_effort": values.get(
+                    "LLM_REASONING_EFFORT", os.getenv("LLM_REASONING_EFFORT", "")
+                ),
             },
             embedding={
                 "binding": values.get(

@@ -71,6 +71,11 @@ def test_clean_thinking_tags_handles_unclosed_blocks() -> None:
     assert clean_thinking_tags("Edited text\n<think>still reasoning") == "Edited text"
 
 
+def test_clean_thinking_tags_handles_backtick_wrapped_tags() -> None:
+    """Post-markdown-normalized thinking tags should also be stripped."""
+    assert clean_thinking_tags("`<think>`ignore`</think>`Hello") == "Hello"
+
+
 def test_extract_response_content() -> None:
     """Response content extraction should handle mapping payloads."""
     payload = {"content": [{"text": "Hello"}, {"text": "World"}]}

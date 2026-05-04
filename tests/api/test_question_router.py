@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import importlib
 from pathlib import Path
 import sys
@@ -17,35 +18,17 @@ def _cleanup_question_router_module():
     sys.modules.pop("deeptutor.api.routers.question", None)
 
 
-class _DummyLogger:
-    def debug(self, *_args, **_kwargs) -> None:
-        pass
+class _DummyProcessLogEvent:
+    def __init__(self, **kwargs) -> None:
+        self.data = {"type": "process_log", **kwargs}
 
-    def error(self, *_args, **_kwargs) -> None:
-        pass
-
-    def exception(self, *_args, **_kwargs) -> None:
-        pass
-
-    def info(self, *_args, **_kwargs) -> None:
-        pass
-
-    def success(self, *_args, **_kwargs) -> None:
-        pass
-
-    def warning(self, *_args, **_kwargs) -> None:
-        pass
+    def to_dict(self):
+        return self.data
 
 
-class _DummyLogInterceptor:
-    def __init__(self, *_args, **_kwargs) -> None:
-        pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_args) -> None:
-        return None
+@contextmanager
+def _noop_context(*_args, **_kwargs):
+    yield
 
 
 def _package(name: str) -> types.ModuleType:
@@ -65,15 +48,11 @@ def _load_question_router_module(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setitem(sys.modules, "deeptutor.agents.question", fake_agents_question)
 
     fake_logging = _package("deeptutor.logging")
-    fake_logging.get_logger = lambda *_args, **_kwargs: _DummyLogger()
-    fake_logging_handlers = types.ModuleType("deeptutor.logging.handlers")
-    fake_logging_handlers.JSONFileHandler = object
-    fake_logging_handlers.LogInterceptor = _DummyLogInterceptor
-    fake_logging_handlers.WebSocketLogHandler = object
-    fake_logging_handlers.create_task_logger = lambda *_args, **_kwargs: None
-    fake_logging.handlers = fake_logging_handlers
+    fake_logging.ProcessLogEvent = _DummyProcessLogEvent
+    fake_logging.bind_log_context = _noop_context
+    fake_logging.capture_process_logs = _noop_context
+    fake_logging.current_log_context = lambda: {}
     monkeypatch.setitem(sys.modules, "deeptutor.logging", fake_logging)
-    monkeypatch.setitem(sys.modules, "deeptutor.logging.handlers", fake_logging_handlers)
 
     fake_config = types.ModuleType("deeptutor.services.config")
     fake_config.PROJECT_ROOT = Path.cwd()

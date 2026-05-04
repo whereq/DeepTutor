@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -127,6 +128,18 @@ def test_retrieve_nodes_rejects_invalid_persisted_embeddings(
 
     with pytest.raises(ValueError, match="RAG index contains invalid embedding vectors"):
         storage_module.retrieve_nodes(tmp_path, "what is this?")
+
+
+def test_validate_storage_embeddings_rejects_invalid_vector_file(tmp_path) -> None:
+    from deeptutor.services.rag.pipelines.llamaindex import storage as storage_module
+
+    (tmp_path / "default__vector_store.json").write_text(
+        json.dumps({"embedding_dict": {"bad-node": [0.1, None, 0.3]}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="RAG index contains invalid embedding vectors"):
+        storage_module.validate_storage_embeddings(tmp_path)
 
 
 def test_retrieve_nodes_checks_storage_context_vector_stores(

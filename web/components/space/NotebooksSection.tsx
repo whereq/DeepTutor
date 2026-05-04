@@ -177,8 +177,7 @@ export default function NotebooksSection() {
       case "chat":
         return {
           label: t("Chat"),
-          color:
-            "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+          color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
           icon: MessageSquare,
         };
       case "tutorbot":
@@ -288,16 +287,16 @@ export default function NotebooksSection() {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <div className="xl:sticky xl:top-8 xl:max-h-[calc(100vh-12rem)] space-y-3 overflow-y-auto pr-1">
+          <div className="xl:sticky xl:top-8 xl:max-h-[calc(100vh-12rem)] space-y-2 overflow-y-auto pr-1">
             {notebooks.map((notebook) => {
               const active = selectedId === notebook.id;
               return (
                 <div
                   key={notebook.id}
-                  className={`group relative w-full rounded-xl border p-4 text-left transition-all ${
+                  className={`group relative w-full rounded-xl border p-3.5 text-left transition-all ${
                     active
-                      ? "border-[var(--primary)]/40 bg-[var(--primary)]/8 shadow-sm"
-                      : "border-[var(--border)] bg-[var(--background)] hover:border-[var(--foreground)]/15 hover:bg-[var(--muted)]/30"
+                      ? "border-[var(--primary)]/40 bg-[var(--primary)]/[0.08] shadow-sm"
+                      : "border-[var(--border)] bg-[var(--background)] hover:border-[var(--foreground)]/20 hover:bg-[var(--muted)]/30"
                   }`}
                 >
                   <button
@@ -305,27 +304,29 @@ export default function NotebooksSection() {
                     onClick={() => void loadDetail(notebook.id)}
                     className="block w-full text-left"
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2.5">
                       <div
-                        className="mt-1 h-3 w-3 rounded-full"
+                        className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-[var(--background)]"
                         style={{
                           backgroundColor: notebook.color || "var(--primary)",
                         }}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="text-[14px] font-semibold text-[var(--foreground)]">
+                        <div className="truncate text-[13.5px] font-semibold text-[var(--foreground)]">
                           {notebook.name}
                         </div>
-                        {notebook.description && (
-                          <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
-                            {notebook.description}
-                          </p>
-                        )}
-                        <div className="mt-3 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
+                        <p className="mt-0.5 line-clamp-1 min-h-[1.1em] text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
+                          {notebook.description || (
+                            <span className="italic text-[var(--muted-foreground)]/60">
+                              {t("No description.")}
+                            </span>
+                          )}
+                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-2 text-[10.5px] tabular-nums text-[var(--muted-foreground)]">
                           <span>
                             {notebook.record_count ?? 0} {t("records")}
                           </span>
-                          <span>
+                          <span className="truncate text-right">
                             {notebook.updated_at
                               ? formatTimestamp(notebook.updated_at)
                               : ""}
@@ -341,9 +342,9 @@ export default function NotebooksSection() {
                       void handleDelete(notebook.id, notebook.name);
                     }}
                     title={t("Delete")}
-                    className="absolute right-2 top-2 rounded-md p-1.5 text-[var(--muted-foreground)] opacity-0 transition-opacity hover:bg-[var(--destructive)]/10 hover:text-[var(--destructive)] group-hover:opacity-100"
+                    className="absolute right-1.5 top-1.5 rounded-md p-1.5 text-[var(--muted-foreground)] opacity-0 transition-opacity hover:bg-[var(--destructive)]/10 hover:text-[var(--destructive)] group-hover:opacity-100"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={12} />
                   </button>
                 </div>
               );
@@ -400,9 +401,7 @@ export default function NotebooksSection() {
                         <div key={record.id} className="group">
                           <button
                             onClick={() =>
-                              setExpandedRecordId(
-                                expanded ? null : record.id,
-                              )
+                              setExpandedRecordId(expanded ? null : record.id)
                             }
                             className="flex w-full items-center gap-3 px-1 py-3.5 text-left transition-colors hover:bg-[var(--muted)]/30"
                           >

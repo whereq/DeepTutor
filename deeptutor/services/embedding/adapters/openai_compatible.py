@@ -17,11 +17,20 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
+    NO_KEY_SENTINEL = "sk-no-key-required"
+
     MODELS_INFO = {
         "text-embedding-3-large": {"default": 3072, "dimensions": [256, 512, 1024, 3072]},
         "text-embedding-3-small": {"default": 1536, "dimensions": [512, 1536]},
         "text-embedding-ada-002": 1536,
     }
+
+    def _auth_api_key(self) -> str:
+        """Return a real API key, suppressing local-provider placeholder keys."""
+        key = str(self.api_key or "").strip()
+        if key == self.NO_KEY_SENTINEL:
+            return ""
+        return key
 
     @staticmethod
     def _extract_embeddings_from_response(data: Any) -> list[list[float]]:
@@ -132,11 +141,12 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         import asyncio
 
         headers = {"Content-Type": "application/json"}
+        api_key = self._auth_api_key()
         if self.api_version:
-            if self.api_key:
-                headers["api-key"] = self.api_key
-        elif self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+            if api_key:
+                headers["api-key"] = api_key
+        elif api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         headers.update({str(k): str(v) for k, v in self.extra_headers.items()})
 
         # Multimodal: pass `contents` through as `input` when set. SiliconFlow's
@@ -197,9 +207,7 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
 
                     if response.status_code >= 400:
                         body_text = response.text
-                        logger.error(
-                            f"HTTP {response.status_code} from {url}: {body_text[:2000]}"
-                        )
+                        logger.error(f"HTTP {response.status_code} from {url}: {body_text[:2000]}")
                         raise EmbeddingProviderError(
                             f"Embedding provider returned HTTP {response.status_code}",
                             status=response.status_code,
@@ -225,7 +233,10 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
                                 "not support embeddings or the selected model "
                                 "may not be an embedding model."
                             )
-                        elif "text/html" in content_type.lower() or body_preview.lstrip().startswith("<"):
+                        elif (
+                            "text/html" in content_type.lower()
+                            or body_preview.lstrip().startswith("<")
+                        ):
                             hint = (
                                 " The response was HTML, not JSON — the URL is "
                                 "likely wrong or the gateway does not expose "

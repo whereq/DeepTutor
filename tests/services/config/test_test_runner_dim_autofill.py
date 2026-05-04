@@ -139,9 +139,7 @@ def _client_with_known_model(
 ) -> MagicMock:
     """Build a fake EmbeddingClient whose adapter advertises a known model."""
     adapter = MagicMock()
-    adapter.MODELS_INFO = {
-        model_name: {"default": default_dim, "dimensions": supported}
-    }
+    adapter.MODELS_INFO = {model_name: {"default": default_dim, "dimensions": supported}}
     adapter.get_model_info = MagicMock(
         return_value={
             "model": model_name,

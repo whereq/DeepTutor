@@ -78,7 +78,6 @@ def _can_import(name: str) -> bool:
         return False
 
 
-
 def _bootstrap() -> None:
     missing = [pip for imp, pip in _BOOTSTRAP_PACKAGES if not _can_import(imp)]
     if not missing:
@@ -102,7 +101,6 @@ def _bootstrap() -> None:
 
 
 _bootstrap()
-
 
 
 def _load_runtime_deps():
@@ -171,6 +169,8 @@ PROFILE_COMMANDS: dict[str, list[str]] = {
     "cli-rag": ["requirements/cli.txt"],
     "web-basic": ["requirements/server.txt"],
     "web-rag": ["requirements/server.txt"],
+    "web-tutorbot": ["requirements/tutorbot.txt"],
+    "web-matrix": ["requirements/matrix.txt"],
 }
 
 PROFILE_ALIASES: dict[str, str] = {
@@ -181,6 +181,7 @@ PROFILE_ALIASES: dict[str, str] = {
 }
 
 MATH_ANIMATOR_REQUIREMENTS = "requirements/math-animator.txt"
+NODE_MIN_VERSION = (20, 9, 0)
 
 
 MESSAGES: dict[str, dict[str, str]] = {
@@ -274,8 +275,22 @@ MESSAGES: dict[str, dict[str, str]] = {
         "install_node_hint_winget": "Install with: winget install OpenJS.NodeJS",
         "install_node_hint_manual": "Download from https://nodejs.org",
         "install_node_abort": "Node.js is required for the frontend. Please install it and re-run this script.",
+        "install_node_too_old": "Node.js {version} is too old. DeepTutor web requires Node.js >=20.9.0.",
+        "install_profile_prompt": "Choose installation profile",
+        "install_profile_web_label": "Web app (recommended)",
+        "install_profile_web_desc": "CLI + API server + RAG/document parsing",
+        "install_profile_tutorbot_label": "Web + TutorBot",
+        "install_profile_tutorbot_desc": "Adds TutorBot engine and common channel SDKs",
+        "install_profile_matrix_label": "Web + TutorBot + Matrix",
+        "install_profile_matrix_desc": "Also installs matrix-nio[e2e]; requires libolm on your system",
+        "install_math_animator": "Install Math Animator add-on?",
+        "install_math_animator_hint": (
+            "Optional: Manim can require LaTeX, Cairo, pkg-config, CMake, and ffmpeg."
+        ),
+        "install_selected": "Selected install profile: {profile}",
         "install_confirm": "Install dependencies now?",
         "install_backend": "Installing Python dependencies ...",
+        "install_requirement": "Installing {requirement} ...",
         "install_backend_done": "Python dependencies installed.",
         "install_frontend": "Installing frontend dependencies (npm install) ...",
         "install_frontend_done": "Frontend dependencies installed.",
@@ -376,8 +391,20 @@ MESSAGES: dict[str, dict[str, str]] = {
         "install_node_hint_winget": "请运行: winget install OpenJS.NodeJS",
         "install_node_hint_manual": "请前往 https://nodejs.org 下载安装",
         "install_node_abort": "前端运行需要 Node.js，请安装后重新运行本脚本。",
+        "install_node_too_old": "当前 Node.js {version} 版本过低。DeepTutor Web 需要 Node.js >=20.9.0。",
+        "install_profile_prompt": "选择安装配置",
+        "install_profile_web_label": "Web 应用（推荐）",
+        "install_profile_web_desc": "CLI + API 服务 + RAG/文档解析",
+        "install_profile_tutorbot_label": "Web + TutorBot",
+        "install_profile_tutorbot_desc": "增加 TutorBot 引擎和常用渠道 SDK",
+        "install_profile_matrix_label": "Web + TutorBot + Matrix",
+        "install_profile_matrix_desc": "额外安装 matrix-nio[e2e]；系统需先安装 libolm",
+        "install_math_animator": "是否安装 Math Animator 附加能力？",
+        "install_math_animator_hint": "选填：Manim 可能需要 LaTeX、Cairo、pkg-config、CMake 和 ffmpeg。",
+        "install_selected": "已选择安装配置：{profile}",
         "install_confirm": "现在安装依赖？",
         "install_backend": "正在安装 Python 依赖 ...",
+        "install_requirement": "正在安装 {requirement} ...",
         "install_backend_done": "Python 依赖安装完成。",
         "install_frontend": "正在安装前端依赖（npm install）...",
         "install_frontend_done": "前端依赖安装完成。",
@@ -462,7 +489,6 @@ def _node_strategy() -> str:
     return "manual"
 
 
-
 def _get_npm_command() -> str:
     if platform.system().lower() == "windows":
         return "npm.cmd"
@@ -470,7 +496,6 @@ def _get_npm_command() -> str:
     if npm:
         return npm
     return "npm"
-
 
 
 def _install_commands(
@@ -494,13 +519,20 @@ def _install_commands(
                 PROJECT_ROOT,
             )
         )
-    cmds.append(
-        ([*_PIP_CMD, "install", "-e", ".", "--no-deps", *_PIP_PYTHON_ARGS], PROJECT_ROOT)
-    )
+    cmds.append(([*_PIP_CMD, "install", "-e", ".", "--no-deps", *_PIP_PYTHON_ARGS], PROJECT_ROOT))
     if profile.startswith("web"):
         cmds.append(([_get_npm_command(), "install"], PROJECT_ROOT / "web"))
     return cmds
 
+
+def _requirements_for_install(profile: str, *, include_math_animator: bool = False) -> list[str]:
+    profile = PROFILE_ALIASES.get(profile, profile)
+    if profile not in PROFILE_COMMANDS:
+        raise ValueError(f"Unknown install profile: {profile}")
+    requirements = list(PROFILE_COMMANDS[profile])
+    if include_math_animator:
+        requirements.append(MATH_ANIMATOR_REQUIREMENTS)
+    return requirements
 
 
 def _run_cmd(cmd: list[str], cwd: Path) -> None:
@@ -509,7 +541,6 @@ def _run_cmd(cmd: list[str], cwd: Path) -> None:
     result = subprocess.run(cmd, cwd=str(cwd), check=False, shell=use_shell)
     if result.returncode != 0:
         raise RuntimeError(f"Command failed (exit {result.returncode}): {' '.join(cmd)}")
-
 
 
 def _stream_text_kwargs() -> dict[str, object]:
@@ -535,11 +566,9 @@ def _set_language(language: str) -> None:
     _LANG = "zh" if str(language).strip().lower().startswith("zh") else "en"
 
 
-
 def _t(key: str, **kwargs: Any) -> str:
     template = MESSAGES[_LANG].get(key, MESSAGES["en"].get(key, key))
     return template.format(**kwargs)
-
 
 
 def _secret_mask(value: str) -> str:
@@ -548,7 +577,6 @@ def _secret_mask(value: str) -> str:
     if len(value) <= 8:
         return "****"
     return f"{value[:4]}...{value[-4:]}"
-
 
 
 def _save_ui_language(language: str, path: Path = INTERFACE_SETTINGS_PATH) -> None:
@@ -563,7 +591,6 @@ def _save_ui_language(language: str, path: Path = INTERFACE_SETTINGS_PATH) -> No
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-
 def _ensure_env_file(env_path: Path = ENV_PATH, template_path: Path = ENV_EXAMPLE_PATH) -> bool:
     if env_path.exists():
         return False
@@ -575,13 +602,11 @@ def _ensure_env_file(env_path: Path = ENV_PATH, template_path: Path = ENV_EXAMPL
     return True
 
 
-
 def _cleanup_legacy_tour_cache(path: Path = LEGACY_TOUR_CACHE_PATH) -> bool:
     if not path.exists():
         return False
     path.unlink(missing_ok=True)
     return True
-
 
 
 def _prompt_int(prompt: str, default: int) -> int:
@@ -593,15 +618,15 @@ def _prompt_int(prompt: str, default: int) -> int:
             log_warn(f"{prompt}: {value!r} is not a valid integer.")
 
 
-
 def _prompt_secret(prompt: str, default: str) -> str:
     if default:
         log_info(dim(_t("keep_secret")))
     return text_input(prompt, default, secret=True)
 
 
-
-def _enum_options(options: list[tuple[str, str, str]], current: str | None = None) -> list[tuple[str, str, str]]:
+def _enum_options(
+    options: list[tuple[str, str, str]], current: str | None = None
+) -> list[tuple[str, str, str]]:
     normalized_current = str(current or "").strip()
     if not normalized_current:
         return options
@@ -613,13 +638,11 @@ def _enum_options(options: list[tuple[str, str, str]], current: str | None = Non
     return [(normalized_current, current_label, current_desc)] + options
 
 
-
 def _load_provider_metadata():
     from deeptutor.services.config.provider_runtime import EMBEDDING_PROVIDERS
     from deeptutor.services.provider_registry import PROVIDERS, find_by_name
 
     return EMBEDDING_PROVIDERS, find_by_name, PROVIDERS
-
 
 
 # Order in which provider modes are listed in the wizard.
@@ -683,7 +706,6 @@ def _llm_provider_options(current: str | None) -> list[tuple[str, str, str]]:
     return _enum_options(options, current)
 
 
-
 def _embedding_provider_options(current: str | None) -> list[tuple[str, str, str]]:
     embedding_providers, _, _ = _load_provider_metadata()
     common = ["openai", "gemini", "jina", "cohere", "ollama", "vllm", "azure_openai", "custom"]
@@ -701,7 +723,6 @@ def _embedding_provider_options(current: str | None) -> list[tuple[str, str, str
     return _enum_options(options, current)
 
 
-
 def _search_provider_options(current: str | None) -> list[tuple[str, str, str]]:
     options = [
         (value, label, _t("search_none_desc") if value == "none" else desc)
@@ -710,8 +731,9 @@ def _search_provider_options(current: str | None) -> list[tuple[str, str, str]]:
     return _enum_options(options, current)
 
 
-
-def _default_base_url(binding: str, current_binding: str, current_value: str, fallback: str = "") -> str:
+def _default_base_url(
+    binding: str, current_binding: str, current_value: str, fallback: str = ""
+) -> str:
     if current_value and binding == current_binding:
         return current_value
     embedding_providers, find_by_name, _ = _load_provider_metadata()
@@ -723,12 +745,10 @@ def _default_base_url(binding: str, current_binding: str, current_value: str, fa
     return fallback
 
 
-
 def _default_llm_model(binding: str, current_binding: str, current_model: str) -> str:
     if current_model and binding == current_binding:
         return current_model
     return LLM_MODEL_SUGGESTIONS.get(binding, current_model)
-
 
 
 def _default_embedding_model(binding: str, current_binding: str, current_model: str) -> str:
@@ -741,7 +761,6 @@ def _default_embedding_model(binding: str, current_binding: str, current_model: 
     return EMBEDDING_MODEL_SUGGESTIONS.get(binding, current_model)
 
 
-
 def _default_embedding_dimension(binding: str, current_binding: str, current_value: str) -> str:
     if current_value and binding == current_binding:
         return current_value
@@ -752,7 +771,6 @@ def _default_embedding_dimension(binding: str, current_binding: str, current_val
     return current_value or "3072"
 
 
-
 def _send_dimensions_choice(current_value: str) -> str:
     normalized = str(current_value or "").strip().lower()
     if normalized in {"true", "1", "yes", "on"}:
@@ -761,14 +779,80 @@ def _send_dimensions_choice(current_value: str) -> str:
         default = "false"
     else:
         default = "auto"
-    return select(
-        _t("send_dimensions"),
-        [
-            ("auto", _t("send_dimensions_auto"), ""),
-            ("true", _t("send_dimensions_yes"), ""),
-            ("false", _t("send_dimensions_no"), ""),
-        ],
-    ) or default
+    return (
+        select(
+            _t("send_dimensions"),
+            [
+                ("auto", _t("send_dimensions_auto"), ""),
+                ("true", _t("send_dimensions_yes"), ""),
+                ("false", _t("send_dimensions_no"), ""),
+            ],
+        )
+        or default
+    )
+
+
+def _install_profile_options() -> list[tuple[str, str, str]]:
+    return [
+        (
+            "web-basic",
+            _t("install_profile_web_label"),
+            _t("install_profile_web_desc"),
+        ),
+        (
+            "web-tutorbot",
+            _t("install_profile_tutorbot_label"),
+            _t("install_profile_tutorbot_desc"),
+        ),
+        (
+            "web-matrix",
+            _t("install_profile_matrix_label"),
+            _t("install_profile_matrix_desc"),
+        ),
+    ]
+
+
+def _install_profile_label(profile: str) -> str:
+    for value, label, _desc in _install_profile_options():
+        if value == profile:
+            return label
+    return profile
+
+
+def _select_install_profile() -> str:
+    profile = select(_t("install_profile_prompt"), _install_profile_options())
+    log_info(_t("install_selected", profile=_install_profile_label(profile)))
+    return profile
+
+
+def _select_math_animator() -> bool:
+    log_info(dim(_t("install_math_animator_hint")))
+    return confirm(_t("install_math_animator"), default=False)
+
+
+def _parse_version_tuple(version: str | None) -> tuple[int, int, int] | None:
+    if not version:
+        return None
+    token = version.strip().split()[0].lstrip("v")
+    parts: list[int] = []
+    for raw_part in token.split(".")[:3]:
+        digits = ""
+        for char in raw_part:
+            if char.isdigit():
+                digits += char
+            else:
+                break
+        if not digits:
+            return None
+        parts.append(int(digits))
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+def _node_version_supported(version: str | None) -> bool:
+    parsed = _parse_version_tuple(version)
+    return parsed is None or parsed >= NODE_MIN_VERSION
 
 
 # ---------------------------------------------------------------------------
@@ -930,11 +1014,14 @@ def _install_dependencies() -> None:
     node_version = _detect_command_version("node")
     npm_version = _detect_command_version("npm")
 
-    if node_version and npm_version:
+    if node_version and npm_version and _node_version_supported(node_version):
         log_success(_t("install_node_ok", version=node_version))
         log_success(_t("install_npm_ok", version=npm_version))
     else:
-        log_warn(_t("install_node_missing"))
+        if node_version and not _node_version_supported(node_version):
+            log_warn(_t("install_node_too_old", version=node_version))
+        else:
+            log_warn(_t("install_node_missing"))
         strategy = _node_strategy()
         hint_key = f"install_node_hint_{strategy}"
         if hint_key in MESSAGES[_LANG]:
@@ -951,9 +1038,16 @@ def _install_dependencies() -> None:
         if not (node_version and npm_version):
             log_error(_t("install_node_abort"))
             raise SystemExit(1)
+        if not _node_version_supported(node_version):
+            log_error(_t("install_node_too_old", version=node_version))
+            raise SystemExit(1)
         log_success(_t("install_node_ok", version=node_version))
         log_success(_t("install_npm_ok", version=npm_version))
 
+    print()
+
+    profile = _select_install_profile()
+    include_math_animator = _select_math_animator()
     print()
 
     if not confirm(_t("install_confirm"), default=True):
@@ -965,13 +1059,17 @@ def _install_dependencies() -> None:
 
     uv = _uv()
 
-    # --- uv pip install -r requirements/server.txt ---
+    # --- uv pip install -r requirements/*.txt ---
     try:
-        _run_live(
-            [uv, "pip", "install", "-r", "requirements/server.txt", "--python", _PYTHON],
-            PROJECT_ROOT,
-            _t("install_backend"),
-        )
+        for requirement in _requirements_for_install(
+            profile,
+            include_math_animator=include_math_animator,
+        ):
+            _run_live(
+                [uv, "pip", "install", "-r", requirement, "--python", _PYTHON],
+                PROJECT_ROOT,
+                _t("install_requirement", requirement=requirement),
+            )
         log_success(_t("install_backend_done"))
     except RuntimeError as exc:
         log_error(_t("install_failed", error=str(exc)))
@@ -1023,7 +1121,6 @@ def _choose_language() -> str:
     return language
 
 
-
 def _configure_ports() -> dict[str, str]:
     step(3, _TOTAL_STEPS, _t("ports_step"))
     summary = get_env_store().as_summary()
@@ -1034,7 +1131,6 @@ def _configure_ports() -> dict[str, str]:
         "BACKEND_PORT": str(backend_port),
         "FRONTEND_PORT": str(frontend_port),
     }
-
 
 
 def _configure_llm() -> dict[str, str]:
@@ -1065,7 +1161,6 @@ def _configure_llm() -> dict[str, str]:
         "LLM_MODEL": model_id,
         "LLM_API_VERSION": api_version,
     }
-
 
 
 def _configure_embedding() -> dict[str, str]:
@@ -1103,7 +1198,6 @@ def _configure_embedding() -> dict[str, str]:
         "EMBEDDING_SEND_DIMENSIONS": "" if send_dimensions == "auto" else send_dimensions,
         "EMBEDDING_API_VERSION": api_version,
     }
-
 
 
 def _configure_search() -> dict[str, str]:
@@ -1149,7 +1243,6 @@ def _configure_search() -> dict[str, str]:
     }
 
 
-
 def _print_review(values: dict[str, str]) -> None:
     step(7, _TOTAL_STEPS, _t("review_step"))
     log_info(
@@ -1180,10 +1273,8 @@ def _print_review(values: dict[str, str]) -> None:
     print()
 
 
-
 def _write_env(values: dict[str, str]) -> None:
     get_env_store().write(values)
-
 
 
 def _tour_banner() -> None:
@@ -1194,7 +1285,6 @@ def _tour_banner() -> None:
             "命令行配置向导。",
         ],
     )
-
 
 
 def run_tour() -> None:
@@ -1238,7 +1328,6 @@ def run_tour() -> None:
     print()
     print(f"  {dim('$')} {_t('next_command')}")
     print()
-
 
 
 def main() -> None:

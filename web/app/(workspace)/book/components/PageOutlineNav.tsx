@@ -19,6 +19,7 @@ import {
   Sparkles,
   Sticker,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import type { Block, BlockType, BlockStatus } from "@/lib/book-types";
 
@@ -53,30 +54,6 @@ const TYPE_LABEL_EN: Record<BlockType, string> = {
   deep_dive: "Deep dive",
   concept_graph: "Concept graph",
 };
-
-const TYPE_LABEL_ZH: Record<BlockType, string> = {
-  text: "文本",
-  section: "章节",
-  callout: "要点",
-  quiz: "测验",
-  user_note: "笔记",
-  figure: "图示",
-  interactive: "交互",
-  animation: "动画",
-  code: "代码",
-  timeline: "时间线",
-  flash_cards: "闪卡",
-  deep_dive: "深入",
-  concept_graph: "概念图",
-};
-
-const HEADER_EN = "On this page";
-const HEADER_ZH = "本页内容";
-
-const COLLAPSE_TIP_EN = "Hide outline";
-const COLLAPSE_TIP_ZH = "隐藏目录";
-const EXPAND_TIP_EN = "Show outline";
-const EXPAND_TIP_ZH = "展开目录";
 
 function shortLabel(block: Block, fallback: string): string {
   const title = (block.title || "").trim();
@@ -120,14 +97,13 @@ export interface PageOutlineNavProps {
 export default function PageOutlineNav({
   blocks,
   scrollContainer,
-  language,
+  language: _language,
   resetKey,
 }: PageOutlineNavProps) {
-  const isZh = (language || "").toLowerCase().startsWith("zh");
-  const labelMap = isZh ? TYPE_LABEL_ZH : TYPE_LABEL_EN;
-  const headerText = isZh ? HEADER_ZH : HEADER_EN;
-  const collapseTip = isZh ? COLLAPSE_TIP_ZH : COLLAPSE_TIP_EN;
-  const expandTip = isZh ? EXPAND_TIP_ZH : EXPAND_TIP_EN;
+  const { t } = useTranslation();
+  const headerText = t("On this page");
+  const collapseTip = t("Hide outline");
+  const expandTip = t("Show outline");
 
   // Default: expanded. Reset whenever the page changes.
   const [collapsed, setCollapsed] = useState(false);
@@ -248,7 +224,7 @@ export default function PageOutlineNav({
           <ol className="flex-1 overflow-y-auto px-1.5 py-1.5">
             {visibleBlocks.map((block, idx) => {
               const Icon = TYPE_ICON[block.type] || FileText;
-              const fallbackLabel = labelMap[block.type] || block.type;
+              const fallbackLabel = t(TYPE_LABEL_EN[block.type] || block.type);
               const label = shortLabel(block, fallbackLabel);
               const isActive = block.id === activeId;
               const isError = block.status === "error";

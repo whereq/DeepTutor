@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from types import TracebackType
 
-from deeptutor.logging import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class TrafficController:

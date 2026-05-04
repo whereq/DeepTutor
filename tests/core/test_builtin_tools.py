@@ -94,6 +94,23 @@ async def test_rag_tool_forwards_query_and_extra_kwargs(monkeypatch: pytest.Monk
 
 
 @pytest.mark.asyncio
+async def test_rag_tool_rejects_empty_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    called = False
+
+    async def fake_rag_search(**_kwargs: Any) -> dict[str, Any]:
+        nonlocal called
+        called = True
+        return {"answer": "should not run"}
+
+    _install_module(monkeypatch, "deeptutor.tools.rag_tool", rag_search=fake_rag_search)
+
+    with pytest.raises(ValueError, match="RAG query must be a non-empty string"):
+        await RAGTool().execute(query="  ", kb_name="demo-kb")
+
+    assert called is False
+
+
+@pytest.mark.asyncio
 async def test_web_search_tool_wraps_sync_function(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 

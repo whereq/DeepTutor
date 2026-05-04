@@ -1,16 +1,21 @@
 "use client";
 
 import { memo } from "react";
+import { BookOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { SPACE_ITEMS, type SpaceItemKey } from "@/lib/space-items";
+import { SPACE_ITEMS } from "@/lib/space-items";
 
-type SelectableSpaceKey = Extract<
-  SpaceItemKey,
-  "chat_history" | "notebooks" | "question_bank" | "skills" | "memory"
->;
+type SelectableSpaceKey =
+  | "chat_history"
+  | "books"
+  | "notebooks"
+  | "question_bank"
+  | "skills"
+  | "memory";
 
 export interface ChatSpaceSelectionCounts {
   chatHistory: number;
+  books: number;
   notebooks: number;
   questionBank: number;
   skills: number;
@@ -25,6 +30,7 @@ interface ChatSpaceMenuProps {
 
 const ITEM_ORDER: SelectableSpaceKey[] = [
   "chat_history",
+  "books",
   "notebooks",
   "question_bank",
   "skills",
@@ -38,6 +44,8 @@ function countFor(
   switch (key) {
     case "chat_history":
       return counts.chatHistory;
+    case "books":
+      return counts.books;
     case "notebooks":
       return counts.notebooks;
     case "question_bank":
@@ -61,9 +69,16 @@ export default memo(function ChatSpaceMenu({
 
   // Render the items in a fixed, hand-tuned order so the menu always reads
   // the same regardless of how SPACE_ITEMS may be reordered for navigation.
-  const items = ITEM_ORDER.map((key) => SPACE_ITEMS.find((it) => it.key === key)!).filter(
-    Boolean,
-  );
+  const items = ITEM_ORDER.map((key) =>
+    key === "books"
+      ? {
+          key,
+          label: "Books",
+          description: "Reference generated book chapters in chat.",
+          icon: BookOpen,
+        }
+      : SPACE_ITEMS.find((it) => it.key === key)!,
+  ).filter(Boolean);
 
   return (
     <div

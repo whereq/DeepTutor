@@ -87,6 +87,38 @@ def test_get_llm_config_falls_back_to_env(monkeypatch, tmp_path: Path) -> None:
     assert config.binding == "openai"
 
 
+def test_scoped_llm_config_takes_precedence_over_global_cache(monkeypatch, tmp_path: Path) -> None:
+    _reset_config_cache()
+    monkeypatch.setattr(
+        config_module,
+        "resolve_llm_runtime_config",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _set_temp_env_store(
+        monkeypatch,
+        tmp_path,
+        "\n".join(
+            [
+                "LLM_MODEL=gpt-global",
+                "LLM_HOST=https://global.example/v1",
+                "LLM_API_KEY=sk-global",
+                "LLM_BINDING=openai",
+            ]
+        )
+        + "\n",
+    )
+    global_cfg = config_module.get_llm_config()
+    scoped_cfg = global_cfg.model_copy(update={"model": "gpt-scoped"})
+
+    token = config_module.set_scoped_llm_config(scoped_cfg)
+    try:
+        assert config_module.get_llm_config().model == "gpt-scoped"
+    finally:
+        config_module.reset_scoped_llm_config(token)
+
+    assert config_module.get_llm_config().model == "gpt-global"
+
+
 def test_initialize_environment_sets_openai_env(monkeypatch) -> None:
     """initialize_environment should set OPENAI env vars from resolver output."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

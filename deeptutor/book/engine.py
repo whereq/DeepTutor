@@ -32,10 +32,11 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import logging
+import time
 from typing import Any
 
 from deeptutor.core.stream_bus import StreamBus
-from deeptutor.logging import get_logger
 
 from .agents.ideation_agent import IdeationAgent
 from .agents.source_explorer import SourceExplorer
@@ -72,7 +73,7 @@ from .streaming import (
     BookStream,
 )
 
-logger = get_logger("book.engine")
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -148,6 +149,51 @@ class BookEngine:
         if runtime and runtime.worker and not runtime.worker.done():
             runtime.worker.cancel()
         return self.storage.delete_book(book_id)
+
+    def set_page_chat_session(self, *, book_id: str, page_id: str, session_id: str) -> Book | None:
+        """Persist the chat session associated with a specific book page."""
+        book = self.storage.load_book(book_id)
+        page = self.storage.load_page(book_id, page_id)
+        clean_session_id = (session_id or "").strip()
+        if book is None or page is None or not clean_session_id:
+            return None
+
+        metadata = dict(book.metadata or {})
+        mapping = metadata.get("page_chat_sessions")
+        if not isinstance(mapping, dict):
+            mapping = {}
+        mapping[str(page_id)] = clean_session_id
+        metadata["page_chat_sessions"] = mapping
+        book.metadata = metadata
+        book.updated_at = time.time()
+        self.storage.save_book(book)
+        self.storage.append_log(
+            book_id,
+            f"page chat session mapped ({page_id} → {clean_session_id})",
+            op="page_chat",
+        )
+        return book
+
+    @staticmethod
+    def _reset_page_for_force_compile(page: Page) -> None:
+        """Reset generated block outputs while preserving user-authored notes."""
+        for block in page.blocks:
+            if block.type == BlockType.USER_NOTE:
+                continue
+            preserved_metadata = {
+                key: value
+                for key, value in (block.metadata or {}).items()
+                if key in {"transition_in", "deep_dive_page_id"}
+            }
+            block.status = BlockStatus.PENDING
+            block.payload = {}
+            block.error = ""
+            block.source_anchors = []
+            block.metadata = preserved_metadata
+            block.updated_at = time.time()
+        page.status = PageStatus.PENDING
+        page.error = ""
+        page.updated_at = time.time()
 
     # ── Stage 1: Ideation ────────────────────────────────────────────────
 
@@ -598,6 +644,56 @@ class BookEngine:
             await self._enqueue_pending_pages(book_id, pages, stream=stream)
         return pages
 
+    async def rebuild_book(
+        self,
+        *,
+        book_id: str,
+        stream: StreamBus | None = None,
+        auto_compile: bool = True,
+    ) -> list[Page]:
+        """Regenerate all pages while preserving the confirmed proposal/spine."""
+        book = self.storage.load_book(book_id)
+        spine = self.storage.load_spine(book_id)
+        if book is None or spine is None:
+            raise ValueError(f"Cannot rebuild book – missing book/spine ({book_id})")
+
+        runtime = self._runtimes.get(book_id)
+        if runtime is not None:
+            async with runtime.lock:
+                if runtime.worker is not None and not runtime.worker.done():
+                    runtime.worker.cancel()
+                    runtime.worker = None
+                runtime.queued.clear()
+                while not runtime.queue.empty():
+                    try:
+                        runtime.queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+
+        for page in self.storage.list_pages(book_id):
+            self.storage.delete_page(book_id, page.id)
+        for chapter in spine.chapters:
+            chapter.page_ids = []
+        self.storage.save_spine(spine)
+        self.storage.save_progress(Progress(book_id=book_id))
+
+        book.status = BookStatus.SPINE_READY
+        book.page_count = 0
+        book.updated_at = time.time()
+        self.storage.save_book(book)
+        self.storage.append_log(
+            book_id,
+            f"rebuild requested (preserve_spine=true, auto_compile={auto_compile})",
+            op="rebuild",
+        )
+
+        return await self.confirm_spine(
+            book_id=book_id,
+            edited_spine=spine,
+            stream=stream,
+            auto_compile=auto_compile,
+        )
+
     # ── Stage 3-4: compile a single page (current page) ──────────────────
 
     async def compile_page(
@@ -616,6 +712,9 @@ class BookEngine:
             raise ValueError(f"Cannot compile page – missing book/spine/page ({book_id}/{page_id})")
         if page.status == PageStatus.READY and not force:
             return page
+        if force and page.content_type != ContentType.OVERVIEW:
+            self._reset_page_for_force_compile(page)
+            self.storage.save_page(page)
 
         chapter = spine.chapter_by_id(page.chapter_id)
         if chapter is None:

@@ -112,7 +112,9 @@ class DashScopeMultiModalEmbeddingAdapter(BaseEmbeddingAdapter):
     ) -> EmbeddingResponse:
         output = getattr(resp, "output", None)
         if output is None:
-            raise ValueError(f"DashScope response missing `output` (request_id={getattr(resp, 'request_id', '')})")
+            raise ValueError(
+                f"DashScope response missing `output` (request_id={getattr(resp, 'request_id', '')})"
+            )
 
         # `output` is dict-like in the SDK.
         if isinstance(output, dict):

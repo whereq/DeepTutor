@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from typing import List, Optional
 
-from deeptutor.logging import get_logger
 from deeptutor.services.config.provider_runtime import (
     EMBEDDING_PROVIDERS,
     embedding_endpoint_validation_error,
@@ -36,7 +36,7 @@ class EmbeddingClient:
 
     def __init__(self, config: Optional[EmbeddingConfig] = None):
         self.config = config or get_embedding_config()
-        self.logger = get_logger("EmbeddingClient")
+        self.logger = logging.getLogger(__name__)
         endpoint = self.config.effective_url or self.config.base_url
         problem = embedding_endpoint_validation_error(self.config.binding, endpoint)
         if problem:

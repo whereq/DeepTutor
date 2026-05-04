@@ -10,13 +10,10 @@ Prompts live in ``deeptutor/book/prompts/{en,zh}/code.yaml``.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from deeptutor.utils.json_parser import parse_json_response
-
 from ..models import BlockType, SourceAnchor
-from ._llm_writer import llm_text
+from ._llm_writer import llm_json
 from ._prompts import get_book_prompt, load_book_prompts
 from .base import BlockContext, BlockGenerator, GenerationFailure
 
@@ -43,19 +40,19 @@ class CodeGenerator(BlockGenerator):
             intent=intent,
             language=language,
         )
-        raw = await llm_text(
+        data = await llm_json(
             user_prompt=user_prompt,
             system_prompt=get_book_prompt(prompts, "system"),
             max_tokens=900,
             temperature=0.3,
-            response_format={"type": "json_object"},
             language=ctx.language,
         )
 
-        data = parse_json_response(raw, fallback={})
         code = str(data.get("code") or "").strip()
         if not code:
             raise GenerationFailure("LLM did not return any code.")
+        if "<think" in code.lower() or "</think" in code.lower():
+            raise GenerationFailure("prompt leak detected in generated code.")
         return (
             {
                 "language": str(data.get("language") or language).strip() or language,
@@ -64,7 +61,7 @@ class CodeGenerator(BlockGenerator):
                 "intent": intent,
             },
             [],
-            {},
+            data.get("_metadata") if isinstance(data.get("_metadata"), dict) else {},
         )
 
 

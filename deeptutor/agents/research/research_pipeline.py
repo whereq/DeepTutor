@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime
 import inspect
 import json
+import logging
 from pathlib import Path
 import sys
 from typing import Any, Callable
@@ -23,7 +24,6 @@ from deeptutor.agents.research.agents import (
 from deeptutor.agents.research.data_structures import DynamicTopicQueue
 from deeptutor.agents.research.utils.citation_manager import CitationManager
 from deeptutor.core.trace import new_call_id
-from deeptutor.logging import get_logger
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
 from deeptutor.services.config import PROJECT_ROOT
 
@@ -144,8 +144,8 @@ class ResearchPipeline:
             "logging", {}
         ).get("log_dir")
 
-        self.logger = get_logger(name="Research", log_dir=log_dir)
-        self.logger.success("Logger initialized")
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Logger initialized")
 
     def _init_agents(self):
         """Initialize all Agents"""
@@ -182,7 +182,7 @@ class ResearchPipeline:
         self.agents["manager"].set_queue(self.queue)
 
         if self.logger:
-            self.logger.success(f"Initialized {len(self.agents)} Agents")
+            self.logger.info(f"Initialized {len(self.agents)} Agents")
 
     async def _emit_trace_event(self, payload: dict[str, Any]) -> None:
         callback = self.trace_callback
@@ -456,7 +456,7 @@ class ResearchPipeline:
             Research result
         """
         if self.logger:
-            self.logger.section("DR-in-KG 2.0 - Deep Research System Based on Dynamic Topic Queue")
+            self.logger.info("DR-in-KG 2.0 - Deep Research System Based on Dynamic Topic Queue")
             self.logger.info(f"Research Topic: {topic}")
             self.logger.info(f"Research ID: {self.research_id}")
         self.input_topic = topic
@@ -491,19 +491,19 @@ class ResearchPipeline:
             report_file = self.reports_dir / f"{self.research_id}.md"
             with open(report_file, "w", encoding="utf-8") as f:
                 f.write(report_result["report"])
-            self.logger.success(f"Final Report: {report_file}")
+            self.logger.info(f"Final Report: {report_file}")
 
             # Save queue
             queue_file = self.cache_dir / "queue.json"
             self.queue.save_to_json(str(queue_file))
-            self.logger.success(f"Queue Data: {queue_file}")
+            self.logger.info(f"Queue Data: {queue_file}")
 
             # Save outline (if exists)
             if "outline" in report_result:
                 outline_file = self.cache_dir / "outline.json"
                 with open(outline_file, "w", encoding="utf-8") as f:
                     json.dump(report_result["outline"], f, ensure_ascii=False, indent=2)
-                self.logger.success(f"Report Outline: {outline_file}")
+                self.logger.info(f"Report Outline: {outline_file}")
 
             # Save metadata
             metadata = {
@@ -518,7 +518,7 @@ class ResearchPipeline:
             metadata_file = self.reports_dir / f"{self.research_id}_metadata.json"
             with open(metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, ensure_ascii=False, indent=2)
-            self.logger.success(f"Metadata: {metadata_file}")
+            self.logger.info(f"Metadata: {metadata_file}")
 
             # ===== Token Cost Statistics =====
             try:
@@ -529,7 +529,7 @@ class ResearchPipeline:
                 self.logger.info(cost_summary_text)
                 cost_file = self.cache_dir / "token_cost_summary.json"
                 tracker.save(str(cost_file))
-                self.logger.success(f"Cost statistics saved: {cost_file}")
+                self.logger.info(f"Cost statistics saved: {cost_file}")
                 t_summary = tracker.get_summary()
                 if t_summary.get("total_calls", 0) > 0:
                     metadata["cost_summary"] = {
@@ -541,7 +541,7 @@ class ResearchPipeline:
                 self.logger.warning(f"Cost statistics failed: {_e}")
 
             self.logger.info("\n" + "=" * 70)
-            self.logger.success("Research Completed!")
+            self.logger.info("Research Completed!")
             self.logger.info("=" * 70)
             self.logger.info(f"Research ID: {self.research_id}")
             self.logger.info(f"Topic: {topic}")
@@ -614,7 +614,7 @@ class ResearchPipeline:
 
             stats = self.queue.get_statistics()
             self._log_progress("planning", "planning_completed", total_blocks=stats["total_blocks"])
-            self.logger.success("\nPhase 1 Completed (from confirmed outline):")
+            self.logger.info("\nPhase 1 Completed (from confirmed outline):")
             self.logger.info(f"  - Topic: {optimized_topic}")
             self.logger.info(f"  - Subtopic Count: {stats['total_blocks']}")
             self.agents["manager"].set_primary_topic(optimized_topic)
@@ -719,7 +719,7 @@ class ResearchPipeline:
                     ensure_ascii=False,
                     indent=2,
                 )
-            self.logger.success(f"Planning stage data saved: {step1_path}")
+            self.logger.info(f"Planning stage data saved: {step1_path}")
         except Exception as _e:
             self.logger.warning(f"Failed to save Planning stage data: {_e}")
 
@@ -749,7 +749,7 @@ class ResearchPipeline:
 
         stats = self.queue.get_statistics()
         self._log_progress("planning", "planning_completed", total_blocks=stats["total_blocks"])
-        self.logger.success("\nPhase 1 Completed:")
+        self.logger.info("\nPhase 1 Completed:")
         self.logger.info(f"  - Optimized Topic: {optimized_topic}")
         self.logger.info(f"  - Subtopic Count: {stats['total_blocks']}")
         self.agents["manager"].set_primary_topic(optimized_topic)
@@ -849,7 +849,7 @@ class ResearchPipeline:
             total_tool_calls=stats["total_tool_calls"],
         )
 
-        self.logger.success("\nPhase 2 Completed:")
+        self.logger.info("\nPhase 2 Completed:")
         self.logger.info(f"  - Completed Topics: {stats['completed']}")
         self.logger.info(f"  - Total Tool Calls: {stats['total_tool_calls']}")
 
@@ -1049,7 +1049,7 @@ class ResearchPipeline:
                     )
 
                     if self.logger:
-                        self.logger.success(f"[{block.block_id}] ✓ Completed: {block.sub_topic}")
+                        self.logger.info(f"[{block.block_id}] ✓ Completed: {block.sub_topic}")
 
                     return result
 
@@ -1134,7 +1134,7 @@ class ResearchPipeline:
             execution_mode="parallel",
         )
 
-        self.logger.success("\nPhase 2 Completed (Parallel Mode):")
+        self.logger.info("\nPhase 2 Completed (Parallel Mode):")
         self.logger.info(f"  - Completed Topics: {stats['completed']}")
         self.logger.info(f"  - Total Tool Calls: {stats['total_tool_calls']}")
         self.logger.info(f"  - Failed Topics: {stats.get('failed', 0)}")
@@ -1235,7 +1235,7 @@ class ResearchPipeline:
             self.queue, topic, progress_callback=self._report_progress_callback
         )
 
-        self.logger.success("\nPhase 3 Completed:")
+        self.logger.info("\nPhase 3 Completed:")
         self.logger.info(f"  - Report Word Count: {report_result['word_count']}")
         self.logger.info(f"  - Sections: {report_result['sections']}")
         self.logger.info(f"  - Citations: {report_result['citations']}")
@@ -1305,7 +1305,7 @@ async def main():
     # Load configuration
     config_path = PROJECT_ROOT / args.config
     if not config_path.exists():
-        logger = get_logger("Research")
+        logger = logging.getLogger(__name__)
         logger.error(f"Configuration file not found: {config_path}")
         sys.exit(1)
 
@@ -1331,8 +1331,8 @@ async def main():
     # Execute research
     result = await pipeline.run(args.topic)
 
-    logger = get_logger("Research")
-    logger.success("\n🎉 Research completed!")
+    logger = logging.getLogger(__name__)
+    logger.info("\n🎉 Research completed!")
     logger.info(f"Report location: {result['final_report_path']}")
 
 

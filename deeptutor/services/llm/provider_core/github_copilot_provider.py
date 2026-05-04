@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Awaitable, Callable
+import time
 from typing import Any
 
 import httpx
 from openai import AuthenticationError
 
+from deeptutor.services.llm.provider_core.base import LLMResponse
 from deeptutor.services.llm.provider_core.openai_compat_provider import OpenAICompatProvider
 from deeptutor.services.provider_registry import find_by_name
 
@@ -48,7 +49,7 @@ class GitHubCopilotProvider(OpenAICompatProvider):
             from oauth_cli_kit.storage import FileTokenStorage
         except ImportError:
             return None
-        storage = FileTokenStorage(
+        storage = FileTokenStorage(  # nosec B106 - token_filename is a file name, not a password.
             token_filename="github-copilot.json",
             app_name="nanobot",
             import_codex_cli=False,
@@ -66,7 +67,9 @@ class GitHubCopilotProvider(OpenAICompatProvider):
             )
 
         timeout = httpx.Timeout(20.0, connect=20.0)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, trust_env=True) as client:
+        async with httpx.AsyncClient(
+            timeout=timeout, follow_redirects=True, trust_env=True
+        ) as client:
             response = await client.get(
                 DEFAULT_COPILOT_TOKEN_URL,
                 headers={
@@ -112,8 +115,9 @@ class GitHubCopilotProvider(OpenAICompatProvider):
         reasoning_effort: str | None,
         tool_choice: str | dict[str, Any] | None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         **kwargs: Any,
-    ):
+    ) -> LLMResponse:
         await self._ensure_api_key()
         try:
             if stream:
@@ -126,6 +130,7 @@ class GitHubCopilotProvider(OpenAICompatProvider):
                     reasoning_effort=reasoning_effort,
                     tool_choice=tool_choice,
                     on_content_delta=on_content_delta,
+                    on_reasoning_delta=on_reasoning_delta,
                     **kwargs,
                 )
             return await super().chat(
@@ -152,6 +157,7 @@ class GitHubCopilotProvider(OpenAICompatProvider):
                     reasoning_effort=reasoning_effort,
                     tool_choice=tool_choice,
                     on_content_delta=on_content_delta,
+                    on_reasoning_delta=on_reasoning_delta,
                     **kwargs,
                 )
             return await super().chat(
@@ -175,7 +181,7 @@ class GitHubCopilotProvider(OpenAICompatProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         **kwargs: Any,
-    ):
+    ) -> LLMResponse:
         return await self._chat_impl(
             False,
             messages,
@@ -198,8 +204,9 @@ class GitHubCopilotProvider(OpenAICompatProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         **kwargs: Any,
-    ):
+    ) -> LLMResponse:
         return await self._chat_impl(
             True,
             messages,
@@ -210,5 +217,6 @@ class GitHubCopilotProvider(OpenAICompatProvider):
             reasoning_effort,
             tool_choice,
             on_content_delta,
+            on_reasoning_delta,
             **kwargs,
         )

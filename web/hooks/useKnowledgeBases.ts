@@ -40,12 +40,15 @@ interface LoadOptions {
 export function useKnowledgeBases() {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const [providers, setProviders] = useState<RagProviderSummary[]>([]);
-  const [uploadPolicy, setUploadPolicy] =
-    useState<KnowledgeUploadPolicy>(DEFAULT_UPLOAD_POLICY);
+  const [uploadPolicy, setUploadPolicy] = useState<KnowledgeUploadPolicy>(
+    DEFAULT_UPLOAD_POLICY,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshRef = useRef<(opts?: LoadOptions) => Promise<void>>(async () => {});
+  const refreshRef = useRef<(opts?: LoadOptions) => Promise<void>>(
+    async () => {},
+  );
   const history = useKnowledgeHistory();
 
   const progress = useKnowledgeProgress({
@@ -70,44 +73,51 @@ export function useKnowledgeBases() {
     },
   });
 
-  const load = useCallback(async (opts?: LoadOptions) => {
-    const showSpinner = opts?.showSpinner ?? true;
-    if (showSpinner) setLoading(true);
-    setError(null);
-    try {
-      const [kbList, providerList, policy] = await Promise.all([
-        listKnowledgeBases({ force: opts?.force }),
-        listRagProviders({ force: opts?.force }),
-        getKnowledgeUploadPolicy({ force: opts?.force }).catch(
-          () => DEFAULT_UPLOAD_POLICY,
-        ),
-      ]);
-      const typedKbs = kbList as KnowledgeBase[];
-      setKbs(typedKbs);
-      setUploadPolicy(policy);
-      setProviders(providerList.length ? providerList : DEFAULT_PROVIDER_FALLBACK);
+  const load = useCallback(
+    async (opts?: LoadOptions) => {
+      const showSpinner = opts?.showSpinner ?? true;
+      if (showSpinner) setLoading(true);
+      setError(null);
+      try {
+        const [kbList, providerList, policy] = await Promise.all([
+          listKnowledgeBases({ force: opts?.force }),
+          listRagProviders({ force: opts?.force }),
+          getKnowledgeUploadPolicy({ force: opts?.force }).catch(
+            () => DEFAULT_UPLOAD_POLICY,
+          ),
+        ]);
+        const typedKbs = kbList as KnowledgeBase[];
+        setKbs(typedKbs);
+        setUploadPolicy(policy);
+        setProviders(
+          providerList.length ? providerList : DEFAULT_PROVIDER_FALLBACK,
+        );
 
-      // Auto-resubscribe to progress for KBs that are still live
-      // (e.g. user navigated away and came back mid-indexing).
-      for (const kb of typedKbs) {
-        const status = kb.status ?? kb.statistics?.status;
-        const kbProgress = kb.progress ?? kb.statistics?.progress;
-        if (status === "error" && kbProgress) {
-          progress.setProgress(kb.name, kbProgress as ProgressInfo);
-          continue;
+        // Auto-resubscribe to progress for KBs that are still live
+        // (e.g. user navigated away and came back mid-indexing).
+        for (const kb of typedKbs) {
+          const status = kb.status ?? kb.statistics?.status;
+          const kbProgress = kb.progress ?? kb.statistics?.progress;
+          if (status === "error" && kbProgress) {
+            progress.setProgress(kb.name, kbProgress as ProgressInfo);
+            continue;
+          }
+          if (
+            kbHasLiveProgress({ ...kb, progress: kbProgress as ProgressInfo })
+          ) {
+            progress.setProgress(kb.name, (kbProgress as ProgressInfo) ?? {});
+            const taskId = (kbProgress as ProgressInfo | undefined)?.task_id;
+            progress.subscribeWs(kb.name, taskId || undefined);
+          }
         }
-        if (kbHasLiveProgress({ ...kb, progress: kbProgress as ProgressInfo })) {
-          progress.setProgress(kb.name, (kbProgress as ProgressInfo) ?? {});
-          const taskId = (kbProgress as ProgressInfo | undefined)?.task_id;
-          progress.subscribeWs(kb.name, taskId || undefined);
-        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (showSpinner) setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (showSpinner) setLoading(false);
-    }
-  }, [progress]);
+    },
+    [progress],
+  );
 
   useEffect(() => {
     refreshRef.current = load;

@@ -6,16 +6,17 @@ WebSocket endpoint for real-time problem solving with streaming logs.
 """
 
 import asyncio
+import logging
+from pathlib import Path
 import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from deeptutor.agents.solve import MainSolver, SolverSessionManager
-from deeptutor.api.utils.log_interceptor import LogInterceptor
 from deeptutor.api.utils.task_id_manager import TaskIDManager
 from deeptutor.capabilities.deep_solve import DeepSolveCapability
-from deeptutor.logging import get_logger
+from deeptutor.logging import bind_log_context, capture_process_logs
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm import get_llm_config
 from deeptutor.services.path_service import get_path_service
@@ -24,7 +25,7 @@ from deeptutor.services.settings.interface_settings import get_ui_language
 # Initialize logger with config
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
-logger = get_logger("SolveAPI", level="INFO", log_dir=log_dir)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -222,19 +223,8 @@ async def websocket_solve(websocket: WebSocket):
 
         logger.info(f"[{task_id}] Solving: {question[:50]}...")
 
-        target_logger = solver.logger.logger
-
-        # Note: System log forwarder removed - all logs now go to unified log file
-        # The main logger already writes to data/user/logs/ai_tutor_YYYYMMDD.log
-
-        # 3. Setup Log Queue
-        # log_queue already initialized
-
-        # 4. Setup status update mechanism
-        display_manager = None
-        if hasattr(solver.logger, "display_manager") and solver.logger.display_manager:
-            display_manager = solver.logger.display_manager
-
+        display_manager = getattr(solver, "display_manager", None)
+        if display_manager:
             original_set_status = display_manager.set_agent_status
 
             def wrapped_set_status(agent_name: str, status: str):
@@ -285,28 +275,41 @@ async def websocket_solve(websocket: WebSocket):
         # 5. Background task to push logs to WebSocket
         pusher_task = asyncio.create_task(log_pusher())
 
-        # 6. Run Solver within the LogInterceptor context
-        interceptor = LogInterceptor(target_logger, log_queue)
-        with interceptor:
-            await safe_send_json({"type": "status", "content": "started"})
+        loop = asyncio.get_running_loop()
 
-            if display_manager:
-                await safe_send_json(
-                    {
-                        "type": "agent_status",
-                        "agent": "all",
-                        "status": "initial",
-                        "all_agents": display_manager.agents_status.copy(),
-                    }
-                )
-                await safe_send_json({"type": "token_stats", "stats": display_manager.stats.copy()})
+        def emit_process_log(event):
+            loop.call_soon_threadsafe(log_queue.put_nowait, event.to_dict())
 
-            logger.progress(f"[{task_id}] Solving started")
+        # 6. Run Solver while streaming only logs bound to this task.
+        with bind_log_context(
+            task_id=task_id,
+            session_id=session_id,
+            capability="deep_solve",
+            sink="ui",
+        ):
+            process_logs = capture_process_logs(emit_process_log, task_id=task_id)
+            with process_logs:
+                await safe_send_json({"type": "status", "content": "started"})
 
-            result = await solver.solve(question, verbose=True, detailed=detailed_answer)
+                if display_manager:
+                    await safe_send_json(
+                        {
+                            "type": "agent_status",
+                            "agent": "all",
+                            "status": "initial",
+                            "all_agents": display_manager.agents_status.copy(),
+                        }
+                    )
+                    await safe_send_json(
+                        {"type": "token_stats", "stats": display_manager.stats.copy()}
+                    )
 
-            logger.success(f"[{task_id}] Solving completed")
-            task_manager.update_task_status(task_id, "completed")
+                logger.info(f"[{task_id}] Solving started")
+
+                result = await solver.solve(question, verbose=True, detailed=detailed_answer)
+
+                logger.info(f"[{task_id}] Solving completed")
+                task_manager.update_task_status(task_id, "completed")
 
             # Process Markdown content to fix image paths
             final_answer = result.get("final_answer", "")

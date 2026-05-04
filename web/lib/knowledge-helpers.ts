@@ -1,5 +1,11 @@
 import type { TFunction } from "i18next";
-import type { KnowledgeUploadPolicy } from "@/lib/knowledge-api";
+
+export interface KnowledgeUploadPolicy {
+  extensions: string[];
+  accept: string;
+  max_file_size_bytes: number;
+  max_pdf_size_bytes: number;
+}
 
 export const DEFAULT_UPLOAD_POLICY: KnowledgeUploadPolicy = {
   extensions: [],
@@ -90,7 +96,10 @@ export const getFileExtension = (filename: string): string => {
 export const selectionFileId = (file: File): string =>
   `${file.name}:${file.size}:${file.lastModified}`;
 
-export const mergeSelectedFiles = (existing: File[], incoming: File[]): File[] => {
+export const mergeSelectedFiles = (
+  existing: File[],
+  incoming: File[],
+): File[] => {
   const merged = new Map<string, File>();
   [...existing, ...incoming].forEach((file) => {
     merged.set(selectionFileId(file), file);
@@ -119,6 +128,20 @@ export const kbNeedsReindex = (kb: KnowledgeBase): boolean =>
 
 export const kbIsUploadable = (kb: KnowledgeBase): boolean =>
   resolveKbStatus(kb) === "ready" && !kbNeedsReindex(kb);
+
+export const kbCanReindex = (kb: KnowledgeBase): boolean => {
+  const status = resolveKbStatus(kb);
+  const hasSourceFiles =
+    typeof kb.statistics?.raw_documents === "number"
+      ? kb.statistics.raw_documents > 0
+      : true;
+  if (!hasSourceFiles) return false;
+  if (status === "error") return true;
+  return (
+    Boolean(kb.statistics?.needs_reindex) ||
+    kb.statistics?.active_match === false
+  );
+};
 
 const LIVE_PROGRESS_STAGES = new Set([
   "initializing",

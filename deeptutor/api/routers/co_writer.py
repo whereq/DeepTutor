@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import asdict
 from datetime import datetime
 import json
+import logging
 import traceback
 from typing import AsyncGenerator, Literal
 import uuid
@@ -26,7 +27,6 @@ from deeptutor.co_writer.storage import (
 )
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
-from deeptutor.logging import get_logger
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm import clean_thinking_tags
 from deeptutor.services.settings.interface_settings import get_ui_language
@@ -36,7 +36,7 @@ router = APIRouter()
 # Initialize logger with config
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
-logger = get_logger("CoWriter", level="INFO", log_dir=log_dir)
+logger = logging.getLogger(__name__)
 
 _edit_agent: EditAgent | None = None
 

@@ -288,6 +288,5 @@ def test_embedding_custom_endpoint_is_not_migrated(
     loaded = ModelCatalogService(catalog_path).load()
 
     assert (
-        loaded["services"]["embedding"]["profiles"][0]["base_url"]
-        == "https://proxy.example/root"
+        loaded["services"]["embedding"]["profiles"][0]["base_url"] == "https://proxy.example/root"
     )

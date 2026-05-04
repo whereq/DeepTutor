@@ -7,11 +7,14 @@ delegates to the appropriate provider (OpenAICompat or Anthropic).
 
 from __future__ import annotations
 
-from deeptutor.services.llm.provider_core.base import LLMProvider
+from typing import cast
+
+from deeptutor.services.llm.config import LLMConfig
+from deeptutor.tutorbot.providers.base import LLMProvider
 
 
-def create_deeptutor_provider() -> LLMProvider:
+def create_deeptutor_provider(config: LLMConfig | None = None) -> LLMProvider:
     """Build a provider pre-configured from DeepTutor's LLMConfig."""
     from deeptutor.services.llm.provider_factory import get_runtime_provider
 
-    return get_runtime_provider()
+    return cast(LLMProvider, get_runtime_provider(config))

@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Check,
-  Loader2,
-  Search,
-  Sparkles,
-  Wand2,
-  X,
-} from "lucide-react";
+import { Check, Loader2, Search, Sparkles, Wand2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { listSkills, type SkillInfo } from "@/lib/skills-api";
 
@@ -94,7 +87,9 @@ export default function SkillsPicker({
   const toggleSkill = (name: string) => {
     setAuto(false);
     setSelected((prev) =>
-      prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name],
+      prev.includes(name)
+        ? prev.filter((item) => item !== name)
+        : [...prev, name],
     );
   };
 
@@ -168,13 +163,15 @@ export default function SkillsPicker({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-[14px] font-medium text-[var(--foreground)]">
-                <Sparkles size={14} strokeWidth={1.7} className="text-[var(--primary)]" />
+                <Sparkles
+                  size={14}
+                  strokeWidth={1.7}
+                  className="text-[var(--primary)]"
+                />
                 {t("Auto")}
               </div>
               <p className="mt-0.5 text-[12px] leading-5 text-[var(--muted-foreground)]">
-                {t(
-                  "Let the model auto-select relevant skills for this turn.",
-                )}
+                {t("Let the model auto-select relevant skills for this turn.")}
               </p>
             </div>
           </button>

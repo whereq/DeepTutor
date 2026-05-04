@@ -357,7 +357,7 @@ def test_chat_messages_tell_llm_to_call_rag_without_kb_name() -> None:
     )
 
     system_content = messages[0]["content"]
-    assert "call RAG with only a query" in system_content
+    assert "call RAG with only a non-empty query" in system_content
     assert "currently selected knowledge base" in system_content
     assert "new-kb" not in system_content
 
@@ -390,7 +390,7 @@ def test_chat_rag_schema_exposes_only_query_to_llm() -> None:
     [schema] = pipeline._build_llm_tool_schemas(["rag"])
     parameters = schema["function"]["parameters"]
 
-    assert parameters["properties"] == {"query": {"type": "string"}}
+    assert parameters["properties"] == {"query": {"type": "string", "minLength": 1}}
     assert parameters["required"] == ["query"]
     assert parameters["additionalProperties"] is False
 
@@ -513,6 +513,105 @@ async def test_native_rag_call_uses_system_selected_kb_not_llm_args(
     assert tool_call_events[0].metadata["tool_name"] == "rag"
     assert tool_call_events[0].metadata.get("args", {}) == {"query": "chapter summary"}
     assert tool_call_events[0].content
+
+
+@pytest.mark.asyncio
+async def test_native_rag_call_falls_back_to_user_message_when_query_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "deeptutor.agents.chat.agentic_pipeline.get_llm_config",
+        lambda: SimpleNamespace(
+            binding="openai", model="gpt-test", api_key="k", base_url="u", api_version=None
+        ),
+    )
+
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+
+        def build_openai_schemas(self, _enabled_tools):
+            return [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "rag",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                            "required": ["query"],
+                        },
+                    },
+                }
+            ]
+
+        def build_prompt_text(self, enabled_tools, **_kwargs):
+            return "\n".join(enabled_tools)
+
+        async def execute(self, name: str, **kwargs):
+            self.calls.append({"name": name, **kwargs})
+            return ToolResult(content="grounded result", metadata={}, success=True)
+
+    registry = FakeRegistry()
+    monkeypatch.setattr(
+        "deeptutor.agents.chat.agentic_pipeline.get_tool_registry", lambda: registry
+    )
+
+    pipeline = AgenticChatPipeline(language="en")
+    pipeline.registry = registry
+
+    async def fake_create(**_kwargs):
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="tool-call-rag",
+                                function=SimpleNamespace(name="rag", arguments="{}"),
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        pipeline,
+        "_build_openai_client",
+        lambda: SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)),
+        ),
+    )
+
+    bus = StreamBus()
+    events, consumer = await _collect_bus_events(bus)
+    context = UnifiedContext(
+        session_id="session-1",
+        user_message="Summarize chapter 3 from the selected knowledge base.",
+        enabled_tools=["rag"],
+        knowledge_bases=["current-kb"],
+        language="en",
+    )
+
+    traces = await pipeline._run_native_tool_loop(
+        context=context,
+        enabled_tools=["rag"],
+        thinking_text="RAG would help.",
+        stream=bus,
+    )
+    await asyncio.sleep(0)
+    await bus.close()
+    await consumer
+
+    expected_query = "Summarize chapter 3 from the selected knowledge base."
+    assert registry.calls[0]["query"] == expected_query
+    assert registry.calls[0]["kb_name"] == "current-kb"
+    assert traces[0].arguments == {"query": expected_query}
+
+    tool_call_events = [event for event in events if event.type == StreamEventType.TOOL_CALL]
+    assert tool_call_events[0].metadata.get("args", {}) == {"query": expected_query}
 
 
 @pytest.mark.asyncio

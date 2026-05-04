@@ -18,7 +18,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from deeptutor.logging import ConsoleFormatter
+from deeptutor.logging import (
+    ProcessLogEvent,
+    bind_log_context,
+    capture_process_logs,
+    current_log_context,
+)
 from deeptutor.runtime.registry.capability_registry import get_capability_registry
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
 
@@ -117,30 +122,38 @@ async def execute_tool(tool_name: str, body: ToolExecuteRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-class _QueueLogHandler(logging.Handler):
-    """Temporary handler that pushes formatted log records into an asyncio queue."""
+def _sse(event: str, payload: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
 
-    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
-        super().__init__(level=logging.DEBUG)
-        self._queue = queue
-        self._loop = loop
-        formatter = ConsoleFormatter(service_prefix=None)
-        formatter.use_colors = False
-        self.setFormatter(formatter)
 
-    def emit(self, record: logging.LogRecord):
-        line = ANSI_ESCAPE_RE.sub("", self.format(record)).strip()
-        if line:
-            self._loop.call_soon_threadsafe(self._queue.put_nowait, f"[Backend] {line}")
+def _queue_process_emit(
+    queue: asyncio.Queue[dict[str, Any]],
+    loop: asyncio.AbstractEventLoop,
+):
+    def emit(event: ProcessLogEvent) -> None:
+        loop.call_soon_threadsafe(
+            queue.put_nowait,
+            {"kind": "process_log", "payload": event.to_dict()},
+        )
+
+    return emit
 
 
 class _QueueTextStream:
-    """Capture plain stdout/stderr writes and forward complete lines into the queue."""
+    """Capture stdout/stderr lines as process-log events."""
 
-    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop, stream):
+    def __init__(
+        self,
+        queue: asyncio.Queue[dict[str, Any]],
+        loop: asyncio.AbstractEventLoop,
+        stream,
+        *,
+        logger_name: str,
+    ):
         self._queue = queue
         self._loop = loop
         self._stream = stream
+        self._logger_name = logger_name
         self._buffer = ""
 
     def write(self, text: str) -> int:
@@ -151,68 +164,57 @@ class _QueueTextStream:
         self._buffer += text
         while "\n" in self._buffer:
             line, self._buffer = self._buffer.split("\n", 1)
-            line = line.rstrip("\r")
-            if line.strip():
-                self._loop.call_soon_threadsafe(
-                    self._queue.put_nowait, f"[Backend] {ANSI_ESCAPE_RE.sub('', line)}"
-                )
+            self._emit_line(line.rstrip("\r"))
         return len(text)
 
     def flush(self):
         if self._stream is not None:
             self._stream.flush()
+        if self._buffer.strip():
+            self._emit_line(self._buffer)
+            self._buffer = ""
 
     def isatty(self) -> bool:
         return False
 
-
-def _collect_project_loggers() -> list[logging.Logger]:
-    """Collect active project loggers because many do not propagate to the root logger."""
-    candidates: list[logging.Logger] = []
-
-    for parent_name in ("deeptutor", "src"):
-        parent_logger = logging.getLogger(parent_name)
-        if isinstance(parent_logger, logging.Logger):
-            candidates.append(parent_logger)
-
-    for name, logger_obj in logging.root.manager.loggerDict.items():
-        if not (name.startswith("deeptutor") or name.startswith("src")):
-            continue
-        if isinstance(logger_obj, logging.Logger):
-            candidates.append(logger_obj)
-
-    unique: list[logging.Logger] = []
-    seen: set[int] = set()
-    for logger_obj in candidates:
-        key = id(logger_obj)
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(logger_obj)
-    return unique
+    def _emit_line(self, line: str) -> None:
+        clean = ANSI_ESCAPE_RE.sub("", line).strip()
+        if not clean:
+            return
+        event = ProcessLogEvent(
+            level="INFO",
+            message=clean,
+            logger=self._logger_name,
+            timestamp=time.time(),
+            context=current_log_context(),
+        )
+        self._loop.call_soon_threadsafe(
+            self._queue.put_nowait,
+            {"kind": "process_log", "payload": event.to_dict()},
+        )
 
 
 async def _execute_stream(tool_name: str, params: dict[str, Any]) -> AsyncGenerator[str, None]:
-    """Run a tool while capturing all deeptutor.* logs and yielding SSE events."""
+    """Run a tool while streaming structured process logs and the final result."""
     registry = get_tool_registry()
     tool = registry.get(tool_name)
     if not tool:
-        yield f"event: error\ndata: {json.dumps({'detail': f'Tool {tool_name!r} not found'})}\n\n"
+        yield _sse("error", {"detail": f"Tool {tool_name!r} not found"})
         return
 
-    log_queue: asyncio.Queue[str] = asyncio.Queue()
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     loop = asyncio.get_running_loop()
-    handler = _QueueLogHandler(log_queue, loop)
-    stdout_stream = _QueueTextStream(log_queue, loop, stream=None)
-    stderr_stream = _QueueTextStream(log_queue, loop, stream=None)
-
-    attached_loggers = _collect_project_loggers()
-    for logger_obj in attached_loggers:
-        logger_obj.addHandler(handler)
+    stdout_stream = _QueueTextStream(
+        event_queue, loop, stream=None, logger_name="deeptutor.playground.stdout"
+    )
+    stderr_stream = _QueueTextStream(
+        event_queue, loop, stream=None, logger_name="deeptutor.playground.stderr"
+    )
 
     result_holder: dict[str, Any] = {}
     error_holder: dict[str, str] = {}
     done = asyncio.Event()
+    task_id = f"playground_tool_{tool_name}_{int(time.time() * 1000)}"
 
     async def _run():
         try:
@@ -220,11 +222,13 @@ async def _execute_stream(tool_name: str, params: dict[str, Any]) -> AsyncGenera
 
             stdout_stream._stream = sys.stdout
             stderr_stream._stream = sys.stderr
-            with (
-                contextlib.redirect_stdout(stdout_stream),
-                contextlib.redirect_stderr(stderr_stream),
-            ):
-                result = await tool.execute(**params)
+            with bind_log_context(task_id=task_id, capability="playground", sink="ui"):
+                with capture_process_logs(_queue_process_emit(event_queue, loop), task_id=task_id):
+                    with (
+                        contextlib.redirect_stdout(stdout_stream),
+                        contextlib.redirect_stderr(stderr_stream),
+                    ):
+                        result = await tool.execute(**params)
             result_holder["data"] = {
                 "success": result.success,
                 "content": result.content,
@@ -234,6 +238,8 @@ async def _execute_stream(tool_name: str, params: dict[str, Any]) -> AsyncGenera
         except Exception as exc:
             error_holder["detail"] = str(exc)
         finally:
+            stdout_stream.flush()
+            stderr_stream.flush()
             done.set()
 
     task = asyncio.create_task(_run())
@@ -242,33 +248,29 @@ async def _execute_stream(tool_name: str, params: dict[str, Any]) -> AsyncGenera
     try:
         while not done.is_set():
             try:
-                line = await asyncio.wait_for(log_queue.get(), timeout=0.15)
-                yield f"event: log\ndata: {json.dumps({'line': line})}\n\n"
+                item = await asyncio.wait_for(event_queue.get(), timeout=0.15)
+                yield _sse(item["kind"], item["payload"])
             except asyncio.TimeoutError:
                 pass
 
-        while not log_queue.empty():
-            line = log_queue.get_nowait()
-            yield f"event: log\ndata: {json.dumps({'line': line})}\n\n"
+        while not event_queue.empty():
+            item = event_queue.get_nowait()
+            yield _sse(item["kind"], item["payload"])
 
         elapsed_ms = round((time.monotonic() - t0) * 1000)
-
         if error_holder:
-            yield f"event: error\ndata: {json.dumps({'detail': error_holder['detail'], 'elapsed_ms': elapsed_ms})}\n\n"
+            yield _sse("error", {"detail": error_holder["detail"], "elapsed_ms": elapsed_ms})
         else:
             payload = {**result_holder.get("data", {}), "elapsed_ms": elapsed_ms}
-            yield f"event: result\ndata: {json.dumps(payload, default=str)}\n\n"
+            yield _sse("result", payload)
     finally:
-        for logger_obj in attached_loggers:
-            if handler in logger_obj.handlers:
-                logger_obj.removeHandler(handler)
         if not task.done():
             task.cancel()
 
 
 @router.post("/tools/{tool_name}/execute-stream")
 async def execute_tool_stream(tool_name: str, body: ToolExecuteRequest):
-    """Execute a tool and stream logs + result as SSE."""
+    """Execute a tool and stream process logs + result as SSE."""
     return StreamingResponse(
         _execute_stream(tool_name, body.params),
         media_type="text/event-stream",
@@ -280,16 +282,13 @@ async def _execute_capability_stream(
     capability_name: str,
     body: CapabilityExecuteRequest,
 ) -> AsyncGenerator[str, None]:
-    """Run a capability while streaming logs, trace events, and the final result."""
+    """Run a capability while streaming process logs, trace events, and the result."""
     from deeptutor.core.context import Attachment, UnifiedContext
     from deeptutor.runtime.orchestrator import ChatOrchestrator
 
     orch = ChatOrchestrator()
     if capability_name not in orch.list_capabilities():
-        yield (
-            f"event: error\ndata: "
-            f"{json.dumps({'detail': f'Capability {capability_name!r} not found'})}\n\n"
-        )
+        yield _sse("error", {"detail": f"Capability {capability_name!r} not found"})
         return
 
     attachments = [
@@ -313,19 +312,19 @@ async def _execute_capability_stream(
         language=body.language,
     )
 
-    log_queue: asyncio.Queue[str] = asyncio.Queue()
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     loop = asyncio.get_running_loop()
-    handler = _QueueLogHandler(log_queue, loop)
-    stdout_stream = _QueueTextStream(log_queue, loop, stream=None)
-    stderr_stream = _QueueTextStream(log_queue, loop, stream=None)
-
-    attached_loggers = _collect_project_loggers()
-    for logger_obj in attached_loggers:
-        logger_obj.addHandler(handler)
+    stdout_stream = _QueueTextStream(
+        event_queue, loop, stream=None, logger_name="deeptutor.playground.stdout"
+    )
+    stderr_stream = _QueueTextStream(
+        event_queue, loop, stream=None, logger_name="deeptutor.playground.stderr"
+    )
 
     final_result: dict[str, Any] | None = None
     error_holder: dict[str, str] = {}
     done = asyncio.Event()
+    task_id = f"playground_capability_{capability_name}_{int(time.time() * 1000)}"
 
     async def _run():
         nonlocal final_result
@@ -334,20 +333,26 @@ async def _execute_capability_stream(
 
             stdout_stream._stream = sys.stdout
             stderr_stream._stream = sys.stderr
-            with (
-                contextlib.redirect_stdout(stdout_stream),
-                contextlib.redirect_stderr(stderr_stream),
+            with bind_log_context(
+                task_id=task_id,
+                capability=capability_name,
+                sink="ui",
             ):
-                async for event in orch.handle(ctx):
-                    if event.type.value == "result":
-                        final_result = dict(event.metadata)
-                        continue
-                    await log_queue.put(
-                        "__STREAM_EVENT__" + json.dumps(event.to_dict(), default=str)
-                    )
+                with capture_process_logs(_queue_process_emit(event_queue, loop), task_id=task_id):
+                    with (
+                        contextlib.redirect_stdout(stdout_stream),
+                        contextlib.redirect_stderr(stderr_stream),
+                    ):
+                        async for event in orch.handle(ctx):
+                            if event.type.value == "result":
+                                final_result = dict(event.metadata)
+                                continue
+                            await event_queue.put({"kind": "stream", "payload": event.to_dict()})
         except Exception as exc:
             error_holder["detail"] = str(exc)
         finally:
+            stdout_stream.flush()
+            stderr_stream.flush()
             done.set()
 
     task = asyncio.create_task(_run())
@@ -356,38 +361,24 @@ async def _execute_capability_stream(
     try:
         while not done.is_set():
             try:
-                line = await asyncio.wait_for(log_queue.get(), timeout=0.15)
-                if line.startswith("__STREAM_EVENT__"):
-                    payload = line.removeprefix("__STREAM_EVENT__")
-                    yield f"event: stream\ndata: {payload}\n\n"
-                else:
-                    yield f"event: log\ndata: {json.dumps({'line': line})}\n\n"
+                item = await asyncio.wait_for(event_queue.get(), timeout=0.15)
+                yield _sse(item["kind"], item["payload"])
             except asyncio.TimeoutError:
                 pass
 
-        while not log_queue.empty():
-            line = log_queue.get_nowait()
-            if line.startswith("__STREAM_EVENT__"):
-                payload = line.removeprefix("__STREAM_EVENT__")
-                yield f"event: stream\ndata: {payload}\n\n"
-            else:
-                yield f"event: log\ndata: {json.dumps({'line': line})}\n\n"
+        while not event_queue.empty():
+            item = event_queue.get_nowait()
+            yield _sse(item["kind"], item["payload"])
 
         elapsed_ms = round((time.monotonic() - t0) * 1000)
         if error_holder:
-            yield (
-                f"event: error\ndata: "
-                f"{json.dumps({'detail': error_holder['detail'], 'elapsed_ms': elapsed_ms})}\n\n"
-            )
+            yield _sse("error", {"detail": error_holder["detail"], "elapsed_ms": elapsed_ms})
         else:
-            yield (
-                f"event: result\ndata: "
-                f"{json.dumps({'success': True, 'data': final_result or {}, 'elapsed_ms': elapsed_ms}, default=str)}\n\n"
+            yield _sse(
+                "result",
+                {"success": True, "data": final_result or {}, "elapsed_ms": elapsed_ms},
             )
     finally:
-        for logger_obj in attached_loggers:
-            if handler in logger_obj.handlers:
-                logger_obj.removeHandler(handler)
         if not task.done():
             task.cancel()
 

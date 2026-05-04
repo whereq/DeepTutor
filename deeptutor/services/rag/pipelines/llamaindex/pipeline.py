@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
-from deeptutor.logging import get_logger
 from deeptutor.services.embedding import get_embedding_config
 from deeptutor.services.rag.embedding_signature import signature_from_embedding_config
 from deeptutor.services.rag.index_versioning import (
     EmbeddingSignature,
     resolve_storage_dir_for_read,
-    resolve_storage_dir_for_write,
+    resolve_storage_dir_for_rebuild,
     write_version_meta,
 )
 
@@ -44,7 +44,7 @@ class LlamaIndexPipeline:
         signature_provider: SignatureProvider | None = None,
         document_loader: LlamaIndexDocumentLoader | None = None,
     ):
-        self.logger = get_logger("LlamaIndexPipeline")
+        self.logger = logging.getLogger(__name__)
         self.kb_base_dir = kb_base_dir or DEFAULT_KB_BASE_DIR
         self._signature_provider = signature_provider or signature_from_embedding_config
         self.document_loader = document_loader or LlamaIndexDocumentLoader(self.logger)
@@ -81,7 +81,7 @@ class LlamaIndexPipeline:
 
         kb_dir = Path(self.kb_base_dir) / kb_name
         signature = self._current_signature()
-        storage_dir = resolve_storage_dir_for_write(kb_dir, signature)
+        storage_dir = resolve_storage_dir_for_rebuild(kb_dir, signature)
 
         try:
             await self._verify_embedding_connectivity()

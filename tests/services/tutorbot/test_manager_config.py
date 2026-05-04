@@ -11,6 +11,7 @@ import pytest
 import yaml
 
 from deeptutor.services.tutorbot.manager import BotConfig, TutorBotInstance, TutorBotManager
+from deeptutor.services.tutorbot.model_runtime import resolve_tutorbot_llm_config
 
 
 @pytest.fixture
@@ -32,6 +33,21 @@ def _append_session_line(manager: TutorBotManager, bot_id: str, payload: dict) -
         handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+def _write_session_file(
+    manager: TutorBotManager,
+    bot_id: str,
+    filename: str,
+    payloads: list[dict],
+) -> Path:
+    sessions_dir = manager._bot_workspace(bot_id) / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    path = sessions_dir / filename
+    with open(path, "w", encoding="utf-8") as handle:
+        for payload in payloads:
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return path
+
+
 # ---------------------------------------------------------------------------
 # load_bot_config / save_bot_config
 # ---------------------------------------------------------------------------
@@ -48,6 +64,7 @@ class TestLoadAndSave:
             persona="p",
             channels={"telegram": {"enabled": True, "token": "tok"}},
             model="gpt-4o",
+            llm_selection={"profile_id": "p1", "model_id": "m1"},
         )
         manager.save_bot_config("bot-a", cfg)
 
@@ -63,9 +80,7 @@ class TestLoadAndSave:
 
 
 class TestMessageHistory:
-    def test_history_normalizes_part_content_and_strips_reasoning(
-        self, manager: TutorBotManager
-    ):
+    def test_history_normalizes_part_content_and_strips_reasoning(self, manager: TutorBotManager):
         _append_session_line(
             manager,
             "bot-history",
@@ -82,6 +97,53 @@ class TestMessageHistory:
         history = manager.get_bot_history("bot-history")
 
         assert history == [{"role": "assistant", "content": "Here is the image diagram"}]
+
+    def test_history_is_chronological_across_legacy_and_canonical_sessions(
+        self, manager: TutorBotManager
+    ):
+        _write_session_file(
+            manager,
+            "bot-history",
+            "web_legacy.jsonl",
+            [
+                {
+                    "role": "user",
+                    "content": "old user",
+                    "timestamp": "2026-03-20T20:12:59.665712",
+                },
+                {
+                    "role": "assistant",
+                    "content": "old assistant",
+                    "timestamp": "2026-03-20T20:13:00.665712",
+                },
+            ],
+        )
+        _write_session_file(
+            manager,
+            "bot-history",
+            "bot_history.jsonl",
+            [
+                {
+                    "role": "user",
+                    "content": "new user",
+                    "timestamp": "2026-05-03T15:25:53.085811",
+                },
+                {
+                    "role": "assistant",
+                    "content": "new assistant",
+                    "timestamp": "2026-05-03T15:25:54.085811",
+                },
+            ],
+        )
+
+        history = manager.get_bot_history("bot-history")
+
+        assert [m["content"] for m in history] == [
+            "old user",
+            "old assistant",
+            "new user",
+            "new assistant",
+        ]
 
     def test_recent_active_bots_normalizes_last_message(self, manager: TutorBotManager):
         manager.save_bot_config("bot-recent", BotConfig(name="Recent Bot"))
@@ -221,6 +283,49 @@ class TestMergeBotConfig:
         assert not hasattr(merged, "unknown_field")
 
 
+class TestTutorBotModelRuntime:
+    def test_selection_is_resolved_through_model_selection_service(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: list[dict[str, str] | None] = []
+
+        def fake_resolve(selection):
+            captured.append(selection)
+            return SimpleNamespace(model="selected-model")
+
+        monkeypatch.setattr(
+            "deeptutor.services.tutorbot.model_runtime.resolve_llm_config_for_selection",
+            fake_resolve,
+        )
+
+        cfg = BotConfig(
+            name="bot",
+            llm_selection={"profile_id": "p-alt", "model_id": "m-alt"},
+            model="legacy-model",
+        )
+
+        resolved = resolve_tutorbot_llm_config(cfg)
+
+        assert resolved.model == "selected-model"
+        assert captured == [{"profile_id": "p-alt", "model_id": "m-alt"}]
+
+    def test_legacy_model_overrides_system_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeConfig:
+            model = "system-model"
+
+            def model_copy(self, update):
+                return SimpleNamespace(model=update["model"])
+
+        monkeypatch.setattr(
+            "deeptutor.services.tutorbot.model_runtime.resolve_llm_config_for_selection",
+            lambda selection: FakeConfig(),
+        )
+
+        resolved = resolve_tutorbot_llm_config(BotConfig(name="bot", model="legacy-model"))
+
+        assert resolved.model == "legacy-model"
+
+
 # ---------------------------------------------------------------------------
 # auto_start persistence during lifecycle stops
 # ---------------------------------------------------------------------------
@@ -262,9 +367,7 @@ class TestAutoStartPersistence:
         assert self._config_data(manager, "restartable-bot")["auto_start"] is True
         assert manager.get_bot("restartable-bot") is None
 
-    def test_shutdown_stop_all_preserves_existing_auto_start_false(
-        self, manager: TutorBotManager
-    ):
+    def test_shutdown_stop_all_preserves_existing_auto_start_false(self, manager: TutorBotManager):
         cfg = BotConfig(name="manual-only")
         manager.save_bot_config("manual-only-bot", cfg, auto_start=False)
         self._register_instance(manager, "manual-only-bot", cfg)
@@ -284,7 +387,10 @@ def test_start_bot_passes_shared_memory_dir(
     class FakeAgentLoop:
         def __init__(self, *args, **kwargs) -> None:
             captured["shared_memory_dir"] = kwargs.get("shared_memory_dir")
+            captured["model"] = kwargs.get("model")
+            captured["context_window_tokens"] = kwargs.get("context_window_tokens")
             self.model = kwargs.get("model") or "fake-model"
+            self.context_window_tokens = kwargs.get("context_window_tokens") or 65_536
 
         async def run(self) -> None:
             return None
@@ -302,7 +408,11 @@ def test_start_bot_passes_shared_memory_dir(
     monkeypatch.setattr("deeptutor.tutorbot.agent.loop.AgentLoop", FakeAgentLoop)
     monkeypatch.setattr(
         "deeptutor.tutorbot.providers.deeptutor_adapter.create_deeptutor_provider",
-        lambda: object(),
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "deeptutor.services.tutorbot.model_runtime.resolve_tutorbot_llm_config",
+        lambda _cfg: SimpleNamespace(model="selected-model", context_window=123456),
     )
     monkeypatch.setattr(
         "deeptutor.services.tutorbot.manager.TutorBotManager._build_channel_manager",
@@ -325,3 +435,62 @@ def test_start_bot_passes_shared_memory_dir(
     asyncio.run(run_start())
 
     assert captured["shared_memory_dir"] == tmp_path / "memory"
+    assert captured["model"] == "selected-model"
+    assert captured["context_window_tokens"] == 123456
+
+
+def test_reload_llm_updates_running_agent_loop(
+    manager: TutorBotManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeAgentLoop:
+        context_window_tokens = 65_536
+
+        def update_llm(self, **kwargs) -> None:
+            calls.append(kwargs)
+            self.model = kwargs["model"]
+
+    class FakeHeartbeat:
+        provider = None
+        model = None
+
+    cfg = BotConfig(
+        name="bot",
+        llm_selection={"profile_id": "p-alt", "model_id": "m-alt"},
+    )
+    instance = TutorBotInstance(bot_id="reload-bot", config=cfg)
+    instance.agent_loop = FakeAgentLoop()
+    instance.heartbeat = FakeHeartbeat()
+
+    selected_provider = object()
+    monkeypatch.setattr(
+        "deeptutor.services.tutorbot.model_runtime.resolve_tutorbot_llm_config",
+        lambda _cfg: SimpleNamespace(model="alt-model", context_window=999),
+    )
+    monkeypatch.setattr(
+        "deeptutor.tutorbot.providers.deeptutor_adapter.create_deeptutor_provider",
+        lambda _cfg: selected_provider,
+    )
+
+    async def run_reload() -> None:
+        task = asyncio.create_task(asyncio.sleep(3600))
+        instance.tasks = [task]
+        manager._bots["reload-bot"] = instance
+        try:
+            await manager.reload_llm("reload-bot")
+        finally:
+            task.cancel()
+
+    asyncio.run(run_reload())
+
+    assert calls == [
+        {
+            "provider": selected_provider,
+            "model": "alt-model",
+            "context_window_tokens": 999,
+        }
+    ]
+    assert instance.heartbeat.provider is selected_provider
+    assert instance.heartbeat.model == "alt-model"

@@ -15,9 +15,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import asyncio
 from dataclasses import dataclass, field
+import logging
 from typing import Any
-
-from deeptutor.logging import get_logger
 
 from ..models import (
     Block,
@@ -29,11 +28,47 @@ from ..models import (
     SourceAnchor,
 )
 
-logger = get_logger("book.blocks")
+logger = logging.getLogger(__name__)
 
 
 class GenerationFailure(Exception):
     """Raised by a generator to mark the block as ERROR."""
+
+
+def _classify_failure(message: str) -> str:
+    lower = (message or "").lower()
+    if "json" in lower or "object found" in lower or "parse" in lower:
+        return "json_parse"
+    if "empty" in lower or "did not return" in lower or "returned no" in lower:
+        return "empty_response"
+    if "timeout" in lower or "timed out" in lower or "stalled" in lower:
+        return "timeout"
+    if "rate limit" in lower or "429" in lower:
+        return "rate_limit"
+    if "<think" in lower or "reasoning_content" in lower or "prompt" in lower:
+        return "prompt_leak"
+    if "api" in lower or "llm" in lower or "provider" in lower:
+        return "provider_error"
+    return "generator_error"
+
+
+def _failure_metadata(exc: Exception, source: str) -> dict[str, Any]:
+    message = str(exc)
+    kind = _classify_failure(message)
+    return {
+        "kind": kind,
+        "message": message,
+        "retryable": kind
+        in {
+            "json_parse",
+            "empty_response",
+            "timeout",
+            "rate_limit",
+            "provider_error",
+            "generator_error",
+        },
+        "source": source,
+    }
 
 
 @dataclass
@@ -93,6 +128,10 @@ class BlockGenerator(ABC):
         except GenerationFailure as exc:
             block.status = BlockStatus.ERROR
             block.error = str(exc)
+            block.metadata = {
+                **block.metadata,
+                "failure": _failure_metadata(exc, self.__class__.__name__),
+            }
             return block
         except asyncio.CancelledError:
             raise
@@ -100,6 +139,10 @@ class BlockGenerator(ABC):
             logger.warning(f"Generator {self.__class__.__name__} raised: {exc}", exc_info=True)
             block.status = BlockStatus.ERROR
             block.error = str(exc)
+            block.metadata = {
+                **block.metadata,
+                "failure": _failure_metadata(exc, self.__class__.__name__),
+            }
             return block
 
         block.payload = payload or {}
@@ -107,6 +150,7 @@ class BlockGenerator(ABC):
             block.source_anchors = anchors
         if metadata:
             block.metadata = {**block.metadata, **metadata}
+        block.metadata.pop("failure", None)
         block.status = BlockStatus.READY
         return block
 

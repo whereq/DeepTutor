@@ -30,6 +30,7 @@ interface ComposerInputProps {
   onPaste: (e: React.ClipboardEvent) => void;
   selectedCounts: ChatSpaceSelectionCounts;
   onSelectNotebookPicker: () => void;
+  onSelectBookPicker: () => void;
   onSelectHistoryPicker: () => void;
   onSelectQuestionBankPicker: () => void;
   onSelectSkillsPicker: () => void;
@@ -63,6 +64,7 @@ export const ComposerInput = memo(
       onPaste,
       selectedCounts,
       onSelectNotebookPicker,
+      onSelectBookPicker,
       onSelectHistoryPicker,
       onSelectQuestionBankPicker,
       onSelectSkillsPicker,
@@ -179,6 +181,7 @@ export const ComposerInput = memo(
       (
         key:
           | "chat_history"
+          | "books"
           | "notebooks"
           | "question_bank"
           | "skills"
@@ -187,6 +190,7 @@ export const ComposerInput = memo(
         clearTrailingMention();
         setShowAtPopup(false);
         if (key === "chat_history") onSelectHistoryPicker();
+        else if (key === "books") onSelectBookPicker();
         else if (key === "notebooks") onSelectNotebookPicker();
         else if (key === "question_bank") onSelectQuestionBankPicker();
         else if (key === "skills") onSelectSkillsPicker();
@@ -195,6 +199,7 @@ export const ComposerInput = memo(
       [
         clearTrailingMention,
         onSelectHistoryPicker,
+        onSelectBookPicker,
         onSelectNotebookPicker,
         onSelectQuestionBankPicker,
         onSelectSkillsPicker,

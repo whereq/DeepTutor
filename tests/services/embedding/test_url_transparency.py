@@ -35,6 +35,7 @@ def _capture_url(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     async def fake_post(self: httpx.AsyncClient, url: str, **kwargs: Any) -> httpx.Response:
         captured["url"] = url
         captured["json"] = kwargs.get("json")
+        captured["headers"] = kwargs.get("headers")
         request = httpx.Request("POST", url)
         # Different adapters expect different response shapes.
         return httpx.Response(
@@ -76,6 +77,45 @@ async def test_openai_compat_url_verbatim(monkeypatch: pytest.MonkeyPatch) -> No
     )
     await adapter.embed(EmbeddingRequest(texts=["hello"], model="test-model"))
     assert captured["url"] == CUSTOM_URL
+
+
+@pytest.mark.asyncio
+async def test_openai_compat_forwards_real_authorization_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = _capture_url(monkeypatch)
+    adapter = OpenAICompatibleEmbeddingAdapter(
+        {
+            "api_key": "sk-real",
+            "base_url": CUSTOM_URL,
+            "model": "test-model",
+            "dimensions": 0,
+            "send_dimensions": False,
+            "request_timeout": 5,
+        }
+    )
+    await adapter.embed(EmbeddingRequest(texts=["hello"], model="test-model"))
+    assert captured["headers"]["Authorization"] == "Bearer sk-real"
+
+
+@pytest.mark.asyncio
+async def test_openai_compat_suppresses_no_key_placeholder_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = _capture_url(monkeypatch)
+    adapter = OpenAICompatibleEmbeddingAdapter(
+        {
+            "api_key": "sk-no-key-required",
+            "base_url": CUSTOM_URL,
+            "model": "test-model",
+            "dimensions": 0,
+            "send_dimensions": False,
+            "request_timeout": 5,
+        }
+    )
+    await adapter.embed(EmbeddingRequest(texts=["hello"], model="test-model"))
+    assert "Authorization" not in captured["headers"]
+    assert "api-key" not in captured["headers"]
 
 
 @pytest.mark.asyncio

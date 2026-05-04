@@ -9,9 +9,9 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 import hashlib
-import time
 import secrets
 import string
+import time
 from typing import TYPE_CHECKING, Any
 import uuid
 
@@ -21,6 +21,7 @@ from openai import AsyncOpenAI
 from deeptutor.services.llm.capabilities import disable_response_format_at_runtime
 from deeptutor.services.llm.provider_core.base import LLMProvider, LLMResponse, ToolCallRequest
 from deeptutor.services.llm.provider_core.openai_responses import (
+    adapt_chat_kwargs_to_responses,
     consume_sdk_stream,
     convert_messages,
     convert_tools,
@@ -50,9 +51,7 @@ _DEFAULT_OPENROUTER_HEADERS = {
 _RESPONSES_FAILURE_THRESHOLD = 2
 _RESPONSES_PROBE_INTERVAL_S = 300.0
 _THINKING_STYLE_MAP = {
-    "thinking_type": lambda enabled: {
-        "thinking": {"type": "enabled" if enabled else "disabled"}
-    },
+    "thinking_type": lambda enabled: {"thinking": {"type": "enabled" if enabled else "disabled"}},
     "enable_thinking": lambda enabled: {"enable_thinking": enabled},
     "reasoning_split": lambda enabled: {"reasoning_split": enabled},
 }
@@ -294,11 +293,7 @@ class OpenAICompatProvider(LLMProvider):
                     kwargs.update(overrides)
                     break
 
-        if (
-            reasoning_effort is None
-            and spec
-            and spec.reasoning_model_patterns
-        ):
+        if reasoning_effort is None and spec and spec.reasoning_model_patterns:
             model_lower = model_name.lower()
             if any(p.lower() in model_lower for p in spec.reasoning_model_patterns):
                 reasoning_effort = "high"
@@ -705,7 +700,7 @@ class OpenAICompatProvider(LLMProvider):
                         reasoning_effort,
                         tool_choice,
                     )
-                    body.update({k: v for k, v in extra_kwargs.items() if v is not None})
+                    body.update(adapt_chat_kwargs_to_responses(extra_kwargs))
                     result = parse_response_output(await self._client.responses.create(**body))
                     self._record_responses_success(model, reasoning_effort)
                     return result
@@ -729,9 +724,9 @@ class OpenAICompatProvider(LLMProvider):
             try:
                 return self._parse(await self._client.chat.completions.create(**request_kwargs))
             except Exception as exc:
-                if request_kwargs.get("response_format") is not None and self._is_response_format_error(
-                    exc
-                ):
+                if request_kwargs.get(
+                    "response_format"
+                ) is not None and self._is_response_format_error(exc):
                     binding = self._provider_name or (self._spec.name if self._spec else "openai")
                     disable_response_format_at_runtime(binding, request_kwargs.get("model"))
                     retry_kwargs = dict(request_kwargs)
@@ -788,7 +783,7 @@ class OpenAICompatProvider(LLMProvider):
                         reasoning_effort,
                         tool_choice,
                     )
-                    body.update({k: v for k, v in extra_kwargs.items() if v is not None})
+                    body.update(adapt_chat_kwargs_to_responses(extra_kwargs))
                     body["stream"] = True
                     stream = await self._client.responses.create(**body)
 
@@ -803,12 +798,16 @@ class OpenAICompatProvider(LLMProvider):
                             except StopAsyncIteration:
                                 break
 
-                    content, tool_calls, finish_reason, usage, reasoning_content = (
-                        await consume_sdk_stream(
-                            _timed_stream(),
-                            on_content_delta,
-                            on_reasoning_delta=on_reasoning_delta,
-                        )
+                    (
+                        content,
+                        tool_calls,
+                        finish_reason,
+                        usage,
+                        reasoning_content,
+                    ) = await consume_sdk_stream(
+                        _timed_stream(),
+                        on_content_delta,
+                        on_reasoning_delta=on_reasoning_delta,
                     )
                     self._record_responses_success(model, reasoning_effort)
                     return LLMResponse(
@@ -831,9 +830,9 @@ class OpenAICompatProvider(LLMProvider):
             try:
                 stream = await self._client.chat.completions.create(**request_kwargs)
             except Exception as exc:
-                if request_kwargs.get("response_format") is not None and self._is_response_format_error(
-                    exc
-                ):
+                if request_kwargs.get(
+                    "response_format"
+                ) is not None and self._is_response_format_error(exc):
                     binding = self._provider_name or (self._spec.name if self._spec else "openai")
                     disable_response_format_at_runtime(binding, request_kwargs.get("model"))
                     retry_kwargs = dict(request_kwargs)

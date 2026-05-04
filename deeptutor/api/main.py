@@ -5,11 +5,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from deeptutor.logging import get_logger
+from deeptutor.logging import configure_logging
 from deeptutor.services.path_service import get_path_service
 
-# Note: Don't set service_prefix here - start_web.py already adds [Backend] prefix
-logger = get_logger("API")
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 class _SuppressWsNoise(logging.Filter):

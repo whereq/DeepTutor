@@ -147,7 +147,9 @@ export interface Book {
   chapter_count: number;
   created_at: number;
   updated_at: number;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, unknown> & {
+    page_chat_sessions?: Record<string, string>;
+  };
 }
 
 export interface Progress {

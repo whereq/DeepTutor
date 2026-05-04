@@ -75,7 +75,9 @@ export default function HistorySessionPicker({
     if (!keyword) return sessions;
     return sessions.filter((session) => {
       const title = String(session.title || "").toLowerCase();
-      const lastMessage = normalizeMessageContent(session.last_message).toLowerCase();
+      const lastMessage = normalizeMessageContent(
+        session.last_message,
+      ).toLowerCase();
       return title.includes(keyword) || lastMessage.includes(keyword);
     });
   }, [query, sessions]);
@@ -192,7 +194,10 @@ export default function HistorySessionPicker({
                         </div>
                         {session.last_message ? (
                           <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[var(--muted-foreground)]">
-                            {truncateText(normalizeMessageContent(session.last_message), 200)}
+                            {truncateText(
+                              normalizeMessageContent(session.last_message),
+                              200,
+                            )}
                           </p>
                         ) : null}
                         <div className="mt-2 flex items-center gap-3 text-[11px] text-[var(--muted-foreground)]/85">

@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import SpaceSectionHeader from "@/components/space/SpaceSectionHeader";
+import { isValidSkillName, slugifySkillName } from "@/lib/skill-slug";
 import {
   createSkill,
   createSkillTag,
@@ -169,6 +170,15 @@ export default function SkillsSection() {
       setEditor({ ...editor, error: t("Name is required") });
       return;
     }
+    if (!isValidSkillName(trimmedName)) {
+      setEditor({
+        ...editor,
+        error: t(
+          "Name must use only lowercase letters, digits, and hyphens, and must start with a letter or digit.",
+        ),
+      });
+      return;
+    }
     setEditor({ ...editor, saving: true, error: null });
     try {
       if (editor.mode === "create") {
@@ -242,9 +252,7 @@ export default function SkillsSection() {
       prev
         ? {
             ...prev,
-            tags: prev.tags.includes(clean)
-              ? prev.tags
-              : [...prev.tags, clean],
+            tags: prev.tags.includes(clean) ? prev.tags : [...prev.tags, clean],
           }
         : prev,
     );
@@ -315,6 +323,9 @@ export default function SkillsSection() {
       ),
     [editor?.tags, tagVocab],
   );
+  const editorNameInvalid = Boolean(
+    editor?.name && !isValidSkillName(editor.name),
+  );
 
   return (
     <div className="space-y-6">
@@ -332,7 +343,7 @@ export default function SkillsSection() {
         action={
           <button
             onClick={openCreate}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--foreground)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--background)] shadow-sm transition-opacity hover:opacity-90"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--primary-foreground)] shadow-sm transition-opacity hover:opacity-90"
           >
             <Plus size={13} strokeWidth={2} />
             {t("New skill")}
@@ -510,7 +521,7 @@ export default function SkillsSection() {
           </p>
           <button
             onClick={openCreate}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--foreground)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--background)] shadow-sm transition-opacity hover:opacity-90"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--primary-foreground)] shadow-sm transition-opacity hover:opacity-90"
           >
             <Plus size={13} strokeWidth={2} />
             {t("Create your first skill")}
@@ -603,7 +614,7 @@ export default function SkillsSection() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-2xl">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--background)] shadow-2xl">
             <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
               <div className="flex items-center gap-2">
                 <Wand2 size={14} className="text-[var(--muted-foreground)]" />
@@ -627,12 +638,25 @@ export default function SkillsSection() {
                 <input
                   value={editor.name}
                   onChange={(e) =>
-                    setEditor({ ...editor, name: e.target.value })
+                    setEditor({
+                      ...editor,
+                      name: slugifySkillName(e.target.value),
+                    })
                   }
-                  placeholder={t("e.g. teacher")}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25"
+                  placeholder={t("e.g. socratic-math-mentor")}
+                  className={`w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[13px] outline-none transition-colors focus:border-[var(--foreground)]/25 ${
+                    editorNameInvalid
+                      ? "border-red-400 dark:border-red-600"
+                      : "border-[var(--border)]"
+                  }`}
                 />
-                <p className="mt-1 text-[11px] text-[var(--muted-foreground)]/70">
+                <p
+                  className={`mt-1 text-[11px] transition-colors ${
+                    editorNameInvalid
+                      ? "text-red-500 dark:text-red-400"
+                      : "text-[var(--muted-foreground)]/70"
+                  }`}
+                >
                   {t("Lowercase letters, digits, and hyphens only.")}
                 </p>
               </div>
@@ -748,7 +772,9 @@ export default function SkillsSection() {
                 disabled={editor.saving}
                 className="inline-flex items-center gap-1.5 rounded-md bg-[var(--foreground)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                {editor.saving && <Loader2 size={12} className="animate-spin" />}
+                {editor.saving && (
+                  <Loader2 size={12} className="animate-spin" />
+                )}
                 {t("Save")}
               </button>
             </div>

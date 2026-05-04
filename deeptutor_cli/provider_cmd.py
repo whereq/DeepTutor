@@ -32,9 +32,7 @@ def _login_openai_codex() -> None:
     try:
         from oauth_cli_kit import get_token, login_oauth_interactive
     except ImportError:
-        typer.echo(
-            "oauth_cli_kit is not installed. Install CLI deps: pip install -e '.[cli]'"
-        )
+        typer.echo("oauth_cli_kit is not installed. Install CLI deps: pip install -e '.[cli]'")
         raise typer.Exit(code=1)
 
     token = None

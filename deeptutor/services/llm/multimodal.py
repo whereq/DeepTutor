@@ -274,9 +274,7 @@ def _inject_images(
                 # Always prefer inline base64 when available — providers that
                 # reject URL form (Moonshot) accept this; providers that
                 # accept URLs accept this too.
-                content_parts.append(
-                    _build_openai_image_part(base64_data=b64, mime_type=mime)
-                )
+                content_parts.append(_build_openai_image_part(base64_data=b64, mime_type=mime))
             else:
                 content_parts.append(
                     _build_openai_image_part(base64_data="", mime_type=mime, url=url)

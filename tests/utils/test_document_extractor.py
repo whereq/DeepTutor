@@ -11,18 +11,19 @@ from pptx import Presentation
 from pptx.util import Inches
 import pytest
 
+from deeptutor.utils import document_extractor as document_extractor_module
 from deeptutor.utils.document_extractor import (
+    MAX_DOC_BYTES,
+    MAX_EXTRACTED_CHARS_PER_DOC,
     CorruptDocumentError,
     DocumentTooLargeError,
     EmptyDocumentError,
-    MAX_DOC_BYTES,
-    MAX_EXTRACTED_CHARS_PER_DOC,
     UnsupportedDocumentError,
     extract_documents_from_records,
     extract_text_from_bytes,
+    extract_text_from_path,
     is_document_extension,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures — generate office docs on the fly
@@ -107,6 +108,25 @@ class TestExtractDocx:
         assert "Hello world" in text
         assert "Second paragraph" in text
 
+    def test_path_helper_can_disable_chat_truncation(self, tmp_path) -> None:
+        data = _make_docx(["a" * (MAX_EXTRACTED_CHARS_PER_DOC + 10)])
+        path = tmp_path / "long.docx"
+        path.write_bytes(data)
+
+        text = extract_text_from_path(path, max_chars=None)
+
+        assert len(text) > MAX_EXTRACTED_CHARS_PER_DOC
+        assert "truncated" not in text
+
+    def test_ooxml_fallback_without_python_docx(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(document_extractor_module, "DocxDocument", None)
+        data = _make_docx(["Fallback paragraph", "第二段"])
+
+        text = extract_text_from_bytes("doc.docx", data)
+
+        assert "Fallback paragraph" in text
+        assert "第二段" in text
+
 
 class TestExtractXlsx:
     def test_multiple_sheets(self) -> None:
@@ -122,6 +142,16 @@ class TestExtractXlsx:
         assert "a1" in text and "42" in text
         assert "x" in text
 
+    def test_ooxml_fallback_without_openpyxl(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(document_extractor_module, "load_workbook", None)
+        data = _make_xlsx({"Alpha": [["name", "score"], ["alice", 98]]})
+
+        text = extract_text_from_bytes("book.xlsx", data)
+
+        assert "--- Sheet: Alpha ---" in text
+        assert "alice" in text
+        assert "98" in text
+
 
 class TestExtractPptx:
     def test_basic_slides(self) -> None:
@@ -131,6 +161,16 @@ class TestExtractPptx:
         assert "--- Slide 2 ---" in text
         assert "Slide 1 title" in text
         assert "Slide 2 only text" in text
+
+    def test_ooxml_fallback_without_python_pptx(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(document_extractor_module, "PptxPresentation", None)
+        data = _make_pptx([["Fallback slide", "第二行"]])
+
+        text = extract_text_from_bytes("deck.pptx", data)
+
+        assert "--- Slide 1 ---" in text
+        assert "Fallback slide" in text
+        assert "第二行" in text
 
 
 class TestExtractTextLike:
@@ -175,7 +215,7 @@ class TestExtractTextLike:
             b'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
             b'<circle cx="50" cy="50" r="40" fill="red"/>'
             b'<text x="50" y="55">Hello</text>'
-            b'</svg>'
+            b"</svg>"
         )
         text = extract_text_from_bytes("logo.svg", svg)
         assert "<svg" in text
@@ -267,8 +307,20 @@ class TestExtractDocumentsFromRecords:
         image_b64 = base64.b64encode(b"\x89PNG\r\n\x1a\n").decode()
 
         records = [
-            {"type": "image", "filename": "pic.png", "base64": image_b64, "mime_type": "image/png", "url": ""},
-            {"type": "file", "filename": "note.docx", "base64": docx_b64, "mime_type": "", "url": ""},
+            {
+                "type": "image",
+                "filename": "pic.png",
+                "base64": image_b64,
+                "mime_type": "image/png",
+                "url": "",
+            },
+            {
+                "type": "file",
+                "filename": "note.docx",
+                "base64": docx_b64,
+                "mime_type": "",
+                "url": "",
+            },
         ]
 
         doc_texts, updated = extract_documents_from_records(records)
@@ -284,13 +336,23 @@ class TestExtractDocumentsFromRecords:
         assert updated[1]["extracted_chars"] > 0
 
     def test_unsupported_record_is_passthrough(self) -> None:
-        records = [{"type": "file", "filename": "foo.zip", "base64": "AAAA", "mime_type": "", "url": ""}]
+        records = [
+            {"type": "file", "filename": "foo.zip", "base64": "AAAA", "mime_type": "", "url": ""}
+        ]
         doc_texts, updated = extract_documents_from_records(records)
         assert doc_texts == []
         assert updated[0]["base64"] == "AAAA"  # untouched — not a doc extension
 
     def test_failed_extraction_emits_error_marker(self) -> None:
-        records = [{"type": "file", "filename": "bad.pdf", "base64": base64.b64encode(b"not a pdf").decode(), "mime_type": "", "url": ""}]
+        records = [
+            {
+                "type": "file",
+                "filename": "bad.pdf",
+                "base64": base64.b64encode(b"not a pdf").decode(),
+                "mime_type": "",
+                "url": "",
+            }
+        ]
         doc_texts, updated = extract_documents_from_records(records)
         assert len(doc_texts) == 1
         assert "bad.pdf" in doc_texts[0]
@@ -298,7 +360,15 @@ class TestExtractDocumentsFromRecords:
         assert updated[0]["base64"] == ""  # stripped even on failure
 
     def test_invalid_base64_emits_error_marker(self) -> None:
-        records = [{"type": "file", "filename": "bad.docx", "base64": "!!!not base64!!!", "mime_type": "", "url": ""}]
+        records = [
+            {
+                "type": "file",
+                "filename": "bad.docx",
+                "base64": "!!!not base64!!!",
+                "mime_type": "",
+                "url": "",
+            }
+        ]
         doc_texts, updated = extract_documents_from_records(records)
         # invalid base64 with validate=False may silently decode or emit error — both
         # paths end up as an error marker since resulting bytes won't pass magic check

@@ -235,7 +235,8 @@ function formatRelative(unixSeconds: number): string {
   const diff = Date.now() - ts;
   if (diff < 60_000) return "just now";
   if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))}h ago`;
+  if (diff < 24 * 60 * 60_000)
+    return `${Math.floor(diff / (60 * 60_000))}h ago`;
   if (diff < 30 * 24 * 60 * 60_000)
     return `${Math.floor(diff / (24 * 60 * 60_000))}d ago`;
   return new Date(ts).toLocaleDateString();

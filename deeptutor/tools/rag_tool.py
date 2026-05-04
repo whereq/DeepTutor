@@ -12,7 +12,6 @@ from typing import Dict, List, Optional
 # Import RAGService as the single entry point
 from deeptutor.services.rag.service import DEFAULT_KB_BASE_DIR, RAGService
 
-
 DEFAULT_KB_ALIASES = {"", "default", "current", "selected", "默认", "默认知识库", "当前知识库"}
 
 
@@ -65,6 +64,10 @@ async def rag_search(
                 "provider": str
             }
     """
+    query = str(query or "").strip()
+    if not query:
+        raise ValueError("RAG query must be a non-empty string.")
+
     service = RAGService(kb_base_dir=kb_base_dir, provider=provider)
     resolved_kb_name = _resolve_kb_name(kb_name, kb_base_dir=kb_base_dir)
     if not resolved_kb_name:

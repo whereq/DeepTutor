@@ -30,9 +30,9 @@ every importer in the codebase.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from deeptutor.logging import get_logger
 from deeptutor.utils.json_parser import parse_json_response
 
 from ..blocks._llm_writer import llm_text
@@ -46,7 +46,7 @@ from ..models import (
     ExplorationReport,
 )
 
-logger = get_logger("book.section_architect")
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

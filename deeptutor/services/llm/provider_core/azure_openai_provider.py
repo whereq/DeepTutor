@@ -11,6 +11,7 @@ from openai import AsyncOpenAI
 
 from deeptutor.services.llm.provider_core.base import LLMProvider, LLMResponse
 from deeptutor.services.llm.provider_core.openai_responses import (
+    adapt_chat_kwargs_to_responses,
     consume_sdk_stream,
     convert_messages,
     convert_tools,
@@ -122,7 +123,7 @@ class AzureOpenAIProvider(LLMProvider):
             reasoning_effort,
             tool_choice,
         )
-        body.update({k: v for k, v in extra_kwargs.items() if v is not None})
+        body.update(adapt_chat_kwargs_to_responses(extra_kwargs))
         try:
             return parse_response_output(await self._client.responses.create(**body))
         except Exception as exc:
@@ -150,7 +151,7 @@ class AzureOpenAIProvider(LLMProvider):
             reasoning_effort,
             tool_choice,
         )
-        body.update({k: v for k, v in extra_kwargs.items() if v is not None})
+        body.update(adapt_chat_kwargs_to_responses(extra_kwargs))
         body["stream"] = True
         idle_timeout_s = 90
 
@@ -161,7 +162,9 @@ class AzureOpenAIProvider(LLMProvider):
                 stream_iter = stream.__aiter__()
                 while True:
                     try:
-                        yield await asyncio.wait_for(stream_iter.__anext__(), timeout=idle_timeout_s)
+                        yield await asyncio.wait_for(
+                            stream_iter.__anext__(), timeout=idle_timeout_s
+                        )
                     except StopAsyncIteration:
                         break
 

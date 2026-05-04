@@ -83,10 +83,7 @@ def validate_embedding_batch(
         item_index = start_index + local_index
         if vector is None:
             _raise_invalid_vector("vector is null", item_index=item_index, context=context)
-        if (
-            isinstance(vector, (str, bytes))
-            or not isinstance(vector, Sequence)
-        ):
+        if isinstance(vector, (str, bytes)) or not isinstance(vector, Sequence):
             _raise_invalid_vector(
                 f"expected a numeric sequence, got {type(vector).__name__}",
                 item_index=item_index,

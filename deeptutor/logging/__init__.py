@@ -1,100 +1,24 @@
-"""
-Unified Logging System for DeepTutor
-=====================================
+"""DeepTutor Logging 2.0: stdlib core plus structured process-log events."""
 
-A clean, consistent logging system with:
-- Unified format: [Module] Symbol Message
-- English-only output
-- File output to data/user/logs/
-- WebSocket streaming support
-- Color-coded console output
-- LLM usage statistics tracking
-- External library log forwarding (LlamaIndex)
-
-Usage:
-    from deeptutor.logging import get_logger, LLMStats
-
-    logger = get_logger("Solver")
-    logger.info("Processing started")
-    logger.success("Task completed in 2.3s")
-    logger.error("Something went wrong")
-
-    # Track LLM usage
-    stats = LLMStats("Solver")
-    stats.add_call(model="gpt-4o", prompt_tokens=100, completion_tokens=50)
-    stats.print_summary()
-"""
-
-# Core logging
-# Adapters for external libraries
-from .adapters import (
-    LlamaIndexLogContext,
-    LlamaIndexLogForwarder,
-)
-
-# Configuration
-from .config import (
-    LoggingConfig,
-    get_default_log_dir,
-    get_global_log_level,
-    load_logging_config,
-)
-
-# Handlers
-from .handlers import (
-    ConsoleHandler,
-    FileHandler,
-    JSONFileHandler,
-    LogInterceptor,
-    RotatingFileHandler,
-    WebSocketLogHandler,
-)
-from .logger import (
-    ConsoleFormatter,
-    FileFormatter,
-    Logger,
-    LogLevel,
-    get_logger,
-    reset_logger,
-    set_default_service_prefix,
-)
-
-# Statistics tracking
-from .stats import (
-    MODEL_PRICING,
-    LLMCall,
-    LLMStats,
-    estimate_tokens,
-    get_pricing,
-)
+from .config import LoggingConfig, get_default_log_dir, get_global_log_level, load_logging_config
+from .configure import configure_logging
+from .context import LOG_CONTEXT_FIELDS, bind_log_context, current_log_context
+from .process_stream import ProcessLogEvent, capture_process_logs
+from .stats import MODEL_PRICING, LLMCall, LLMStats, estimate_tokens, get_pricing
 
 __all__ = [
-    # Core
-    "Logger",
-    "LogLevel",
-    "get_logger",
-    "reset_logger",
-    "set_default_service_prefix",
-    "ConsoleFormatter",
-    "FileFormatter",
-    # Handlers
-    "ConsoleHandler",
-    "FileHandler",
-    "JSONFileHandler",
-    "RotatingFileHandler",
-    "WebSocketLogHandler",
-    "LogInterceptor",
-    # Adapters
-    "LlamaIndexLogContext",
-    "LlamaIndexLogForwarder",
-    # Stats
+    "LOG_CONTEXT_FIELDS",
+    "LoggingConfig",
+    "configure_logging",
+    "bind_log_context",
+    "current_log_context",
+    "capture_process_logs",
+    "ProcessLogEvent",
     "LLMStats",
     "LLMCall",
-    "get_pricing",
-    "estimate_tokens",
     "MODEL_PRICING",
-    # Config
-    "LoggingConfig",
+    "estimate_tokens",
+    "get_pricing",
     "load_logging_config",
     "get_default_log_dir",
     "get_global_log_level",

@@ -188,7 +188,7 @@ export default function QuestionBankSection() {
   );
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-4">
       <SpaceSectionHeader
         icon={ClipboardList}
         title={t("Question Bank")}
@@ -204,20 +204,22 @@ export default function QuestionBankSection() {
 
       {/* Category manager */}
       <div
-        className={`mb-4 overflow-hidden rounded-xl border transition-colors ${showCategoryManager ? "border-[var(--border)] bg-[var(--card)]" : "border-[var(--border)]/50 bg-transparent"}`}
+        className={`overflow-hidden rounded-xl border transition-colors ${
+          showCategoryManager
+            ? "border-[var(--border)] bg-[var(--card)] shadow-sm"
+            : "border-[var(--border)]/60 bg-[var(--card)]/40"
+        }`}
       >
         <button
           onClick={() => setShowCategoryManager((v) => !v)}
-          className="flex w-full items-center justify-between px-4 py-2.5 text-[13px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/40"
+          className="flex w-full items-center justify-between px-4 py-3 text-[13px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]/30"
         >
           <span className="flex items-center gap-2">
             <FolderOpen className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
             {t("Manage Categories")}
-            {categories.length > 0 && (
-              <span className="rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] text-[var(--muted-foreground)]">
-                {categories.length}
-              </span>
-            )}
+            <span className="rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] tabular-nums text-[var(--muted-foreground)]">
+              {categories.length}
+            </span>
           </span>
           <ChevronDown
             className={`h-3.5 w-3.5 text-[var(--muted-foreground)] transition-transform duration-200 ${showCategoryManager ? "rotate-180" : ""}`}
@@ -225,7 +227,7 @@ export default function QuestionBankSection() {
         </button>
 
         {showCategoryManager && (
-          <div className="border-t border-[var(--border)] px-4 pb-4 pt-3">
+          <div className="border-t border-[var(--border)]/70 px-4 pb-4 pt-3">
             <div className="space-y-1.5">
               {categories.map((cat) => (
                 <div
@@ -304,7 +306,7 @@ export default function QuestionBankSection() {
       </div>
 
       {/* Filter bar */}
-      <div className="mb-5 flex items-center justify-between border-b border-[var(--border)]/50 pb-3">
+      <div className="flex items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-1 overflow-x-auto">
           {FILTERS.map(({ mode, label }) => {
             const active = filter === mode && activeCategoryId === null;
@@ -396,7 +398,7 @@ export default function QuestionBankSection() {
             return (
               <li
                 key={item.id}
-                className={`rounded-xl border border-[var(--border)] px-5 py-4 transition-opacity ${
+                className={`rounded-xl border border-[var(--border)] bg-[var(--card)] px-5 py-4 shadow-sm transition-opacity ${
                   disabled ? "opacity-60" : ""
                 }`}
               >
@@ -444,9 +446,7 @@ export default function QuestionBankSection() {
                       onClick={() => void handleToggleBookmark(item)}
                       disabled={disabled}
                       title={
-                        item.bookmarked
-                          ? t("Remove Bookmark")
-                          : t("Bookmark")
+                        item.bookmarked ? t("Remove Bookmark") : t("Bookmark")
                       }
                       className={`rounded-lg p-1.5 transition-colors disabled:opacity-40 ${
                         item.bookmarked
@@ -536,8 +536,7 @@ export default function QuestionBankSection() {
                   </div>
                 )}
 
-                {(!item.options ||
-                  Object.keys(item.options).length === 0) && (
+                {(!item.options || Object.keys(item.options).length === 0) && (
                   <div className="mb-3 space-y-2 text-[13px]">
                     <div
                       className={`rounded-lg border px-3 py-2.5 ${
@@ -586,7 +585,9 @@ export default function QuestionBankSection() {
                           item.question_type === "coding" ? (
                             <MarkdownRenderer
                               content={
-                                item.correct_answer.trimStart().startsWith("```")
+                                item.correct_answer
+                                  .trimStart()
+                                  .startsWith("```")
                                   ? item.correct_answer
                                   : `\`\`\`python\n${item.correct_answer}\n\`\`\``
                               }

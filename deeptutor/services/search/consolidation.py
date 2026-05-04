@@ -7,16 +7,16 @@ Strategies (chosen automatically):
 - Optional LLM synthesis when ``use_llm=True``
 """
 
+import logging
 from typing import Any
 
 from jinja2 import BaseLoader, Environment
 
-from deeptutor.logging import get_logger
 from deeptutor.services.llm import get_llm_client
 
 from .types import WebSearchResponse
 
-_logger = get_logger("Search.Consolidation", level="INFO")
+_logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -178,13 +178,13 @@ class AnswerConsolidator:
         if self.use_llm:
             _logger.info(f"Consolidating {results_count} results from {response.provider} via LLM")
             response.answer = self._consolidate_with_llm(response)
-            _logger.success(f"LLM consolidation completed ({len(response.answer)} chars)")
+            _logger.info(f"LLM consolidation completed ({len(response.answer)} chars)")
         else:
             _logger.info(
                 f"Consolidating {results_count} results from {response.provider} via template"
             )
             response.answer = self._consolidate_with_template(response)
-            _logger.success(f"Template consolidation completed ({len(response.answer)} chars)")
+            _logger.info(f"Template consolidation completed ({len(response.answer)} chars)")
 
         return response
 

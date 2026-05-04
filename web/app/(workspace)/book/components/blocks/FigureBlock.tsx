@@ -2,6 +2,7 @@
 
 import VisualizationViewer from "@/components/visualize/VisualizationViewer";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import { useTranslation } from "react-i18next";
 import type { Block } from "@/lib/book-types";
 import type {
   VisualizeRenderType,
@@ -34,6 +35,7 @@ function coerceRenderType(
 }
 
 export default function FigureBlock({ block }: FigureBlockProps) {
+  const { t } = useTranslation();
   const code =
     (block.payload?.code as
       | { language?: string; content?: string }
@@ -50,7 +52,7 @@ export default function FigureBlock({ block }: FigureBlockProps) {
   if (!content.trim()) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)]/40 p-4 text-xs italic text-[var(--muted-foreground)]">
-        (Figure payload is empty)
+        {t("(Figure payload is empty)")}
       </div>
     );
   }

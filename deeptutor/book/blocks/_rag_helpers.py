@@ -10,12 +10,11 @@ If the block context has a primary KB and ``rag_enabled``, run a single
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-
-from deeptutor.logging import get_logger
+import logging
 
 from ..models import SourceAnchor
 
-logger = get_logger("book.rag_helpers")
+logger = logging.getLogger(__name__)
 
 
 @dataclass

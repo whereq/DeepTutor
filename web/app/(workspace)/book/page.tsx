@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2, MessageSquare } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { bookApi, openBookSocket } from "@/lib/book-api";
 import type {
@@ -48,7 +49,7 @@ export default function BookPage() {
     <Suspense
       fallback={
         <div className="flex h-screen w-full items-center justify-center text-[var(--muted-foreground)]">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> <BookLoadingText />
         </div>
       }
     >
@@ -57,7 +58,13 @@ export default function BookPage() {
   );
 }
 
+function BookLoadingText() {
+  const { t } = useTranslation();
+  return <>{t("Loading…")}</>;
+}
+
 function BookPageInner() {
+  const { t } = useTranslation();
   const [books, setBooks] = useState<Book[]>([]);
   const [loadingBooks, setLoadingBooks] = useState(false);
   const [view, setView] = useState<View>("list");
@@ -85,6 +92,7 @@ function BookPageInner() {
     string | null
   >(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [rebuildingBook, setRebuildingBook] = useState(false);
 
   // Phase 5 — live BookEngine progress timeline state.
   const [progress, dispatchProgress] = useReducer(
@@ -154,6 +162,12 @@ function BookPageInner() {
     return detail.pages.find((p) => p.id === selectedPageId) || null;
   }, [detail, selectedPageId]);
 
+  const selectedPageChatSessionId = useMemo(() => {
+    if (!detail?.book || !selectedPage) return null;
+    const sessions = detail.book.metadata?.page_chat_sessions;
+    return sessions?.[selectedPage.id] || null;
+  }, [detail?.book, selectedPage]);
+
   // ── Handlers ───────────────────────────────────────────────────────
 
   const handleNewBook = () => {
@@ -206,7 +220,7 @@ function BookPageInner() {
   }, [requestedBookId, selectedBookId, handleSelectBook]);
 
   const handleDeleteBook = async (id: string) => {
-    if (!confirm("Delete this book? This cannot be undone.")) return;
+    if (!confirm(t("Delete this book? This cannot be undone."))) return;
     await bookApi.delete(id);
     if (selectedBookId === id) {
       setSelectedBookId(null);
@@ -214,6 +228,29 @@ function BookPageInner() {
       setView("list");
     }
     await refreshBooks();
+  };
+
+  const handleRebuildBook = async () => {
+    if (!detail) return;
+    if (
+      !confirm(
+        t(
+          "Rebuild this book using the current chapter structure? Existing generated pages will be replaced.",
+        ),
+      )
+    ) {
+      return;
+    }
+    setRebuildingBook(true);
+    try {
+      await bookApi.rebuild(detail.book.id, true);
+      const refreshed = await loadBookDetail(detail.book.id);
+      setSelectedPageId(refreshed.pages[0]?.id || null);
+      setView("reader");
+      await refreshBooks();
+    } finally {
+      setRebuildingBook(false);
+    }
   };
 
   const handleCreate = async (payload: {
@@ -302,7 +339,8 @@ function BookPageInner() {
 
   const handleDeleteBlock = async (block: Block) => {
     if (!detail || !selectedPage) return;
-    if (!confirm(`Delete this ${block.type} block?`)) return;
+    if (!confirm(t("Delete this {{type}} block?", { type: block.type })))
+      return;
     await bookApi.deleteBlock(detail.book.id, selectedPage.id, block.id);
     await loadBookDetail(detail.book.id);
   };
@@ -385,6 +423,23 @@ function BookPageInner() {
     }
   };
 
+  const handlePageChatSession = async (sessionId: string) => {
+    if (!detail || !selectedPage || !sessionId) return;
+    const existing =
+      detail.book.metadata?.page_chat_sessions?.[selectedPage.id];
+    if (existing === sessionId) return;
+    const result = await bookApi.setPageChatSession(
+      detail.book.id,
+      selectedPage.id,
+      sessionId,
+    );
+    setDetail((current) =>
+      current && current.book.id === result.book.id
+        ? { ...current, book: result.book }
+        : current,
+    );
+  };
+
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
@@ -396,6 +451,8 @@ function BookPageInner() {
           pages={detail?.pages || []}
           selectedPageId={selectedPageId}
           onSelectPage={handleSelectPage}
+          onRebuild={detail ? () => void handleRebuildBook() : undefined}
+          rebuilding={rebuildingBook}
         />
       )}
 
@@ -488,7 +545,8 @@ function BookPageInner() {
 
           {view === "spine" && !detail?.spine && (
             <div className="flex h-full items-center justify-center text-[var(--muted-foreground)]">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading spine…
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+              {t("Loading spine…")}
             </div>
           )}
         </div>
@@ -499,7 +557,7 @@ function BookPageInner() {
             className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] shadow-lg hover:opacity-90"
           >
             <MessageSquare className="h-4 w-4" />
-            Chat
+            {t("Chat")}
           </button>
         )}
 
@@ -509,6 +567,10 @@ function BookPageInner() {
             page={selectedPage}
             open={chatOpen}
             onClose={() => setChatOpen(false)}
+            initialSessionId={selectedPageChatSessionId}
+            onSessionResolved={(sessionId) =>
+              void handlePageChatSession(sessionId)
+            }
           />
         )}
       </main>
