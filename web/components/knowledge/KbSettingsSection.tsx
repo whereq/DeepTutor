@@ -28,6 +28,7 @@ export default function KbSettingsSection({
     : t("Default embedding");
   const created = formatKnowledgeTimestamp(meta.created_at);
   const updated = formatKnowledgeTimestamp(meta.last_updated);
+  const lastIndexed = formatKnowledgeTimestamp(meta.last_indexed_at);
 
   return (
     <div className="space-y-6">
@@ -46,6 +47,7 @@ export default function KbSettingsSection({
           <Field label={t("Embedding")}>{embeddingLabel}</Field>
           <Field label={t("Created")}>{created || "—"}</Field>
           <Field label={t("Updated")}>{updated || "—"}</Field>
+          <Field label={t("Last indexed")}>{lastIndexed || "—"}</Field>
           {kb.path && (
             <Field label={t("On-disk path")} className="sm:col-span-2">
               <span className="font-mono text-[10.5px] text-[var(--muted-foreground)]">

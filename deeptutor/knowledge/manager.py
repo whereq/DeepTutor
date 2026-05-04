@@ -302,6 +302,27 @@ class KnowledgeBaseManager:
         kb_config = self.config["knowledge_bases"][name]
         kb_config["status"] = status
         kb_config["updated_at"] = datetime.now().isoformat()
+        index_changed = False
+        indexed_count: int | None = None
+        index_action: str | None = None
+        if isinstance(progress, dict):
+            raw_indexed_count = progress.get("indexed_count")
+            if isinstance(raw_indexed_count, bool):
+                indexed_count = int(raw_indexed_count)
+            elif isinstance(raw_indexed_count, (int, float)):
+                indexed_count = int(raw_indexed_count)
+            elif isinstance(raw_indexed_count, str):
+                try:
+                    indexed_count = int(raw_indexed_count)
+                except ValueError:
+                    indexed_count = None
+
+            index_changed = bool(progress.get("index_changed")) or (
+                indexed_count is not None and indexed_count > 0
+            )
+            raw_index_action = progress.get("index_action")
+            if isinstance(raw_index_action, str) and raw_index_action.strip():
+                index_action = raw_index_action.strip()
 
         if status == "ready":
             # Ready KBs should look like stable resources in the UI instead of
@@ -311,6 +332,12 @@ class KnowledgeBaseManager:
                 kb_config["last_completed_at"] = (
                     progress.get("timestamp") or datetime.now().isoformat()
                 )
+                if index_changed:
+                    kb_config["last_indexed_at"] = kb_config["last_completed_at"]
+                    if indexed_count is not None:
+                        kb_config["last_indexed_count"] = max(indexed_count, 0)
+                    if index_action:
+                        kb_config["last_indexed_action"] = index_action
         elif progress is not None:
             kb_config["progress"] = progress
 
@@ -431,6 +458,14 @@ class KnowledgeBaseManager:
                     kb_entry["created_at"] = metadata["created_at"]
                 if metadata.get("last_updated"):
                     kb_entry["updated_at"] = metadata["last_updated"]
+                if metadata.get("last_indexed_at"):
+                    kb_entry["last_indexed_at"] = metadata["last_indexed_at"]
+                elif metadata.get("last_updated"):
+                    kb_entry["last_indexed_at"] = metadata["last_updated"]
+                if metadata.get("last_indexed_count") is not None:
+                    kb_entry["last_indexed_count"] = metadata["last_indexed_count"]
+                if metadata.get("last_indexed_action"):
+                    kb_entry["last_indexed_action"] = metadata["last_indexed_action"]
             except Exception as e:
                 logger.warning(f"Failed to read metadata.json for '{name}': {e}")
 
@@ -590,6 +625,9 @@ class KnowledgeBaseManager:
                 "needs_reindex": bool(kb_config.get("needs_reindex", False)),
                 "created_at": kb_config.get("created_at"),
                 "last_updated": kb_config.get("updated_at"),
+                "last_indexed_at": kb_config.get("last_indexed_at"),
+                "last_indexed_count": kb_config.get("last_indexed_count"),
+                "last_indexed_action": kb_config.get("last_indexed_action"),
             }
             metadata.update(self._embedding_fields(kb_config))
             # Remove None values
@@ -684,6 +722,12 @@ class KnowledgeBaseManager:
             metadata["created_at"] = created_at
         if updated_at:
             metadata["last_updated"] = updated_at
+        if kb_config.get("last_indexed_at"):
+            metadata["last_indexed_at"] = kb_config.get("last_indexed_at")
+        if kb_config.get("last_indexed_count") is not None:
+            metadata["last_indexed_count"] = kb_config.get("last_indexed_count")
+        if kb_config.get("last_indexed_action"):
+            metadata["last_indexed_action"] = kb_config.get("last_indexed_action")
 
         metadata.update(self._embedding_fields(kb_config))
 

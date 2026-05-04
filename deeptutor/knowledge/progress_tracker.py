@@ -118,6 +118,9 @@ class ProgressTracker:
                     "error": progress.get("error"),
                     "timestamp": progress.get("timestamp"),
                     "task_id": progress.get("task_id"),
+                    "indexed_count": progress.get("indexed_count"),
+                    "index_changed": progress.get("index_changed"),
+                    "index_action": progress.get("index_action"),
                 },
             )
         except Exception as e:
@@ -145,6 +148,9 @@ class ProgressTracker:
         total: int = 0,
         file_name: str = "",
         error: str | None = None,
+        indexed_count: int | None = None,
+        index_changed: bool | None = None,
+        index_action: str | None = None,
     ):
         """Update progress"""
         progress = {
@@ -158,6 +164,12 @@ class ProgressTracker:
             "progress_percent": int(current / total * 100) if total > 0 else 0,
             "timestamp": datetime.now().isoformat(),
         }
+        if indexed_count is not None:
+            progress["indexed_count"] = indexed_count
+        if index_changed is not None:
+            progress["index_changed"] = index_changed
+        if index_action:
+            progress["index_action"] = index_action
 
         if error:
             progress["error"] = error

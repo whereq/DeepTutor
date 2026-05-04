@@ -103,6 +103,7 @@ export default function KnowledgeBaseDetail({
     : t("Default embedding");
   const updatedLabel =
     formatKnowledgeTimestamp(meta.last_updated) || t("Unknown time");
+  const lastIndexedLabel = formatKnowledgeTimestamp(meta.last_indexed_at);
 
   const isReindexingLocally =
     task?.kind === "reindex" && task.executing === true;
@@ -132,6 +133,9 @@ export default function KnowledgeBaseDetail({
             </div>
             <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
               {provider} · {embeddingLabel} · {t("Updated")} {updatedLabel}
+              {lastIndexedLabel
+                ? ` · ${t("Last indexed")} ${lastIndexedLabel}`
+                : ""}
             </p>
           </div>
         </div>

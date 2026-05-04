@@ -86,7 +86,11 @@ class KnowledgeBaseInitializer:
                 metadata = {}
 
         metadata["rag_provider"] = DEFAULT_PROVIDER
-        metadata["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        metadata["last_updated"] = timestamp
+        metadata["last_indexed_at"] = timestamp
+        metadata["last_indexed_count"] = len(FileTypeRouter.collect_supported_files(self.raw_dir))
+        metadata["last_indexed_action"] = "create"
 
         with open(metadata_file, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
@@ -261,7 +265,7 @@ async def initialize_knowledge_base(
     )
     try:
         initializer.create_directory_structure()
-        initializer.copy_documents(source_files)
+        copied_files = initializer.copy_documents(source_files)
         await initializer.process_documents()
         if not skip_extract:
             initializer.extract_numbered_items()
@@ -277,6 +281,9 @@ async def initialize_knowledge_base(
                 "file_name": "",
                 "error": None,
                 "timestamp": datetime.now().isoformat(),
+                "indexed_count": len(copied_files),
+                "index_changed": True,
+                "index_action": "create",
             },
         )
         return True

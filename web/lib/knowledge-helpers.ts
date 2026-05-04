@@ -22,6 +22,9 @@ export interface ProgressInfo {
   total?: number;
   percent?: number;
   progress_percent?: number;
+  indexed_count?: number;
+  index_changed?: boolean;
+  index_action?: string;
 }
 
 export interface IndexVersion {
@@ -42,6 +45,9 @@ export interface KnowledgeBase {
   metadata?: {
     created_at?: string;
     last_updated?: string;
+    last_indexed_at?: string;
+    last_indexed_count?: number;
+    last_indexed_action?: string;
     rag_provider?: string;
     needs_reindex?: boolean;
     embedding_model?: string;

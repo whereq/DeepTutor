@@ -45,6 +45,8 @@ export default function KbIndexVersionsSection({
   const mismatch = Boolean(kb.metadata?.embedding_mismatch);
   const isReindexingHere = task?.kind === "reindex" && task.executing;
   const percent = resolveProgressPercent(kb.progress);
+  const lastIndexed = formatKnowledgeTimestamp(kb.metadata?.last_indexed_at);
+  const lastIndexedCount = kb.metadata?.last_indexed_count;
 
   const handleReindex = async () => {
     setSubmitting(true);
@@ -107,6 +109,27 @@ export default function KbIndexVersionsSection({
           </span>
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 px-3 py-2 text-[11.5px] text-[var(--muted-foreground)]">
+        <Clock className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          {t("Last indexed")}:{" "}
+          <span className="font-medium text-[var(--foreground)]">
+            {lastIndexed || t("Not recorded yet")}
+          </span>
+        </span>
+        {typeof lastIndexedCount === "number" && (
+          <span>
+            ·{" "}
+            {t(
+              lastIndexedCount === 1
+                ? "{{count}} indexed doc"
+                : "{{count}} indexed docs",
+              { count: lastIndexedCount },
+            )}
+          </span>
+        )}
+      </div>
 
       {versions.length > 0 ? (
         <ul className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-[var(--background)]">

@@ -104,6 +104,49 @@ def _resolve_provider_spec(
     return find_by_name(fallback) or find_by_name("openai")
 
 
+def _url_matches_current(explicit_url: str | None, current: LLMConfig) -> bool:
+    if explicit_url is None:
+        return True
+    return explicit_url in {
+        url for url in (current.base_url, current.effective_url) if url is not None
+    }
+
+
+def _binding_matches_current(binding: str | None, current: LLMConfig) -> bool:
+    if not binding:
+        return True
+    canonical = canonical_provider_name(binding) or binding
+    return canonical in {current.binding, current.provider_name}
+
+
+def _matching_current_config(
+    *,
+    model: str,
+    api_key: str,
+    base_url: str | None,
+    api_version: str | None,
+    binding: str | None,
+) -> LLMConfig | None:
+    """Return the active config when explicit call fields came from it.
+
+    Several agent call sites pass model/api_key/base_url/binding explicitly
+    after reading ``get_llm_config()``. Treat those fields as a partial
+    override, not as a request to drop profile-only settings such as
+    extra_headers or reasoning_effort.
+    """
+    with contextlib.suppress(Exception):
+        current = get_llm_config()
+        if (
+            model == current.model
+            and api_key == current.api_key
+            and _url_matches_current(base_url, current)
+            and (api_version is None or api_version == current.api_version)
+            and _binding_matches_current(binding, current)
+        ):
+            return current
+    return None
+
+
 def _resolve_call_config(
     *,
     model: str | None,
@@ -115,6 +158,23 @@ def _resolve_call_config(
     reasoning_effort: str | None,
 ) -> tuple[LLMConfig, Any]:
     if model and api_key is not None and (base_url is not None or binding is not None):
+        current = _matching_current_config(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            api_version=api_version,
+            binding=binding,
+        )
+        merged_headers = dict(current.extra_headers or {}) if current is not None else {}
+        if extra_headers:
+            merged_headers.update(extra_headers)
+        resolved_reasoning_effort = (
+            reasoning_effort
+            if reasoning_effort is not None
+            else current.reasoning_effort
+            if current is not None
+            else None
+        )
         provider_spec = _resolve_provider_spec(
             binding=binding,
             model=model,
@@ -137,8 +197,8 @@ def _resolve_call_config(
             provider_name=provider_name,
             provider_mode=provider_mode,
             api_version=api_version,
-            extra_headers=extra_headers or {},
-            reasoning_effort=reasoning_effort,
+            extra_headers=merged_headers,
+            reasoning_effort=resolved_reasoning_effort,
         )
         return config, provider_spec
 
@@ -293,7 +353,7 @@ async def complete(
     exponential_backoff: bool = DEFAULT_EXPONENTIAL_BACKOFF,
     **kwargs: Any,
 ) -> str:
-    caller_extra_headers = kwargs.pop("extra_headers", None) or {}
+    caller_extra_headers = kwargs.pop("extra_headers", None)
     reasoning_effort = kwargs.pop("reasoning_effort", None)
     image_data = kwargs.pop("image_data", None)
 
@@ -352,7 +412,7 @@ async def stream(
     exponential_backoff: bool = DEFAULT_EXPONENTIAL_BACKOFF,
     **kwargs: Any,
 ) -> AsyncGenerator[str, None]:
-    caller_extra_headers = kwargs.pop("extra_headers", None) or {}
+    caller_extra_headers = kwargs.pop("extra_headers", None)
     reasoning_effort = kwargs.pop("reasoning_effort", None)
     image_data = kwargs.pop("image_data", None)
 
@@ -420,10 +480,13 @@ async def stream(
             if in_think_block:
                 in_think_block = False
                 await queue.put("</think>")
-            # When the model returns reasoning but no direct content (e.g.
-            # DeepSeek v4 with thinking enabled), emit the fallback content
-            # so downstream consumers do not receive an empty response.
-            if not saw_content and response.content:
+            # Some providers synthesize a final response only after the stream.
+            # Do not replay reasoning_content as user-visible answer text.
+            if (
+                not saw_content
+                and response.content
+                and response.content != response.reasoning_content
+            ):
                 saw_output = True
                 await queue.put(response.content)
             if response.finish_reason == "error" and not saw_output:

@@ -7,6 +7,7 @@ Handles knowledge base CRUD operations, file uploads, and initialization.
 
 import asyncio
 from datetime import datetime
+import json
 import logging
 import mimetypes
 import os
@@ -335,12 +336,16 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
             _task_log(task_id, "Document processing complete")
             initializer.extract_numbered_items()
             _task_log(task_id, "Finalizing initialization")
+            indexed_count = len(FileTypeRouter.collect_supported_files(initializer.raw_dir))
 
             initializer.progress_tracker.update(
                 ProgressStage.COMPLETED,
                 "Knowledge base initialization complete!",
                 current=1,
                 total=1,
+                indexed_count=indexed_count,
+                index_changed=True,
+                index_action="create",
             )
 
             manager = get_kb_manager()
@@ -355,6 +360,9 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
                     "total": 1,
                     "task_id": task_id,
                     "timestamp": datetime.now().isoformat(),
+                    "indexed_count": indexed_count,
+                    "index_changed": True,
+                    "index_action": "create",
                 },
             )
 
@@ -487,6 +495,9 @@ async def run_upload_processing_task(
                 f"Successfully processed {num_processed} files!",
                 current=num_processed,
                 total=num_processed,
+                indexed_count=num_processed,
+                index_changed=num_processed > 0,
+                index_action="upload",
             )
 
             _task_log(
@@ -1051,6 +1062,28 @@ async def run_reindex_task(kb_name: str, base_dir: str, task_id: str, signature_
             if not success:
                 raise RuntimeError(f"Re-index found no valid documents to index in '{kb_name}'.")
 
+            completed_at = datetime.now().isoformat()
+            metadata_file = kb_dir / "metadata.json"
+            try:
+                metadata = {}
+                if metadata_file.exists():
+                    with open(metadata_file, encoding="utf-8") as handle:
+                        loaded_metadata = json.load(handle)
+                    if isinstance(loaded_metadata, dict):
+                        metadata = loaded_metadata
+                metadata["last_updated"] = completed_at
+                metadata["last_indexed_at"] = completed_at
+                metadata["last_indexed_count"] = len(file_paths)
+                metadata["last_indexed_action"] = "reindex"
+                with open(metadata_file, "w", encoding="utf-8") as handle:
+                    json.dump(metadata, handle, indent=2, ensure_ascii=False)
+            except Exception as meta_err:
+                logger.warning(
+                    "Failed to update re-index metadata for '%s': %s",
+                    kb_name,
+                    meta_err,
+                )
+
             manager = get_kb_manager()
             manager.update_kb_status(
                 name=kb_name,
@@ -1062,7 +1095,10 @@ async def run_reindex_task(kb_name: str, base_dir: str, task_id: str, signature_
                     "current": len(file_paths),
                     "total": len(file_paths),
                     "task_id": task_id,
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": completed_at,
+                    "indexed_count": len(file_paths),
+                    "index_changed": True,
+                    "index_action": "reindex",
                 },
             )
             # Clear the legacy mismatch / needs_reindex flags now that an
