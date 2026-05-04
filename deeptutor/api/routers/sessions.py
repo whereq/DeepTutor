@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
 from deeptutor.services.session import get_session_store, get_sqlite_session_store
+from deeptutor.services.storage.attachment_store import get_attachment_store
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,28 @@ async def delete_session(session_id: str):
     deleted = await store.delete_session(session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        await get_attachment_store().delete_session(session_id)
+    except Exception:
+        logger.exception("failed to clean up attachments for session %s", session_id)
     return {"deleted": True, "session_id": session_id}
+
+
+@router.delete("/{session_id}/messages/{message_id}")
+async def delete_turn_by_message(session_id: str, message_id: int):
+    store = get_sqlite_session_store()
+    result = await store.delete_turn_by_message(session_id, message_id)
+    if not result["deleted"]:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if result["was_running"]:
+        raise HTTPException(status_code=409, detail="Cannot delete a message while its turn is running")
+    attachment_store = get_attachment_store()
+    for aid in result["attachment_ids"]:
+        try:
+            await attachment_store.delete_attachment(session_id, aid)
+        except Exception:
+            logger.exception("failed to delete attachment %s for session %s", aid, session_id)
+    return result
 
 
 @router.post("/{session_id}/quiz-results")

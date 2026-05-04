@@ -88,6 +88,9 @@ class AttachmentStore(Protocol):
     async def delete_session(self, session_id: str) -> None:
         """Best-effort cleanup of all attachments for *session_id*."""
 
+    async def delete_attachment(self, session_id: str, attachment_id: str) -> None:
+        """Best-effort cleanup of a single attachment identified by *attachment_id*."""
+
     def resolve_path(self, *, session_id: str, attachment_id: str, filename: str) -> Path | None:
         """Return the absolute path on disk for an attachment, or ``None``
         if it does not exist or escapes the storage root.
@@ -186,6 +189,13 @@ class LocalDiskAttachmentStore:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._rmtree_sync, session_dir)
 
+    async def delete_attachment(self, session_id: str, attachment_id: str) -> None:
+        session_dir = self._session_dir(session_id)
+        if not session_dir.exists():
+            return
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._delete_attachment_sync, session_dir, attachment_id)
+
     @staticmethod
     def _rmtree_sync(path: Path) -> None:
         import shutil
@@ -194,6 +204,21 @@ class LocalDiskAttachmentStore:
             shutil.rmtree(path)
         except OSError as exc:
             logger.warning("failed to clean up attachment dir %s: %s", path, exc)
+
+    @staticmethod
+    def _delete_attachment_sync(session_dir: Path, attachment_id: str) -> None:
+        prefix = f"{attachment_id}_"
+        for entry in session_dir.iterdir():
+            if entry.name.startswith(prefix):
+                try:
+                    entry.unlink()
+                except OSError as exc:
+                    logger.warning("failed to delete attachment file %s: %s", entry, exc)
+        try:
+            if session_dir.exists() and not any(session_dir.iterdir()):
+                session_dir.rmdir()
+        except OSError as exc:
+            logger.warning("failed to remove empty attachment dir %s: %s", session_dir, exc)
 
     def resolve_path(self, *, session_id: str, attachment_id: str, filename: str) -> Path | None:
         stored = self._stored_filename(attachment_id, filename)
