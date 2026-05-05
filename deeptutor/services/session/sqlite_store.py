@@ -659,7 +659,12 @@ class SQLiteSessionStore:
                 (int(message_id),),
             ).fetchone()
             if msg is None or msg["session_id"] != session_id:
-                return {"deleted": False, "attachment_ids": [], "turn_id": None, "was_running": False}
+                return {
+                    "deleted": False,
+                    "attachment_ids": [],
+                    "turn_id": None,
+                    "was_running": False,
+                }
 
             role = msg["role"]
             paired_msg = None
@@ -706,7 +711,12 @@ class SQLiteSessionStore:
                     was_running = turn_row["status"] == "running"
 
             if was_running:
-                return {"deleted": False, "attachment_ids": [], "turn_id": turn_id, "was_running": True}
+                return {
+                    "deleted": False,
+                    "attachment_ids": [],
+                    "turn_id": turn_id,
+                    "was_running": True,
+                }
 
             attachment_ids: list[str] = []
             for m in [msg, paired_msg]:
@@ -725,7 +735,7 @@ class SQLiteSessionStore:
             if paired_msg is not None:
                 ids_to_delete.append(int(paired_msg["id"]))
             conn.execute(
-                f"DELETE FROM messages WHERE id IN ({','.join('?' * len(ids_to_delete))})",
+                f"DELETE FROM messages WHERE id IN ({','.join('?' * len(ids_to_delete))})",  # nosec B608
                 tuple(ids_to_delete),
             )
 

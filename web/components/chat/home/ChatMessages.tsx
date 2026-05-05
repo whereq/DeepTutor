@@ -365,7 +365,9 @@ const UserMessage = memo(function UserMessage({
               </button>
             ) : (
               <div className="flex items-center gap-1.5 text-[12px]">
-                <span className="text-[var(--muted-foreground)]">{t("Delete this turn?")}</span>
+                <span className="text-[var(--muted-foreground)]">
+                  {t("Delete this turn?")}
+                </span>
                 <button
                   type="button"
                   onClick={() => {

@@ -19,7 +19,11 @@ import {
 } from "@/context/app-shell-storage";
 import type { StreamEvent, ChatMessage, LLMSelection } from "@/lib/unified-ws";
 import { UnifiedWSClient } from "@/lib/unified-ws";
-import { getSession, deleteMessage, type SessionMessage } from "@/lib/session-api";
+import {
+  getSession,
+  deleteMessage,
+  type SessionMessage,
+} from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
 import { shouldAppendEventContent } from "@/lib/stream";
@@ -494,7 +498,10 @@ function reducer(state: ProviderState, action: Action): ProviderState {
       const toRemove = new Set<number>();
       toRemove.add(idx);
       if (msg.role === "user") {
-        if (idx + 1 < session.messages.length && session.messages[idx + 1].role === "assistant") {
+        if (
+          idx + 1 < session.messages.length &&
+          session.messages[idx + 1].role === "assistant"
+        ) {
           toRemove.add(idx + 1);
         }
       } else if (msg.role === "assistant") {
