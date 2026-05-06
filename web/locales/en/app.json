@@ -1597,5 +1597,11 @@
   "Please use the attached file(s) and this chapter as context.": "Please use the attached file(s) and this chapter as context.",
   "Context": "Context",
   "Ask a question about this page. The current chapter content is sent to the assistant automatically.": "Ask a question about this page. The current chapter content is sent to the assistant automatically.",
-  "Ask about this page...": "Ask about this page..."
+  "Ask about this page...": "Ask about this page...",
+  "Chat tooltip": "This is the Chat tooltip.",
+  "TutorBot tooltip": "This is the TutorBot tooltip.",
+  "Co-Writer tooltip": "This is the Co-Writer tooltip.",
+  "Book tooltip": "This is the Book tooltip.",
+  "Knowledge tooltip": "This is the Knowledge tooltip.",
+  "Space tooltip": "This is the Space tooltip."
 }
