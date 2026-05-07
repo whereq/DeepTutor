@@ -579,19 +579,19 @@
 }
 
 .tooltip-label {
-  @apply font-medium;
+  @apply font-medium truncate;
 }
 
 .tooltip-desc {
-  @apply mt-0.5 text-[11px] text-[var(--muted-foreground)];
+  @apply mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate;
 }
 
 [data-side="right"] {
-  @apply left-full top-1/2 -translate-y-1/2 ml-2;
+  @apply left-full top-1/2 -translate-y-1/2 ml-2 max-w-[200px];
 }
 
 [data-side="bottom"] {
-  @apply bottom-[-40px] left-1/2 -translate-x-1/2;
+  @apply bottom-[-40px] left-1/2 -translate-x-1/2 max-w-[180px];
 }
 
 @keyframes tooltip-fade-in {
