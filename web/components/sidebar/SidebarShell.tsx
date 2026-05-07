@@ -283,7 +283,7 @@ export function SidebarShell({
               <Tooltip
                 key={item.href}
                 label={t(item.label)}
-                side="bottom"
+                side="right"
                 {...tooltipProps}
               >
                 <div key={item.href}>
