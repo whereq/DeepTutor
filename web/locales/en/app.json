@@ -1598,10 +1598,10 @@
   "Context": "Context",
   "Ask a question about this page. The current chapter content is sent to the assistant automatically.": "Ask a question about this page. The current chapter content is sent to the assistant automatically.",
   "Ask about this page...": "Ask about this page...",
-  "Chat tooltip": "This is the Chat tooltip.",
-  "TutorBot tooltip": "This is the TutorBot tooltip.",
-  "Co-Writer tooltip": "This is the Co-Writer tooltip.",
-  "Book tooltip": "This is the Book tooltip.",
-  "Knowledge tooltip": "This is the Knowledge tooltip.",
-  "Space tooltip": "This is the Space tooltip."
+  "Chat tooltip": "Multi-tool AI chat and search.",
+  "TutorBot tooltip": "Persistent, specialized AI agents.",
+  "Co-Writer tooltip": "AI-powered document editor.",
+  "Book tooltip": "Create AI-powered books.",
+  "Knowledge tooltip": "Manage learning personas.",
+  "Space tooltip": "Your personal learning library."
 }
