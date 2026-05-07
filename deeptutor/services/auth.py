@@ -26,11 +26,9 @@ Multi-user setup (recommended):
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-import json
 import logging
 import os
-from pathlib import Path
-import secrets
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,15 +49,11 @@ POCKETBASE_URL: str = os.getenv("POCKETBASE_URL", "").rstrip("/")
 POCKETBASE_ENABLED: bool = bool(POCKETBASE_URL) and AUTH_ENABLED
 
 _ALGORITHM = "HS256"
-_USERS_FILE = Path("data/user/auth_users.json")
 
 if AUTH_ENABLED and not POCKETBASE_ENABLED and not AUTH_SECRET:
-    logger.warning(
-        "AUTH_ENABLED=true but AUTH_SECRET is not set. "
-        "A temporary secret will be generated — tokens will be invalidated on restart. "
-        "Set AUTH_SECRET in .env to a stable random value."
-    )
-    AUTH_SECRET = secrets.token_hex(32)
+    from deeptutor.multi_user.identity import load_or_create_auth_secret
+
+    AUTH_SECRET = load_or_create_auth_secret()
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +67,7 @@ class TokenPayload:
 
     username: str
     role: str
+    user_id: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -102,12 +97,16 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _make_user_record(hashed: str, role: str = "user", created_at: str = "") -> dict:
-    """Build a canonical user record dict."""
+def _make_user_record(hashed: str, role: str = "user", created_at: str = "") -> dict[str, Any]:
+    """Build a canonical user record dict for legacy callers/tests."""
+    from deeptutor.multi_user.identity import new_user_id
+
     return {
+        "id": new_user_id(),
         "hash": hashed,
         "role": role,
         "created_at": created_at or datetime.now(timezone.utc).isoformat(),
+        "disabled": False,
     }
 
 
@@ -122,39 +121,9 @@ def _load_users() -> dict[str, dict]:
     Old format: {"alice": "$2b$12$..."}
     New format: {"alice": {"hash": "...", "role": "admin", "created_at": "..."}}
     """
-    if _USERS_FILE.exists():
-        try:
-            data = json.loads(_USERS_FILE.read_text())
-            if not isinstance(data, dict):
-                logger.warning("auth_users.json is not a JSON object — falling back to env vars")
-                data = {}
+    from deeptutor.multi_user.identity import load_users
 
-            migrated = False
-            users: dict[str, dict] = {}
-            for username, value in data.items():
-                if isinstance(value, str):
-                    # Migrate old flat hash string — first user in old file gets admin
-                    role = "admin" if not users else "user"
-                    users[username] = _make_user_record(value, role=role)
-                    migrated = True
-                elif isinstance(value, dict):
-                    users[username] = value
-                else:
-                    logger.warning(f"Skipping malformed user entry: {username!r}")
-
-            if migrated:
-                _USERS_FILE.write_text(json.dumps(users, indent=2))
-                logger.info("Migrated auth_users.json to new schema with role/created_at fields")
-
-            return users
-        except Exception as exc:
-            logger.warning(f"Failed to read auth_users.json: {exc} — falling back to env vars")
-
-    # Env-var single-user fallback — always treated as admin
-    if AUTH_USERNAME and AUTH_PASSWORD_HASH:
-        return {AUTH_USERNAME: _make_user_record(AUTH_PASSWORD_HASH, role="admin", created_at="")}
-
-    return {}
+    return load_users(AUTH_USERNAME, AUTH_PASSWORD_HASH)
 
 
 def is_first_user() -> bool:
@@ -172,32 +141,17 @@ def add_user(username: str, plain_password: str, role: str = "user") -> None:
 
     Creates the file (and parent directories) if they don't exist.
     """
-    _USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    from deeptutor.multi_user.identity import save_user
 
-    users: dict[str, dict] = {}
-    if _USERS_FILE.exists():
-        try:
-            users = json.loads(_USERS_FILE.read_text())
-        except Exception:
-            pass
-
-    effective_role = "admin" if not users else role
-    users[username] = _make_user_record(hash_password(plain_password), role=effective_role)
-    _USERS_FILE.write_text(json.dumps(users, indent=2))
-    logger.info(f"User '{username}' saved to {_USERS_FILE} with role={effective_role!r}")
+    record = save_user(username, hash_password(plain_password), role=role)  # type: ignore[arg-type]
+    logger.info("User '%s' saved with role=%r", username, record.get("role", "user"))
 
 
 def list_users() -> list[dict]:
     """Return a list of user info dicts (username, role, created_at) — no hashes."""
-    users = _load_users()
-    return [
-        {
-            "username": username,
-            "role": record.get("role", "user"),
-            "created_at": record.get("created_at", ""),
-        }
-        for username, record in users.items()
-    ]
+    from deeptutor.multi_user.identity import list_user_info
+
+    return list_user_info(AUTH_USERNAME, AUTH_PASSWORD_HASH)
 
 
 def delete_user(username: str) -> bool:
@@ -206,20 +160,11 @@ def delete_user(username: str) -> bool:
 
     Note: env-var-only users cannot be deleted via this function.
     """
-    if not _USERS_FILE.exists():
-        return False
+    from deeptutor.multi_user.identity import delete_user as _delete_user
 
-    try:
-        users: dict[str, dict] = json.loads(_USERS_FILE.read_text())
-    except Exception:
+    if not _delete_user(username):
         return False
-
-    if username not in users:
-        return False
-
-    del users[username]
-    _USERS_FILE.write_text(json.dumps(users, indent=2))
-    logger.info(f"User '{username}' deleted from {_USERS_FILE}")
+    logger.info("User '%s' deleted", username)
     return True
 
 
@@ -232,19 +177,10 @@ def set_role(username: str, role: str) -> bool:
     if role not in ("admin", "user"):
         raise ValueError(f"Invalid role: {role!r}. Must be 'admin' or 'user'.")
 
-    if not _USERS_FILE.exists():
-        return False
+    from deeptutor.multi_user.identity import set_role as _set_role
 
-    try:
-        users: dict[str, dict] = json.loads(_USERS_FILE.read_text())
-    except Exception:
+    if not _set_role(username, role):  # type: ignore[arg-type]
         return False
-
-    if username not in users:
-        return False
-
-    users[username]["role"] = role
-    _USERS_FILE.write_text(json.dumps(users, indent=2))
     logger.info(f"User '{username}' role updated to {role!r}")
     return True
 
@@ -254,13 +190,18 @@ def set_role(username: str, role: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def create_token(username: str, role: str = "user") -> str:
+def create_token(username: str, role: str = "user", user_id: str | None = None) -> str:
     """Create a signed JWT for the given username and role."""
     from jose import jwt
+
+    if not user_id:
+        record = _load_users().get(username) or {}
+        user_id = str(record.get("id") or "")
 
     payload = {
         "sub": username,
         "role": role,
+        "uid": user_id,
         "exp": datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS),
         "iat": datetime.now(timezone.utc),
     }
@@ -289,6 +230,7 @@ def decode_token(token: str) -> TokenPayload | None:
         return TokenPayload(
             username=payload["username"],
             role=payload.get("role", "user"),
+            user_id=str(payload.get("id") or payload.get("uid") or payload.get("user_id") or ""),
         )
 
     # Standard JWT + bcrypt mode
@@ -302,7 +244,11 @@ def decode_token(token: str) -> TokenPayload | None:
         username = payload.get("sub")
         if not username:
             return None
-        return TokenPayload(username=username, role=payload.get("role", "user"))
+        user_id = str(payload.get("uid") or "")
+        if not user_id:
+            record = _load_users().get(str(username)) or {}
+            user_id = str(record.get("id") or "")
+        return TokenPayload(username=username, role=payload.get("role", "user"), user_id=user_id)
     except JWTError:
         return None
 
@@ -338,7 +284,8 @@ def authenticate_pb(username: str, password: str) -> tuple[TokenPayload, str] | 
         # PocketBase has no built-in "role" field by default; treat all as "user".
         # Admins authenticated via PocketBase admin panel use a separate endpoint.
         role = getattr(record, "role", "user") or "user"
-        return TokenPayload(username=str(username), role=str(role)), token
+        user_id = str(getattr(record, "id", "") or "")
+        return TokenPayload(username=str(username), role=str(role), user_id=user_id), token
     except Exception as exc:
         logger.warning(f"PocketBase authentication failed: {exc}")
         return None
@@ -381,7 +328,7 @@ def authenticate(username: str, password: str) -> TokenPayload | None:
     callers don't need to special-case the disabled state.
     """
     if not AUTH_ENABLED:
-        return TokenPayload(username=username or "local", role="admin")
+        return TokenPayload(username=username or "local", role="admin", user_id="local-admin")
 
     users = _load_users()
     if not users:
@@ -400,4 +347,5 @@ def authenticate(username: str, password: str) -> TokenPayload | None:
         return None
 
     role = record.get("role", "user") if isinstance(record, dict) else "user"
-    return TokenPayload(username=username, role=role)
+    user_id = str(record.get("id") or "") if isinstance(record, dict) else ""
+    return TokenPayload(username=username, role=role, user_id=user_id)

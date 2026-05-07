@@ -5,8 +5,10 @@ export const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
 export interface AuthStatus {
   enabled: boolean;
   authenticated: boolean;
+  user_id?: string;
   username?: string;
   role?: string;
+  is_admin?: boolean;
 }
 
 /**

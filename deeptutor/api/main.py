@@ -7,8 +7,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from deeptutor.logging import configure_logging
+from deeptutor.services.config import get_env_store
 from deeptutor.services.path_service import get_path_service
 
+_env_values = get_env_store().load()
+for _key in (
+    "AUTH_ENABLED",
+    "AUTH_SECRET",
+    "AUTH_TOKEN_EXPIRE_HOURS",
+    "AUTH_USERNAME",
+    "AUTH_PASSWORD_HASH",
+    "POCKETBASE_URL",
+    "POCKETBASE_ADMIN_EMAIL",
+    "POCKETBASE_ADMIN_PASSWORD",
+):
+    if _key in _env_values:
+        os.environ[_key] = _env_values[_key]
 configure_logging()
 logger = logging.getLogger(__name__)
 
@@ -243,6 +257,7 @@ from deeptutor.api.routers import (
     unified_ws,
     vision_solver,
 )
+from deeptutor.multi_user.router import router as multi_user_router  # noqa: E402
 
 # Auth router is public — login/logout/register/status require no token
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
@@ -252,6 +267,13 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 from deeptutor.api.routers.auth import require_auth  # noqa: E402
 
 _auth = [Depends(require_auth)]
+
+app.include_router(
+    multi_user_router,
+    prefix="/api/v1/multi-user",
+    tags=["multi-user"],
+    dependencies=_auth,
+)
 
 app.include_router(solve.router, prefix="/api/v1", tags=["solve"], dependencies=_auth)
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"], dependencies=_auth)
