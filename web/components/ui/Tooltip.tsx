@@ -1,6 +1,13 @@
 "use client";
 
-import { ReactNode, useState, useCallback, useRef, useId } from "react";
+import {
+  ReactNode,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useId,
+} from "react";
 
 interface TooltipProps {
   label: string;
@@ -24,9 +31,20 @@ export function Tooltip({
     timeoutRef.current = setTimeout(() => setVisible(true), 300);
   }, []);
 
+  const showNow = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setVisible(true);
+  }, []);
+
   const hideTooltip = useCallback(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setVisible(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   return (
@@ -34,7 +52,7 @@ export function Tooltip({
       className="tooltip-wrapper"
       onMouseEnter={showTooltip}
       onMouseLeave={hideTooltip}
-      onFocus={showTooltip}
+      onFocus={showNow}
       onBlur={hideTooltip}
       aria-describedby={visible ? tooltipId : undefined}
     >

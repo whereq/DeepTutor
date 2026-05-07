@@ -574,7 +574,7 @@
 }
 
 .tooltip-content {
-  @apply absolute z-50 rounded-lg bg-[var(--popover)] px-3 py-1.5 text-xs shadow-md text-[var(--popover-foreground)];
+  @apply absolute z-50 rounded-lg bg-[var(--popover)] px-3 py-1.5 text-xs shadow-md text-[var(--popover-foreground)] pointer-events-none;
   animation: tooltip-fade-in 150ms ease-out;
 }
 
@@ -586,11 +586,11 @@
   @apply mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate;
 }
 
-[data-side="right"] {
+.tooltip-content[data-side="right"] {
   @apply left-full top-1/2 -translate-y-1/2 ml-2 max-w-[200px];
 }
 
-[data-side="bottom"] {
+.tooltip-content[data-side="bottom"] {
   @apply bottom-[-40px] left-1/2 -translate-x-1/2 max-w-[180px];
 }
 
