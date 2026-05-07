@@ -567,3 +567,38 @@
     padding-right: min(560px, 92vw);
   }
 }
+
+/* Tooltip Component Styles */
+.tooltip-wrapper {
+  @apply relative inline-flex;
+}
+
+.tooltip-content {
+  @apply absolute z-50 rounded-lg bg-[var(--popover)] px-3 py-1.5 text-xs shadow-md text-[var(--popover-foreground)];
+  animation: tooltip-fade-in 150ms ease-out;
+}
+
+.tooltip-label {
+  @apply font-medium;
+}
+
+.tooltip-desc {
+  @apply mt-0.5 text-[11px] text-[var(--muted-foreground)];
+}
+
+[data-side="right"] {
+  @apply left-full top-1/2 -translate-y-1/2 ml-2;
+}
+
+[data-side="bottom"] {
+  @apply bottom-[-40px] left-1/2 -translate-x-1/2;
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -269,6 +269,9 @@ export function SidebarShell({
 
           {PRIMARY_NAV.map((item) => {
             const active = pathname.startsWith(item.href);
+            const tooltipProps = item.tooltipKey
+              ? { description: t(item.tooltipKey) }
+              : {};
             const hasSessionsBelow =
               item.href === "/chat" &&
               showSessions &&
@@ -277,35 +280,42 @@ export function SidebarShell({
               onDeleteSession;
             const hasBots = item.href === "/agents";
             return (
-              <div key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
-                    active
-                      ? "bg-[var(--background)]/70 font-medium text-[var(--foreground)]"
-                      : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
-                  <span>{t(item.label)}</span>
-                </Link>
-                {hasSessionsBelow && (
-                  <div
-                    className={`${sessionViewportClassName} overflow-y-auto`}
+              <Tooltip
+                key={item.href}
+                label={t(item.label)}
+                side="bottom"
+                {...tooltipProps}
+              >
+                <div key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
+                      active
+                        ? "bg-[var(--background)]/70 font-medium text-[var(--foreground)]"
+                        : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
+                    }`}
                   >
-                    <SessionList
-                      sessions={sessions}
-                      activeSessionId={activeSessionId}
-                      loading={loadingSessions}
-                      onSelect={onSelectSession}
-                      onRename={onRenameSession}
-                      onDelete={onDeleteSession}
-                      compact
-                    />
-                  </div>
-                )}
-                {hasBots && <TutorBotRecent />}
-              </div>
+                    <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
+                    <span>{t(item.label)}</span>
+                  </Link>
+                  {hasSessionsBelow && (
+                    <div
+                      className={`${sessionViewportClassName} overflow-y-auto`}
+                    >
+                      <SessionList
+                        sessions={sessions}
+                        activeSessionId={activeSessionId}
+                        loading={loadingSessions}
+                        onSelect={onSelectSession}
+                        onRename={onRenameSession}
+                        onDelete={onDeleteSession}
+                        compact
+                      />
+                    </div>
+                  )}
+                  {hasBots && <TutorBotRecent />}
+                </div>
+              </Tooltip>
             );
           })}
         </div>

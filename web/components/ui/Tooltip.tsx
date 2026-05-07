@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useState, useCallback, useRef, useId } from "react";
 
 interface TooltipProps {
   label: string;
@@ -15,29 +15,41 @@ export function Tooltip({
   children,
   side = "right",
 }: TooltipProps) {
-  const sideStyles = {
-    right: "left-full top-1/2 -translate-y-1/2 ml-2",
-    bottom: "top-full left-1/2 -translate-x-1/2 mt-2",
-  };
+  const [visible, setVisible] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tooltipId = useId();
+
+  const showTooltip = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setVisible(true), 300);
+  }, []);
+
+  const hideTooltip = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setVisible(false);
+  }, []);
 
   return (
-    <div className="group relative inline-flex">
+    <div
+      className="tooltip-wrapper"
+      onMouseEnter={showTooltip}
+      onMouseLeave={hideTooltip}
+      onFocus={showTooltip}
+      onBlur={hideTooltip}
+      aria-describedby={visible ? tooltipId : undefined}
+    >
       {children}
-      <div
-        className={`
-          absolute z-50 whitespace-nowrap rounded-lg bg-[var(--popover)] px-3 py-1.5 text-xs text-[var(--popover-foreground)] shadow-md
-          opacity-0 group-hover:opacity-100 transition-opacity duration-200
-          pointer-events-none
-          ${sideStyles[side]}
-        `}
-      >
-        <div className="font-medium">{label}</div>
-        {description && (
-          <div className="mt-0.5 text-[var(--muted-foreground)] text-[11px]">
-            {description}
-          </div>
-        )}
-      </div>
+      {visible && (
+        <div
+          id={tooltipId}
+          className="tooltip-content"
+          data-side={side}
+          role="tooltip"
+        >
+          <div className="tooltip-label">{label}</div>
+          {description && <div className="tooltip-desc">{description}</div>}
+        </div>
+      )}
     </div>
   );
 }
