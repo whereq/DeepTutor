@@ -3,8 +3,7 @@
 import logging
 import os
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, field_validator
 
 # SameSite=None lets the cookie work when the browser accesses the frontend via
@@ -34,7 +33,6 @@ from deeptutor.services.auth import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-_bearer = HTTPBearer(auto_error=False)
 
 _COOKIE_NAME = "dt_token"
 _COOKIE_MAX_AGE = TOKEN_EXPIRE_HOURS * 3600
@@ -100,16 +98,20 @@ class AuthStatusResponse(BaseModel):
 
     enabled: bool
     authenticated: bool
+    user_id: str | None = None
     username: str | None = None
     role: str | None = None
+    is_admin: bool = False
 
 
 class UserInfo(BaseModel):
     """Single user record returned by the GET /users endpoint."""
 
+    id: str = ""
     username: str
     role: str
     created_at: str
+    disabled: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -117,13 +119,26 @@ class UserInfo(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _extract_token(
-    credentials: HTTPAuthorizationCredentials | None,
-    dt_token: str | None,
-) -> str | None:
-    if credentials:
-        return credentials.credentials
-    return dt_token
+def _bearer_token_from_header(authorization: str | None) -> str | None:
+    """Parse ``Authorization: Bearer <token>`` without using ``HTTPBearer``.
+
+    ``HTTPBearer`` is a class-based dependency whose ``__call__`` is annotated
+    ``request: Request``. FastAPI doesn't inject a Request into WebSocket
+    dependency resolution, which makes ``HTTPBearer`` raise ``TypeError`` the
+    moment a router with this dep mounts a WS endpoint. Doing the parse by
+    hand keeps ``require_auth`` HTTP/WS-symmetric.
+    """
+    if not authorization:
+        return None
+    parts = authorization.split(None, 1)
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        token = parts[1].strip()
+        return token or None
+    return None
+
+
+def _extract_token(authorization: str | None, dt_token: str | None) -> str | None:
+    return _bearer_token_from_header(authorization) or dt_token
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +147,7 @@ def _extract_token(
 
 
 def require_auth(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    authorization: str | None = Header(default=None, alias="Authorization"),
     dt_token: str | None = Cookie(default=None),
 ) -> TokenPayload | None:
     """
@@ -142,13 +157,20 @@ def require_auth(
       - Authorization: Bearer <token> header
       - dt_token cookie
 
+    Works on both HTTP and WebSocket routes — ``Header`` and ``Cookie`` are
+    WS-compatible, while ``HTTPBearer`` (which we used to use here) is not.
+
     Returns the authenticated TokenPayload, or None if auth is disabled.
     Raises HTTP 401 if auth is enabled but the token is missing or invalid.
     """
     if not AUTH_ENABLED:
+        from deeptutor.multi_user.context import set_current_user
+        from deeptutor.multi_user.paths import local_admin_user
+
+        set_current_user(local_admin_user())
         return None
 
-    token = _extract_token(credentials, dt_token)
+    token = _extract_token(authorization, dt_token)
 
     if not token:
         raise HTTPException(
@@ -165,6 +187,9 @@ def require_auth(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    from deeptutor.multi_user.context import set_current_user, user_from_token_payload
+
+    set_current_user(user_from_token_payload(payload))
     return payload
 
 
@@ -180,7 +205,7 @@ def require_admin(
     if not AUTH_ENABLED:
         from deeptutor.services.auth import TokenPayload as TP
 
-        return TP(username="local", role="admin")
+        return TP(username="local", role="admin", user_id="local-admin")
 
     if payload is None or payload.role != "admin":
         raise HTTPException(
@@ -197,20 +222,29 @@ def require_admin(
 
 @router.get("/status", response_model=AuthStatusResponse)
 async def auth_status(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    authorization: str | None = Header(default=None, alias="Authorization"),
     dt_token: str | None = Cookie(default=None),
 ) -> AuthStatusResponse:
     """Return whether auth is enabled and whether the current request is authenticated."""
     if not AUTH_ENABLED:
-        return AuthStatusResponse(enabled=False, authenticated=True, role="admin")
+        return AuthStatusResponse(
+            enabled=False,
+            authenticated=True,
+            user_id="local-admin",
+            username="local",
+            role="admin",
+            is_admin=True,
+        )
 
-    token = _extract_token(credentials, dt_token)
+    token = _extract_token(authorization, dt_token)
     payload = decode_token(token) if token else None
     return AuthStatusResponse(
         enabled=True,
         authenticated=payload is not None,
+        user_id=payload.user_id if payload else None,
         username=payload.username if payload else None,
         role=payload.role if payload else None,
+        is_admin=payload.role == "admin" if payload else False,
     )
 
 
@@ -239,7 +273,13 @@ async def login(body: LoginRequest, response: Response) -> dict:
             secure=_SECURE,
         )
         logger.info(f"User '{payload.username}' logged in via PocketBase (role={payload.role!r})")
-        return {"ok": True, "username": payload.username, "role": payload.role}
+        return {
+            "ok": True,
+            "user_id": payload.user_id,
+            "username": payload.username,
+            "role": payload.role,
+            "is_admin": payload.role == "admin",
+        }
 
     # Standard JWT + bcrypt mode
     result = authenticate(body.username, body.password)
@@ -249,7 +289,7 @@ async def login(body: LoginRequest, response: Response) -> dict:
             detail="Incorrect username or password",
         )
 
-    token = create_token(result.username, result.role)
+    token = create_token(result.username, result.role, result.user_id)
     response.set_cookie(
         key=_COOKIE_NAME,
         value=token,
@@ -260,7 +300,13 @@ async def login(body: LoginRequest, response: Response) -> dict:
     )
 
     logger.info(f"User '{result.username}' logged in (role={result.role!r})")
-    return {"ok": True, "username": result.username, "role": result.role}
+    return {
+        "ok": True,
+        "user_id": result.user_id,
+        "username": result.username,
+        "role": result.role,
+        "is_admin": result.role == "admin",
+    }
 
 
 @router.post("/logout")
@@ -273,10 +319,11 @@ async def logout(response: Response) -> dict:
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest) -> dict:
     """
-    Create a new user account.
+    Bootstrap-only registration.
 
-    In PocketBase mode, the username is also used as the email address.
-    In standard mode, the first user to register is automatically granted admin.
+    Public endpoint that creates the *first* admin account when the user store
+    is empty. Once an admin exists, this endpoint is closed; further accounts
+    must be created by an admin via ``POST /api/v1/auth/users``.
 
     Only available when AUTH_ENABLED=true.
     """
@@ -287,17 +334,36 @@ async def register(body: RegisterRequest) -> dict:
         )
 
     if POCKETBASE_ENABLED:
+        # PocketBase deployments are documented as single-user. Keep registration
+        # closed and require admins to provision users in the PocketBase admin UI.
+        if not is_first_user():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Self-registration is closed. Ask an administrator to create your account.",
+            )
         result = register_pb(username=body.username, email=body.username, password=body.password)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Registration failed — username or email may already be taken.",
             )
-        logger.info(f"New user registered via PocketBase: '{body.username}'")
-        return {"ok": True, "username": body.username, "role": "user", "is_first_user": False}
+        logger.info(f"First user registered via PocketBase: '{body.username}'")
+        return {
+            "ok": True,
+            "user_id": result.get("id", ""),
+            "username": body.username,
+            "role": "user",
+            "is_first_user": True,
+            "is_admin": False,
+        }
 
-    # Standard mode
-    first = is_first_user()
+    # Standard mode — only allowed before the first admin exists.
+    if not is_first_user():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Self-registration is closed. Ask an administrator to create your account.",
+        )
+
     existing = {u["username"] for u in list_users()}
     if body.username in existing:
         raise HTTPException(
@@ -306,9 +372,22 @@ async def register(body: RegisterRequest) -> dict:
         )
 
     add_user(body.username, body.password)
-    role = "admin" if first else "user"
-    logger.info(f"New user registered: '{body.username}' (role={role!r})")
-    return {"ok": True, "username": body.username, "role": role, "is_first_user": first}
+    user_id = ""
+    role = "user"
+    for item in list_users():
+        if item.get("username") == body.username:
+            user_id = str(item.get("id") or "")
+            role = str(item.get("role") or "user")
+            break
+    logger.info(f"First user (admin) registered: '{body.username}'")
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "username": body.username,
+        "role": role,
+        "is_first_user": True,
+        "is_admin": role == "admin",
+    }
 
 
 @router.get("/is_first_user")
@@ -326,6 +405,70 @@ async def check_is_first_user() -> dict:
 async def get_users(_: TokenPayload = Depends(require_admin)) -> list[UserInfo]:
     """List all registered users. Requires admin role."""
     return [UserInfo(**u) for u in list_users()]
+
+
+@router.post("/users", status_code=status.HTTP_201_CREATED)
+async def admin_create_user(
+    body: RegisterRequest,
+    current: TokenPayload = Depends(require_admin),
+) -> dict:
+    """Admin-only: create a new user account.
+
+    Replaces the public ``/register`` flow once the first admin exists. The
+    new account is always created with role=``user``; admins can promote
+    later via ``PUT /users/{username}/role``.
+    """
+    if not AUTH_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Auth is disabled — user creation is not available.",
+        )
+
+    if POCKETBASE_ENABLED:
+        result = register_pb(username=body.username, email=body.username, password=body.password)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Failed to create user — username may already be taken.",
+            )
+        logger.info(
+            f"Admin '{current.username if current else 'local'}' created PocketBase user "
+            f"'{body.username}'"
+        )
+        return {
+            "ok": True,
+            "user_id": result.get("id", ""),
+            "username": body.username,
+            "role": "user",
+            "is_admin": False,
+        }
+
+    existing = {u["username"] for u in list_users()}
+    if body.username in existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username already taken",
+        )
+
+    add_user(body.username, body.password)
+    user_id = ""
+    role = "user"
+    for item in list_users():
+        if item.get("username") == body.username:
+            user_id = str(item.get("id") or "")
+            role = str(item.get("role") or "user")
+            break
+    logger.info(
+        f"Admin '{current.username if current else 'local'}' created user '{body.username}' "
+        f"(role={role!r})"
+    )
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "username": body.username,
+        "role": role,
+        "is_admin": role == "admin",
+    }
 
 
 @router.delete("/users/{username}", status_code=status.HTTP_200_OK)

@@ -395,6 +395,36 @@ class TurnRuntimeManager:
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc
         if llm_selection:
+            try:
+                from deeptutor.multi_user.model_access import apply_allowed_llm_selection
+
+                llm_selection = apply_allowed_llm_selection(llm_selection) or {}
+            except PermissionError as exc:
+                raise RuntimeError(str(exc)) from exc
+        else:
+            # Non-admin users MUST end up with a concrete llm_selection so we
+            # never silently fall through to the global LLM client (which is
+            # configured from admin's .env). Admin keeps the existing behavior
+            # (None llm_selection → default config from admin scope).
+            from deeptutor.multi_user.context import get_current_user
+            from deeptutor.multi_user.model_access import redacted_model_access
+
+            current_user = get_current_user()
+            if not current_user.is_admin:
+                assigned_llms = [
+                    item
+                    for item in redacted_model_access(current_user.id).get("llm", [])
+                    if item.get("available")
+                ]
+                if not assigned_llms:
+                    raise RuntimeError(
+                        "No LLM model is assigned to your account. Please contact an administrator."
+                    )
+                llm_selection = {
+                    "profile_id": assigned_llms[0].get("profile_id"),
+                    "model_id": assigned_llms[0].get("model_id"),
+                }
+        if llm_selection:
             from deeptutor.services.config import get_model_catalog_service
             from deeptutor.services.model_selection import (
                 LLMSelection,
@@ -659,7 +689,7 @@ class TurnRuntimeManager:
             from deeptutor.services.model_selection.runtime import (
                 reset_llm_selection as reset_active_llm_selection,
             )
-            from deeptutor.services.notebook import notebook_manager
+            from deeptutor.services.notebook import get_notebook_manager
             from deeptutor.services.session.context_builder import ContextBuilder
             from deeptutor.services.skill import get_skill_service
 
@@ -788,18 +818,64 @@ class TurnRuntimeManager:
             memory_service = get_memory_service()
             memory_context = memory_service.build_memory_context(memory_references)
 
-            skill_service = get_skill_service()
+            # Skill resolution differs for admin vs non-admin users:
+            # - Admin: use the user-scope SkillService (which is the admin
+            #   workspace) for both auto_select and content load.
+            # - Non-admin: auto_select from their own workspace + the admin
+            #   pool (so admin-curated skills can fire), then intersect with
+            #   the assigned skill ids, then load content from BOTH scopes
+            #   (assigned skills live in admin workspace; user's own skills
+            #   live in their workspace).
+            from deeptutor.multi_user.context import get_current_user
+            from deeptutor.multi_user.paths import get_admin_path_service
+            from deeptutor.multi_user.skill_access import assigned_skill_ids
+            from deeptutor.services.skill.service import SkillService
+
+            current_user = get_current_user()
+            user_skill_service = get_skill_service()
             requested_skills = _string_list(payload.get("skills"))
-            if not requested_skills or requested_skills == ["auto"]:
-                resolved_skills = skill_service.auto_select(raw_user_content)
+
+            if current_user.is_admin:
+                if not requested_skills or requested_skills == ["auto"]:
+                    resolved_skills = user_skill_service.auto_select(raw_user_content)
+                else:
+                    resolved_skills = [
+                        s for s in requested_skills if isinstance(s, str) and s != "auto"
+                    ]
+                skills_context = user_skill_service.load_for_context(resolved_skills)
             else:
-                resolved_skills = [
-                    s for s in requested_skills if isinstance(s, str) and s != "auto"
-                ]
-            skills_context = skill_service.load_for_context(resolved_skills)
+                admin_skill_service = SkillService(
+                    root=get_admin_path_service().get_workspace_dir() / "skills"
+                )
+                allowed_skills = assigned_skill_ids(current_user.id)
+                user_owned = {info.name for info in user_skill_service.list_skills()}
+                if not requested_skills or requested_skills == ["auto"]:
+                    auto_pool = list(
+                        dict.fromkeys(
+                            user_skill_service.auto_select(raw_user_content)
+                            + admin_skill_service.auto_select(raw_user_content)
+                        )
+                    )
+                    resolved_skills = [
+                        s for s in auto_pool if s in allowed_skills or s in user_owned
+                    ]
+                else:
+                    explicit = [
+                        s for s in requested_skills if isinstance(s, str) and s != "auto"
+                    ]
+                    resolved_skills = [
+                        s for s in explicit if s in allowed_skills or s in user_owned
+                    ]
+                admin_picks = [s for s in resolved_skills if s in allowed_skills]
+                user_picks = [s for s in resolved_skills if s not in allowed_skills]
+                admin_block = admin_skill_service.load_for_context(admin_picks)
+                user_block = user_skill_service.load_for_context(user_picks)
+                skills_context = "\n\n".join(part for part in (admin_block, user_block) if part)
 
             if notebook_references:
-                referenced_records = notebook_manager.get_records_by_references(notebook_references)
+                referenced_records = get_notebook_manager().get_records_by_references(
+                    notebook_references
+                )
                 if referenced_records:
                     analysis_agent = NotebookAnalysisAgent(
                         language=str(payload.get("language", "en") or "en")
@@ -1096,14 +1172,17 @@ class TurnRuntimeManager:
             logger.debug("Failed to mirror turn event to workspace", exc_info=True)
 
 
-_runtime_instance: TurnRuntimeManager | None = None
+_runtime_instances: dict[str, TurnRuntimeManager] = {}
 
 
 def get_turn_runtime_manager() -> TurnRuntimeManager:
-    global _runtime_instance
-    if _runtime_instance is None:
-        _runtime_instance = TurnRuntimeManager()
-    return _runtime_instance
+    from deeptutor.services.session import get_session_store
+
+    store = get_session_store()
+    key = str(getattr(store, "db_path", id(store)))
+    if key not in _runtime_instances:
+        _runtime_instances[key] = TurnRuntimeManager(store=store)
+    return _runtime_instances[key]
 
 
 __all__ = ["TurnRuntimeManager", "get_turn_runtime_manager"]
