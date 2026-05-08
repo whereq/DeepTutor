@@ -86,15 +86,17 @@ _ssl_warning_logged = False
 # Providers that handle thinking mode through extra_body (rather than
 # top-level reasoning_effort).  "minimal" means disable thinking — these
 # providers reject the literal "minimal" value and expect extra_body instead.
-_BINDINGS_WITH_EXTRA_BODY_THINKING = frozenset({
-    "deepseek",
-    "dashscope",
-    "volcengine",
-    "volcengine_coding_plan",
-    "byteplus",
-    "byteplus_coding_plan",
-    "minimax",
-})
+_BINDINGS_WITH_EXTRA_BODY_THINKING = frozenset(
+    {
+        "deepseek",
+        "dashscope",
+        "volcengine",
+        "volcengine_coding_plan",
+        "byteplus",
+        "byteplus_coding_plan",
+        "minimax",
+    }
+)
 
 
 def _looks_like_unsupported_response_format(error_text: str) -> bool:
@@ -343,8 +345,7 @@ async def _openai_complete(
     if isinstance(reasoning_effort, str) and reasoning_effort.strip():
         effort = reasoning_effort.strip()
         if not (
-            effort.lower() == "minimal"
-            and binding.lower() in _BINDINGS_WITH_EXTRA_BODY_THINKING
+            effort.lower() == "minimal" and binding.lower() in _BINDINGS_WITH_EXTRA_BODY_THINKING
         ):
             data["reasoning_effort"] = effort
 
@@ -513,8 +514,7 @@ async def _openai_stream(
     if isinstance(reasoning_effort, str) and reasoning_effort.strip():
         effort = reasoning_effort.strip()
         if not (
-            effort.lower() == "minimal"
-            and binding.lower() in _BINDINGS_WITH_EXTRA_BODY_THINKING
+            effort.lower() == "minimal" and binding.lower() in _BINDINGS_WITH_EXTRA_BODY_THINKING
         ):
             data["reasoning_effort"] = effort
 

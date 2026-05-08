@@ -49,7 +49,7 @@ export function Tooltip({
 
   return (
     <div
-      className="tooltip-wrapper"
+      className="dt-tooltip-wrapper"
       onMouseEnter={showTooltip}
       onMouseLeave={hideTooltip}
       onFocus={showNow}
@@ -60,12 +60,12 @@ export function Tooltip({
       {visible && (
         <div
           id={tooltipId}
-          className="tooltip-content"
+          className="dt-tooltip-content"
           data-side={side}
           role="tooltip"
         >
-          <div className="tooltip-label">{label}</div>
-          {description && <div className="tooltip-desc">{description}</div>}
+          <div className="dt-tooltip-label">{label}</div>
+          {description && <div className="dt-tooltip-desc">{description}</div>}
         </div>
       )}
     </div>

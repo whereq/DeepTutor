@@ -157,20 +157,19 @@ export function SidebarShell({
         <nav className="flex w-full flex-col items-center gap-1 px-1.5">
           {PRIMARY_NAV.map((item) => {
             const active = pathname.startsWith(item.href);
-            const tooltipProps = item.tooltipKey
-              ? { description: t(item.tooltipKey) }
-              : {}; // Pass description to tooltip if it exists
+            const description = item.tooltipKey
+              ? t(item.tooltipKey)
+              : undefined;
             return (
               <Tooltip
                 key={item.href}
                 label={t(item.label)}
+                description={description}
                 side="right"
-                {...tooltipProps}
               >
                 <Link
-                  key={item.href}
                   href={item.href}
-                  title={t(item.label) as string}
+                  aria-label={t(item.label)}
                   className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-150 ${
                     active
                       ? "bg-[var(--background)]/80 text-[var(--foreground)] shadow-sm"

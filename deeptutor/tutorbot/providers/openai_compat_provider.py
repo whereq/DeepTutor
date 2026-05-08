@@ -277,9 +277,7 @@ class OpenAICompatProvider(LLMProvider):
 
         # Providers that handle thinking via extra_body don't need a
         # top-level reasoning_effort when the intent is to disable thinking.
-        if reasoning_effort and not (
-            extra and reasoning_effort.lower() == "minimal"
-        ):
+        if reasoning_effort and not (extra and reasoning_effort.lower() == "minimal"):
             kwargs["reasoning_effort"] = reasoning_effort
 
         if tools:
