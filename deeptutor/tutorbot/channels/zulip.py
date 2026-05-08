@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
+import hashlib
+from pathlib import Path
 import re
 import threading
 import time
-from collections import deque
-from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import unquote
 
-import requests
 from loguru import logger
 from pydantic import Field
+import requests
 
 from deeptutor.tutorbot.bus.events import OutboundMessage
 from deeptutor.tutorbot.bus.queue import MessageBus
@@ -304,13 +305,15 @@ class ZulipChannel(BaseChannel):
                 stream_name = display_recipient.get("name", str(display_recipient))
             else:
                 stream_name = str(display_recipient)
-            chat_id = f"stream:{stream_name}"
+            topic = self._topic_label(subject)
+            chat_id = self._stream_chat_id(stream_name, topic)
             if self.config.group_policy == "mention":
                 if not self._is_mentioned(message):
                     return
-            content = f"**[{stream_name} > {subject}]** {content}"
+            content = f"**[{stream_name} > {topic}]** {content}"
         elif msg_type == "private":
             chat_id = f"pm:{sender_id}"
+            topic = ""
         else:
             return
 
@@ -328,7 +331,7 @@ class ZulipChannel(BaseChannel):
                 metadata["stream"] = display_recipient.get("name", str(display_recipient))
             else:
                 metadata["stream"] = display_recipient
-            metadata["topic"] = subject
+            metadata["topic"] = topic
         else:
             metadata["recipient_user_id"] = sender_id
 
@@ -337,9 +340,7 @@ class ZulipChannel(BaseChannel):
         media_paths = self._download_attachments(message)
 
         if self._loop and not self._loop.is_closed():
-            asyncio.run_coroutine_threadsafe(
-                self._start_typing_async(chat_id), self._loop
-            )
+            asyncio.run_coroutine_threadsafe(self._start_typing_async(chat_id), self._loop)
             asyncio.run_coroutine_threadsafe(
                 self._handle_message(
                     sender_id=composite_sender,
@@ -347,9 +348,24 @@ class ZulipChannel(BaseChannel):
                     content=content,
                     media=media_paths,
                     metadata=metadata,
+                    session_key=self._session_key_for(chat_id),
                 ),
                 self._loop,
             )
+
+    @staticmethod
+    def _topic_label(subject: Any) -> str:
+        topic = str(subject or "").strip()
+        return topic or "(no topic)"
+
+    @classmethod
+    def _stream_chat_id(cls, stream_name: str, topic: str) -> str:
+        return f"stream:{stream_name}:{cls._topic_label(topic)}"
+
+    def _session_key_for(self, chat_id: str) -> str | None:
+        if chat_id.startswith("stream:"):
+            return f"{self.name}:{chat_id}"
+        return None
 
     def _is_mentioned(self, message: dict) -> bool:
         if self._bot_user_id is None:
@@ -371,9 +387,8 @@ class ZulipChannel(BaseChannel):
         media_dir = get_media_dir("zulip")
 
         for name, path_id in upload_links:
-            url = f"{self.config.site}{path_id}"
-            safe_name = re.sub(r'[^\w.\-]', '_', unquote(name)) if name else f"attachment_{len(paths)}"
-            dest = media_dir / safe_name
+            url = f"{self.config.site.rstrip('/')}{path_id}"
+            dest = self._attachment_destination(media_dir, name, path_id, len(paths))
 
             if dest.exists():
                 paths.append(str(dest))
@@ -395,7 +410,28 @@ class ZulipChannel(BaseChannel):
         return paths
 
     @staticmethod
-    def _extract_upload_links(content: str, content_type: str = "text/x-markdown") -> list[tuple[str, str]]:
+    def _safe_attachment_name(name: str, fallback: str) -> str:
+        raw_name = unquote(name or "").strip() or fallback
+        safe_name = re.sub(r"[^\w.\-]", "_", raw_name).strip("._")
+        return safe_name or fallback
+
+    @classmethod
+    def _attachment_destination(
+        cls,
+        media_dir: Path,
+        name: str,
+        path_id: str,
+        index: int,
+    ) -> Path:
+        fallback = f"attachment_{index}"
+        filename = cls._safe_attachment_name(name or Path(unquote(path_id)).name, fallback)
+        digest = hashlib.sha256(path_id.encode("utf-8")).hexdigest()[:12]
+        return media_dir / f"{digest}_{filename}"
+
+    @staticmethod
+    def _extract_upload_links(
+        content: str, content_type: str = "text/x-markdown"
+    ) -> list[tuple[str, str]]:
         links: list[tuple[str, str]] = []
         seen: set[str] = set()
 
@@ -565,10 +601,12 @@ class ZulipChannel(BaseChannel):
         try:
             while self._running and self._client:
                 try:
-                    self._client.set_typing_status({
-                        "op": "start",
-                        "to": [int(recipient_user_id)],
-                    })
+                    self._client.set_typing_status(
+                        {
+                            "op": "start",
+                            "to": [int(recipient_user_id)],
+                        }
+                    )
                 except Exception as e:
                     logger.debug("Zulip typing status error: {}", e)
                 await asyncio.sleep(4)
@@ -577,9 +615,11 @@ class ZulipChannel(BaseChannel):
         finally:
             if self._client:
                 try:
-                    self._client.set_typing_status({
-                        "op": "stop",
-                        "to": [int(recipient_user_id)],
-                    })
+                    self._client.set_typing_status(
+                        {
+                            "op": "stop",
+                            "to": [int(recipient_user_id)],
+                        }
+                    )
                 except Exception:
                     pass

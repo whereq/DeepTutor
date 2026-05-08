@@ -106,12 +106,14 @@ def run_capability(
 @app.command()
 def start() -> None:
     """Launch backend + frontend together."""
+    from pathlib import Path
     import subprocess
     import sys
-    from pathlib import Path
 
     script = str(Path(__file__).resolve().parent.parent / "scripts" / "start_web.py")
-    subprocess.run([sys.executable, script])
+    result = subprocess.run([sys.executable, script], check=False)
+    if result.returncode:
+        raise typer.Exit(code=result.returncode)
 
 
 @app.command()

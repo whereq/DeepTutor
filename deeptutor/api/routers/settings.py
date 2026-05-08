@@ -19,16 +19,17 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+from deeptutor.multi_user.context import get_current_user
+from deeptutor.multi_user.model_access import allowed_llm_options, redacted_model_access
 from deeptutor.services.config import get_config_test_runner, get_model_catalog_service
 from deeptutor.services.embedding.client import reset_embedding_client
 from deeptutor.services.llm.client import reset_llm_client
 from deeptutor.services.llm.config import clear_llm_config_cache
 from deeptutor.services.model_selection import list_llm_options
 from deeptutor.services.path_service import get_path_service
-from deeptutor.multi_user.context import get_current_user
-from deeptutor.multi_user.model_access import allowed_llm_options, redacted_model_access
 
 router = APIRouter()
+
 
 def _settings_file():
     return get_path_service().get_settings_file("interface")
@@ -36,6 +37,7 @@ def _settings_file():
 
 def _tour_cache_file():
     return get_path_service().get_settings_dir() / ".tour_cache.json"
+
 
 DEFAULT_SIDEBAR_NAV_ORDER = {
     "start": ["/", "/history", "/knowledge", "/notebook"],

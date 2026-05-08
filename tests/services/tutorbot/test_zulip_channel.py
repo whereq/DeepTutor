@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -243,7 +245,11 @@ class TestDownloadAttachments:
             "content": "Check ![img.png](/user_uploads/2/ce/abc/img.png)",
             "content_type": "text/x-markdown",
         }
-        with patch.object(ch, "_extract_upload_links", return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")]):
+        with patch.object(
+            ch,
+            "_extract_upload_links",
+            return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")],
+        ):
             with patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get:
                 mock_resp = MagicMock()
                 mock_resp.raise_for_status = MagicMock()
@@ -255,7 +261,10 @@ class TestDownloadAttachments:
                         assert len(paths) == 1
                         mock_get.assert_called_once()
                         call_url = mock_get.call_args[0][0]
-                        assert call_url == "https://example.zulipchat.com/user_uploads/2/ce/abc/img.png"
+                        assert (
+                            call_url
+                            == "https://example.zulipchat.com/user_uploads/2/ce/abc/img.png"
+                        )
 
     def test_no_uploads_returns_empty(self):
         ch = _make_channel()
@@ -270,12 +279,35 @@ class TestDownloadAttachments:
             "content": "![img.png](/user_uploads/2/ce/abc/img.png)",
             "content_type": "text/x-markdown",
         }
-        with patch.object(ch, "_extract_upload_links", return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")]):
-            from unittest.mock import mock_open
+        with patch.object(
+            ch,
+            "_extract_upload_links",
+            return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")],
+        ):
             from pathlib import Path as RealPath
+            from unittest.mock import mock_open
+
             with patch.object(RealPath, "exists", return_value=True):
                 paths = ch._download_attachments(message)
                 assert len(paths) == 1
+
+    def test_attachment_destination_uses_upload_path_digest(self, tmp_path: Path):
+        first = ZulipChannel._attachment_destination(
+            tmp_path,
+            "image.png",
+            "/user_uploads/2/aa/first/image.png",
+            0,
+        )
+        second = ZulipChannel._attachment_destination(
+            tmp_path,
+            "image.png",
+            "/user_uploads/2/bb/second/image.png",
+            0,
+        )
+
+        assert first != second
+        assert first.name.endswith("_image.png")
+        assert second.name.endswith("_image.png")
 
 
 class TestConvertLatexToZulip:
@@ -295,17 +327,13 @@ class TestConvertLatexToZulip:
         assert "E = mc^2" in result
 
     def test_mixed_inline_and_display(self):
-        result = ZulipChannel._convert_latex_to_zulip(
-            "Inline $a+b$ and display:\n$$c+d$$"
-        )
+        result = ZulipChannel._convert_latex_to_zulip("Inline $a+b$ and display:\n$$c+d$$")
         assert "$$a+b$$" in result
         assert "```math" in result
         assert "c+d" in result
 
     def test_code_block_preserved(self):
-        result = ZulipChannel._convert_latex_to_zulip(
-            "```python\nx = $1 + $2\n```"
-        )
+        result = ZulipChannel._convert_latex_to_zulip("```python\nx = $1 + $2\n```")
         assert "```python" in result
         assert "$1 + $2" in result
 
@@ -332,9 +360,7 @@ class TestConvertZulipLatexToStandard:
         assert result == "The value $x^2$ is positive"
 
     def test_display_math(self):
-        result = ZulipChannel._convert_zulip_latex_to_standard(
-            "```math\n\\int_a^b f(x) dx\n```"
-        )
+        result = ZulipChannel._convert_zulip_latex_to_standard("```math\n\\int_a^b f(x) dx\n```")
         assert "$$" in result
         assert "\\int_a^b f(x) dx" in result
         assert "```math" not in result
@@ -348,9 +374,7 @@ class TestConvertZulipLatexToStandard:
         assert "c+d" in result
 
     def test_code_block_preserved(self):
-        result = ZulipChannel._convert_zulip_latex_to_standard(
-            "```python\nx = $$1 + $$2\n```"
-        )
+        result = ZulipChannel._convert_zulip_latex_to_standard("```python\nx = $$1 + $$2\n```")
         assert "```python" in result
         assert "$$1 + $$2" in result
 
@@ -379,7 +403,7 @@ class TestBuildSendRequest:
             "stream": "general",
             "topic": "hello",
         }
-        req = ch._build_send_request("stream:general", "Hello world", metadata)
+        req = ch._build_send_request("stream:general:hello", "Hello world", metadata)
         assert req["type"] == "stream"
         assert req["to"] == "general"
         assert req["subject"] == "hello"
@@ -557,7 +581,31 @@ class TestOnMessage:
 
         await asyncio.sleep(0.1)
         call_args = ch.bus.publish_inbound.call_args[0][0]
+        assert call_args.chat_id == "stream:general:test topic"
+        assert call_args.session_key_override == "zulip:stream:general:test topic"
         assert "**[general > test topic]**" in call_args.content
+
+    @pytest.mark.asyncio
+    async def test_empty_stream_topic_gets_stable_no_topic_scope(self):
+        ch = _make_channel(group_policy="open")
+        ch._bot_email = "bot@example.com"
+        ch._bot_user_id = 100
+        ch._max_message_id = 0
+        ch._loop = asyncio.get_running_loop()
+
+        msg = self._make_msg(
+            type="stream",
+            display_recipient="general",
+            subject="",
+            content="Hello",
+            flags=[],
+        )
+        ch._on_message(msg)
+
+        await asyncio.sleep(0.1)
+        call_args = ch.bus.publish_inbound.call_args[0][0]
+        assert call_args.chat_id == "stream:general:(no topic)"
+        assert call_args.session_key_override == "zulip:stream:general:(no topic)"
 
 
 class TestSend:
@@ -667,7 +715,8 @@ class TestUploadAndSend:
         await ch.send(msg)
 
         upload_calls = [
-            c for c in mock_client.call_endpoint.call_args_list
+            c
+            for c in mock_client.call_endpoint.call_args_list
             if c.kwargs.get("url") == "user_uploads"
         ]
         assert len(upload_calls) == 1
@@ -747,7 +796,9 @@ class TestCallWithRetry:
 
     def test_retries_on_failure(self):
         ch = _make_channel()
-        fn = MagicMock(side_effect=[Exception("fail"), Exception("fail again"), {"result": "success"}])
+        fn = MagicMock(
+            side_effect=[Exception("fail"), Exception("fail again"), {"result": "success"}]
+        )
         with patch("time.sleep"):
             result = ch._call_with_retry(fn)
         assert result == {"result": "success"}
@@ -770,11 +821,12 @@ class TestStart:
         assert ch._running is False
 
     @pytest.mark.asyncio
-    async def test_start_profile_failure(self):
+    async def test_start_profile_failure(self, monkeypatch):
         ch = _make_channel()
+        fake_zulip = SimpleNamespace(Client=MagicMock())
+        monkeypatch.setitem(sys.modules, "zulip", fake_zulip)
         with patch("deeptutor.tutorbot.channels.zulip.ZulipChannel._call_with_retry") as mock_retry:
             mock_retry.return_value = {"result": "error"}
-            with patch("zulip.Client"):
-                await ch.start()
+            await ch.start()
 
         assert ch._running is False

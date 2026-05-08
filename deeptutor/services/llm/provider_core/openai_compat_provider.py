@@ -311,9 +311,7 @@ class OpenAICompatProvider(LLMProvider):
         # Providers with thinking_style handle thinking via extra_body.
         # "minimal" means disable thinking — only send via extra_body, never
         # as a top-level reasoning_effort (e.g. DeepSeek rejects it).
-        if wire_effort and not (
-            spec and spec.thinking_style and semantic_effort == "minimal"
-        ):
+        if wire_effort and not (spec and spec.thinking_style and semantic_effort == "minimal"):
             kwargs["reasoning_effort"] = wire_effort
 
         if spec and spec.thinking_style and reasoning_effort is not None:

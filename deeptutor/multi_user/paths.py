@@ -8,7 +8,7 @@ from typing import Iterator
 
 from deeptutor.services.path_service import PathService
 
-from .models import CurrentUser, LOCAL_ADMIN_ID, LOCAL_ADMIN_USERNAME, UserScope
+from .models import LOCAL_ADMIN_ID, LOCAL_ADMIN_USERNAME, CurrentUser, UserScope
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ADMIN_WORKSPACE_ROOT = PROJECT_ROOT / "data"
