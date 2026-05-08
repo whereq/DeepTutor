@@ -64,9 +64,11 @@ def get_admin_path_service() -> PathService:
 
 
 def get_current_path_service() -> PathService:
-    from .context import get_current_user
+    from .context import get_current_user_or_none
 
-    user = get_current_user()
+    user = get_current_user_or_none()
+    if user is None:
+        return PathService.get_instance()
     if user.scope.kind == "user":
         ensure_user_workspace(user.id)
     return get_path_service_for_scope(user.scope)

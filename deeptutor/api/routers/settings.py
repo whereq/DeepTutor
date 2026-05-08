@@ -30,12 +30,16 @@ from deeptutor.services.path_service import get_path_service
 
 router = APIRouter()
 
+TOUR_CACHE = None
+
 
 def _settings_file():
     return get_path_service().get_settings_file("interface")
 
 
 def _tour_cache_file():
+    if TOUR_CACHE is not None:
+        return TOUR_CACHE
     return get_path_service().get_settings_dir() / ".tour_cache.json"
 
 
