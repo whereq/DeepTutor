@@ -568,7 +568,8 @@ class OpenAICompatProvider(LLMProvider):
             tool_choice,
         )
         kwargs["stream"] = True
-        kwargs["stream_options"] = {"include_usage": True}
+        if self._spec is None or self._spec.supports_stream_options:
+            kwargs["stream_options"] = {"include_usage": True}
         idle_timeout_s = 90
         try:
             stream = await self._client.chat.completions.create(**kwargs)

@@ -312,6 +312,7 @@ EMBEDDING_DIMENSION=
 | MiniMax (Anthropic) | `minimax_anthropic` | `https://api.minimaxi.com/anthropic` |
 | Mistral | `mistral` | `https://api.mistral.ai/v1` |
 | Moonshot | `moonshot` | `https://api.moonshot.cn/v1` |
+| NVIDIA NIM | `nvidia_nim` | `https://integrate.api.nvidia.com/v1` |
 | Ollama | `ollama` | `http://localhost:11434/v1` |
 | OpenAI | `openai` | `https://api.openai.com/v1` |
 | OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
