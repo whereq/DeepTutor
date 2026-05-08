@@ -50,7 +50,9 @@ export default function ModelSelector({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const selectedSelection = allowSystemDefault ? value : value ?? activeDefault;
+  const selectedSelection = allowSystemDefault
+    ? value
+    : (value ?? activeDefault);
   const selectedKey = llmSelectionKey(selectedSelection);
   const selectedOption = useMemo(
     () =>
@@ -87,11 +89,11 @@ export default function ModelSelector({
     ? `${selectedOption.profile_name} | ${providerLabel(selectedOption)}`
     : allowSystemDefault && !selectedSelection
       ? defaultDetail
-    : error
-      ? t("Could not load models")
-      : options.length === 0
-        ? t("No configured models")
-        : t("Choose a model");
+      : error
+        ? t("Could not load models")
+        : options.length === 0
+          ? t("No configured models")
+          : t("Choose a model");
   const menuPlacementClass =
     placement === "bottom" ? "top-full mt-1.5" : "bottom-full mb-1.5";
 
