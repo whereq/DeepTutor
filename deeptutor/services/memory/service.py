@@ -61,10 +61,16 @@ class MemoryService:
     ) -> None:
         from deeptutor.services.session import get_session_store
 
-        self._path_service = path_service or get_path_service()
+        self.__path_service = path_service
         self._store = store or get_session_store()
         self._refresh_lock = asyncio.Lock()
         self._migrate_legacy()
+
+    @property
+    def _path_service(self) -> PathService:
+        if self.__path_service is not None:
+            return self.__path_service
+        return get_path_service()
 
     @property
     def _memory_dir(self) -> Path:

@@ -193,17 +193,20 @@ class TutorBotManager:
 
     def __init__(self) -> None:
         self._bots: dict[str, TutorBotInstance] = {}
-        self._path_service = get_path_service()
+
+    @property
+    def _path_service(self):
+        from deeptutor.services.path_service import get_path_service
+        return get_path_service()
 
     # ── Path helpers ──────────────────────────────────────────────
 
     @property
     def _tutorbot_dir(self) -> Path:
-        return self._path_service.project_root / "data" / "tutorbot"
+        return self._path_service.workspace_root / "tutorbot"
 
     @property
     def _shared_memory_dir(self) -> Path:
-        """Public memory shared by DeepTutor and all bots."""
         return self._path_service.get_memory_dir()
 
     def _bot_dir(self, bot_id: str) -> Path:
@@ -1112,11 +1115,12 @@ class TutorBotManager:
         return True
 
 
-_manager: TutorBotManager | None = None
+_managers: dict[str, TutorBotManager] = {}
 
 
 def get_tutorbot_manager() -> TutorBotManager:
-    global _manager
-    if _manager is None:
-        _manager = TutorBotManager()
-    return _manager
+    from deeptutor.services.path_service import get_path_service
+    key = str(get_path_service().workspace_root.resolve())
+    if key not in _managers:
+        _managers[key] = TutorBotManager()
+    return _managers[key]

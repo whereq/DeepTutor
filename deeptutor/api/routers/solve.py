@@ -22,15 +22,15 @@ from deeptutor.services.llm import get_llm_config
 from deeptutor.services.path_service import get_path_service
 from deeptutor.services.settings.interface_settings import get_ui_language
 
-# Initialize logger with config
 config = load_config_with_main("main.yaml", PROJECT_ROOT)
 log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {}).get("log_dir")
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Initialize session manager
-solver_session_manager = SolverSessionManager()
+
+def _get_session_manager() -> SolverSessionManager:
+    return SolverSessionManager()
 
 
 # =============================================================================
@@ -40,30 +40,12 @@ solver_session_manager = SolverSessionManager()
 
 @router.get("/solve/sessions")
 async def list_solver_sessions(limit: int = 20):
-    """
-    List recent solver sessions.
-
-    Args:
-        limit: Maximum number of sessions to return
-
-    Returns:
-        List of session summaries
-    """
-    return solver_session_manager.list_sessions(limit=limit, include_messages=False)
+    return _get_session_manager().list_sessions(limit=limit, include_messages=False)
 
 
 @router.get("/solve/sessions/{session_id}")
 async def get_solver_session(session_id: str):
-    """
-    Get a specific solver session with full message history.
-
-    Args:
-        session_id: Session identifier
-
-    Returns:
-        Complete session data including messages
-    """
-    session = solver_session_manager.get_session(session_id)
+    session = _get_session_manager().get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
@@ -71,16 +53,7 @@ async def get_solver_session(session_id: str):
 
 @router.delete("/solve/sessions/{session_id}")
 async def delete_solver_session(session_id: str):
-    """
-    Delete a solver session.
-
-    Args:
-        session_id: Session identifier
-
-    Returns:
-        Success message
-    """
-    if solver_session_manager.delete_session(session_id):
+    if _get_session_manager().delete_session(session_id):
         return {"status": "deleted", "session_id": session_id}
     raise HTTPException(status_code=404, detail="Session not found")
 
@@ -92,6 +65,22 @@ async def delete_solver_session(session_id: str):
 
 @router.websocket("/solve")
 async def websocket_solve(websocket: WebSocket):
+    from deeptutor.multi_user.context import reset_current_user, set_current_user
+    from deeptutor.multi_user.context import user_from_token_payload
+    from deeptutor.multi_user.paths import local_admin_user
+    from deeptutor.services.auth import AUTH_ENABLED, decode_token
+
+    user_token = None
+    if AUTH_ENABLED:
+        token = websocket.query_params.get("token") or websocket.cookies.get("dt_token")
+        payload = decode_token(token) if token else None
+        if not payload:
+            await websocket.close(code=4001)
+            return
+        user_token = set_current_user(user_from_token_payload(payload))
+    else:
+        user_token = set_current_user(local_admin_user())
+
     await websocket.accept()
 
     task_manager = TaskIDManager.get_instance()
@@ -100,7 +89,6 @@ async def websocket_solve(websocket: WebSocket):
     pusher_task = None
 
     async def safe_send_json(data: dict[str, Any]):
-        """Safely send JSON to WebSocket, checking if connection is closed"""
         if connection_closed.is_set():
             return False
         try:
@@ -117,31 +105,26 @@ async def websocket_solve(websocket: WebSocket):
     async def log_pusher():
         while not connection_closed.is_set():
             try:
-                # Use timeout to periodically check if connection is closed
                 entry = await asyncio.wait_for(log_queue.get(), timeout=0.5)
                 try:
                     await websocket.send_json(entry)
                 except (WebSocketDisconnect, RuntimeError, ConnectionError) as e:
-                    # Connection closed, stop pushing
                     logger.debug(f"WebSocket connection closed in log_pusher: {e}")
                     connection_closed.set()
                     log_queue.task_done()
                     break
                 except Exception as e:
                     logger.debug(f"Error sending log entry: {e}")
-                    # Continue to next entry
                 log_queue.task_done()
             except asyncio.TimeoutError:
-                # Timeout, check if connection is still open
                 continue
             except Exception as e:
                 logger.debug(f"Error in log_pusher: {e}")
                 break
 
-    session_id = None  # Track session for this connection
+    session_id = None
 
     try:
-        # 1. Wait for the initial message with the question and config
         data = await websocket.receive_json()
         question = data.get("question")
         tools = data.get("tools")
@@ -152,36 +135,33 @@ async def websocket_solve(websocket: WebSocket):
         )
         rag_enabled = "rag" in enabled_tools
         kb_name = data.get("kb_name", "ai-textbook") if rag_enabled else None
-        session_id = data.get("session_id")  # Optional session ID
-        detailed_answer = data.get("detailed_answer", False)  # Iterative detailed mode
+        session_id = data.get("session_id")
+        detailed_answer = data.get("detailed_answer", False)
 
         if not question:
             await websocket.send_json({"type": "error", "content": "Question is required"})
             return
 
-        # Get or create session
+        sm = _get_session_manager()
+
         if session_id:
-            session = solver_session_manager.get_session(session_id)
+            session = sm.get_session(session_id)
             if not session:
-                # Session not found, create new one
-                session = solver_session_manager.create_session(
+                session = sm.create_session(
                     title=question[:50] + ("..." if len(question) > 50 else ""),
                     kb_name=kb_name or "",
                 )
                 session_id = session["session_id"]
         else:
-            # Create new session
-            session = solver_session_manager.create_session(
+            session = sm.create_session(
                 title=question[:50] + ("..." if len(question) > 50 else ""),
                 kb_name=kb_name or "",
             )
             session_id = session["session_id"]
 
-        # Send session ID to frontend
         await websocket.send_json({"type": "session", "session_id": session_id})
 
-        # Add user message to session
-        solver_session_manager.add_message(
+        sm.add_message(
             session_id=session_id,
             role="user",
             content=question,
@@ -192,7 +172,6 @@ async def websocket_solve(websocket: WebSocket):
 
         await websocket.send_json({"type": "task_id", "task_id": task_id})
 
-        # 2. Initialize Solver
         path_service = get_path_service()
         output_base = path_service.get_solve_dir()
 
@@ -218,7 +197,6 @@ async def websocket_solve(websocket: WebSocket):
             disable_planner_retrieve=not (rag_enabled and kb_name),
         )
 
-        # Complete async initialization
         await solver.ainit()
 
         logger.info(f"[{task_id}] Solving: {question[:50]}...")
@@ -258,13 +236,10 @@ async def websocket_solve(websocket: WebSocket):
 
             display_manager.update_token_stats = wrapped_update_stats
 
-            # Re-register the callback to use the wrapped method
-            # (The callback was set before wrapping in main_solver.py)
             if hasattr(solver, "token_tracker") and solver.token_tracker:
                 solver.token_tracker.set_on_usage_added_callback(wrapped_update_stats)
 
         def send_progress_update(stage: str, progress: dict[str, Any]):
-            """Send progress update to frontend"""
             try:
                 log_queue.put_nowait({"type": "progress", "stage": stage, "progress": progress})
             except Exception:
@@ -272,7 +247,6 @@ async def websocket_solve(websocket: WebSocket):
 
         solver._send_progress_update = send_progress_update
 
-        # 5. Background task to push logs to WebSocket
         pusher_task = asyncio.create_task(log_pusher())
 
         loop = asyncio.get_running_loop()
@@ -280,7 +254,6 @@ async def websocket_solve(websocket: WebSocket):
         def emit_process_log(event):
             loop.call_soon_threadsafe(log_queue.put_nowait, event.to_dict())
 
-        # 6. Run Solver while streaming only logs bound to this task.
         with bind_log_context(
             task_id=task_id,
             session_id=session_id,
@@ -311,7 +284,6 @@ async def websocket_solve(websocket: WebSocket):
                 logger.info(f"[{task_id}] Solving completed")
                 task_manager.update_task_status(task_id, "completed")
 
-            # Process Markdown content to fix image paths
             final_answer = result.get("final_answer", "")
             output_dir_str = result.get("output_dir", "")
 
@@ -336,7 +308,6 @@ async def websocket_solve(websocket: WebSocket):
                 except Exception as e:
                     logger.debug(f"Error processing image paths: {e}")
 
-            # Send final agent status update
             if display_manager:
                 final_agent_status = dict.fromkeys(display_manager.agents_status.keys(), "done")
                 await safe_send_json(
@@ -348,8 +319,6 @@ async def websocket_solve(websocket: WebSocket):
                     }
                 )
 
-            # Send final result
-            # Extract relative path from output_dir for frontend use
             dir_name = ""
             if output_dir_str:
                 parts = output_dir_str.replace("\\", "/").split("/")
@@ -365,30 +334,26 @@ async def websocket_solve(websocket: WebSocket):
             }
             await safe_send_json(final_res)
 
-            # Save assistant message to session
             if session_id:
-                solver_session_manager.add_message(
+                sm.add_message(
                     session_id=session_id,
                     role="assistant",
                     content=final_answer,
                     output_dir=dir_name,
                 )
-                # Update token stats in session
                 if display_manager:
-                    solver_session_manager.update_token_stats(
+                    sm.update_token_stats(
                         session_id=session_id,
                         token_stats=display_manager.stats.copy(),
                     )
 
     except Exception as e:
-        # Mark connection as closed before sending error (to prevent log_pusher from interfering)
         connection_closed.set()
         await safe_send_json({"type": "error", "content": str(e)})
         logger.error(f"[{task_id if 'task_id' in locals() else 'unknown'}] Solving failed: {e}")
         if "task_id" in locals():
             task_manager.update_task_status(task_id, "error", error=str(e))
     finally:
-        # Stop log pusher first
         connection_closed.set()
         if pusher_task:
             pusher_task.cancel()
@@ -399,18 +364,20 @@ async def websocket_solve(websocket: WebSocket):
             except Exception as e:
                 logger.debug(f"Error waiting for pusher task: {e}")
 
-        # Close WebSocket connection
         try:
-            # Check if connection is still open before closing
             if hasattr(websocket, "client_state"):
                 state = websocket.client_state
                 if hasattr(state, "name") and state.name != "DISCONNECTED":
                     await websocket.close()
             else:
-                # Fallback: try to close anyway
                 await websocket.close()
         except (WebSocketDisconnect, RuntimeError, ConnectionError):
-            # Connection already closed, ignore
             pass
         except Exception as e:
             logger.debug(f"Error closing WebSocket: {e}")
+
+        if user_token is not None:
+            try:
+                reset_current_user(user_token)
+            except Exception:
+                pass

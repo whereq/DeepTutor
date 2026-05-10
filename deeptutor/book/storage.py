@@ -80,8 +80,12 @@ class BookStorage:
     """Async-friendly wrapper around the on-disk book layout."""
 
     def __init__(self) -> None:
-        self.path_service = get_path_service()
         self._lock = asyncio.Lock()
+
+    @property
+    def path_service(self):
+        from deeptutor.services.path_service import get_path_service
+        return get_path_service()
 
     # ── Path helpers ─────────────────────────────────────────────────────
 
@@ -262,14 +266,15 @@ class BookStorage:
         return not root.exists()
 
 
-_storage: BookStorage | None = None
+_storages: dict[str, BookStorage] = {}
 
 
 def get_book_storage() -> BookStorage:
-    global _storage
-    if _storage is None:
-        _storage = BookStorage()
-    return _storage
+    from deeptutor.services.path_service import get_path_service
+    key = str(get_path_service().workspace_root.resolve())
+    if key not in _storages:
+        _storages[key] = BookStorage()
+    return _storages[key]
 
 
 __all__ = ["BookStorage", "get_book_storage"]
