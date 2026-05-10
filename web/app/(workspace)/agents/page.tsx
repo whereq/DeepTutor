@@ -103,8 +103,7 @@ export default function AgentsPage() {
     setLoading(true);
     try {
       const res = await apiFetch(apiUrl("/api/v1/tutorbot"));
-      const data = await res.json();
-      setBots(Array.isArray(data) ? data : (data.bots ?? []));
+      setBots(await res.json());
     } finally {
       setLoading(false);
     }

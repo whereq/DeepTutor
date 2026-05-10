@@ -4,7 +4,6 @@ import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
 const KNOWLEDGE_CACHE_PREFIX = "knowledge:";
 
 export interface KnowledgeBaseSummary {
-  id?: string;
   name: string;
   is_default?: boolean;
   status?: string;
@@ -12,11 +11,6 @@ export interface KnowledgeBaseSummary {
   metadata?: Record<string, unknown>;
   progress?: Record<string, unknown>;
   statistics?: Record<string, unknown>;
-  source?: "admin" | "user";
-  assigned?: boolean;
-  read_only?: boolean;
-  provenance_label?: string;
-  available?: boolean;
 }
 
 export interface RagProviderSummary {
