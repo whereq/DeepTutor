@@ -207,6 +207,39 @@ _access_logger = logging.getLogger("uvicorn.access")
 
 
 @app.middleware("http")
+async def user_context_middleware(request, call_next):
+    from deeptutor.multi_user.context import set_current_user, reset_current_user
+    from deeptutor.multi_user.context import user_from_token_payload
+    from deeptutor.multi_user.paths import local_admin_user
+    from deeptutor.services.auth import AUTH_ENABLED, decode_token
+
+    ctx_token = None
+    if AUTH_ENABLED:
+        authorization = request.headers.get("Authorization")
+        dt_token = request.cookies.get("dt_token")
+        token = None
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization[7:].strip()
+        elif dt_token:
+            token = dt_token
+        if token:
+            payload = decode_token(token)
+            if payload:
+                ctx_token = set_current_user(user_from_token_payload(payload))
+        if ctx_token is None:
+            ctx_token = set_current_user(local_admin_user())
+    else:
+        ctx_token = set_current_user(local_admin_user())
+
+    response = await call_next(request)
+
+    if ctx_token is not None:
+        reset_current_user(ctx_token)
+
+    return response
+
+
+@app.middleware("http")
 async def selective_access_log(request, call_next):
     response = await call_next(request)
     if response.status_code != 200:

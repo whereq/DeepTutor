@@ -391,10 +391,13 @@ async def get_bot_history(bot_id: str, limit: int = 100):
 
 @router.websocket("/{bot_id}/ws")
 async def bot_chat_ws(ws: WebSocket, bot_id: str):
-    # `disconnected` is the single source of truth for "client is gone".
-    # Both task loops watch it so they can exit cooperatively without
-    # raising exceptions back into manager code (which has broad
-    # `except Exception:` handlers that would swallow them).
+    from deeptutor.api.routers.auth import ws_auth_failed, ws_require_auth
+    from deeptutor.multi_user.context import reset_current_user
+
+    user_token = await ws_require_auth(ws)
+    if user_token is ws_auth_failed:
+        return
+
     disconnected = asyncio.Event()
 
     async def _safe_send(payload: dict) -> bool:
@@ -519,4 +522,10 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
         disconnected.set()
         user_task.cancel()
         notify_task.cancel()
+    finally:
+        if user_token is not None:
+            try:
+                reset_current_user(user_token)
+            except Exception:
+                pass
     logger.info("WebSocket closed for bot '%s'", bot_id)
