@@ -67,10 +67,12 @@ class PocketBaseSessionStore:
         self,
         title: str | None = None,
         session_id: str | None = None,
+        kind: str = "chat",
     ) -> dict[str, Any]:
         now = time.time()
         resolved_id = session_id or f"unified_{int(now * 1000)}_{uuid.uuid4().hex[:8]}"
         resolved_title = (title or "New conversation").strip() or "New conversation"
+        resolved_kind = (kind or "chat").strip() or "chat"
 
         def _create():
             return (
@@ -85,12 +87,15 @@ class PocketBaseSessionStore:
                         "preferences_json": {},
                         "capability": "",
                         "status": "idle",
+                        "kind": resolved_kind,
                     }
                 )
             )
 
         record = await asyncio.to_thread(_create)
-        return self._session_record_to_dict(record, resolved_id, resolved_title, now)
+        result = self._session_record_to_dict(record, resolved_id, resolved_title, now)
+        result.setdefault("kind", resolved_kind)
+        return result
 
     async def get_session(self, session_id: str) -> dict[str, Any] | None:
         def _get():
@@ -109,12 +114,16 @@ class PocketBaseSessionStore:
             return None
         return self._session_record_to_dict(record)
 
-    async def ensure_session(self, session_id: str | None = None) -> dict[str, Any]:
+    async def ensure_session(
+        self,
+        session_id: str | None = None,
+        kind: str = "chat",
+    ) -> dict[str, Any]:
         if session_id:
             session = await self.get_session(session_id)
             if session is not None:
                 return session
-        return await self.create_session()
+        return await self.create_session(kind=kind)
 
     def _session_record_to_dict(
         self,
@@ -140,6 +149,7 @@ class PocketBaseSessionStore:
             "capability": getattr(record, "capability", "") or "",
             "status": getattr(record, "status", "idle") or "idle",
             "active_turn_id": "",
+            "kind": getattr(record, "kind", "") or "chat",
         }
 
     async def update_session_title(self, session_id: str, title: str) -> bool:
@@ -180,19 +190,25 @@ class PocketBaseSessionStore:
             logger.warning(f"delete_session failed: {exc}")
             return False
 
-    async def list_sessions(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    async def list_sessions(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        kind: str | None = None,
+    ) -> list[dict[str, Any]]:
         page = (offset // limit) + 1
+        filter_kind = (kind or "").strip()
 
         def _list():
-            return (
-                _pb()
-                .collection("sessions")
-                .get_list(
-                    page,
-                    limit,
-                    query_params={"sort": "-updated"},
-                )
-            )
+            query_params: dict[str, Any] = {"sort": "-updated"}
+            if filter_kind:
+                # PocketBase filter syntax. Existing records without ``kind`` set
+                # are treated as ``chat`` for backward compatibility.
+                if filter_kind == "chat":
+                    query_params["filter"] = 'kind="chat" || kind=""'
+                else:
+                    query_params["filter"] = f'kind="{filter_kind}"'
+            return _pb().collection("sessions").get_list(page, limit, query_params=query_params)
 
         try:
             result = await asyncio.to_thread(_list)

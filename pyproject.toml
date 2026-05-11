@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deeptutor"
-version = "1.0.0"
+dynamic = ["version"]
 description = "An agent-native intelligent learning companion with multi-agent collaboration and RAG"
 requires-python = ">=3.11"
 readme = "README.md"
@@ -34,7 +34,7 @@ dependencies = [
     "anthropic>=0.30.0",
     "dashscope>=1.14.0",
     "perplexityai>=0.1.0",
-    "oauth-cli-kit>=0.1.1; python_version >= '3.11'",
+    "oauth-cli-kit>=0.1.1",
     "llama-index>=0.14.12",
     "PyMuPDF>=1.26.0",
     "numpy>=1.24.0,<3.0.0",
@@ -67,7 +67,7 @@ cli = [
     "anthropic>=0.30.0",
     "dashscope>=1.14.0",
     "perplexityai>=0.1.0",
-    "oauth-cli-kit>=0.1.1; python_version >= '3.11'",
+    "oauth-cli-kit>=0.1.1",
     # RAG (LlamaIndex)
     "llama-index>=0.14.12",
     "PyMuPDF>=1.26.0",
@@ -157,6 +157,9 @@ all = [
 [tool.setuptools]
 include-package-data = true
 
+[tool.setuptools.dynamic]
+version = {attr = "deeptutor.__version__.__version__"}
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["deeptutor*", "deeptutor_cli*"]
@@ -169,7 +172,7 @@ deeptutor_web = ["**/*", ".next/**/*"]
 # ============================================
 [tool.black]
 line-length = 100
-target-version = ['py311', 'py312']
+target-version = ['py311', 'py312', 'py313', 'py314']
 include = '\.pyi?$'
 extend-exclude = '''
 /(

@@ -30,6 +30,7 @@ from .types import Citation, SearchResult, WebSearchResponse
 
 _logger = logging.getLogger(__name__)
 
+
 def _get_web_search_config() -> dict[str, Any]:
     try:
         config = load_config_with_main("main.yaml", PROJECT_ROOT)

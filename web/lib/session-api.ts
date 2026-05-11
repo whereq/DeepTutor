@@ -1,6 +1,7 @@
-import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 import { apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
+import type { SurfaceKind } from "@/lib/session-surfaces";
+import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 
 export interface SessionMessage {
   id: number;
@@ -38,6 +39,8 @@ export interface SessionSummary {
     | "cancelled"
     | "rejected";
   active_turn_id?: string;
+  /** Originating surface — see ``SurfaceKind`` in lib/session-surfaces. */
+  kind?: SurfaceKind;
   preferences?: {
     capability?: string;
     tools?: string[];
@@ -114,13 +117,21 @@ async function expectJson<T>(response: Response): Promise<T> {
 export async function listSessions(
   limit = 50,
   offset = 0,
-  options?: { force?: boolean },
+  options?: { force?: boolean; kind?: SurfaceKind | null },
 ): Promise<SessionSummary[]> {
+  const kindKey = options?.kind ?? "all";
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (options?.kind) {
+    qs.set("kind", options.kind);
+  }
   return withClientCache<SessionSummary[]>(
-    `sessions:${limit}:${offset}`,
+    `sessions:${kindKey}:${limit}:${offset}`,
     async () => {
       const response = await fetch(
-        apiUrl(`/api/v1/sessions?limit=${limit}&offset=${offset}`),
+        apiUrl(`/api/v1/sessions?${qs.toString()}`),
         {
           cache: "no-store",
           credentials: "include",

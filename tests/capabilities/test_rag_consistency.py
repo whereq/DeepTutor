@@ -1,23 +1,21 @@
-"""
-Tests for RAG/KB consistency normalization at the capability layer.
+"""Tests for RAG/KB consistency at the capability layer.
 
+After the refactor, RAG is no longer a user-selectable tool — its availability
+is derived from whether any knowledge bases are attached for the turn.
 These tests pin the contract that:
 
-* ``deep_solve`` strips ``rag`` from the effective tool set when no
-  knowledge base is attached, and emits a warning so the UI can surface
-  the mismatch.
-* ``deep_research`` strips ``kb`` from the effective sources list when
-  no knowledge base is attached, and surfaces a clear error if all
-  sources end up empty.
-
-Both behaviours guarantee that no downstream agent or pipeline ever
-attempts a RAG call against a missing/placeholder knowledge base.
+* ``deep_solve`` *adds* ``rag`` to the effective tool set iff a knowledge
+  base is attached, and disables planner-side retrieval otherwise.
+* ``deep_research`` still strips ``kb`` from the user-selected sources list
+  when no knowledge base is attached (its sources picker is a separate,
+  research-specific concept), and surfaces a clear error if every source is
+  unusable.
 """
 
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -41,12 +39,12 @@ def _fake_llm_config() -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# deep_solve: rag without KB → tool stripped, warning emitted
+# deep_solve: rag presence is keyed on attached KB
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_deep_solve_strips_rag_when_no_knowledge_base() -> None:
+async def test_deep_solve_omits_rag_when_no_knowledge_base() -> None:
     from deeptutor.capabilities.deep_solve import DeepSolveCapability
 
     captured_kwargs: dict[str, Any] = {}
@@ -69,8 +67,9 @@ async def test_deep_solve_strips_rag_when_no_knowledge_base() -> None:
     context = UnifiedContext(
         user_message="solve x^2 = 4",
         active_capability="deep_solve",
+        # A legacy caller passing "rag" should be ignored — KBs are the signal.
         enabled_tools=["rag", "web_search"],
-        knowledge_bases=[],  # explicitly empty
+        knowledge_bases=[],
         language="en",
     )
 
@@ -84,26 +83,16 @@ async def test_deep_solve_strips_rag_when_no_knowledge_base() -> None:
             return_value=_fake_llm_config(),
         ),
     ):
-        events = await _drain(bus, capability.run(context, bus))
+        await _drain(bus, capability.run(context, bus))
 
-    # rag must NOT be in the enabled_tools we forwarded to MainSolver
     assert "rag" not in captured_kwargs["enabled_tools"]
     assert "web_search" in captured_kwargs["enabled_tools"]
     assert captured_kwargs["kb_name"] is None
     assert captured_kwargs["disable_planner_retrieve"] is True
 
-    # And a warning progress event should have been emitted
-    warnings = [
-        e
-        for e in events
-        if e.type == StreamEventType.PROGRESS
-        and (e.metadata or {}).get("reason") == "rag_without_kb"
-    ]
-    assert warnings, "expected a rag_without_kb warning event"
-
 
 @pytest.mark.asyncio
-async def test_deep_solve_keeps_rag_when_knowledge_base_attached() -> None:
+async def test_deep_solve_adds_rag_when_knowledge_base_attached() -> None:
     from deeptutor.capabilities.deep_solve import DeepSolveCapability
 
     captured_kwargs: dict[str, Any] = {}
@@ -126,7 +115,7 @@ async def test_deep_solve_keeps_rag_when_knowledge_base_attached() -> None:
     context = UnifiedContext(
         user_message="solve x^2 = 4",
         active_capability="deep_solve",
-        enabled_tools=["rag", "web_search"],
+        enabled_tools=["web_search"],
         knowledge_bases=["my-kb"],
         language="en",
     )
@@ -168,12 +157,12 @@ async def test_deep_research_drops_kb_source_when_no_knowledge_base() -> None:
     context = UnifiedContext(
         user_message="A topic to research",
         active_capability="deep_research",
-        enabled_tools=["rag", "web_search"],
+        enabled_tools=["web_search"],
         knowledge_bases=[],
         config_overrides={
             "mode": "report",
             "depth": "standard",
-            "sources": ["kb", "web"],  # kb requested but no KB attached
+            "sources": ["kb", "web"],
         },
         language="en",
     )
@@ -195,14 +184,11 @@ async def test_deep_research_drops_kb_source_when_no_knowledge_base() -> None:
     ):
         events = await _drain(bus, capability.run(context, bus))
 
-    # The runtime config must NOT enable RAG, but must still allow web.
     researching = captured_config.get("researching", {})
     assert researching.get("enable_rag") is False
     assert researching.get("enable_web_search") is True
-    # rag intent stripped from request_config sources
     assert captured_config["intent"]["sources"] == ["web"]
 
-    # A warning progress event must be present
     warnings = [
         e
         for e in events
@@ -221,12 +207,12 @@ async def test_deep_research_errors_when_only_kb_source_and_no_knowledge_base() 
     context = UnifiedContext(
         user_message="topic",
         active_capability="deep_research",
-        enabled_tools=["rag"],
+        enabled_tools=[],
         knowledge_bases=[],
         config_overrides={
             "mode": "report",
             "depth": "standard",
-            "sources": ["kb"],  # ONLY kb, and no KB attached
+            "sources": ["kb"],
         },
         language="en",
     )

@@ -7,6 +7,7 @@ from deeptutor.services.config.provider_runtime import (
     resolve_search_runtime_config,
 )
 
+
 def _build_catalog(
     *,
     llm_profile: dict | None = None,
@@ -53,6 +54,7 @@ def _build_catalog(
         },
     }
 
+
 def test_llm_explicit_binding_and_headers() -> None:
     catalog = _build_catalog(
         llm_profile={
@@ -72,6 +74,7 @@ def test_llm_explicit_binding_and_headers() -> None:
     assert resolved.effective_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
     assert resolved.extra_headers == {"APP-Code": "abc"}
 
+
 def test_llm_api_key_prefix_gateway() -> None:
     catalog = _build_catalog(
         llm_profile={
@@ -89,6 +92,7 @@ def test_llm_api_key_prefix_gateway() -> None:
     assert resolved.provider_name == "openrouter"
     assert resolved.provider_mode == "gateway"
     assert resolved.effective_url == "https://openrouter.ai/api/v1"
+
 
 def test_llm_api_base_keyword_gateway() -> None:
     catalog = _build_catalog(
@@ -109,6 +113,7 @@ def test_llm_api_base_keyword_gateway() -> None:
     assert resolved.effective_url == "https://api.aihubmix.com/v1"
     assert resolved.extra_headers == {"APP-Code": "x"}
 
+
 def test_llm_local_fallback() -> None:
     catalog = _build_catalog(
         llm_profile={
@@ -126,6 +131,7 @@ def test_llm_local_fallback() -> None:
     assert resolved.provider_name == "ollama"
     assert resolved.provider_mode == "local"
     assert resolved.api_key == "sk-no-key-required"
+
 
 def test_llm_minimax_binding_uses_minimaxi_endpoint() -> None:
     catalog = _build_catalog(
@@ -145,6 +151,7 @@ def test_llm_minimax_binding_uses_minimaxi_endpoint() -> None:
     assert resolved.provider_mode == "standard"
     assert resolved.effective_url == "https://api.minimaxi.com/v1"
 
+
 def test_llm_minimax_anthropic_binding_uses_anthropic_endpoint() -> None:
     catalog = _build_catalog(
         llm_profile={
@@ -162,6 +169,7 @@ def test_llm_minimax_anthropic_binding_uses_anthropic_endpoint() -> None:
     assert resolved.provider_name == "minimax_anthropic"
     assert resolved.provider_mode == "standard"
     assert resolved.effective_url == "https://api.minimaxi.com/anthropic"
+
 
 def test_llm_custom_anthropic_binding_stays_direct() -> None:
     catalog = _build_catalog(
@@ -183,6 +191,7 @@ def test_llm_custom_anthropic_binding_stays_direct() -> None:
     assert resolved.effective_url == "https://claude-proxy.example/v1/messages"
     assert resolved.extra_headers == {"x-tenant": "lab"}
 
+
 def test_llm_lm_studio_alias_resolves_to_local_provider() -> None:
     catalog = _build_catalog(
         llm_profile={
@@ -201,6 +210,7 @@ def test_llm_lm_studio_alias_resolves_to_local_provider() -> None:
     assert resolved.provider_mode == "local"
     assert resolved.effective_url == "http://localhost:1234/v1"
     assert resolved.api_key == "sk-no-key-required"
+
 
 def test_llm_context_window_passes_through_from_catalog() -> None:
     catalog = _build_catalog(
@@ -224,6 +234,7 @@ def test_llm_context_window_passes_through_from_catalog() -> None:
     )
     resolved = resolve_llm_runtime_config(catalog=catalog)
     assert resolved.context_window == 128000
+
 
 def test_llm_selection_overrides_active_model_without_mutating_catalog() -> None:
     profile_a = {
@@ -266,6 +277,7 @@ def test_llm_selection_overrides_active_model_without_mutating_catalog() -> None
     assert catalog["services"]["llm"]["active_profile_id"] == "p-a"
     assert catalog["services"]["llm"]["active_model_id"] == "m-a"
 
+
 def test_llm_reasoning_effort_resolves_from_catalog() -> None:
     catalog = _build_catalog(
         llm_profile={
@@ -289,6 +301,7 @@ def test_llm_reasoning_effort_resolves_from_catalog() -> None:
     resolved = resolve_llm_runtime_config(catalog=catalog)
     assert resolved.reasoning_effort == "high"
 
+
 def test_search_fallback_to_duckduckgo_without_key() -> None:
     catalog = _build_catalog(
         search_profile={
@@ -307,6 +320,7 @@ def test_search_fallback_to_duckduckgo_without_key() -> None:
     assert resolved.fallback_reason is not None
     assert resolved.proxy == "http://127.0.0.1:7890"
 
+
 def test_search_none_disables_runtime_provider() -> None:
     catalog = _build_catalog(
         search_profile={
@@ -324,6 +338,7 @@ def test_search_none_disables_runtime_provider() -> None:
     assert resolved.requested_provider == "none"
     assert resolved.status == "ok"
 
+
 def test_search_marks_deprecated_provider() -> None:
     catalog = _build_catalog(
         search_profile={
@@ -340,6 +355,7 @@ def test_search_marks_deprecated_provider() -> None:
     assert resolved.unsupported_provider is True
     assert resolved.deprecated_provider is True
     assert resolved.provider == "exa"
+
 
 def test_search_perplexity_missing_credentials() -> None:
     catalog = _build_catalog(
@@ -359,6 +375,7 @@ def test_search_perplexity_missing_credentials() -> None:
     assert resolved.deprecated_provider is False
     assert resolved.missing_credentials is True
 
+
 def test_search_serper_missing_credentials() -> None:
     catalog = _build_catalog(
         search_profile={
@@ -376,6 +393,7 @@ def test_search_serper_missing_credentials() -> None:
     assert resolved.unsupported_provider is False
     assert resolved.deprecated_provider is False
     assert resolved.missing_credentials is True
+
 
 def test_search_searxng_without_url_fallback() -> None:
     catalog = _build_catalog(

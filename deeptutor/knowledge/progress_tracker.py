@@ -62,15 +62,10 @@ class ProgressTracker:
                 broadcaster = ProgressBroadcaster.get_instance()
 
                 try:
-                    asyncio.get_running_loop()
-                    asyncio.create_task(broadcaster.broadcast(self.kb_name, progress))
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(broadcaster.broadcast(self.kb_name, progress))
                 except RuntimeError:
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(broadcaster.broadcast(self.kb_name, progress))
-                    except RuntimeError:
-                        pass
+                    pass
             except (ImportError, Exception):
                 pass
 

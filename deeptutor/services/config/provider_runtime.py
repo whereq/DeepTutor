@@ -551,7 +551,6 @@ def _resolve_embedding_provider(
     return "openai"
 
 
-
 def resolve_embedding_runtime_config(
     catalog: dict[str, Any] | None = None,
     *,
@@ -651,7 +650,6 @@ def _resolve_search_max_results(catalog: dict[str, Any], default: int = 5) -> in
         return max(1, min(value, 10))
     except (TypeError, ValueError):
         return default
-
 
 
 def resolve_search_runtime_config(

@@ -137,6 +137,40 @@ class TestPersistence:
         assert on_disk["knowledge_bases"]["new-kb"]["rag_provider"] == "llamaindex"
         assert on_disk["knowledge_bases"]["new-kb"]["description"] == "x"
 
+    def test_set_kb_config_does_not_resurrect_externally_removed_kbs(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression: the service used to cache ``self._config`` at construction
+        and ``_save()`` wrote that snapshot back wholesale. If
+        ``KnowledgeBaseManager`` pruned an orphan KB from disk in between, the
+        next ``set_kb_config`` call would resurrect it. Fix: refresh from disk
+        before any write so the two writers share a consistent view.
+        """
+        config_path = tmp_path / "kb_config.json"
+        _write_kb_config(
+            config_path,
+            {
+                "defaults": {"rag_provider": "llamaindex"},
+                "knowledge_bases": {
+                    "orphan": {"path": "orphan", "rag_provider": "llamaindex"},
+                    "kept": {"path": "kept", "rag_provider": "llamaindex"},
+                },
+            },
+        )
+        service = KnowledgeBaseConfigService(config_path=config_path)
+
+        # External writer (e.g. KnowledgeBaseManager) prunes the orphan entry.
+        external = json.loads(config_path.read_text(encoding="utf-8"))
+        del external["knowledge_bases"]["orphan"]
+        config_path.write_text(json.dumps(external), encoding="utf-8")
+
+        # Service writes an unrelated update. The orphan must NOT come back.
+        service.set_kb_config("kept", {"description": "still here"})
+
+        on_disk = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "orphan" not in on_disk["knowledge_bases"]
+        assert on_disk["knowledge_bases"]["kept"]["description"] == "still here"
+
     def test_search_mode_is_preserved(self, fresh_service) -> None:
         fresh_service.set_search_mode("kb", "naive")
         assert fresh_service.get_search_mode("kb") == "naive"

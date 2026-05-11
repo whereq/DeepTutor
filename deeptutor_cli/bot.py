@@ -51,7 +51,7 @@ def register(app: typer.Typer) -> None:
 
         mgr = get_tutorbot_manager()
         try:
-            instance = asyncio.get_event_loop().run_until_complete(mgr.start_bot(name))
+            instance = asyncio.run(mgr.start_bot(name))
             console.print(f"[green]Started TutorBot '{instance.config.name}' ({name})[/]")
         except RuntimeError as e:
             console.print(f"[red]Failed to start: {e}[/]")
@@ -65,7 +65,7 @@ def register(app: typer.Typer) -> None:
         from deeptutor.services.tutorbot import get_tutorbot_manager
 
         mgr = get_tutorbot_manager()
-        stopped = asyncio.get_event_loop().run_until_complete(mgr.stop_bot(name))
+        stopped = asyncio.run(mgr.stop_bot(name))
         if stopped:
             console.print(f"[green]Stopped TutorBot '{name}'[/]")
         else:
@@ -89,7 +89,7 @@ def register(app: typer.Typer) -> None:
         )
         mgr = get_tutorbot_manager()
         try:
-            instance = asyncio.get_event_loop().run_until_complete(mgr.start_bot(name, config))
+            instance = asyncio.run(mgr.start_bot(name, config))
             console.print(
                 f"[green]Created and started TutorBot '{instance.config.name}' ({name})[/]"
             )

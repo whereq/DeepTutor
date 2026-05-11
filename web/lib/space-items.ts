@@ -5,12 +5,14 @@ import {
   ClipboardList,
   History,
   NotebookPen,
+  Sparkles,
   Wand2,
   type LucideIcon,
 } from "lucide-react";
 
 export type SpaceItemKey =
   | "chat_history"
+  | "co_learn_history"
   | "notebooks"
   | "question_bank"
   | "skills"
@@ -33,6 +35,13 @@ export const SPACE_ITEMS: SpaceItem[] = [
     label: "Chat History",
     description: "Review and reopen previous conversations.",
     icon: History,
+  },
+  {
+    key: "co_learn_history",
+    href: "/space/co-learn-history",
+    label: "Co-Learn History",
+    description: "Browse past auto-routed Co-Learn sessions.",
+    icon: Sparkles,
   },
   {
     key: "notebooks",

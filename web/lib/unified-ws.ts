@@ -11,6 +11,7 @@
  */
 
 import { wsUrl } from "./api";
+import type { SurfaceKind } from "./session-surfaces";
 
 // ---- StreamEvent types (mirror Python StreamEventType) ----
 
@@ -48,6 +49,14 @@ export interface LLMSelection {
 
 // ---- Client message ----
 
+/**
+ * Surface that originated the turn. Alias of ``SurfaceKind`` from
+ * ``lib/session-surfaces`` so the two values never drift. The backend tags
+ * the underlying session with this value so the /chat and /co-learn surfaces
+ * never list each other's history. Defaults to ``"chat"`` when omitted.
+ */
+export type SessionKind = SurfaceKind;
+
 export interface StartTurnMessage {
   type: "message" | "start_turn";
   content: string;
@@ -55,6 +64,7 @@ export interface StartTurnMessage {
   capability?: string | null;
   knowledge_bases?: string[];
   session_id?: string | null;
+  kind?: SessionKind;
   attachments?: {
     type: string;
     url?: string;
@@ -182,6 +192,13 @@ export class UnifiedWSClient {
       this.lastReceivedAt = Date.now();
       try {
         const event: StreamEvent = JSON.parse(ev.data);
+        // Heartbeat frames (client-sent ``ping`` echoed by some legacy
+        // backends, or ``pong`` from the modern handler) keep the socket
+        // alive but are not user-visible chat events. They MUST be dropped
+        // here — otherwise the message list renders them as "Unknown type"
+        // error rows, especially during long-running turns.
+        const type = (event as { type?: string }).type;
+        if (type === "ping" || type === "pong") return;
         if (event.turn_id) this.activeTurnId = event.turn_id;
         if (event.seq != null) this.lastSeq = Math.max(this.lastSeq, event.seq);
         this.onEvent(event);

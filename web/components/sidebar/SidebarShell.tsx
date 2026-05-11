@@ -17,10 +17,12 @@ import {
   PenLine,
   Plus,
   Settings,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import SessionList from "@/components/SessionList";
+import { surfaceForPath } from "@/lib/session-surfaces";
 import { TutorBotRecent } from "@/components/sidebar/TutorBotRecent";
 import { VersionBadge } from "@/components/sidebar/VersionBadge";
 import type { SessionSummary } from "@/lib/session-api";
@@ -39,6 +41,12 @@ const PRIMARY_NAV: NavEntry[] = [
     label: "Chat",
     icon: MessageSquare,
     tooltipKey: "Chat tooltip",
+  },
+  {
+    href: "/co-learn",
+    label: "Co-Learn",
+    icon: Sparkles,
+    tooltipKey: "Co-Learn tooltip",
   },
   {
     href: "/agents",
@@ -268,8 +276,11 @@ export function SidebarShell({
 
           {PRIMARY_NAV.map((item) => {
             const active = pathname.startsWith(item.href);
+            // Sessions hang under whichever surface entry owns the current
+            // URL. Single source of truth: ``lib/session-surfaces``.
+            const sessionsOwnerHref = surfaceForPath(pathname).basePath;
             const hasSessionsBelow =
-              item.href === "/chat" &&
+              item.href === sessionsOwnerHref &&
               showSessions &&
               onSelectSession &&
               onRenameSession &&

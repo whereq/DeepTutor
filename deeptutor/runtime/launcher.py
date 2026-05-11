@@ -18,12 +18,27 @@ from typing import Callable
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
+from deeptutor.runtime.banner import labels_for, print_banner, resolve_language
 from deeptutor.runtime.home import DEEPTUTOR_HOME_ENV, PACKAGE_ROOT, get_runtime_home
 
 BACKEND_READY_TIMEOUT = 60
 FRONTEND_READY_TIMEOUT = 120
 KILL_SIGNAL = getattr(signal, "SIGKILL", signal.SIGTERM)
 WEB_CACHE_DIR = Path("data") / "user" / "runtime" / "web"
+
+# Mutable holder so module-level helpers can format messages in the active
+# UI language without threading the labels through every function.
+_ACTIVE_LABELS: dict[str, str] = labels_for("en")
+
+
+def _t(key: str, **kwargs: object) -> str:
+    template = _ACTIVE_LABELS.get(key) or labels_for("en").get(key, key)
+    if not kwargs:
+        return template
+    try:
+        return template.format(**kwargs)
+    except (KeyError, IndexError):
+        return template
 
 
 @dataclass(slots=True)
@@ -103,7 +118,7 @@ def _send_tree_signal(pid: int | None, pgid: int | None, sig: signal.Signals | i
 def _terminate(proc: ManagedProcess | None) -> None:
     if proc is None or proc.process.poll() is not None:
         return
-    _log(f"Stopping {proc.name} (PID {proc.process.pid})")
+    _log(_t("start.stopping", name=proc.name, pid=proc.process.pid))
     try:
         _send_tree_signal(proc.process.pid, proc.pgid, signal.SIGTERM)
     except Exception:
@@ -138,7 +153,7 @@ def _spawn(command: list[str], *, cwd: Path, env: dict[str, str], name: str) -> 
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
     else:
         kwargs["start_new_session"] = True
-    process = subprocess.Popen(command, **kwargs)  # type: ignore[arg-type]
+    process = subprocess.Popen(command, **kwargs)  # type: ignore[arg-type,call-overload]
     thread = threading.Thread(target=_stream_output, args=(name, process), daemon=True)
     thread.start()
     return ManagedProcess(name=name, process=process, pgid=_get_pgid(process.pid))
@@ -156,10 +171,7 @@ def _ensure_ports_available(*ports: int) -> None:
     occupied = [port for port in ports if _port_accepts_connection(port)]
     if occupied:
         joined = ", ".join(str(port) for port in occupied)
-        raise SystemExit(
-            f"DeepTutor cannot start because port(s) already in use: {joined}. "
-            "Stop the existing process or change data/user/settings/system.json."
-        )
+        raise SystemExit(_t("start.port_in_use", ports=joined))
 
 
 def _wait_for_http(
@@ -170,20 +182,20 @@ def _wait_for_http(
     timeout: int,
     should_stop: Callable[[], bool],
 ) -> None:
-    _log(f"Waiting for {name} at {url} ...")
+    _log(_t("start.waiting_for", name=name, url=url))
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if should_stop():
             return
         if process.process.poll() is not None:
-            raise RuntimeError(f"{name} exited with code {process.process.returncode}")
+            raise RuntimeError(_t("start.exited", name=name, code=process.process.returncode))
         try:
-            with urlrequest.urlopen(url, timeout=1):
-                _log(f"{name} is ready.")
+            with urlrequest.urlopen(url, timeout=1):  # noqa: S310  # nosec B310 - http(s) health-check URL constructed by caller
+                _log(_t("start.ready", name=name))
                 return
         except (urlerror.URLError, TimeoutError, OSError):
             time.sleep(0.5)
-    raise RuntimeError(f"{name} did not become ready within {timeout}s")
+    raise RuntimeError(_t("start.not_ready", name=name, timeout=timeout))
 
 
 def _packaged_web_dir() -> Path | None:
@@ -297,8 +309,12 @@ def _resolve_frontend(
     if source is not None:
         npm = shutil.which("npm")
         if not npm:
-            raise SystemExit("npm not found. Source installs require Node.js/npm and `cd web && npm install`.")
-        return FrontendRuntime("source", [npm, "run", "dev", "--", "--port", str(frontend_port)], source)
+            raise SystemExit(
+                "npm not found. Source installs require Node.js/npm and `cd web && npm install`."
+            )
+        return FrontendRuntime(
+            "source", [npm, "run", "dev", "--", "--port", str(frontend_port)], source
+        )
 
     raise SystemExit(
         "DeepTutor Web assets are not installed. Install the full app with `pip install -U deeptutor`, "
@@ -344,6 +360,10 @@ def start(home: str | Path | None = None) -> None:
     runtime_env = export_runtime_settings_to_env(overwrite=True)
     auth_enabled = bool(load_auth_settings()["enabled"])
 
+    global _ACTIVE_LABELS
+    language = resolve_language()
+    _ACTIVE_LABELS = labels_for(language)
+
     backend_port = settings.backend_port
     frontend_port = settings.frontend_port
     backend_url = f"http://localhost:{backend_port}"
@@ -359,16 +379,14 @@ def start(home: str | Path | None = None) -> None:
         auth_enabled=auth_enabled,
     )
 
-    _log("============================================")
-    _log("DeepTutor")
-    _log(f"Backend   {backend_url}")
+    print_banner(language=language, mode_key="start.mode")
+    _log(f"{_t('start.backend'):<10} {backend_url}")
     if api_base != backend_url:
-        _log(f"Browser API {api_base}")
-    _log(f"Frontend  http://localhost:{frontend_port}")
-    _log(f"Workspace {runtime_home}")
-    _log(f"Frontend runtime: {frontend.kind}")
-    _log("Press Ctrl+C to stop.")
-    _log("============================================")
+        _log(f"{_t('start.browser_api'):<10} {api_base}")
+    _log(f"{_t('start.frontend'):<10} http://localhost:{frontend_port}")
+    _log(f"{_t('start.workspace'):<10} {runtime_home}")
+    _log(f"{_t('start.frontend_runtime')}: {frontend.kind}")
+    _log(_t("start.press_ctrl_c"))
 
     _ensure_ports_available(backend_port, frontend_port)
 
@@ -410,7 +428,7 @@ def start(home: str | Path | None = None) -> None:
             return
         shutdown_requested = True
         if signal_name:
-            _log(f"Received {signal_name}; shutting down ...")
+            _log(_t("start.received_signal", signal=signal_name))
 
     def cleanup() -> None:
         nonlocal cleanup_started
@@ -424,33 +442,33 @@ def start(home: str | Path | None = None) -> None:
     atexit.register(cleanup)
 
     try:
-        _log("Starting backend ...")
+        _log(_t("start.starting_backend"))
         backend = _spawn(backend_cmd, cwd=runtime_home, env=common_env, name="backend")
         processes.append(backend)
         _wait_for_http(
-            name="Backend",
+            name=_t("start.backend"),
             url=f"http://127.0.0.1:{backend_port}/",
             process=backend,
             timeout=BACKEND_READY_TIMEOUT,
             should_stop=lambda: shutdown_requested,
         )
 
-        _log("Starting frontend ...")
+        _log(_t("start.starting_frontend"))
         web = _spawn(frontend.command, cwd=frontend.cwd, env=common_env, name="frontend")
         processes.append(web)
         _wait_for_http(
-            name="Frontend",
+            name=_t("start.frontend"),
             url=f"http://127.0.0.1:{frontend_port}/",
             process=web,
             timeout=FRONTEND_READY_TIMEOUT,
             should_stop=lambda: shutdown_requested,
         )
-        _log(f"Open http://localhost:{frontend_port} in your browser.")
+        _log(_t("start.open_in_browser", url=f"http://localhost:{frontend_port}"))
 
         while not shutdown_requested:
             for proc in processes:
                 if proc.process.poll() is not None:
-                    _log(f"{proc.name} exited with code {proc.process.returncode}")
+                    _log(_t("start.exited", name=proc.name, code=proc.process.returncode))
                     exit_code = 1
                     shutdown_requested = True
                     break

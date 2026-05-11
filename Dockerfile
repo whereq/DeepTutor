@@ -24,12 +24,6 @@ FROM --platform=$BUILDPLATFORM node:22-slim AS frontend-builder
 
 WORKDIR /app/web
 
-# Application version (e.g. "v1.2.3"). Passed by CI from the release tag
-# and inlined into the Next.js bundle via NEXT_PUBLIC_APP_VERSION so the
-# sidebar version badge can compare it with the latest GitHub release.
-ARG APP_VERSION=""
-ENV APP_VERSION=$APP_VERSION
-
 # Copy package files first for better caching
 COPY web/package.json web/package-lock.json* ./
 
@@ -40,6 +34,10 @@ RUN npm config set fetch-timeout 600000 && \
 
 # Copy frontend source code
 COPY web/ ./
+
+# Provide the single source of truth for the app version so next.config.js
+# can read it during ``npm run build`` and inline it into the bundle.
+COPY deeptutor/__version__.py /app/deeptutor/__version__.py
 
 # Create .env.local with placeholders that will be replaced at runtime.
 RUN printf '%s\n' \
@@ -104,20 +102,15 @@ RUN pip install --upgrade pip && \
 # ============================================
 FROM python:3.11-slim AS production
 
-ARG APP_VERSION=""
-
 # Labels
 LABEL maintainer="DeepTutor Team" \
-      description="DeepTutor: AI-Powered Personalized Learning Assistant" \
-      version="1.0.0"
+      description="DeepTutor: AI-Powered Personalized Learning Assistant"
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8 \
     NODE_ENV=production \
-    APP_VERSION=${APP_VERSION} \
-    NEXT_PUBLIC_APP_VERSION=${APP_VERSION} \
     DEEPTUTOR_IGNORE_PROCESS_ENV_OVERRIDES=1
 
 WORKDIR /app

@@ -32,7 +32,8 @@ import type { StreamEvent } from "@/lib/unified-ws";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
 import type { SelectedBookReference } from "@/lib/book-references";
 import type { SpaceMemoryFile } from "@/lib/space-items";
-import { CallTracePanel } from "./TracePanels";
+import AutoModeAssistantMessage from "./AutoModeAssistantMessage";
+import { TraceSurface } from "./TracePanels";
 
 const MathAnimatorViewer = dynamic(
   () => import("@/components/math-animator/MathAnimatorViewer"),
@@ -103,6 +104,8 @@ const AssistantMessage = memo(function AssistantMessage({
   language,
   onConfirmOutline,
   onAnswerNow,
+  onRetry,
+  onSwitchToManual,
 }: {
   msg: { content: string; capability?: string; events?: StreamEvent[] };
   isStreaming?: boolean;
@@ -115,12 +118,11 @@ const AssistantMessage = memo(function AssistantMessage({
     researchConfig?: Record<string, unknown> | null,
   ) => void;
   onAnswerNow?: () => void;
+  onRetry?: () => void;
+  onSwitchToManual?: () => void;
 }) {
+  const isAutoTurn = msg.capability === "auto";
   const events = useMemo(() => msg.events ?? [], [msg.events]);
-  const hasCallTrace = useMemo(
-    () => events.some((event) => Boolean(event.metadata?.call_id)),
-    [events],
-  );
   const resultEvent = useMemo(
     () => msg.events?.find((event) => event.type === "result") ?? null,
     [msg.events],
@@ -158,11 +160,38 @@ const AssistantMessage = memo(function AssistantMessage({
     return extractVisualizeResult(resultEvent.metadata);
   }, [msg.capability, resultEvent]);
 
+  // Auto turns have a fundamentally different layout (interleaved
+  // thinking + collapsed delegation cards + final synthesis). Each sub-
+  // capability's internal trace is rendered INSIDE its delegation card —
+  // we deliberately do NOT show a top-level CallTracePanel here, because
+  // grouping by ``call_id`` would mix auto-level routing trace with each
+  // sub-capability's stages and produce the visual noise this layout was
+  // meant to avoid.
+  if (isAutoTurn) {
+    return (
+      <>
+        {isStreaming && onAnswerNow ? (
+          <AnswerNowRow onAnswerNow={onAnswerNow} />
+        ) : null}
+        <AutoModeAssistantMessage
+          msg={msg}
+          isStreaming={isStreaming}
+          sessionId={sessionId}
+          language={language}
+          onRetry={onRetry}
+          onSwitchToManual={onSwitchToManual}
+        />
+      </>
+    );
+  }
+
   return (
     <>
-      {hasCallTrace ? (
-        <CallTracePanel events={events} isStreaming={isStreaming} />
-      ) : null}
+      <TraceSurface
+        events={events}
+        isStreaming={isStreaming}
+        content={msg.content}
+      />
       {isStreaming && onAnswerNow ? (
         <AnswerNowRow onAnswerNow={onAnswerNow} />
       ) : null}
@@ -656,6 +685,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   onRegenerateMessage,
   onConfirmOutline,
   onPreviewAttachment,
+  onSwitchToManualMode,
 }: {
   messages: ChatMessageItem[];
   isStreaming: boolean;
@@ -673,6 +703,10 @@ export const ChatMessageList = memo(function ChatMessageList({
     researchConfig?: Record<string, unknown> | null,
   ) => void;
   onPreviewAttachment?: (attachment: MessageAttachment) => void;
+  // Only used by auto-turn ``AutoErrorBlock`` to surface a "back to manual"
+  // button after a terminal failure. Optional so non-auto chat surfaces don't
+  // have to wire it.
+  onSwitchToManualMode?: () => void;
 }) {
   const { t } = useTranslation();
   const outlineStatusByIndex = useMemo(() => {
@@ -805,6 +839,8 @@ export const ChatMessageList = memo(function ChatMessageList({
               language={language}
               onConfirmOutline={onConfirmOutline}
               onAnswerNow={handleTraceAnswerNow}
+              onRetry={onRegenerateMessage}
+              onSwitchToManual={onSwitchToManualMode}
             />
             {(showActions || costSummary) && (
               <div className="mt-2 flex items-center">

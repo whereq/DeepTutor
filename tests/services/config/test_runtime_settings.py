@@ -55,6 +55,7 @@ def test_runtime_settings_creates_defaults_without_reading_dotenv(tmp_path: Path
     assert _read_json(service.path_for("system"))["backend_port"] == 8001
     assert _read_json(service.path_for("auth"))["enabled"] is False
 
+
 def test_runtime_process_env_is_explicit_override(tmp_path: Path) -> None:
     service = RuntimeSettingsService(
         tmp_path / "settings",
@@ -108,9 +109,7 @@ def test_render_environment_uses_json_backed_runtime_names(monkeypatch, tmp_path
     assert "AUTH_SECRET" not in env
 
 
-def test_exported_environment_does_not_become_runtime_override(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_exported_environment_does_not_become_runtime_override(monkeypatch, tmp_path: Path) -> None:
     _clear_runtime_env(monkeypatch)
 
     service = RuntimeSettingsService(tmp_path / "settings")
@@ -173,7 +172,6 @@ def test_startup_ensure_creates_missing_runtime_jsons_with_defaults(
         "embedding",
         "search",
     }
-
 
 
 def test_runtime_settings_can_ignore_process_overrides(tmp_path: Path) -> None:

@@ -20,8 +20,8 @@ def register(app: typer.Typer) -> None:
         import json
 
         from deeptutor.services.config import (
-            load_system_settings,
             load_config_with_main,
+            load_system_settings,
             resolve_embedding_runtime_config,
             resolve_llm_runtime_config,
             resolve_search_runtime_config,

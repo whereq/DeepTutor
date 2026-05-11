@@ -6,7 +6,7 @@ Manages multiple knowledge bases and provides utilities for accessing them.
 """
 
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import json
 import logging
@@ -21,6 +21,32 @@ from deeptutor.services.rag.factory import DEFAULT_PROVIDER, normalize_provider_
 from deeptutor.services.rag.file_routing import FileTypeRouter
 
 logger = logging.getLogger(__name__)
+
+
+# How long an entry can be missing its KB directory before ``list_knowledge_bases``
+# treats it as a stale orphan. The KB create flow writes the "initializing"
+# config entry before the on-disk folder is created, so a too-short grace would
+# let a list-call mid-creation racy-delete the entry. 60s is comfortably longer
+# than the create handshake while still keeping multi-day zombies out.
+_ORPHAN_PRUNE_GRACE_SECONDS = 60
+
+
+def _entry_updated_after(kb_entry: dict | None, cutoff: datetime) -> bool:
+    """Return True when the entry's ``updated_at`` is strictly after ``cutoff``.
+
+    Entries without a parseable timestamp are treated as old (return False) —
+    a long-stuck orphan that crashed before recording a timestamp should still
+    get pruned.
+    """
+    if not isinstance(kb_entry, dict):
+        return False
+    raw = kb_entry.get("updated_at")
+    if not isinstance(raw, str):
+        return False
+    try:
+        return datetime.fromisoformat(raw) > cutoff
+    except ValueError:
+        return False
 
 
 # Cross-platform file locking
@@ -423,20 +449,51 @@ class KnowledgeBaseManager:
 
         This method:
         1. Loads registered KBs from kb_config.json
-        2. Scans the directory for existing KBs not yet registered
-        3. Auto-registers discovered KBs with valid raw/index structure
+        2. Drops registered entries whose on-disk directory no longer exists
+           (orphans from failed inits or manual ``rm -rf`` of a KB folder).
+        3. Scans the directory for existing KBs not yet registered
+        4. Auto-registers discovered KBs with valid raw/index structure
         """
         # Always reload config from file to ensure we have the latest data
         self.config = self._load_config()
 
-        # Read knowledge base list from config file
         config_kbs = self.config.get("knowledge_bases", {})
-        kb_list = set(config_kbs.keys())
+        kb_list: set[str] = set()
+        config_changed = False
+
+        # Filter out orphan entries whose KB directory is gone. The on-disk
+        # folder is the source of truth for existence — without it the KB
+        # has no documents, no index, and surfacing it in the UI just shows
+        # zombies that the user can't act on.
+        #
+        # Grace period: a freshly-created KB writes its config entry before
+        # ``create_directory_structure`` mkdir-s the folder (so the UI can
+        # render the "initializing" row immediately). If ``list`` races into
+        # that window we'd prune a perfectly healthy in-flight KB. Skip the
+        # prune when ``updated_at`` is recent enough that an init could still
+        # be wiring things up.
+        base_exists = self.base_dir.exists()
+        grace_cutoff = datetime.now() - timedelta(seconds=_ORPHAN_PRUNE_GRACE_SECONDS)
+        for kb_name, kb_entry in list(config_kbs.items()):
+            rel_path = (kb_entry or {}).get("path", kb_name)
+            kb_dir = self.base_dir / rel_path
+            if base_exists and not kb_dir.exists():
+                if _entry_updated_after(kb_entry, grace_cutoff):
+                    kb_list.add(kb_name)
+                    continue
+                logger.warning(
+                    "Pruning orphaned KB entry '%s': directory %s no longer exists.",
+                    kb_name,
+                    kb_dir,
+                )
+                del config_kbs[kb_name]
+                config_changed = True
+                continue
+            kb_list.add(kb_name)
 
         # Also scan directory for KBs that may not be registered yet
         # This ensures backward compatibility and auto-discovery
-        if self.base_dir.exists():
-            config_changed = False
+        if base_exists:
             for item in self.base_dir.iterdir():
                 if not item.is_dir() or item.name.startswith(("__", ".")):
                     continue
@@ -459,9 +516,9 @@ class KnowledgeBaseManager:
                     self._auto_register_kb(item.name)
                     config_changed = True
 
-            # Save config if we registered new KBs
-            if config_changed:
-                self._save_config()
+        # Save config if we pruned orphans or registered new KBs
+        if config_changed:
+            self._save_config()
 
         return sorted(kb_list)
 
@@ -856,7 +913,13 @@ class KnowledgeBaseManager:
         Returns:
             True if deleted successfully
         """
-        if name not in self.list_knowledge_bases():
+        # Look up against the raw config rather than ``list_knowledge_bases``:
+        # the latter prunes orphan entries (dir missing) as a side effect, so
+        # calling it here would race-delete the entry we are about to clean up
+        # and then raise "not found" on the now-empty config.
+        self.config = self._load_config()
+        config_kbs = self.config.get("knowledge_bases", {})
+        if name not in config_kbs and not (self.base_dir / name).exists():
             raise ValueError(f"Knowledge base not found: {name}")
 
         # Resolve the directory directly to stay idempotent: if the on-disk

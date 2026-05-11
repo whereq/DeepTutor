@@ -22,6 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+
 def _load_embedding_services():
     from deeptutor.services.embedding.client import get_embedding_client, reset_embedding_client
     from deeptutor.services.embedding.config import get_embedding_config

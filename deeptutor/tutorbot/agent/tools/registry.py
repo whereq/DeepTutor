@@ -106,5 +106,5 @@ def build_base_tools(
         )
     )
     tools.register(WebSearchTool(config=web_search_config, proxy=web_proxy))
-    tools.register(WebFetchTool(proxy=web_proxy))
+    tools.register(WebFetchTool(proxy=web_proxy, config=web_search_config))
     return tools

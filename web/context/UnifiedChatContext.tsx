@@ -60,6 +60,11 @@ export interface SendMessageOptions {
   persistUserMessage?: boolean;
   requestSnapshotOverride?: MessageRequestSnapshot;
   bookReferences?: BookReferencePayload[];
+  // Surface that originated the turn. The backend stamps this onto the
+  // session row when ``ensure_session`` first creates it, then it never
+  // changes. Callers from /co-learn must pass ``"co_learn"`` so the auto
+  // routing surface doesn't leak into /chat's history.
+  kind?: import("@/lib/unified-ws").SessionKind;
 }
 
 export interface ChatState {
@@ -1028,15 +1033,6 @@ export function UnifiedChatProvider({
           : session.llmSelection;
       const effectiveLanguage =
         replaySnapshot?.language ?? readStoredLanguage();
-      const researchSources = Array.isArray(config?.sources)
-        ? config.sources.filter(
-            (value): value is string => typeof value === "string",
-          )
-        : [];
-      const shouldSendKnowledgeBases =
-        effectiveTools.includes("rag") ||
-        (effectiveCapability === "deep_research" &&
-          researchSources.includes("kb"));
       const effectiveSkills = replaySnapshot?.skills ?? skills;
       const effectiveMemoryReferences =
         replaySnapshot?.memoryReferences ?? memoryReferences;
@@ -1046,9 +1042,7 @@ export function UnifiedChatProvider({
         content,
         capability: effectiveCapability,
         enabledTools: [...effectiveTools],
-        knowledgeBases: shouldSendKnowledgeBases
-          ? [...effectiveKnowledgeBases]
-          : [],
+        knowledgeBases: [...effectiveKnowledgeBases],
         language: effectiveLanguage,
         ...(msgAttachments?.length ? { attachments: msgAttachments } : {}),
         ...(config && Object.keys(config).length > 0 ? { config } : {}),
@@ -1090,10 +1084,9 @@ export function UnifiedChatProvider({
         content,
         tools: effectiveTools,
         capability: effectiveCapability,
-        knowledge_bases: shouldSendKnowledgeBases
-          ? effectiveKnowledgeBases
-          : [],
+        knowledge_bases: effectiveKnowledgeBases,
         session_id: session.sessionId,
+        ...(options?.kind ? { kind: options.kind } : {}),
         attachments,
         language: effectiveLanguage,
         ...(notebookReferences?.length

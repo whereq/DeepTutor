@@ -18,6 +18,7 @@ def test_load_creates_empty_catalog_without_dotenv_hydration(tmp_path: Path):
     assert catalog["services"]["embedding"]["profiles"] == []
     assert catalog["services"]["search"]["profiles"] == []
 
+
 def test_load_does_not_sync_existing_active_profiles_from_dotenv(tmp_path: Path):
     (tmp_path / ".env").write_text(
         "LLM_MODEL=qwen3.5-plus\nEMBEDDING_MODEL=text-embedding-v4\n",
@@ -106,7 +107,6 @@ def test_load_recovers_invalid_catalog_with_defaults(tmp_path: Path):
     assert set(catalog["services"]) == {"llm", "embedding", "search"}
     saved = json.loads(catalog_path.read_text(encoding="utf-8"))
     assert set(saved["services"]) == {"llm", "embedding", "search"}
-
 
 
 def test_load_persists_normalized_active_ids(tmp_path: Path):

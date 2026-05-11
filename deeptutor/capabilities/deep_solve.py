@@ -45,27 +45,15 @@ class DeepSolveCapability(BaseCapability):
 
         llm_config = get_llm_config()
         detailed = context.config_overrides.get("detailed_answer", True)
-        enabled_tools = list(
+        # Attached knowledge bases are the single source of truth for whether
+        # rag should be available — there is no separate "enable rag" toggle.
+        kb_name = context.knowledge_bases[0] if context.knowledge_bases else None
+        requested = list(
             self.manifest.tools_used if context.enabled_tools is None else context.enabled_tools
         )
-        rag_enabled = "rag" in enabled_tools
-        kb_name = context.knowledge_bases[0] if rag_enabled and context.knowledge_bases else None
-
-        # Consistency normalization: if rag is requested but no KB is
-        # actually available, strip "rag" from the enabled tool set so the
-        # ReAct loop never exposes an action that would fail at runtime.
-        if rag_enabled and not kb_name:
-            enabled_tools = [tool for tool in enabled_tools if tool != "rag"]
-            rag_enabled = False
-            await stream.progress(
-                message=(
-                    "RAG was enabled but no knowledge base is selected; "
-                    "the rag tool is disabled for this turn."
-                ),
-                source=self.name,
-                stage="planning",
-                metadata={"trace_kind": "warning", "reason": "rag_without_kb"},
-            )
+        enabled_tools = [tool for tool in requested if tool != "rag"]
+        if kb_name:
+            enabled_tools.append("rag")
 
         solver = MainSolver(
             api_key=llm_config.api_key,
@@ -74,7 +62,7 @@ class DeepSolveCapability(BaseCapability):
             kb_name=kb_name,
             language=context.language,
             enabled_tools=enabled_tools,
-            disable_planner_retrieve=not (rag_enabled and kb_name),
+            disable_planner_retrieve=kb_name is None,
         )
         await solver.ainit()
 

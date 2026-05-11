@@ -60,16 +60,16 @@ class RAGTool(_PromptHintsMixin, BaseTool):
         return ToolDefinition(
             name="rag",
             description=(
-                "Search a knowledge base using Retrieval-Augmented Generation. "
-                "Returns relevant passages and an LLM-synthesised answer."
+                "Retrieve relevant passages from one of the knowledge bases the "
+                "user attached to this turn. Call once per knowledge base you "
+                "want to consult; the system runs them in parallel."
             ),
             parameters=[
                 ToolParameter(name="query", type="string", description="Search query."),
                 ToolParameter(
                     name="kb_name",
                     type="string",
-                    description="Knowledge base to search.",
-                    required=False,
+                    description="Knowledge base to search. Must be one of the attached knowledge bases.",
                 ),
             ],
         )
@@ -80,7 +80,9 @@ class RAGTool(_PromptHintsMixin, BaseTool):
         query = str(kwargs.get("query") or "").strip()
         if not query:
             raise ValueError("RAG query must be a non-empty string.")
-        kb_name = kwargs.get("kb_name")
+        kb_name = str(kwargs.get("kb_name") or "").strip()
+        if not kb_name:
+            raise ValueError("RAG requires an explicit kb_name.")
         event_sink = kwargs.get("event_sink")
         extra_kwargs = {
             key: value

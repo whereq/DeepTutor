@@ -19,8 +19,14 @@ interface QuizConfigPanelProps {
   onChange: (next: DeepQuestionFormConfig) => void;
   uploadedPdf: File | null;
   onUploadPdf: (file: File | null) => void;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  /**
+   * When provided, the panel is wrapped in a `CollapsibleConfigSection` (used
+   * by /playground). Omit both to render the bare form — used inside the
+   * chat's right-side Activity panel where the parent card supplies its own
+   * header.
+   */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 export default memo(function QuizConfigPanel({
@@ -42,13 +48,8 @@ export default memo(function QuizConfigPanel({
 
   const setMode = (m: DeepQuestionMode) => update("mode", m);
 
-  return (
-    <CollapsibleConfigSection
-      collapsed={collapsed}
-      summary={summarizeQuizConfig(value, t)}
-      onToggleCollapsed={onToggleCollapsed}
-      bodyClassName="px-3.5 pb-2.5 space-y-2.5"
-    >
+  const body = (
+    <>
       <div className="inline-flex rounded-lg border border-[var(--border)]/25 p-0.5">
         {(["custom", "mimic"] as const).map((m) => (
           <button
@@ -213,6 +214,21 @@ export default memo(function QuizConfigPanel({
           </Field>
         </div>
       )}
+    </>
+  );
+
+  if (collapsed === undefined) {
+    return <div className="space-y-2.5 px-3.5 py-2.5">{body}</div>;
+  }
+
+  return (
+    <CollapsibleConfigSection
+      collapsed={collapsed}
+      summary={summarizeQuizConfig(value, t)}
+      onToggleCollapsed={onToggleCollapsed ?? (() => undefined)}
+      bodyClassName="px-3.5 pb-2.5 space-y-2.5"
+    >
+      {body}
     </CollapsibleConfigSection>
   );
 });

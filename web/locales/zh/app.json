@@ -1603,5 +1603,14 @@
   "Co-Writer tooltip": "AI 驱动的协作文档编辑器。",
   "Book tooltip": "生成交互式 AI 书籍。",
   "Knowledge tooltip": "管理文档与教学人设。",
-  "Space tooltip": "你的个人学习空间。"
+  "Space tooltip": "你的个人学习空间。",
+  "Quiz settings": "测验设置",
+  "Animator settings": "动画设置",
+  "Visualize settings": "可视化设置",
+  "Research settings": "研究设置",
+  "Confirm": "确定",
+  "Confirmed": "已确认",
+  "Edit any field to update settings.": "修改任意字段即可更新设置。",
+  "Confirm settings to enable sending.": "确认设置后即可发送。",
+  "Confirm settings on the right to send.": "请先在右侧确认设置后再发送。"
 }

@@ -147,6 +147,7 @@ def test_initialize_environment_skips_openai_env_for_custom_anthropic(monkeypatc
     assert "OPENAI_API_KEY" not in os.environ
     assert "OPENAI_BASE_URL" not in os.environ
 
+
 def test_resolver_missing_model_raises(monkeypatch) -> None:
     _reset_config_cache()
 

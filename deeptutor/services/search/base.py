@@ -52,9 +52,7 @@ class BaseSearchProvider(ABC):
         if resolved.provider == self.name or resolved.requested_provider == self.name:
             key = resolved.api_key
         if self.requires_api_key and not key:
-            raise ValueError(
-                f"{self.name} requires an api_key in Settings > Catalog > Search."
-            )
+            raise ValueError(f"{self.name} requires an api_key in Settings > Catalog > Search.")
         return key
 
     @abstractmethod

@@ -15,8 +15,12 @@ import {
 interface MathAnimatorConfigPanelProps {
   value: MathAnimatorFormConfig;
   onChange: (next: MathAnimatorFormConfig) => void;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  /**
+   * When provided, the panel is wrapped in a `CollapsibleConfigSection`.
+   * Omit both to render bare for the chat Activity panel.
+   */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 export default memo(function MathAnimatorConfigPanel({
@@ -31,13 +35,8 @@ export default memo(function MathAnimatorConfigPanel({
     val: MathAnimatorFormConfig[K],
   ) => onChange({ ...value, [key]: val });
 
-  return (
-    <CollapsibleConfigSection
-      collapsed={collapsed}
-      summary={summarizeMathAnimatorConfig(value, t)}
-      onToggleCollapsed={onToggleCollapsed}
-      bodyClassName="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 pb-2.5"
-    >
+  const body = (
+    <>
       <Field label={t("Output")} width="w-[100px]">
         <select
           value={value.output_mode}
@@ -80,6 +79,25 @@ export default memo(function MathAnimatorConfigPanel({
           className={`${INPUT_CLS} w-full`}
         />
       </Field>
+    </>
+  );
+
+  if (collapsed === undefined) {
+    return (
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 py-2.5">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <CollapsibleConfigSection
+      collapsed={collapsed}
+      summary={summarizeMathAnimatorConfig(value, t)}
+      onToggleCollapsed={onToggleCollapsed ?? (() => undefined)}
+      bodyClassName="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 pb-2.5"
+    >
+      {body}
     </CollapsibleConfigSection>
   );
 });

@@ -139,6 +139,14 @@ async def unified_websocket(ws: WebSocket) -> None:
                 await subscribe_turn(turn["id"], after_seq=0)
                 continue
 
+            if msg_type == "ping":
+                # Client-side heartbeat. Respond with a lightweight pong so
+                # the client knows the socket is alive; the client never
+                # consumes pong as a user-visible event (see unified-ws.ts
+                # filter below) but does refresh ``lastReceivedAt`` from it.
+                await safe_send({"type": "pong"})
+                continue
+
             if msg_type == "subscribe_turn":
                 turn_id = str(msg.get("turn_id") or "").strip()
                 if not turn_id:

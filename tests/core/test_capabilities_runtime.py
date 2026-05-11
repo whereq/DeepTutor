@@ -119,9 +119,12 @@ async def test_chat_capability_streams_content_and_geogebra_context(
 @pytest.mark.parametrize(
     ("enabled_tools", "knowledge_bases", "expected_tools", "expected_kb", "expected_disable"),
     [
-        (["rag", "code_execution"], ["algebra"], ["rag", "code_execution"], "algebra", False),
-        (None, ["algebra"], list(DeepSolveCapability.manifest.tools_used), "algebra", False),
-        ([], ["algebra"], [], None, True),
+        # Non-rag tools + attached KB → rag auto-appended.
+        (["code_execution"], ["algebra"], ["code_execution", "rag"], "algebra", False),
+        # Default tool set (manifest) is normalised, then rag is appended last.
+        (None, ["algebra"], ["web_search", "code_execution", "reason", "rag"], "algebra", False),
+        # Legacy callers that still pass "rag" without attaching a KB get rag stripped.
+        (["rag", "web_search"], [], ["web_search"], None, True),
     ],
 )
 async def test_deep_solve_capability_bridges_solver_output(

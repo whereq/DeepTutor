@@ -250,7 +250,7 @@ class ResearchPipeline:
                     # For sync functions, run in executor
                     import functools
 
-                    loop = asyncio.get_event_loop()
+                    loop = asyncio.get_running_loop()
                     result = await asyncio.wait_for(
                         loop.run_in_executor(None, functools.partial(tool_func, *args, **kwargs)),
                         timeout=timeout,

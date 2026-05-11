@@ -14,10 +14,10 @@ from typing import Optional
 
 from deeptutor.knowledge.naming import validate_knowledge_base_name
 from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
+from deeptutor.services.config import resolve_llm_runtime_config
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
 from deeptutor.services.rag.service import RAGService
-from deeptutor.services.config import resolve_llm_runtime_config
 
 logger = logging.getLogger(__name__)
 

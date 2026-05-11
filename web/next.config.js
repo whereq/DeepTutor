@@ -60,23 +60,19 @@ const NEXT_PUBLIC_AUTH_ENABLED = normalizeBoolean(
 process.env.NEXT_PUBLIC_API_BASE = NEXT_PUBLIC_API_BASE;
 process.env.NEXT_PUBLIC_AUTH_ENABLED = NEXT_PUBLIC_AUTH_ENABLED;
 
-// Resolve the build-time application version. Priority:
-//   1. Explicit APP_VERSION env (set by CI from the release tag)
-//   2. `git describe --tags` when building from a checkout (local dev)
-//   3. Empty string → frontend treats it as "unknown" and shows the
-//      latest GitHub release as a neutral fallback.
+// Resolve the build-time application version from the single source of
+// truth at ``deeptutor/__version__.py``. The Python file is parsed with a
+// small regex so the JS build does not need to execute Python.
 const APP_VERSION = (() => {
-  if (process.env.APP_VERSION) return process.env.APP_VERSION;
   try {
-    const { execSync } = require("child_process");
-    return execSync("git describe --tags --always --dirty=-dev", {
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .toString()
-      .trim();
-  } catch {
-    return "";
-  }
+    const text = fs.readFileSync(
+      path.resolve(__dirname, "..", "deeptutor", "__version__.py"),
+      "utf8",
+    );
+    const match = text.match(/__version__\s*=\s*["']([^"']+)["']/);
+    if (match) return match[1];
+  } catch {}
+  return "";
 })();
 
 const nextConfig = {

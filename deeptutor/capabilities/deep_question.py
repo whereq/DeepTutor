@@ -92,8 +92,10 @@ class DeepQuestionCapability(BaseCapability):
         enabled_tools = set(
             self.manifest.tools_used if context.enabled_tools is None else context.enabled_tools
         )
+        # rag is gated on attached knowledge bases, not on a separate flag.
+        rag_available = bool(kb_name)
         tool_flags_override = {
-            "rag": "rag" in enabled_tools,
+            "rag": rag_available,
             "web_search": "web_search" in enabled_tools,
             "code_execution": "code_execution" in enabled_tools,
         }
@@ -106,7 +108,7 @@ class DeepQuestionCapability(BaseCapability):
             language=context.language,
             output_dir=str(output_dir),
             tool_flags_override=tool_flags_override,
-            enable_idea_rag="rag" in enabled_tools,
+            enable_idea_rag=rag_available,
         )
 
         _trace_bridge = self._build_trace_bridge(stream)

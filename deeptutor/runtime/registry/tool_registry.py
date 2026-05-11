@@ -112,7 +112,7 @@ class ToolRegistry:
         composer = ToolPromptComposer(language=language)
         hints = self.get_prompt_hints(names, language=language)
         if format == "list":
-            return composer.format_list(hints, kb_name=opts.get("kb_name", ""))
+            return composer.format_list(hints)
         if format == "table":
             return composer.format_table(
                 hints,

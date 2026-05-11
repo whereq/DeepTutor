@@ -187,7 +187,9 @@ class MainSolver:
         from deeptutor.services.llm import is_local_llm_server
 
         if not api_key and not is_local_llm_server(base_url):
-            raise ValueError("API key not set. Configure the active LLM profile in Settings > Catalog")
+            raise ValueError(
+                "API key not set. Configure the active LLM profile in Settings > Catalog"
+            )
         if not api_key and is_local_llm_server(base_url):
             api_key = "sk-no-key-required"
 

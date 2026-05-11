@@ -1603,5 +1603,14 @@
   "Co-Writer tooltip": "AI-powered document editor.",
   "Book tooltip": "Create AI-powered books.",
   "Knowledge tooltip": "Manage learning personas.",
-  "Space tooltip": "Your personal learning library."
+  "Space tooltip": "Your personal learning library.",
+  "Quiz settings": "Quiz settings",
+  "Animator settings": "Animator settings",
+  "Visualize settings": "Visualize settings",
+  "Research settings": "Research settings",
+  "Confirm": "Confirm",
+  "Confirmed": "Confirmed",
+  "Edit any field to update settings.": "Edit any field to update settings.",
+  "Confirm settings to enable sending.": "Confirm settings to enable sending.",
+  "Confirm settings on the right to send.": "Confirm settings on the right to send."
 }

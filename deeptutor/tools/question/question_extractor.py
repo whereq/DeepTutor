@@ -205,30 +205,26 @@ Please analyze the above exam paper content, extract all question information, a
         llm_kwargs["response_format"] = {"type": "json_object"}
 
     try:
-        # Call LLM via unified Factory (async, so we need to run in event loop)
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # We're in an existing event loop, run in a thread
-            import concurrent.futures
+        asyncio.get_running_loop()
+    except RuntimeError:
+        result_text = asyncio.run(
+            llm_complete(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                model=model,
+                api_key=api_key,
+                base_url=base_url,
+                api_version=api_version,
+                binding=binding,
+                **llm_kwargs,
+            )
+        )
+    else:
+        import concurrent.futures
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    llm_complete(
-                        prompt=user_prompt,
-                        system_prompt=system_prompt,
-                        model=model,
-                        api_key=api_key,
-                        base_url=base_url,
-                        api_version=api_version,
-                        binding=binding,
-                        **llm_kwargs,
-                    ),
-                )
-                result_text = future.result()
-        else:
-            # No running loop, use run_until_complete
-            result_text = loop.run_until_complete(
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                asyncio.run,
                 llm_complete(
                     prompt=user_prompt,
                     system_prompt=system_prompt,
@@ -238,30 +234,9 @@ Please analyze the above exam paper content, extract all question information, a
                     api_version=api_version,
                     binding=binding,
                     **llm_kwargs,
-                )
+                ),
             )
-    except RuntimeError as e:
-        if "already running" in str(e):
-            # Fallback: use asyncio.run in a thread
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    llm_complete(
-                        prompt=user_prompt,
-                        system_prompt=system_prompt,
-                        model=model,
-                        api_key=api_key,
-                        base_url=base_url,
-                        api_version=api_version,
-                        binding=binding,
-                        **llm_kwargs,
-                    ),
-                )
-                result_text = future.result()
-        else:
-            raise
+            result_text = future.result()
 
     # Parse JSON response
     try:
@@ -350,9 +325,7 @@ def extract_questions_from_paper(paper_dir: str, output_dir: str | None = None) 
         llm_config = get_llm_config()
     except ValueError as e:
         print(f"✗ {e!s}")
-        print(
-            "Tip: Configure an active LLM profile in Settings > Catalog"
-        )
+        print("Tip: Configure an active LLM profile in Settings > Catalog")
         return False
 
     questions = extract_questions_with_llm(

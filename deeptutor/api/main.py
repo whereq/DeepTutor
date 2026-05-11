@@ -37,6 +37,8 @@ CONFIG_DRIFT_ERROR_TEMPLATE = (
     "registered in the runtime tool registry. Register the missing tools or "
     "remove the stale tool names from the capability manifests."
 )
+
+
 class SafeOutputStaticFiles(StaticFiles):
     """Static file mount that only exposes explicitly whitelisted artifacts."""
 

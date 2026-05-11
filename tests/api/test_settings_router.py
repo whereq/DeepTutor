@@ -37,7 +37,10 @@ class _FakeCatalogService:
 
     def apply(self, catalog: dict[str, Any]) -> dict[str, Any]:
         current = self.save(catalog)
-        return {"catalog_path": "memory://model_catalog.json", "services": list(current["services"])}
+        return {
+            "catalog_path": "memory://model_catalog.json",
+            "services": list(current["services"]),
+        }
 
 
 def _build_catalog(

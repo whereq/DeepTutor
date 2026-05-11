@@ -21,7 +21,7 @@ Layout (relative to ``data/user/workspace/book/``)::
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import os
@@ -247,7 +247,7 @@ class BookStorage:
     def append_log(self, book_id: str, message: str, *, op: str = "info") -> None:
         path = self.path_service.get_book_log_file(book_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        ts = datetime.utcnow().isoformat(timespec="seconds")
+        ts = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
         line = f"- `{ts}Z` **{op}** — {message.strip()}\n"
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)

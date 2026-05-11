@@ -42,11 +42,15 @@ def _ensure_model_service(catalog: dict, service_name: str, profile_id: str, mod
         {"active_profile_id": profile_id, "active_model_id": model_id, "profiles": []},
     )
     profiles = service.setdefault("profiles", [])
-    profile = next((item for item in profiles if item.get("id") == service.get("active_profile_id")), None)
+    profile = next(
+        (item for item in profiles if item.get("id") == service.get("active_profile_id")), None
+    )
     if profile is None:
         profile = {
             "id": profile_id,
-            "name": "Default LLM Endpoint" if service_name == "llm" else "Default Embedding Endpoint",
+            "name": "Default LLM Endpoint"
+            if service_name == "llm"
+            else "Default Embedding Endpoint",
             "binding": "openai",
             "base_url": "",
             "api_key": "",
@@ -57,7 +61,9 @@ def _ensure_model_service(catalog: dict, service_name: str, profile_id: str, mod
         profiles.append(profile)
         service["active_profile_id"] = profile_id
     models = profile.setdefault("models", [])
-    model = next((item for item in models if item.get("id") == service.get("active_model_id")), None)
+    model = next(
+        (item for item in models if item.get("id") == service.get("active_model_id")), None
+    )
     if model is None:
         model = {"id": model_id, "name": "Default Model", "model": ""}
         models.append(model)
@@ -73,19 +79,28 @@ def run_init(*, cli_only: bool = False, home: str | Path | None = None) -> None:
     os.environ[DEEPTUTOR_HOME_ENV] = str(runtime_home)
     _reset_runtime_singletons()
 
+    from deeptutor.runtime.banner import labels_for, print_banner, resolve_language
     from deeptutor.services.config import get_model_catalog_service, get_runtime_settings_service
     from deeptutor.services.setup import init_user_directories
 
     init_user_directories(runtime_home)
 
-    typer.echo(f"DeepTutor workspace: {runtime_home}")
-    typer.echo("Settings will be written under data/user/settings.")
+    language = resolve_language()
+    strings = labels_for(language)
+
+    print_banner(language=language, mode_key="init.mode")
+    typer.echo(f"{strings['init.workspace']}: {runtime_home}")
+    typer.echo(strings["init.note_settings_dir"])
 
     runtime = get_runtime_settings_service()
     system = runtime.load_system(include_process_overrides=False)
     if not cli_only:
-        system["backend_port"] = int(_prompt(str(system.get("backend_port") or 8001), "Backend port"))
-        system["frontend_port"] = int(_prompt(str(system.get("frontend_port") or 3782), "Frontend port"))
+        system["backend_port"] = int(
+            _prompt(str(system.get("backend_port") or 8001), strings["init.backend_port"])
+        )
+        system["frontend_port"] = int(
+            _prompt(str(system.get("frontend_port") or 3782), strings["init.frontend_port"])
+        )
         runtime.save_system(system)
 
     catalog_service = get_model_catalog_service()
@@ -96,33 +111,53 @@ def run_init(*, cli_only: bool = False, home: str | Path | None = None) -> None:
         "llm-profile-default",
         "llm-model-default",
     )
-    typer.echo("\nLLM provider")
-    llm_profile["binding"] = _prompt(str(llm_profile.get("binding") or "openai"), "Binding")
-    llm_profile["base_url"] = _prompt(str(llm_profile.get("base_url") or "https://api.openai.com/v1"), "Base URL")
-    llm_profile["api_key"] = _prompt(str(llm_profile.get("api_key") or ""), "API key", hide=True)
-    llm_model["model"] = _prompt(str(llm_model.get("model") or "gpt-4o-mini"), "Model")
+    typer.echo(f"\n{strings['init.llm_section']}")
+    llm_profile["binding"] = _prompt(
+        str(llm_profile.get("binding") or "openai"), strings["init.binding"]
+    )
+    llm_profile["base_url"] = _prompt(
+        str(llm_profile.get("base_url") or "https://api.openai.com/v1"),
+        strings["init.base_url"],
+    )
+    llm_profile["api_key"] = _prompt(
+        str(llm_profile.get("api_key") or ""), strings["init.api_key"], hide=True
+    )
+    llm_model["model"] = _prompt(
+        str(llm_model.get("model") or "gpt-4o-mini"), strings["init.model"]
+    )
     llm_model["name"] = llm_model["model"] or "Default Model"
 
-    if typer.confirm("Configure embedding for Knowledge Base/RAG now?", default=not cli_only):
+    if typer.confirm(strings["init.confirm_embedding"], default=not cli_only):
         emb_profile, emb_model = _ensure_model_service(
             catalog,
             "embedding",
             "embedding-profile-default",
             "embedding-model-default",
         )
-        typer.echo("\nEmbedding provider")
-        emb_profile["binding"] = _prompt(str(emb_profile.get("binding") or "openai"), "Binding")
+        typer.echo(f"\n{strings['init.embedding_section']}")
+        emb_profile["binding"] = _prompt(
+            str(emb_profile.get("binding") or "openai"), strings["init.binding"]
+        )
         emb_profile["base_url"] = _prompt(
             str(emb_profile.get("base_url") or "https://api.openai.com/v1/embeddings"),
-            "Embedding endpoint URL",
+            strings["init.embedding_endpoint"],
         )
-        emb_profile["api_key"] = _prompt(str(emb_profile.get("api_key") or ""), "Embedding API key", hide=True)
-        emb_model["model"] = _prompt(str(emb_model.get("model") or "text-embedding-3-large"), "Embedding model")
+        emb_profile["api_key"] = _prompt(
+            str(emb_profile.get("api_key") or ""),
+            strings["init.embedding_api_key"],
+            hide=True,
+        )
+        emb_model["model"] = _prompt(
+            str(emb_model.get("model") or "text-embedding-3-large"),
+            strings["init.embedding_model"],
+        )
         emb_model["name"] = emb_model["model"] or "Default Embedding Model"
-        emb_model["dimension"] = _prompt(str(emb_model.get("dimension") or ""), "Embedding dimension (blank for auto)")
+        emb_model["dimension"] = _prompt(
+            str(emb_model.get("dimension") or ""), strings["init.embedding_dimension"]
+        )
 
     catalog_service.save(catalog)
-    typer.echo("\nSettings saved. You can edit them later in the Web Settings page or data/user/settings/.")
+    typer.echo(f"\n{strings['init.saved']}")
 
 
 def register(app: typer.Typer) -> None:

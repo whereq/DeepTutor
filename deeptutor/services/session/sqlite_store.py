@@ -92,7 +92,12 @@ class SQLiteSessionStore:
                     updated_at REAL NOT NULL,
                     compressed_summary TEXT DEFAULT '',
                     summary_up_to_msg_id INTEGER DEFAULT 0,
-                    preferences_json TEXT DEFAULT '{}'
+                    preferences_json TEXT DEFAULT '{}',
+                    -- Surface that produced this session. ``chat`` (manual /chat
+                    -- page) and ``co_learn`` (auto-routing /co-learn page) live
+                    -- under the same row schema but are listed and persisted
+                    -- separately so neither surface shows the other's history.
+                    kind TEXT NOT NULL DEFAULT 'chat'
                 );
 
                 CREATE TABLE IF NOT EXISTS messages (
@@ -188,6 +193,10 @@ class SQLiteSessionStore:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
             if "preferences_json" not in columns:
                 conn.execute("ALTER TABLE sessions ADD COLUMN preferences_json TEXT DEFAULT '{}'")
+            if "kind" not in columns:
+                # Existing rows belong to the legacy ``/chat`` surface; default
+                # is safe.
+                conn.execute("ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'")
             message_columns = {
                 row[1] for row in conn.execute("PRAGMA table_info(messages)").fetchall()
             }
@@ -206,18 +215,25 @@ class SQLiteSessionStore:
         return conn
 
     def _create_session_sync(
-        self, title: str | None = None, session_id: str | None = None
+        self,
+        title: str | None = None,
+        session_id: str | None = None,
+        kind: str = "chat",
     ) -> dict[str, Any]:
         now = time.time()
         resolved_id = session_id or f"unified_{int(now * 1000)}_{uuid.uuid4().hex[:8]}"
         resolved_title = (title or "New conversation").strip() or "New conversation"
+        resolved_kind = (kind or "chat").strip() or "chat"
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO sessions (id, title, created_at, updated_at, compressed_summary, summary_up_to_msg_id)
-                VALUES (?, ?, ?, ?, '', 0)
+                INSERT INTO sessions (
+                    id, title, created_at, updated_at,
+                    compressed_summary, summary_up_to_msg_id, kind
+                )
+                VALUES (?, ?, ?, ?, '', 0, ?)
                 """,
-                (resolved_id, resolved_title[:100], now, now),
+                (resolved_id, resolved_title[:100], now, now, resolved_kind),
             )
             conn.commit()
         return {
@@ -228,12 +244,16 @@ class SQLiteSessionStore:
             "updated_at": now,
             "compressed_summary": "",
             "summary_up_to_msg_id": 0,
+            "kind": resolved_kind,
         }
 
     async def create_session(
-        self, title: str | None = None, session_id: str | None = None
+        self,
+        title: str | None = None,
+        session_id: str | None = None,
+        kind: str = "chat",
     ) -> dict[str, Any]:
-        return await self._run(self._create_session_sync, title, session_id)
+        return await self._run(self._create_session_sync, title, session_id, kind)
 
     def _get_session_sync(self, session_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -247,6 +267,7 @@ class SQLiteSessionStore:
                     s.compressed_summary,
                     s.summary_up_to_msg_id,
                     s.preferences_json,
+                    s.kind,
                     COALESCE(
                         (
                             SELECT t.status
@@ -293,12 +314,16 @@ class SQLiteSessionStore:
     async def get_session(self, session_id: str) -> dict[str, Any] | None:
         return await self._run(self._get_session_sync, session_id)
 
-    async def ensure_session(self, session_id: str | None = None) -> dict[str, Any]:
+    async def ensure_session(
+        self,
+        session_id: str | None = None,
+        kind: str = "chat",
+    ) -> dict[str, Any]:
         if session_id:
             session = await self.get_session(session_id)
             if session is not None:
                 return session
-        return await self.create_session()
+        return await self.create_session(kind=kind)
 
     @staticmethod
     def _serialize_turn(row: sqlite3.Row) -> dict[str, Any]:
@@ -709,10 +734,24 @@ class SQLiteSessionStore:
     async def get_messages_for_context(self, session_id: str) -> list[dict[str, Any]]:
         return await self._run(self._get_messages_for_context_sync, session_id)
 
-    def _list_sessions_sync(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    def _list_sessions_sync(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        kind: str | None = None,
+    ) -> list[dict[str, Any]]:
+        # Filtering by ``kind`` is the mechanism that keeps ``/chat`` and
+        # ``/co-learn`` history isolated. ``None`` means "all kinds" (used by
+        # admin / dashboard pages that aggregate across surfaces).
         with self._connect() as conn:
+            where_sql = ""
+            params: list[Any] = []
+            if kind is not None:
+                where_sql = "WHERE s.kind = ?"
+                params.append(kind)
+            params.extend([limit, offset])
             rows = conn.execute(
-                """
+                f"""
                 SELECT
                     s.id,
                     s.title,
@@ -721,6 +760,7 @@ class SQLiteSessionStore:
                     s.compressed_summary,
                     s.summary_up_to_msg_id,
                     s.preferences_json,
+                    s.kind,
                     COUNT(m.id) AS message_count,
                     COALESCE(
                         (
@@ -765,11 +805,12 @@ class SQLiteSessionStore:
                     ) AS last_message
                 FROM sessions s
                 LEFT JOIN messages m ON m.session_id = s.id
+                {where_sql}
                 GROUP BY s.id
                 ORDER BY s.updated_at DESC
                 LIMIT ? OFFSET ?
-                """,
-                (limit, offset),
+                """,  # nosec B608 - where_sql is a fixed literal selected from constants
+                params,
             ).fetchall()
         sessions = []
         for row in rows:
@@ -779,8 +820,13 @@ class SQLiteSessionStore:
             sessions.append(payload)
         return sessions
 
-    async def list_sessions(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
-        return await self._run(self._list_sessions_sync, limit, offset)
+    async def list_sessions(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        kind: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return await self._run(self._list_sessions_sync, limit, offset, kind)
 
     def _update_summary_sync(self, session_id: str, summary: str, up_to_msg_id: int) -> bool:
         with self._connect() as conn:

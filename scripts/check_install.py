@@ -86,10 +86,10 @@ def check_python_environment() -> bool:
     py_version = sys.version_info
     print_info(f"Python version: {py_version.major}.{py_version.minor}.{py_version.micro}")
 
-    if py_version >= (3, 10):
-        print_success(f"Python {py_version.major}.{py_version.minor} meets requirement (>=3.10)")
+    if py_version >= (3, 11):
+        print_success(f"Python {py_version.major}.{py_version.minor} meets requirement (>=3.11)")
     else:
-        print_error(f"Python {py_version.major}.{py_version.minor} is below requirement (>=3.10)")
+        print_error(f"Python {py_version.major}.{py_version.minor} is below requirement (>=3.11)")
         all_ok = False
 
     # Python executable

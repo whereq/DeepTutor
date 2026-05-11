@@ -334,9 +334,7 @@ class RuntimeSettingsService:
             "version": 1,
             "backend_port": _coerce_port(settings.get("backend_port"), 8001),
             "frontend_port": _coerce_port(settings.get("frontend_port"), 3782),
-            "next_public_api_base_external": _string(
-                settings.get("next_public_api_base_external")
-            ),
+            "next_public_api_base_external": _string(settings.get("next_public_api_base_external")),
             "next_public_api_base": _string(settings.get("next_public_api_base")),
             "cors_origin": _string(settings.get("cors_origin")),
             "cors_origins": _coerce_origins(settings.get("cors_origins")),
@@ -359,9 +357,7 @@ class RuntimeSettingsService:
             "version": 1,
             "pocketbase_url": _string(settings.get("pocketbase_url")).rstrip("/"),
             "pocketbase_port": _coerce_port(settings.get("pocketbase_port"), 8090),
-            "pocketbase_external_url": _string(settings.get("pocketbase_external_url")).rstrip(
-                "/"
-            ),
+            "pocketbase_external_url": _string(settings.get("pocketbase_external_url")).rstrip("/"),
             "pocketbase_admin_email": _string(settings.get("pocketbase_admin_email")),
             "pocketbase_admin_password": _string(settings.get("pocketbase_admin_password")),
         }

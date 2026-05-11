@@ -164,6 +164,16 @@ class NoteAgent(BaseAgent):
         data = parse_json_response(raw_answer, fallback=None)
         if data is None:
             return ""
+        # Some tools (notably ``paper_search``) return a JSON list at the top
+        # level rather than an object. Wrap it in a sensible envelope so the
+        # downstream ``data.get(...)`` calls don't blow up with an
+        # ``AttributeError: 'list' object has no attribute 'get'``.
+        if isinstance(data, list):
+            data = {"results": data, "papers": data, "search_results": data}
+        if not isinstance(data, dict):
+            # Truly unparseable shape (number, string, etc.) — just truncate
+            # the raw answer and bail.
+            return self._truncate_text(raw_answer)
 
         tool_type = (tool_type or "").lower()
 

@@ -15,8 +15,12 @@ import {
 interface VisualizeConfigPanelProps {
   value: VisualizeFormConfig;
   onChange: (next: VisualizeFormConfig) => void;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  /**
+   * When provided, the panel is wrapped in a `CollapsibleConfigSection`.
+   * Omit both to render bare for the chat Activity panel.
+   */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 export default memo(function VisualizeConfigPanel({
@@ -27,31 +31,43 @@ export default memo(function VisualizeConfigPanel({
 }: VisualizeConfigPanelProps) {
   const { t } = useTranslation();
 
+  const body = (
+    <Field label={t("Render Mode")} width="w-[120px]">
+      <select
+        value={value.render_mode}
+        onChange={(e) =>
+          onChange({
+            ...value,
+            render_mode: e.target.value as VisualizeFormConfig["render_mode"],
+          })
+        }
+        className={`${INPUT_CLS} w-full`}
+      >
+        <option value="auto">{t("Auto")}</option>
+        <option value="chartjs">{t("Chart.js")}</option>
+        <option value="svg">{t("SVG")}</option>
+        <option value="mermaid">{t("Mermaid")}</option>
+        <option value="html">{t("HTML")}</option>
+      </select>
+    </Field>
+  );
+
+  if (collapsed === undefined) {
+    return (
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 py-2.5">
+        {body}
+      </div>
+    );
+  }
+
   return (
     <CollapsibleConfigSection
       collapsed={collapsed}
       summary={summarizeVisualizeConfig(value, t)}
-      onToggleCollapsed={onToggleCollapsed}
+      onToggleCollapsed={onToggleCollapsed ?? (() => undefined)}
       bodyClassName="flex flex-wrap items-end gap-x-3 gap-y-2 px-3.5 pb-2.5"
     >
-      <Field label={t("Render Mode")} width="w-[120px]">
-        <select
-          value={value.render_mode}
-          onChange={(e) =>
-            onChange({
-              ...value,
-              render_mode: e.target.value as VisualizeFormConfig["render_mode"],
-            })
-          }
-          className={`${INPUT_CLS} w-full`}
-        >
-          <option value="auto">{t("Auto")}</option>
-          <option value="chartjs">{t("Chart.js")}</option>
-          <option value="svg">{t("SVG")}</option>
-          <option value="mermaid">{t("Mermaid")}</option>
-          <option value="html">{t("HTML")}</option>
-        </select>
-      </Field>
+      {body}
     </CollapsibleConfigSection>
   );
 });

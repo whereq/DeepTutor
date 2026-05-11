@@ -27,9 +27,7 @@ def test_packaged_web_cache_replaces_next_public_placeholders(tmp_path: Path) ->
     assert (runtime / "server.js").read_text(encoding="utf-8") == (
         "const api='http://localhost:8001';"
     )
-    assert "auth='true'" in (runtime / ".next" / "static" / "app.js").read_text(
-        encoding="utf-8"
-    )
+    assert "auth='true'" in (runtime / ".next" / "static" / "app.js").read_text(encoding="utf-8")
 
 
 def test_packaged_web_cache_refreshes_when_public_settings_change(tmp_path: Path) -> None:

@@ -385,7 +385,15 @@ class TurnRuntimeManager:
             "capability": capability,
             "config": {**validated_public_config, **runtime_only_config},
         }
-        session = await self.store.ensure_session(payload.get("session_id"))
+        # ``kind`` tags the surface that originated this turn so /chat and
+        # /co-learn never list each other's sessions. Existing sessions
+        # preserve their original kind (ensure_session is a no-op if it
+        # already exists).
+        session_kind = str(payload.get("kind") or "chat").strip() or "chat"
+        session = await self.store.ensure_session(
+            payload.get("session_id"),
+            kind=session_kind,
+        )
         preferences = session.get("preferences") or {}
         raw_llm_selection = payload.get("llm_selection")
         if raw_llm_selection is None:

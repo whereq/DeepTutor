@@ -95,6 +95,16 @@ class KnowledgeBaseConfigService:
         with open(self.config_path, "w", encoding="utf-8") as handle:
             json.dump(self._config, handle, indent=2, ensure_ascii=False)
 
+    def _refresh(self) -> None:
+        """Re-read kb_config.json so this singleton sees changes made by
+        ``KnowledgeBaseManager`` (orphan pruning, new KB registrations).
+
+        Without this, every mutating call would rewrite the file from the
+        in-memory snapshot taken at process start and undo any external
+        cleanup. Read-modify-write keeps the two writers consistent.
+        """
+        self._config = self._load_config()
+
     def _ensure_kb(self, kb_name: str) -> dict[str, Any]:
         knowledge_bases = self._config.setdefault("knowledge_bases", {})
         if kb_name not in knowledge_bases:
@@ -105,6 +115,7 @@ class KnowledgeBaseConfigService:
         return knowledge_bases[kb_name]
 
     def get_kb_config(self, kb_name: str) -> dict[str, Any]:
+        self._refresh()
         defaults = dict(self._config.get("defaults", {}))
         kb_config = dict(self._config.get("knowledge_bases", {}).get(kb_name, {}))
         merged = {
@@ -118,6 +129,7 @@ class KnowledgeBaseConfigService:
         return merged
 
     def set_kb_config(self, kb_name: str, config: dict[str, Any]) -> None:
+        self._refresh()
         entry = self._ensure_kb(kb_name)
         entry.update(config)
         self._save()
@@ -135,24 +147,29 @@ class KnowledgeBaseConfigService:
         self.set_kb_config(kb_name, {"search_mode": mode})
 
     def delete_kb_config(self, kb_name: str) -> None:
+        self._refresh()
         knowledge_bases = self._config.get("knowledge_bases", {})
         if kb_name in knowledge_bases:
             del knowledge_bases[kb_name]
             self._save()
 
     def get_all_configs(self) -> dict[str, Any]:
+        self._refresh()
         return self._config
 
     def set_global_defaults(self, defaults: dict[str, Any]) -> None:
+        self._refresh()
         current = self._config.setdefault("defaults", _default_payload()["defaults"])
         current.update(defaults)
         self._save()
 
     def set_default_kb(self, kb_name: str | None) -> None:
+        self._refresh()
         self._config.setdefault("defaults", _default_payload()["defaults"])["default_kb"] = kb_name
         self._save()
 
     def get_default_kb(self) -> str | None:
+        self._refresh()
         return self._config.get("defaults", {}).get("default_kb")
 
     def sync_from_metadata(self, kb_name: str, kb_base_dir: Path) -> None:

@@ -29,6 +29,19 @@ import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 // clicking a chip becomes a single CSS class flip, no chunk fetch + double
 // render. The heavy renderers inside still load lazily.
 import FilePreviewDrawer from "@/components/chat/preview/FilePreviewDrawer";
+import SessionActivityPanel, {
+  buildSessionActivity,
+} from "@/components/chat/home/SessionActivityPanel";
+import SessionViewerPanel, {
+  type SessionViewerPanelHandle,
+} from "@/components/chat/home/SessionViewerPanel";
+import {
+  BookmarkPlus,
+  BookOpen,
+  Download,
+  PanelRight,
+  SquarePen,
+} from "lucide-react";
 import {
   useUnifiedChat,
   type MessageAttachment,
@@ -122,6 +135,29 @@ const SaveToNotebookModal = dynamic(
     ssr: false,
   },
 );
+// Activity-panel config card hosts the capability-specific form (Quiz /
+// Animator / Visualize / Research). Lazy-loaded so capabilities that
+// don't need a form (Chat / Solve) don't ship the form JS.
+const CapabilityConfigCard = dynamic(
+  () => import("@/components/chat/home/CapabilityConfigCard"),
+  { ssr: false },
+);
+const QuizConfigPanel = dynamic(
+  () => import("@/components/quiz/QuizConfigPanel"),
+  { ssr: false },
+);
+const MathAnimatorConfigPanel = dynamic(
+  () => import("@/components/math-animator/MathAnimatorConfigPanel"),
+  { ssr: false },
+);
+const VisualizeConfigPanel = dynamic(
+  () => import("@/components/visualize/VisualizeConfigPanel"),
+  { ssr: false },
+);
+const ResearchConfigPanel = dynamic(
+  () => import("@/components/research/ResearchConfigPanel"),
+  { ssr: false },
+);
 
 /* ------------------------------------------------------------------ */
 /*  Type & data definitions                                           */
@@ -129,7 +165,6 @@ const SaveToNotebookModal = dynamic(
 
 type ToolName =
   | "brainstorm"
-  | "rag"
   | "web_search"
   | "code_execution"
   | "reason"
@@ -149,7 +184,6 @@ interface ResearchSourceDef {
 
 const ALL_TOOLS: ToolDef[] = [
   { name: "brainstorm", label: "Brainstorm", icon: Lightbulb },
-  { name: "rag", label: "RAG", icon: Database },
   { name: "web_search", label: "Web Search", icon: Globe },
   { name: "code_execution", label: "Code", icon: Code2 },
   { name: "reason", label: "Reason", icon: Sparkles },
@@ -179,7 +213,6 @@ const CAPABILITIES: CapabilityDef[] = [
     icon: MessageSquare,
     allowedTools: [
       "brainstorm",
-      "rag",
       "web_search",
       "code_execution",
       "reason",
@@ -189,23 +222,23 @@ const CAPABILITIES: CapabilityDef[] = [
   },
   {
     value: "deep_solve",
-    label: "Deep Solve",
+    label: "Solve",
     description: "Multi-step reasoning & problem solving",
     icon: BrainCircuit,
-    allowedTools: ["rag", "web_search", "code_execution", "reason"],
-    defaultTools: ["rag", "web_search", "code_execution", "reason"],
+    allowedTools: ["web_search", "code_execution", "reason"],
+    defaultTools: ["web_search", "code_execution", "reason"],
   },
   {
     value: "deep_question",
-    label: "Quiz Generation",
+    label: "Quiz",
     description: "Auto-validated question generation",
     icon: PenLine,
-    allowedTools: ["rag", "web_search", "code_execution"],
-    defaultTools: ["rag", "web_search", "code_execution"],
+    allowedTools: ["web_search", "code_execution"],
+    defaultTools: ["web_search", "code_execution"],
   },
   {
     value: "deep_research",
-    label: "Deep Research",
+    label: "Research",
     description: "Comprehensive multi-agent research",
     icon: Microscope,
     allowedTools: [],
@@ -213,7 +246,7 @@ const CAPABILITIES: CapabilityDef[] = [
   },
   {
     value: "math_animator",
-    label: "Math Animator",
+    label: "Animator",
     description: "Generate math videos or storyboard images",
     icon: Clapperboard,
     allowedTools: [],
@@ -246,6 +279,12 @@ interface PendingAttachment {
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
+
+// ChatComposer still accepts isAutoMode/autoEnabledCaps/onToggleAutoCap so that
+// the same component can also be reused by the /co-learn page. Manual chat
+// always passes these dummies — the auto multi-select popover is never shown.
+const EMPTY_SET = new Set<string>();
+const noopToggleAutoCap = (_cap: string) => undefined;
 
 function getCapability(value: string | null): CapabilityDef {
   return CAPABILITIES.find((c) => c.value === (value || "")) ?? CAPABILITIES[0];
@@ -290,6 +329,104 @@ export default function ChatPage() {
   const [previewSource, setPreviewSource] = useState<FilePreviewSource | null>(
     null,
   );
+  // When the chat column squeezes (e.g. the Viewer panel opens), the header
+  // action labels can collide. We measure the actual header width and flip
+  // to icon-only buttons below a threshold so the row never overflows.
+  // Important: read full border-box width via getBoundingClientRect — the
+  // ResizeObserverEntry.contentRect excludes the header's px-6 padding
+  // (48 px), which makes a "naive" threshold land 48 px below where labels
+  // actually start colliding.
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [headerMeasuredWidth, setHeaderMeasuredWidth] = useState<number>(
+    Number.POSITIVE_INFINITY,
+  );
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    setHeaderMeasuredWidth(el.getBoundingClientRect().width);
+    const observer = new ResizeObserver(() => {
+      // entry.contentRect drops padding; the visual collision happens at
+      // border-box width, so read it directly off the element.
+      if (headerRef.current) {
+        setHeaderMeasuredWidth(
+          headerRef.current.getBoundingClientRect().width,
+        );
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  // Right-side panels — Activity (floating cards) and Viewer (full sidebar
+  // with tabs for file previews + web pages). Each independently togglable
+  // and persisted across reloads.
+  //
+  // We initialise both to `false` so the SSR-rendered HTML matches the
+  // first client render exactly (no hydration mismatch). The persisted
+  // preference is then applied in a post-mount effect below.
+  const [activityPanelOpen, setActivityPanelOpen] = useState(false);
+  const [viewerPanelOpen, setViewerPanelOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem("dt:chat:activity-panel") === "1") {
+      setActivityPanelOpen(true);
+    }
+    if (window.localStorage.getItem("dt:chat:viewer-panel") === "1") {
+      setViewerPanelOpen(true);
+    }
+  }, []);
+  const toggleActivityPanel = useCallback(() => {
+    setActivityPanelOpen((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          "dt:chat:activity-panel",
+          next ? "1" : "0",
+        );
+      }
+      return next;
+    });
+  }, []);
+  /**
+   * Force the Activity panel open. Used by the send-gate when the user
+   * tries to send while the active capability still needs its config
+   * confirmed — we surface the right-side panel so the Confirm button is
+   * visible. Persisted to localStorage so subsequent reloads remember the
+   * preference. Also used by the capability-switch auto-open effect below.
+   */
+  const ensureActivityPanelOpen = useCallback(() => {
+    setActivityPanelOpen((prev) => {
+      if (prev) return prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("dt:chat:activity-panel", "1");
+      }
+      return true;
+    });
+  }, []);
+  const setViewerOpen = useCallback((next: boolean) => {
+    setViewerPanelOpen(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("dt:chat:viewer-panel", next ? "1" : "0");
+    }
+  }, []);
+  const toggleViewerPanel = useCallback(() => {
+    setViewerPanelOpen((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          "dt:chat:viewer-panel",
+          next ? "1" : "0",
+        );
+      }
+      return next;
+    });
+  }, []);
+  // The header's five labelled actions ("Save to Notebook" / "Download
+  // Markdown" / "New chat" / "Activity" / "Viewer") need roughly 720 px
+  // (label widths + gaps + the capability title) to fit on one row without
+  // colliding. Below that we collapse all five to icon-only. We also
+  // force-collapse whenever the Viewer panel is open — its squeeze is
+  // aggressive enough that labels are guaranteed to overflow.
+  const headerCompact = viewerPanelOpen || headerMeasuredWidth < 720;
   const attachmentErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -308,10 +445,15 @@ export default function ChatPage() {
   const [researchConfig, setResearchConfig] = useState<DeepResearchFormConfig>(
     createEmptyResearchConfig(),
   );
-  // Unified collapse state for the capability-specific config panel
-  // (Quiz / Math Animator / Visualize / Deep Research). Default collapsed so
-  // a fresh Chat / Deep Solve session has the shortest possible composer.
-  const [panelCollapsed, setPanelCollapsed] = useState(true);
+  // Capability-config confirmation gate.
+  //
+  // For capabilities that need explicit configuration (Quiz, Animator,
+  // Visualize, Research), the user must click *Confirm* in the right-side
+  // Activity panel before sending. Any subsequent edit to the underlying
+  // config invalidates the confirmation, so the user re-confirms once
+  // they've adjusted settings. Capability switches also reset this flag.
+  const [capabilityConfigConfirmed, setCapabilityConfigConfirmed] =
+    useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showNotebookPicker, setShowNotebookPicker] = useState(false);
   const [showBookPicker, setShowBookPicker] = useState(false);
@@ -321,6 +463,7 @@ export default function ChatPage() {
   const [showMemoryPicker, setShowMemoryPicker] = useState(false);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
+  const [kbMenuOpen, setKbMenuOpen] = useState(false);
   const [selectedNotebookRecords, setSelectedNotebookRecords] = useState<
     SelectedRecord[]
   >([]);
@@ -345,6 +488,8 @@ export default function ChatPage() {
   const toolBtnRef = useRef<HTMLButtonElement>(null);
   const spaceMenuRef = useRef<HTMLDivElement>(null);
   const spaceBtnRef = useRef<HTMLButtonElement>(null);
+  const kbMenuRef = useRef<HTMLDivElement>(null);
+  const kbBtnRef = useRef<HTMLButtonElement>(null);
   const initialLoadRef = useRef(false);
 
   const activeCap = useMemo(
@@ -355,13 +500,72 @@ export default function ChatPage() {
   const isMathAnimatorMode = activeCap.value === "math_animator";
   const isVisualizeMode = activeCap.value === "visualize";
   const isResearchMode = activeCap.value === "deep_research";
+  const capabilityNeedsConfig =
+    isQuizMode || isMathAnimatorMode || isVisualizeMode || isResearchMode;
+
+  // Edit-invalidates-confirm wrappers — flipping any field after the user
+  // hit *Confirm* should restore the gate so they re-confirm intentionally.
+  // `useCallback` keeps identities stable so the memoized ChatComposer /
+  // CapabilityConfigCard don't churn on every keystroke.
+  const handleChangeQuizConfig = useCallback(
+    (next: DeepQuestionFormConfig) => {
+      setQuizConfig(next);
+      setCapabilityConfigConfirmed(false);
+    },
+    [],
+  );
+  const handleUploadQuizPdf = useCallback((file: File | null) => {
+    setQuizPdf(file);
+    setCapabilityConfigConfirmed(false);
+  }, []);
+  const handleChangeMathAnimatorConfig = useCallback(
+    (next: MathAnimatorFormConfig) => {
+      setMathAnimatorConfig(next);
+      setCapabilityConfigConfirmed(false);
+    },
+    [],
+  );
+  const handleChangeVisualizeConfig = useCallback(
+    (next: VisualizeFormConfig) => {
+      setVisualizeConfig(next);
+      setCapabilityConfigConfirmed(false);
+    },
+    [],
+  );
+  const handleChangeResearchConfig = useCallback(
+    (next: DeepResearchFormConfig) => {
+      setResearchConfig(next);
+      setCapabilityConfigConfirmed(false);
+    },
+    [],
+  );
+  const handleConfirmCapabilityConfig = useCallback(() => {
+    setCapabilityConfigConfirmed(true);
+  }, []);
+
+  /**
+   * Auto-open the right-side Activity panel when the user switches into a
+   * capability that requires manual configuration (Quiz / Animator /
+   * Visualize / Research). We only fire on the transition from "doesn't
+   * need config" → "needs config" so we don't fight the user if they
+   * close the panel themselves while still in a config-needing mode.
+   *
+   * Tracking via a ref (instead of deps) avoids re-firing whenever the
+   * panel toggles — the open-state flip should be one-shot per cap
+   * transition.
+   */
+  const lastCapabilityNeedsConfigRef = useRef(capabilityNeedsConfig);
+  useEffect(() => {
+    const prev = lastCapabilityNeedsConfigRef.current;
+    lastCapabilityNeedsConfigRef.current = capabilityNeedsConfig;
+    if (!prev && capabilityNeedsConfig) {
+      ensureActivityPanelOpen();
+    }
+  }, [capabilityNeedsConfig, ensureActivityPanelOpen]);
   const selectedTools = useMemo(
     () => new Set(state.enabledTools),
     [state.enabledTools],
   );
-  const ragActive = isResearchMode
-    ? researchConfig.sources.includes("kb")
-    : selectedTools.has("rag");
   const hasMessages = state.messages.length > 0;
   const { ref: composerRef, height: composerHeight } =
     useMeasuredHeight<HTMLDivElement>();
@@ -577,15 +781,11 @@ export default function ChatPage() {
       try {
         const list = await listKnowledgeBases({ force: options?.force });
         setKnowledgeBases(list);
-        if (!state.knowledgeBases.length && list.length) {
-          const def = list.find((k: KnowledgeBase) => k.is_default);
-          setKBs([def?.name || list[0].name]);
-        }
       } catch {
         setKnowledgeBases([]);
       }
     },
-    [setKBs, state.knowledgeBases.length],
+    [],
   );
 
   /* Load KBs */
@@ -681,6 +881,13 @@ export default function ChatPage() {
         !spaceBtnRef.current.contains(t)
       )
         setSpaceMenuOpen(false);
+      if (
+        kbMenuRef.current &&
+        !kbMenuRef.current.contains(t) &&
+        kbBtnRef.current &&
+        !kbBtnRef.current.contains(t)
+      )
+        setKbMenuOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -712,12 +919,10 @@ export default function ChatPage() {
           ? [...config.enabledTools]
           : [...cap.defaultTools],
       );
-      if (config.enabledTools.includes("rag") && config.knowledgeBase)
-        setKBs([config.knowledgeBase]);
-      // Default-expand the per-capability settings panel right after a
-      // capability switch so users immediately see the form. Sending a
-      // message later will auto-collapse it (see handleSend).
-      setPanelCollapsed(false);
+      if (config.knowledgeBase) setKBs([config.knowledgeBase]);
+      // Switching capability invalidates any prior config confirmation —
+      // the new capability has its own form that needs explicit confirm.
+      setCapabilityConfigConfirmed(false);
       setCapMenuOpen(false);
     },
     [capabilityConfigs, setCapability, setKBs, setTools],
@@ -742,6 +947,9 @@ export default function ChatPage() {
         ? current.sources.filter((item) => item !== source)
         : [...current.sources, source],
     }));
+    // Toggling sources is part of the Research config — invalidate the
+    // confirm so the user can re-verify before sending.
+    setCapabilityConfigConfirmed(false);
   }, []);
 
   const fileToAttachment = useCallback(
@@ -857,16 +1065,142 @@ export default function ChatPage() {
     [attachments],
   );
 
-  const handlePreviewMessageAttachment = useCallback((a: MessageAttachment) => {
-    setPreviewSource({
-      filename: a.filename || "",
-      mimeType: a.mime_type,
-      type: a.type,
-      url: a.url,
-      base64: a.base64,
-      extractedText: a.extracted_text,
-      id: a.id,
-    });
+  // Fold all messages once per state.messages change to power the
+  // SessionActivityPanel on the right (tools, KBs, space refs, attachments).
+  const sessionActivity = useMemo(
+    () => buildSessionActivity(state.messages),
+    [state.messages],
+  );
+
+  /**
+   * Capability-config card rendered at the bottom of the Activity panel.
+   *
+   * Returns null for capabilities that don't need explicit configuration
+   * (Chat / Solve) — the Activity panel falls back to its standard
+   * sections (tools, KBs, space, attachments) plus the empty-state card.
+   *
+   * For Quiz / Animator / Visualize / Research, we wrap the matching bare
+   * ConfigPanel in a `CapabilityConfigCard` that provides the header,
+   * Confirm button, and validation-error display. The Confirm gate is
+   * wired through `capabilityConfigConfirmed` / `handleConfirmCapabilityConfig`.
+   */
+  const capabilityConfigSection = useMemo(() => {
+    if (!capabilityNeedsConfig) return null;
+    if (isQuizMode) {
+      return (
+        <CapabilityConfigCard
+          capability="deep_question"
+          confirmed={capabilityConfigConfirmed}
+          canConfirm
+          onConfirm={handleConfirmCapabilityConfig}
+        >
+          <QuizConfigPanel
+            value={quizConfig}
+            onChange={handleChangeQuizConfig}
+            uploadedPdf={quizPdf}
+            onUploadPdf={handleUploadQuizPdf}
+          />
+        </CapabilityConfigCard>
+      );
+    }
+    if (isMathAnimatorMode) {
+      return (
+        <CapabilityConfigCard
+          capability="math_animator"
+          confirmed={capabilityConfigConfirmed}
+          canConfirm
+          onConfirm={handleConfirmCapabilityConfig}
+        >
+          <MathAnimatorConfigPanel
+            value={mathAnimatorConfig}
+            onChange={handleChangeMathAnimatorConfig}
+          />
+        </CapabilityConfigCard>
+      );
+    }
+    if (isVisualizeMode) {
+      return (
+        <CapabilityConfigCard
+          capability="visualize"
+          confirmed={capabilityConfigConfirmed}
+          canConfirm
+          onConfirm={handleConfirmCapabilityConfig}
+        >
+          <VisualizeConfigPanel
+            value={visualizeConfig}
+            onChange={handleChangeVisualizeConfig}
+          />
+        </CapabilityConfigCard>
+      );
+    }
+    // Research: forward validation errors so the user sees what's missing
+    // before they hit Confirm. `canConfirm` only flips false when there's
+    // an actual error (e.g. mode/depth not selected).
+    const researchErrorMessages = Object.values(researchValidation.errors);
+    return (
+      <CapabilityConfigCard
+        capability="deep_research"
+        confirmed={capabilityConfigConfirmed}
+        canConfirm={researchErrorMessages.length === 0}
+        validationErrors={researchErrorMessages}
+        onConfirm={handleConfirmCapabilityConfig}
+      >
+        <ResearchConfigPanel
+          value={researchConfig}
+          errors={researchValidation.errors}
+          onChange={handleChangeResearchConfig}
+        />
+      </CapabilityConfigCard>
+    );
+  }, [
+    capabilityNeedsConfig,
+    isQuizMode,
+    isMathAnimatorMode,
+    isVisualizeMode,
+    capabilityConfigConfirmed,
+    handleConfirmCapabilityConfig,
+    quizConfig,
+    quizPdf,
+    handleChangeQuizConfig,
+    handleUploadQuizPdf,
+    mathAnimatorConfig,
+    handleChangeMathAnimatorConfig,
+    visualizeConfig,
+    handleChangeVisualizeConfig,
+    researchConfig,
+    researchValidation.errors,
+    handleChangeResearchConfig,
+  ]);
+
+  const viewerPanelRef = useRef<SessionViewerPanelHandle | null>(null);
+  // Clicking an attachment (from the Activity panel or from a chat message)
+  // routes into the Viewer panel as a new file tab. The viewer auto-opens
+  // and the preference is persisted so a follow-up click feels instant.
+  const handlePreviewMessageAttachment = useCallback(
+    (a: MessageAttachment) => {
+      viewerPanelRef.current?.openFileTab(a);
+    },
+    [],
+  );
+
+  // Event-delegated link interception inside the messages container. When
+  // the user clicks an http(s) link in an assistant message, we open it as
+  // a Viewer tab instead of letting the browser navigate / open a new tab.
+  // Cmd/ctrl/shift + click keep their standard meaning (open in browser).
+  const handleMessagesClick = useCallback((event: React.MouseEvent) => {
+    if (event.defaultPrevented) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+      return;
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    const anchor = target.closest<HTMLAnchorElement>("a[href]");
+    if (!anchor) return;
+    const href = anchor.getAttribute("href");
+    if (!href) return;
+    if (!/^https?:\/\//i.test(href)) return;
+    event.preventDefault();
+    viewerPanelRef.current?.openWebTab(href);
   }, []);
 
   const handleClosePreview = useCallback(() => {
@@ -995,9 +1329,6 @@ export default function ChatPage() {
         memoryPayload,
       );
       shouldAutoScrollRef.current = true;
-      // Auto-collapse the per-capability settings panel after sending so the
-      // composer stays compact during conversation.
-      setPanelCollapsed(true);
       setAttachments([]);
       setSelectedBookReferences([]);
       setSelectedNotebookRecords([]);
@@ -1064,11 +1395,16 @@ export default function ChatPage() {
     regenerateLastMessage();
   }, [regenerateLastMessage]);
 
-  const handleSetKB = useCallback(
-    (kb: string) => {
-      setKBs(kb ? [kb] : []);
+  const handleToggleKB = useCallback(
+    (name: string) => {
+      const current = state.knowledgeBases;
+      setKBs(
+        current.includes(name)
+          ? current.filter((kb) => kb !== name)
+          : [...current, name],
+      );
     },
-    [setKBs],
+    [setKBs, state.knowledgeBases],
   );
   const handleSelectNotebookPicker = useCallback(() => {
     setShowNotebookPicker(true);
@@ -1128,9 +1464,6 @@ export default function ChatPage() {
     );
   }, []);
 
-  const handleTogglePanelCollapsed = useCallback(() => {
-    setPanelCollapsed((prev) => !prev);
-  }, []);
   const handleCloseNotebookPicker = useCallback(() => {
     setShowNotebookPicker(false);
   }, []);
@@ -1211,34 +1544,55 @@ export default function ChatPage() {
       // transition lives in `chat-preview-shell` (globals.css) so we can
       // hand-tune it without fighting Tailwind's arbitrary-value parser.
       data-preview-open={previewSource ? "true" : "false"}
+      data-activity-open={activityPanelOpen ? "true" : "false"}
+      data-viewer-open={viewerPanelOpen ? "true" : "false"}
       className="chat-preview-shell flex h-full flex-col overflow-hidden bg-[var(--background)]"
     >
-      <div className="mx-auto flex w-full max-w-[960px] items-center justify-between px-6 pt-3 pb-0">
-        <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
+      <div
+        ref={headerRef}
+        className="mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-6 pt-3 pb-0"
+      >
+        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
           {t(activeCap.label)}
         </span>
-        <div className="flex items-center gap-2">
-          <button
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          <HeaderActionButton
+            compact={headerCompact}
             onClick={() => setShowSaveModal(true)}
             disabled={!chatSavePayload}
-            className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--border)]/50 disabled:hover:text-[var(--muted-foreground)]"
-          >
-            {t("Save to Notebook")}
-          </button>
-          <button
+            icon={BookmarkPlus}
+            label={t("Save to Notebook")}
+          />
+          <HeaderActionButton
+            compact={headerCompact}
             onClick={handleDownloadMarkdown}
             disabled={!state.messages.length}
+            icon={Download}
+            label={t("Download Markdown")}
             title={t("Download chat history as Markdown")}
-            className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--border)]/50 disabled:hover:text-[var(--muted-foreground)]"
-          >
-            {t("Download Markdown")}
-          </button>
-          <button
+          />
+          <HeaderActionButton
+            compact={headerCompact}
             onClick={handleNewChat}
-            className="rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
-          >
-            {t("New chat")}
-          </button>
+            icon={SquarePen}
+            label={t("New chat")}
+          />
+          <HeaderActionButton
+            compact={headerCompact}
+            onClick={toggleActivityPanel}
+            active={activityPanelOpen}
+            icon={PanelRight}
+            label={t("Activity")}
+            title={t("Session activity")}
+          />
+          <HeaderActionButton
+            compact={headerCompact}
+            onClick={toggleViewerPanel}
+            active={viewerPanelOpen}
+            icon={BookOpen}
+            label={t("Viewer")}
+            title={t("Open viewer")}
+          />
         </div>
       </div>
       <div className="mx-auto flex w-full max-w-[960px] flex-1 min-h-0 flex-col overflow-hidden px-6">
@@ -1258,14 +1612,22 @@ export default function ChatPage() {
             ref={messagesContainerRef}
             data-chat-scroll-root="true"
             onScroll={handleMessagesScroll}
-            className={`mx-auto w-full flex-1 min-h-0 space-y-7 overflow-y-auto pr-4 [scrollbar-gutter:stable] ${hasMessages ? "pt-0" : "pt-2 pb-6"}`}
+            onClick={handleMessagesClick}
+            className={`mx-auto w-full flex-1 min-h-0 space-y-7 overflow-y-auto pr-4 [scrollbar-gutter:stable] ${hasMessages ? "pt-6" : "pt-2 pb-6"}`}
             style={
               hasMessages
                 ? (() => {
+                    // The bottom 40 px of the messages area fades to
+                    // transparent so content "dissolves" into the composer
+                    // gutter. Without enough bottom padding, the fade
+                    // overlaps the last assistant paragraph and looks like
+                    // a stuck scroll — the user reaches scrollHeight but
+                    // can still see only a faded sliver of text. paddingBottom
+                    // is sized so the fade falls over empty space.
                     const maskImage =
                       "linear-gradient(to bottom, transparent 0px, #000 32px, #000 calc(100% - 40px), transparent 100%)";
                     return {
-                      paddingBottom: "4px",
+                      paddingBottom: "48px",
                       WebkitMaskImage: maskImage,
                       maskImage,
                     };
@@ -1296,18 +1658,20 @@ export default function ChatPage() {
           toolBtnRef={toolBtnRef}
           spaceMenuRef={spaceMenuRef}
           spaceBtnRef={spaceBtnRef}
+          kbMenuRef={kbMenuRef}
+          kbBtnRef={kbBtnRef}
           dragCounter={dragCounter}
           dragging={dragging}
           capMenuOpen={capMenuOpen}
           toolMenuOpen={toolMenuOpen}
           spaceMenuOpen={spaceMenuOpen}
+          kbMenuOpen={kbMenuOpen}
           hasMessages={hasMessages}
           attachments={attachments}
           attachmentError={attachmentError}
           activeCap={activeCap}
           visibleTools={visibleTools}
           selectedTools={selectedTools}
-          ragActive={ragActive}
           knowledgeBases={knowledgeBases}
           llmOptions={llmOptions}
           activeLLMDefault={activeLLMDefault}
@@ -1322,25 +1686,25 @@ export default function ChatPage() {
           selectedSkills={selectedSkills}
           skillsAutoMode={skillsAutoMode}
           selectedMemoryFiles={selectedMemoryFiles}
-          stateKnowledgeBase={state.knowledgeBases[0] || ""}
+          selectedKnowledgeBases={state.knowledgeBases}
           isStreaming={state.isStreaming}
           isResearchMode={isResearchMode}
-          isQuizMode={isQuizMode}
           isMathAnimatorMode={isMathAnimatorMode}
           isVisualizeMode={isVisualizeMode}
-          quizConfig={quizConfig}
-          quizPdf={quizPdf}
-          mathAnimatorConfig={mathAnimatorConfig}
-          visualizeConfig={visualizeConfig}
-          researchConfig={researchConfig}
-          researchValidationErrors={researchValidation.errors}
-          panelCollapsed={panelCollapsed}
+          isAutoMode={false}
+          autoEnabledCaps={EMPTY_SET}
+          researchConfigSources={researchConfig.sources}
+          capabilityNeedsConfig={capabilityNeedsConfig}
+          capabilityConfigConfirmed={capabilityConfigConfirmed}
+          onRequestConfigConfirm={ensureActivityPanelOpen}
           capabilities={CAPABILITIES}
           researchSources={RESEARCH_SOURCES}
           onSetCapMenuOpen={setCapMenuOpen}
           onSetToolMenuOpen={setToolMenuOpen}
           onSetSpaceMenuOpen={setSpaceMenuOpen}
-          onSetKB={handleSetKB}
+          onSetKbMenuOpen={setKbMenuOpen}
+          onToggleAutoCap={noopToggleAutoCap}
+          onToggleKB={handleToggleKB}
           onSelectLLM={setLLMSelection}
           onSelectNotebookPicker={handleSelectNotebookPicker}
           onSelectBookPicker={handleSelectBookPicker}
@@ -1368,12 +1732,6 @@ export default function ChatPage() {
           onAddFiles={handleAddFiles}
           onSelectCapability={handleSelectCapability}
           onCancelStreaming={cancelStreamingTurn}
-          onChangeQuizConfig={setQuizConfig}
-          onUploadQuizPdf={setQuizPdf}
-          onChangeMathAnimatorConfig={setMathAnimatorConfig}
-          onChangeVisualizeConfig={setVisualizeConfig}
-          onChangeResearchConfig={setResearchConfig}
-          onTogglePanelCollapsed={handleTogglePanelCollapsed}
         />
       </div>
       <NotebookRecordPicker
@@ -1421,6 +1779,64 @@ export default function ChatPage() {
         source={previewSource}
         onClose={handleClosePreview}
       />
+      <SessionActivityPanel
+        open={activityPanelOpen && previewSource === null && !viewerPanelOpen}
+        activity={sessionActivity}
+        onOpenAttachment={handlePreviewMessageAttachment}
+        configSection={capabilityConfigSection}
+      />
+      <SessionViewerPanel
+        ref={viewerPanelRef}
+        open={viewerPanelOpen && previewSource === null}
+        sessionId={state.sessionId}
+        onClose={() => setViewerOpen(false)}
+        onAutoOpen={() => setViewerOpen(true)}
+      />
     </div>
+  );
+}
+
+/**
+ * Header action button that auto-collapses to icon-only when the chat
+ * column gets squeezed (Viewer panel open, narrow viewport, etc.). The
+ * label stays as the button's `title` so hovering an icon still reveals
+ * what it does. Optional `active` flag paints the button with a primary
+ * tint, used by the panel-toggle buttons to surface their on/off state.
+ */
+function HeaderActionButton({
+  compact,
+  onClick,
+  disabled,
+  active,
+  icon: Icon,
+  label,
+  title,
+}: {
+  compact: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  icon: LucideIcon;
+  label: string;
+  title?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title ?? label}
+      aria-label={label}
+      aria-pressed={active}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        compact ? "px-2 py-1.5" : "px-3 py-1.5"
+      } ${
+        active
+          ? "border-[var(--primary)]/40 bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] text-[var(--primary)] hover:border-[var(--primary)]/55"
+          : "border-[var(--border)]/50 text-[var(--muted-foreground)] hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:hover:border-[var(--border)]/50 disabled:hover:text-[var(--muted-foreground)]"
+      }`}
+    >
+      <Icon size={14} strokeWidth={1.7} className="shrink-0" />
+      {compact ? null : <span>{label}</span>}
+    </button>
   );
 }

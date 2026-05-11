@@ -9,6 +9,7 @@ from deeptutor.services.config.provider_runtime import (
     resolve_embedding_runtime_config,
 )
 
+
 def _build_catalog(
     *,
     embedding_profile: dict | None = None,
@@ -42,6 +43,7 @@ def _build_catalog(
         },
     }
 
+
 def test_embedding_explicit_binding_and_headers() -> None:
     catalog = _build_catalog(
         embedding_profile={
@@ -69,6 +71,7 @@ def test_embedding_explicit_binding_and_headers() -> None:
     assert resolved.extra_headers == {"X-App": "demo"}
     assert resolved.dimension == 1024
 
+
 def test_embedding_alias_canonicalization_google_to_gemini() -> None:
     catalog = _build_catalog(
         embedding_profile={
@@ -85,6 +88,7 @@ def test_embedding_alias_canonicalization_google_to_gemini() -> None:
     resolved = resolve_embedding_runtime_config(catalog=catalog)
     assert resolved.provider_name == "gemini"
     assert resolved.binding == "gemini"
+
 
 def test_embedding_gemini_default_base_and_profile_key() -> None:
     catalog = _build_catalog(
@@ -108,6 +112,7 @@ def test_embedding_gemini_default_base_and_profile_key() -> None:
         == "https://generativelanguage.googleapis.com/v1beta/openai/embeddings"
     )
 
+
 def test_embedding_local_fallback_from_base_url() -> None:
     catalog = _build_catalog(
         embedding_profile={
@@ -125,6 +130,7 @@ def test_embedding_local_fallback_from_base_url() -> None:
     assert resolved.provider_name == "ollama"
     assert resolved.provider_mode == "local"
     assert resolved.api_key == ""
+
 
 def test_embedding_local_vllm_uses_profile_key() -> None:
     catalog = _build_catalog(
@@ -144,6 +150,7 @@ def test_embedding_local_vllm_uses_profile_key() -> None:
     assert resolved.provider_mode == "local"
     assert resolved.api_key == "local-secret"
 
+
 def test_embedding_openai_default_base_injected() -> None:
     catalog = _build_catalog(
         embedding_profile={
@@ -161,6 +168,7 @@ def test_embedding_openai_default_base_injected() -> None:
     assert resolved.provider_name == "openai"
     # v1.3.0: provider defaults are full embedding endpoint URLs.
     assert resolved.effective_url == "https://api.openai.com/v1/embeddings"
+
 
 def test_embedding_send_dimensions_default_is_none() -> None:
     """Catalogs without the field should resolve to ``None`` (Auto behaviour)."""
@@ -182,7 +190,6 @@ def test_embedding_send_dimensions_default_is_none() -> None:
         ("garbage", None),
     ],
 )
-
 def test_embedding_send_dimensions_parsed_from_catalog(
     catalog_value: object,
     expected: bool | None,
@@ -199,10 +206,12 @@ def test_embedding_send_dimensions_parsed_from_catalog(
     resolved = resolve_embedding_runtime_config(catalog=catalog)
     assert resolved.send_dimensions is expected
 
+
 def test_embedding_send_dimensions_catalog_unset_stays_auto() -> None:
     catalog = _build_catalog()
     resolved = resolve_embedding_runtime_config(catalog=catalog)
     assert resolved.send_dimensions is None
+
 
 def test_embedding_send_dimensions_resolves_from_catalog() -> None:
     catalog = _build_catalog(
@@ -216,6 +225,7 @@ def test_embedding_send_dimensions_resolves_from_catalog() -> None:
     )
     resolved = resolve_embedding_runtime_config(catalog=catalog)
     assert resolved.send_dimensions is True
+
 
 def test_embedding_custom_openai_sdk_uses_user_supplied_base_url() -> None:
     """Legacy `custom_openai_sdk` configs still resolve for backwards compatibility."""
@@ -244,6 +254,7 @@ def test_embedding_custom_openai_sdk_uses_user_supplied_base_url() -> None:
     assert resolved.effective_url == "https://my-proxy.example.com/v1"
     assert resolved.api_key == "sk-custom"
 
+
 def test_embedding_openrouter_default_base_url_injected() -> None:
     """When no base URL is set, the OpenRouter spec's default fills in."""
     catalog = _build_catalog(
@@ -270,6 +281,7 @@ def test_embedding_openrouter_default_base_url_injected() -> None:
     assert resolved.effective_url == "https://openrouter.ai/api/v1/embeddings"
     assert EMBEDDING_PROVIDERS["openrouter"].adapter == "openai_compat"
 
+
 def test_embedding_openrouter_profile_key() -> None:
     catalog = _build_catalog(
         embedding_profile={
@@ -286,6 +298,7 @@ def test_embedding_openrouter_profile_key() -> None:
     resolved = resolve_embedding_runtime_config(catalog=catalog)
     assert resolved.provider_name == "openrouter"
     assert resolved.api_key == "sk-or-from-profile"
+
 
 def test_embedding_provider_profile_key() -> None:
     catalog = _build_catalog(

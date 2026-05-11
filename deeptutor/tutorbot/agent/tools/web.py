@@ -236,9 +236,17 @@ class WebFetchTool(Tool):
         "required": ["url"],
     }
 
-    def __init__(self, max_chars: int = 50000, proxy: str | None = None):
+    def __init__(
+        self,
+        max_chars: int = 50000,
+        proxy: str | None = None,
+        config: WebSearchConfig | None = None,
+    ):
+        from deeptutor.tutorbot.config.schema import WebSearchConfig as _WebSearchConfig
+
         self.max_chars = max_chars
         self.proxy = proxy
+        self.config = config if config is not None else _WebSearchConfig()
 
     async def execute(  # type: ignore[override]
         self, url: str, extractMode: str = "markdown", maxChars: int | None = None, **kwargs: Any

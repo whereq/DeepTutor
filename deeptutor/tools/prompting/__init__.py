@@ -91,12 +91,11 @@ class ToolPromptComposer:
     def __init__(self, language: str = "en") -> None:
         self.language = _normalize_language(language)
 
-    def format_list(self, hints: list[ToolHintEntry], kb_name: str = "") -> str:
+    def format_list(self, hints: list[ToolHintEntry]) -> str:
         lines: list[str] = []
         for name, hint in hints:
-            description = self._apply_kb_name(hint.short_description, kb_name)
-            if description:
-                lines.append(f"- {name}: {description}")
+            if hint.short_description:
+                lines.append(f"- {name}: {hint.short_description}")
         return "\n".join(lines)
 
     def format_table(
@@ -176,13 +175,6 @@ class ToolPromptComposer:
             label = labels.get(phase, labels["other"])
             sections.append(f"**{label}**\n" + "\n".join(items))
         return "\n\n".join(sections)
-
-    @staticmethod
-    def _apply_kb_name(text: str, kb_name: str) -> str:
-        if not kb_name or not text:
-            return text
-        updated = text.replace("the uploaded knowledge base", f'the knowledge base "{kb_name}"')
-        return updated.replace("已上传知识库", f'知识库 "{kb_name}"')
 
 
 __all__ = ["ToolPromptComposer", "load_prompt_hints"]

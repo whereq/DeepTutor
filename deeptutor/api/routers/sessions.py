@@ -68,9 +68,16 @@ def _format_quiz_results_message(answers: list[QuizResultItem]) -> str:
 async def list_sessions(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    kind: str | None = Query(
+        default=None,
+        description=(
+            "Filter by session surface: 'chat' (manual /chat page) or "
+            "'co_learn' (auto routing /co-learn page). Omit to return all."
+        ),
+    ),
 ):
     store = get_session_store()
-    sessions = await store.list_sessions(limit=limit, offset=offset)
+    sessions = await store.list_sessions(limit=limit, offset=offset, kind=kind)
     return {"sessions": sessions}
 
 
