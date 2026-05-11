@@ -3,24 +3,9 @@
 const fs = require("fs");
 const path = require("path");
 
-function parseDotenvFile(filePath) {
+function readJsonFile(filePath) {
   try {
-    const content = fs.readFileSync(filePath, "utf8");
-    return Object.fromEntries(
-      content
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#") && line.includes("="))
-        .map((line) => {
-          const idx = line.indexOf("=");
-          const key = line.slice(0, idx).trim();
-          const value = line
-            .slice(idx + 1)
-            .trim()
-            .replace(/^['"]|['"]$/g, "");
-          return [key, value];
-        }),
-    );
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch {
     return {};
   }
@@ -36,34 +21,38 @@ function firstNonEmpty(...values) {
 }
 
 function normalizeBoolean(value) {
+  if (value === "__NEXT_PUBLIC_AUTH_ENABLED_PLACEHOLDER__") {
+    return value;
+  }
   return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase())
     ? "true"
     : "false";
 }
 
-const ROOT_ENV = parseDotenvFile(path.resolve(__dirname, "..", ".env"));
+const SETTINGS_DIR = path.resolve(__dirname, "..", "data", "user", "settings");
+const SYSTEM_SETTINGS = readJsonFile(path.join(SETTINGS_DIR, "system.json"));
+const AUTH_SETTINGS = readJsonFile(path.join(SETTINGS_DIR, "auth.json"));
 const BACKEND_PORT = firstNonEmpty(
-  ROOT_ENV.BACKEND_PORT,
   process.env.BACKEND_PORT,
+  SYSTEM_SETTINGS.backend_port,
   "8001",
 );
 
-// Use the project-root `.env` as the frontend source of truth. This keeps
-// local auth setup to one file: AUTH_ENABLED=true also enables Next middleware.
+// Use data/user/settings as the frontend source of truth. Environment values
+// remain explicit deployment overrides for Docker/CI.
 const NEXT_PUBLIC_API_BASE = firstNonEmpty(
-  ROOT_ENV.NEXT_PUBLIC_API_BASE_EXTERNAL,
   process.env.NEXT_PUBLIC_API_BASE_EXTERNAL,
-  ROOT_ENV.NEXT_PUBLIC_API_BASE,
+  SYSTEM_SETTINGS.next_public_api_base_external,
   process.env.NEXT_PUBLIC_API_BASE,
+  SYSTEM_SETTINGS.next_public_api_base,
   `http://localhost:${BACKEND_PORT}`,
 );
 
 const NEXT_PUBLIC_AUTH_ENABLED = normalizeBoolean(
   firstNonEmpty(
-    ROOT_ENV.NEXT_PUBLIC_AUTH_ENABLED,
-    ROOT_ENV.AUTH_ENABLED,
     process.env.NEXT_PUBLIC_AUTH_ENABLED,
     process.env.AUTH_ENABLED,
+    AUTH_SETTINGS.enabled,
     "false",
   ),
 );

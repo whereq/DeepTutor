@@ -8,7 +8,6 @@ import asyncio
 from datetime import datetime
 import json
 import logging
-import os
 from pathlib import Path
 import shutil
 from typing import Optional
@@ -18,6 +17,7 @@ from deeptutor.knowledge.progress_tracker import ProgressStage, ProgressTracker
 from deeptutor.services.rag.factory import DEFAULT_PROVIDER
 from deeptutor.services.rag.file_routing import FileTypeRouter
 from deeptutor.services.rag.service import RAGService
+from deeptutor.services.config import resolve_llm_runtime_config
 
 logger = logging.getLogger(__name__)
 
@@ -306,13 +306,21 @@ async def initialize_knowledge_base(
 
 
 async def main() -> None:
+    try:
+        llm_config = resolve_llm_runtime_config()
+        default_api_key = llm_config.api_key
+        default_base_url = llm_config.effective_url
+    except Exception:
+        default_api_key = ""
+        default_base_url = ""
+
     parser = argparse.ArgumentParser(description="Initialize a new knowledge base from documents")
     parser.add_argument("name", help="Knowledge base name")
     parser.add_argument("--docs", nargs="+", help="Document files to process")
     parser.add_argument("--docs-dir", help="Directory containing documents to process")
     parser.add_argument("--base-dir", default="./knowledge_bases")
-    parser.add_argument("--api-key", default=os.getenv("LLM_API_KEY"))
-    parser.add_argument("--base-url", default=os.getenv("LLM_HOST"))
+    parser.add_argument("--api-key", default=default_api_key)
+    parser.add_argument("--base-url", default=default_base_url)
     parser.add_argument("--skip-processing", action="store_true")
     parser.add_argument("--skip-extract", action="store_true")
     parser.add_argument("--batch-size", type=int, default=20)

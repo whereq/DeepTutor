@@ -13,15 +13,11 @@ from typing import Any
 
 import yaml
 
+from deeptutor.runtime.home import get_runtime_home
 from deeptutor.services.path_service import get_path_service
 
-# PROJECT_ROOT points to the actual project root directory (DeepTutor/)
-# Path(__file__) = deeptutor/services/config/loader.py
-# .parent = deeptutor/services/config/
-# .parent.parent = deeptutor/services/
-# .parent.parent.parent = deeptutor/
-# .parent.parent.parent.parent = DeepTutor/ (project root)
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+# Runtime workspace root. Application settings live under PROJECT_ROOT/data/user/settings.
+PROJECT_ROOT = get_runtime_home()
 
 
 def get_runtime_settings_dir(project_root: Path | None = None) -> Path:

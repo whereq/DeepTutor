@@ -1,16 +1,17 @@
 """Auth router — login, logout, status, registration, and user-management endpoints."""
 
 import logging
-import os
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, field_validator
+
+from deeptutor.services.config import load_auth_settings
 
 # SameSite=None lets the cookie work when the browser accesses the frontend via
 # 127.0.0.1 and the backend via localhost (different origins on the same machine).
 # Browsers require Secure=True for SameSite=None, but that needs HTTPS — so in
 # local dev we fall back to SameSite=Lax and tell users to use localhost:// URLs.
-_SECURE = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
+_SECURE = bool(load_auth_settings()["cookie_secure"])
 _SAMESITE = "none" if _SECURE else "lax"
 
 from deeptutor.services.auth import (

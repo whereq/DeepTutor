@@ -125,7 +125,7 @@
 - **持久记忆** — 勾勒学习画像：学过什么、如何学习、去向何方。全功能与 TutorBot 共享，越用越准。
 - **个人 TutorBot** — 非聊天机器人，而是自主导师。独立工作区、记忆、人格与技能；提醒、学新能力、随你成长。由 [nanobot](https://github.com/HKUDS/nanobot) 驱动。
 - **智能体原生 CLI** — 能力、知识库、会话、TutorBot 一条命令；Rich 给人看，JSON 给智能体。将根目录 [`SKILL.md`](../../SKILL.md) 交给工具型智能体即可自主操作。
-- **可选身份认证** — 本地默认关闭；公网托管时改两个环境变量即可要求登录。多用户支持 bcrypt 密码、JWT 会话、自助注册页与内置管理后台。可选用 **PocketBase** 承载认证与存储（OAuth 友好、并发更佳），作为可选侧车接入，无需改代码。
+- **可选身份认证** — 本地默认关闭；公网托管时更新 `data/user/settings/auth.json` 即可要求登录。多用户支持 bcrypt 密码、JWT 会话、自助注册页与内置管理后台。可选用 **PocketBase** 承载认证与存储（OAuth 友好、并发更佳），作为可选侧车接入，无需改代码。
 
 ---
 
@@ -149,7 +149,7 @@
 
 ### 方案 A — Setup Tour（推荐）
 
-面向首次本地 Web 安装的 CLI 向导：检查环境、安装 Python/Node 依赖、写入 `.env`，并可选用 TutorBot、Matrix、数学动画等扩展。
+面向首次本地 Web 安装的 CLI 向导：检查环境、安装 Python/Node 依赖、写入 `data/user/settings/*.json`，并可选用 TutorBot、Matrix、数学动画等扩展。
 
 **1. 克隆仓库**
 
@@ -249,26 +249,17 @@ cd ..
 **4. 配置环境**
 
 ```bash
-cp .env.example .env
+python scripts/start_tour.py
 ```
 
-编辑 `.env`，至少填写 LLM 相关字段。若暂只试用聊天，嵌入字段可稍后填写（知识库功能需要）。
+编辑 `data/user/settings/*.json`，至少填写 LLM 相关字段。若暂只试用聊天，嵌入字段可稍后填写（知识库功能需要）。
 
-```dotenv
-# LLM（聊天必需）
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
-LLM_API_KEY=sk-xxx
-LLM_HOST=https://api.openai.com/v1
-
-# 嵌入（知识库 / RAG 必需）
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-3-large
-EMBEDDING_API_KEY=sk-xxx
-# v1.3.0+：填写完整端点 URL，而非仅 https://api.openai.com/v1
-EMBEDDING_HOST=https://api.openai.com/v1/embeddings
-# 除非需强制维度，否则留空
-EMBEDDING_DIMENSION=
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 <details>
@@ -369,22 +360,22 @@ cd web && npm run dev -- -p 3782
 
 单容器封装前后端，无需本地 Python/Node。需 [Docker Desktop](https://www.docker.com/products/docker-desktop/)（Linux 可用 Docker Engine + Compose）。
 
-**1. 配置环境变量**（下面两种方式都需要）
+**1. 生成运行时配置**（下面两种方式都需要）
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
-cp .env.example .env
+python scripts/start_tour.py
 ```
 
-编辑 `.env`，必填项与 [方案 B](#option-b--manual-local-install) 相同。
+编辑 `data/user/settings/*.json`，必填项与 [方案 B](#option-b--manual-local-install) 相同。
 
 **2a. 拉取官方镜像（推荐）**
 
 镜像发布在 [GHCR](https://github.com/HKUDS/DeepTutor/pkgs/container/deeptutor)，支持 `linux/amd64` 与 `linux/arm64`。
 
 ```bash
-docker compose -f docker-compose.ghcr.yml up -d
+python scripts/docker_compose.py -f docker-compose.ghcr.yml up -d
 ```
 
 固定版本可改 `docker-compose.ghcr.yml` 中的 tag：
@@ -396,7 +387,7 @@ image: ghcr.io/hkuds/deeptutor:1.3.4  # 或 :latest
 **2b. 源码构建**
 
 ```bash
-docker compose up -d
+python scripts/docker_compose.py up -d
 ```
 
 **3. 验证与管理**
@@ -404,17 +395,19 @@ docker compose up -d
 容器健康后访问 [http://localhost:3782](http://localhost:3782)。
 
 ```bash
-docker compose logs -f   # 跟踪日志
-docker compose down       # 停止并移除容器
+python scripts/docker_compose.py logs -f   # 跟踪日志
+python scripts/docker_compose.py down       # 停止并移除容器
 ```
 
 <details>
 <summary><b>云端 / 远程部署</b></summary>
 
-远程部署时，浏览器需知道后端公网地址，在 `.env` 增加：
+远程部署时，浏览器需知道后端公网地址，在 `data/user/settings/system.json` 增加：
 
-```dotenv
-NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
+```json
+{
+  "next_public_api_base_external": "https://your-server.com:8001"
+}
 ```
 
 前端启动脚本会在运行时注入，无需重建镜像。
@@ -426,48 +419,51 @@ NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
 
 认证**默认关闭**，本地无需登录。多租户（每用户工作区、管理员配置模型/知识库/技能、审计日志）详见下文 [多用户](#multi-user)。
 
-**无头单用户（不走 `/register`）：** 若无法在浏览器创建首个管理员（如无值守容器），可用环境变量预置：
+**无头单用户（不走 `/register`）：** 若无法在浏览器创建首个管理员（如无值守容器），可在 `auth.json` 预置：
 
 ```bash
 python -c "from deeptutor.services.auth import hash_password; print(hash_password('yourpassword'))"
 ```
 
-```dotenv
-AUTH_ENABLED=true
-AUTH_USERNAME=admin
-AUTH_PASSWORD_HASH=<粘贴 bcrypt 哈希>
-AUTH_SECRET=your-secret-here
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
-该路径视为单一管理员账户。若之后在浏览器完成注册流程，磁盘上的 `multi-user/_system/auth/users.json` 优先，环境变量作为回退。
+该路径视为单一管理员账户。若之后在浏览器完成注册流程，磁盘上的 `multi-user/_system/auth/users.json` 优先，`auth.json` 仅作为单用户引导配置。
 
 </details>
 
 <details>
 <summary><b>PocketBase 侧车（可选认证与存储）</b></summary>
 
-PocketBase 可替代内置 SQLite/JSON 认证与会话存储，提供 OAuth 友好认证、实时订阅与管理后台；不设 `POCKETBASE_URL` 即可随时切回。
+PocketBase 可替代内置 SQLite/JSON 认证与会话存储，提供 OAuth 友好认证、实时订阅与管理后台；不设 `integrations.pocketbase_url` 即可随时切回。
 
-> ⚠️ **当前 PocketBase 模式仅适合单用户。** 默认 schema 的 `users` 无 `role`（登录均为 `role=user`，无法创建管理员），会话/消息/轮次查询未按 `user_id` 过滤。**多用户部署请保持 `POCKETBASE_URL` 为空**，使用默认 JSON/SQLite 后端。
+> ⚠️ **当前 PocketBase 模式仅适合单用户。** 默认 schema 的 `users` 无 `role`（登录均为 `role=user`，无法创建管理员），会话/消息/轮次查询未按 `user_id` 过滤。**多用户部署请保持 `integrations.pocketbase_url` 为空**，使用默认 JSON/SQLite 后端。
 
 **适用：** 本地单用户，希望 OAuth 与管理界面，暂不关心每用户隔离。
 
 **Docker Compose 快速开始：**
 
 ```bash
-docker compose up -d
+python scripts/docker_compose.py up -d
 open http://localhost:8090/_/
 pip install pocketbase
 python scripts/pb_setup.py
-# 再在 .env 启用 PocketBase 并重启
+# 再在 data/user/settings/*.json 启用 PocketBase 并重启
 ```
 
-**`.env` 追加：**
+**`data/user/settings/*.json` 追加：**
 
-```dotenv
-POCKETBASE_URL=http://localhost:8090
-POCKETBASE_ADMIN_EMAIL=admin@example.com
-POCKETBASE_ADMIN_PASSWORD=your-admin-password
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 **devenv：**
@@ -476,7 +472,7 @@ POCKETBASE_ADMIN_PASSWORD=your-admin-password
 devenv up
 ```
 
-删除或不设置 `POCKETBASE_URL` 即可回到内置后端（新会话无需迁移）。
+删除或不设置 `integrations.pocketbase_url` 即可回到内置后端（新会话无需迁移）。
 
 </details>
 
@@ -484,7 +480,7 @@ devenv up
 <summary><b>开发模式（热重载）</b></summary>
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+python scripts/docker_compose.py -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
 `deeptutor/`、`deeptutor_cli/`、`scripts/`、`web/` 变更会即时反映。
@@ -494,14 +490,16 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 <details>
 <summary><b>自定义端口</b></summary>
 
-`.env`：
+`data/user/settings/*.json`：
 
-```dotenv
-BACKEND_PORT=9001
-FRONTEND_PORT=4000
+```json
+{
+  "backend_port": 9001,
+  "frontend_port": 4000
+}
 ```
 
-重启 `docker compose up -d`（或 ghcr 编排文件）。
+重启 `python scripts/docker_compose.py up -d`（或 ghcr 编排文件）。
 
 </details>
 
@@ -514,52 +512,16 @@ FRONTEND_PORT=4000
 | `/app/data/memory` | `./data/memory` | 长期记忆（`SUMMARY.md`、`PROFILE.md`） |
 | `/app/data/knowledge_bases` | `./data/knowledge_bases` | 文档与向量索引 |
 
-`docker compose down` 后目录仍保留。
+`python scripts/docker_compose.py down` 后目录仍保留。
 
 </details>
 
 <details>
-<summary><b>环境变量参考</b></summary>
+<summary><b>Runtime settings / deployment overrides</b></summary>
 
-> 权威、带完整注释的列表见 [`.env.example`](../../.env.example)。下表列出多数用户会接触到的变量。
+Runtime settings live in `data/user/settings/*.json`; `model_catalog.json` is the source of truth for model, embedding, and search provider credentials. Non-model runtime settings live in `system.json`, `auth.json`, and `integrations.json`.
 
-| 变量 | 必填 | 说明 |
-|:---|:---:|:---|
-| `LLM_BINDING` | **是** | LLM 提供商（`openai`、`anthropic`、`deepseek` 等） |
-| `LLM_MODEL` | **是** | 模型名称（如 `gpt-4o`） |
-| `LLM_API_KEY` | **是** | LLM API 密钥 |
-| `LLM_HOST` | **是** | Chat Completions 基 URL |
-| `LLM_API_VERSION` | 否 | 使用 Azure OpenAI 时需要；否则留空 |
-| `LLM_REASONING_EFFORT` | 否 | DeepSeek 的 `high`/`max`/`minimal` 或 OpenAI o 系列的 `low`/`medium`/`high` |
-| `EMBEDDING_BINDING` | 仅知识库 | 嵌入提供商 |
-| `EMBEDDING_MODEL` | 仅知识库 | 嵌入模型名称 |
-| `EMBEDDING_API_KEY` | 仅知识库 | 嵌入 API 密钥 |
-| `EMBEDDING_HOST` | 仅知识库 | 嵌入端点完整 URL（v1.3.0+ 按原文请求，不自动追加路径） |
-| `EMBEDDING_DIMENSION` | 否 | 向量维度；留空则自动检测 |
-| `EMBEDDING_SEND_DIMENSIONS` | 否 | 三态：`true`/`false`/留空（自动） |
-| `SEARCH_PROVIDER` | 否 | `brave`、`tavily`、`serper`、`jina`、`perplexity`、`searxng`、`duckduckgo` |
-| `SEARCH_API_KEY` | 否 | 搜索 API 密钥 |
-| `SEARCH_BASE_URL` | 否 | 自建 SearXNG 时需要 |
-| `SEARCH_PROXY` | 否 | 出站搜索流量的可选 HTTP/HTTPS 代理 |
-| `BACKEND_PORT` | 否 | 后端端口（默认 `8001`） |
-| `FRONTEND_PORT` | 否 | 前端端口（默认 `3782`） |
-| `POCKETBASE_PORT` | 否 | 可选 PocketBase 侧车在 Docker 中的端口映射（默认 `8090`） |
-| `NEXT_PUBLIC_API_BASE_EXTERNAL` | 否 | 云端部署时对外可访问的后端 URL |
-| `NEXT_PUBLIC_API_BASE` | 否 | Next.js 客户端直连后端的 URL 覆盖 |
-| `CORS_ORIGIN` | 否 | 追加到 FastAPI CORS 允许列表的单个额外 Origin |
-| `CORS_ORIGINS` | 否 | 认证远程部署可用的逗号/换行分隔额外 Origins |
-| `DISABLE_SSL_VERIFY` | 否 | 关闭出站 TLS 校验（默认 `false`） |
-| `AUTH_ENABLED` | 否 | 为 `true` 时要求登录（默认 `false`） |
-| `NEXT_PUBLIC_AUTH_ENABLED` | 否 | 前端可选覆盖；留空则从 `AUTH_ENABLED` 推导 |
-| `AUTH_SECRET` | 否 | JWT 签名密钥；留空则在 `multi-user/_system/auth/auth_secret` 生成 |
-| `AUTH_TOKEN_EXPIRE_HOURS` | 否 | 会话时长（小时，默认 `24`） |
-| `AUTH_COOKIE_SECURE` | 否 | HTTPS 服务时将认证 Cookie 标为 `Secure`（默认 `false`） |
-| `AUTH_USERNAME` | 否 | 单用户模式：管理员用户名 |
-| `AUTH_PASSWORD_HASH` | 否 | 单用户模式：管理员密码的 bcrypt 哈希 |
-| `POCKETBASE_URL` | 否 | 设置后即启用 PocketBase 侧车（仅适合单用户，见上文警告） |
-| `POCKETBASE_ADMIN_EMAIL` / `POCKETBASE_ADMIN_PASSWORD` | 否 | Python 后端管理 PocketBase 集合的管理员凭据 |
-| `POCKETBASE_EXTERNAL_URL` | 否 | PocketBase 对外 URL，用于 OAuth 重定向（仅远程部署） |
-| `CHAT_ATTACHMENT_DIR` | 否 | 聊天附件存储根目录覆盖 |
+Docker startup is JSON-driven via `scripts/docker_compose.py`; use `data/user/settings/*.json` rather than the project-root `.env` or legacy `BACKEND_PORT` / `FRONTEND_PORT` variables.
 
 </details>
 
@@ -576,7 +538,7 @@ python -m pip install -e ".[cli]"
 仍需配置 LLM 提供商，最快方式：
 
 ```bash
-cp .env.example .env   # 然后编辑 .env 填入 API 密钥
+python scripts/start_tour.py
 ```
 
 配置完成后即可使用：
@@ -840,22 +802,12 @@ deeptutor session open <id>                         # 在 REPL 中恢复
 
 **快速开始（5 步）：**
 
-```bash
-# 1. 在项目根目录 .env 中启用认证。
-echo 'AUTH_ENABLED=true' >> .env
-# 可选 — JWT 签名密钥；留空则首次启动时可自动生成。
-echo 'AUTH_SECRET=<粘贴 64 位以上随机字符>' >> .env
-
-# 2. 重启 Web 栈 — start_web.py 会将 AUTH_ENABLED 同步到前端。
-python scripts/start_web.py
-
-# 3. 打开 http://localhost:3782/register 创建首个账号。
-#    首次注册是唯一公开的注册；该用户成为管理员，
-#    此后 /register 端点会自动关闭。
-
-# 4. 以管理员身份进入 /admin/users →「添加用户」为同伴开通账号。
-
-# 5. 对每个用户点击滑块图标 → 分配 LLM 配置、知识库与 Skills → 保存。用户即可登录使用。
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 **管理员可见：**
@@ -890,19 +842,13 @@ multi-user/
     └── knowledge_bases/...
 ```
 
-**配置参考：**
+**Configuration reference:**
 
-| Variable | Required | Description |
-|:---|:---|:---|
-| `AUTH_ENABLED` | 是 | `true` 启用多用户；默认 `false`（单用户，全局管理员路径）。 |
-| `AUTH_SECRET` | 建议 | JWT 密钥；空则写入 `multi-user/_system/auth/auth_secret`。 |
-| `AUTH_TOKEN_EXPIRE_HOURS` | 否 | 默认 24 小时。 |
-| `AUTH_USERNAME` / `AUTH_PASSWORD_HASH` | 否 | 单用户回退（遗留）；多用户时请留空。 |
-| `NEXT_PUBLIC_AUTH_ENABLED` | 自动 | `start_web.py` 从 `AUTH_ENABLED` 镜像，供 Next 中间件跳转 `/login`。 |
+Runtime settings live in `data/user/settings/*.json`. For headless single-user bootstrap, set `username` and `password_hash` in `auth.json`; for multi-user registration, leave those blank and use the identity store.
 
-> ⚠️ **PocketBase（`POCKETBASE_URL`）仍为单用户场景**，原因同上：无 `role`、查询未按 `user_id`。**多用户请勿启用 PocketBase**，使用默认 JSON/SQLite。
+> ⚠️ **PocketBase（`integrations.pocketbase_url`）仍为单用户场景**，原因同上：无 `role`、查询未按 `user_id`。**多用户请勿启用 PocketBase**，使用默认 JSON/SQLite。
 
-> ⚠️ **建议单进程**。首位管理员晋升由进程内 `threading.Lock` 保护。多 Worker 环境请离线创建首位管理员（先 `AUTH_ENABLED=false` 完成引导再开启），或使用外部用户存储。
+> ⚠️ **建议单进程**。首位管理员晋升由进程内 `threading.Lock` 保护。多 Worker 环境请离线创建首位管理员（先 `auth.enabled=false` 完成引导再开启），或使用外部用户存储。
 
 <a id="roadmap"></a>
 ## 🗺️ 路线图

@@ -404,7 +404,7 @@ class TurnRuntimeManager:
         else:
             # Non-admin users MUST end up with a concrete llm_selection so we
             # never silently fall through to the global LLM client (which is
-            # configured from admin's .env). Admin keeps the existing behavior
+            # configured from admin runtime settings). Admin keeps the existing behavior
             # (None llm_selection → default config from admin scope).
             from deeptutor.multi_user.context import get_current_user
             from deeptutor.multi_user.model_access import redacted_model_access

@@ -178,7 +178,7 @@ class KnowledgeBaseManager:
         self.config_file = self.base_dir / "kb_config.json"
         self.config = self._load_config()
 
-        # PocketBase sync — enabled when POCKETBASE_URL is set.
+        # PocketBase sync — enabled when integrations.pocketbase_url is set.
         # The local JSON file stays the source of truth; PocketBase gets a
         # mirrored copy for admin-panel visibility and future multi-user access.
         from deeptutor.services.pocketbase_client import is_pocketbase_enabled

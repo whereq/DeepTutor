@@ -25,6 +25,8 @@ data/user/
 from pathlib import Path
 from typing import Literal, cast
 
+from deeptutor.runtime.home import PACKAGE_ROOT, get_runtime_data_root
+
 AgentModule = Literal[
     "solve",
     "chat",
@@ -76,9 +78,10 @@ class PathService:
     _PRIVATE_SUFFIXES = {".json", ".sqlite", ".db", ".md", ".yaml", ".yml", ".py", ".log"}
 
     def __init__(self, workspace_root: Path | None = None):
-        self._project_root = Path(__file__).resolve().parent.parent.parent
+        self._package_root = PACKAGE_ROOT
         self._uses_default_workspace_root = workspace_root is None
-        self._workspace_root = (workspace_root or self._project_root / "data").resolve()
+        self._workspace_root = (workspace_root or get_runtime_data_root()).resolve()
+        self._project_root = self._workspace_root.parent.resolve()
         self._user_data_dir = (self._workspace_root / "user").resolve()
 
     @classmethod
@@ -101,9 +104,11 @@ class PathService:
 
     @property
     def workspace_root(self) -> Path:
-        if self._uses_default_workspace_root:
-            return (self._project_root / "data").resolve()
         return self._workspace_root
+
+    @property
+    def package_root(self) -> Path:
+        return self._package_root
 
     def get_user_root(self) -> Path:
         return self._user_data_dir

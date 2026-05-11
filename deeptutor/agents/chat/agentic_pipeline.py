@@ -6,7 +6,6 @@ import asyncio
 from dataclasses import asdict, dataclass
 import json
 import logging
-import os
 from typing import Any
 
 import httpx
@@ -21,7 +20,7 @@ from deeptutor.core.trace import (
     new_call_id,
 )
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
-from deeptutor.services.config import get_chat_params
+from deeptutor.services.config import get_chat_params, load_system_settings
 from deeptutor.services.llm import (
     clean_thinking_tags,
     get_llm_config,
@@ -1024,7 +1023,7 @@ class AgenticChatPipeline:
 
     def _build_openai_client(self):
         http_client = None
-        if os.getenv("DISABLE_SSL_VERIFY", "").lower() in ("true", "1", "yes"):
+        if load_system_settings()["disable_ssl_verify"]:
             http_client = httpx.AsyncClient(verify=False)  # nosec B501
 
         default_headers = self.extra_headers or None

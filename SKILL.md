@@ -15,8 +15,8 @@ Use this skill when the user wants to:
 ## Prerequisites
 
 - Python 3.11+
-- DeepTutor installed: `pip install -e ".[cli]"` (CLI + RAG + providers) or `pip install -e ".[server]"` (adds web/API)
-- Run `python scripts/start_tour.py` for first-time interactive setup (configures LLM, embedding, search providers and writes `.env`)
+- DeepTutor installed: `pip install deeptutor` for the full Web app, `pip install deeptutor-cli` for CLI-only, or `pip install -e .` from a source checkout
+- Run `deeptutor init` for first-time interactive setup (configures LLM, embedding, and search providers under `data/user/settings`)
 
 ## Commands
 
@@ -127,8 +127,8 @@ Inside `deeptutor chat`, use these:
 **First-time setup:**
 ```bash
 cd DeepTutor
-pip install -e ".[server]"
-python scripts/start_tour.py    # Interactive guided setup
+pip install -e .
+deeptutor init    # Interactive guided setup
 ```
 
 **Daily learning:**

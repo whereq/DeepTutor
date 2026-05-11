@@ -30,13 +30,13 @@ def get_session_store() -> SessionStoreProtocol:
     """
     Return the active session store backend.
 
-    When POCKETBASE_URL is set in the environment, returns a
+    When integrations.pocketbase_url is configured, returns a
     PocketBaseSessionStore. Otherwise falls back to the local
     SQLiteSessionStore (default, zero-config behaviour).
     """
-    import os
+    from deeptutor.services.pocketbase_client import is_pocketbase_enabled
 
-    if os.getenv("POCKETBASE_URL"):
+    if is_pocketbase_enabled():
         from .pocketbase_store import PocketBaseSessionStore
 
         return PocketBaseSessionStore()

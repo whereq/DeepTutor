@@ -11,18 +11,20 @@ import threading
 from typing import Any
 from uuid import uuid4
 
+from deeptutor.runtime.home import get_runtime_home
+
 from .models import Role
 
 logger = logging.getLogger(__name__)
 
 # Serialises writes to USERS_FILE so a concurrent burst of /register requests
 # cannot all see ``not users`` and each promote themselves to admin. Single-
-# process FastAPI deployments (the start_web.py launcher) are fully covered;
+# process FastAPI deployments (the ``deeptutor start`` launcher) are fully covered;
 # multi-worker deployments still race and must rely on an external user store
 # (e.g. PocketBase), which is documented in the multi-user README.
 _USERS_WRITE_LOCK = threading.Lock()
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = get_runtime_home()
 MULTI_USER_ROOT = PROJECT_ROOT / "multi-user"
 SYSTEM_ROOT = MULTI_USER_ROOT / "_system"
 AUTH_DIR = SYSTEM_ROOT / "auth"
@@ -254,7 +256,7 @@ def load_or_create_auth_secret() -> str:
         except OSError:
             pass
         logger.warning(
-            "AUTH_ENABLED=true but AUTH_SECRET is not set. Generated a stable local secret at %s.",
+            "Auth is enabled and no auth_secret file exists. Generated a stable local secret at %s.",
             SECRET_FILE,
         )
         return generated

@@ -147,7 +147,7 @@ Au moins une **clé API** LLM. Le Setup Tour guide la saisie.
 
 ### Option A — Setup Tour (recommandé)
 
-Assistant CLI pour première installation web : environnement, dépendances Python/Node, `.env`, options TutorBot/Matrix/Math Animator. Commandes identiques au [README anglais](../../README.md) : clone, `venv`/PowerShell/Conda, puis `python scripts/start_tour.py`, puis `python scripts/start_web.py`. Mise à jour : `python scripts/update.py`.
+Assistant CLI pour première installation web : environnement, dépendances Python/Node, `data/user/settings/*.json`, options TutorBot/Matrix/Math Animator. Commandes identiques au [README anglais](../../README.md) : clone, `venv`/PowerShell/Conda, puis `python scripts/start_tour.py`, puis `python scripts/start_web.py`. Mise à jour : `python scripts/update.py`.
 
 <a id="option-b--manual-local-install"></a>
 ### Option B — Installation locale manuelle
@@ -155,18 +155,18 @@ Assistant CLI pour première installation web : environnement, dépendances Pyth
 ```bash
 python -m pip install -e ".[server]"
 cd web && npm install && cd ..
-cp .env.example .env
+python scripts/start_tour.py
 ```
 
 Extras : `.[tutorbot]`, `.[tutorbot,matrix]`, `.[math-animator]`, `.[all]`. Node **20.9+**.
 
-Exemple `.env` (LLM requis ; embeddings pour les KB) — voir [README anglais](../../README.md) pour les tableaux complets des fournisseurs.
+Exemple `data/user/settings/*.json` (LLM requis ; embeddings pour les KB) — voir [README anglais](../../README.md) pour les tableaux complets des fournisseurs.
 
 Démarrage : `python scripts/start_web.py` ou `python -m deeptutor.api.run_server` + `cd web && npm run dev -- -p 3782`. Ports **8001** / **3782**.
 
 ### Option C — Docker
 
-`docker compose -f docker-compose.ghcr.yml up -d` ou `docker compose up -d`. Variable distante `NEXT_PUBLIC_API_BASE_EXTERNAL`. Détails auth/PocketBase identiques à la version anglaise ; multi-tenant : [Multi-utilisateur](#multi-user).
+`python scripts/docker_compose.py -f docker-compose.ghcr.yml up -d` ou `python scripts/docker_compose.py up -d`. Variable distante `system.next_public_api_base_external`. Détails auth/PocketBase identiques à la version anglaise ; multi-tenant : [Multi-utilisateur](#multi-user).
 
 ### Option D — CLI seule
 
@@ -230,15 +230,15 @@ Référence complète des sous-commandes : [README anglais](../../README.md).
 Activez l’auth pour un déploiement multi-locataire : premier inscrit = admin ; comptes suivants sur invitation. Ressources (LLM, KB, skills) attribuées par l’admin.
 
 ```bash
-echo 'AUTH_ENABLED=true' >> .env
-echo 'AUTH_SECRET=<64+ caractères aléatoires>' >> .env
+# Set auth.json enabled=true
+# JWT secret is stored in multi-user/_system/auth/auth_secret
 python scripts/start_web.py
 # http://localhost:3782/register puis /admin/users
 ```
 
 Admin : `/settings` complet, gestion utilisateurs, grants (IDs logiques uniquement), audit `multi-user/_system/audit/usage.jsonl`. Utilisateur : arborescence `multi-user/<uid>/`, ressources assignées en lecture seule, réglages sans secrets, modèle imposé sans repli silencieux.
 
-> ⚠️ **PocketBase** (`POCKETBASE_URL`) : **mono-utilisateur** pour l’instant — pas de champ `role`, pas de filtre `user_id`. Multi-utilisateur : laissez `POCKETBASE_URL` vide.
+> ⚠️ **PocketBase** (`integrations.pocketbase_url`) : **mono-utilisateur** pour l’instant — pas de champ `role`, pas de filtre `user_id`. Multi-utilisateur : laissez `integrations.pocketbase_url` vide.
 
 > ⚠️ **Processus unique recommandé** pour la promotion du premier admin ; plusieurs workers : provisionnement hors ligne ou stockage externe.
 

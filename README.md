@@ -125,30 +125,55 @@
 - **Persistent Memory** — DeepTutor builds a living profile of you: what you've studied, how you learn, and where you're heading. Shared across all features and TutorBots, it gets sharper with every interaction.
 - **Personal TutorBots** — Not chatbots — autonomous tutors. Each TutorBot lives in its own workspace with its own memory, personality, and skill set. They set reminders, learn new abilities, and evolve as you grow. Powered by [nanobot](https://github.com/HKUDS/nanobot).
 - **Agent-Native CLI** — Every capability, knowledge base, session, and TutorBot is one command away. Rich terminal output for humans, structured JSON for AI agents and pipelines. Hand DeepTutor a [`SKILL.md`](SKILL.md) and your agents can operate it autonomously.
-- **Optional Authentication** — Disabled by default for local use. Flip two env vars to require login when hosting publicly. Multi-user support with bcrypt-hashed passwords, JWT sessions, a self-service registration page, and a built-in admin dashboard for managing accounts and roles. Optionally back auth and storage with **PocketBase** for OAuth-ready authentication and improved multi-user concurrency — drops in as an optional sidecar with no code changes required.
+- **Optional Authentication** — Disabled by default for local use. Set `data/user/settings/auth.json` to require login when hosting publicly. Multi-user support with bcrypt-hashed passwords, JWT sessions, a self-service registration page, and a built-in admin dashboard for managing accounts and roles. Optionally back auth and storage with **PocketBase** for OAuth-ready authentication and improved multi-user concurrency — drops in as an optional sidecar with no code changes required.
 
 ---
 
 ## 🚀 Get Started
 
-### Prerequisites
+DeepTutor now has four parallel installation paths. All of them use the same runtime configuration layout:
 
-Before you begin, make sure the following are installed on your system:
+- Settings live in `data/user/settings/` under your current workspace, or under `DEEPTUTOR_HOME` / `deeptutor start --home` when you choose one explicitly.
+- `model_catalog.json` stores model provider profiles, base URLs, API keys, active models, embedding settings, and search settings.
+- `system.json` stores launch ports, public API base, CORS, TLS, and attachment options.
+- `auth.json` stores the optional auth toggle and bootstrap credential hash.
+- `integrations.json` stores optional sidecars such as PocketBase.
+- Project-root `.env` is no longer used as an application configuration file.
 
-| Requirement | Version | Check | Notes |
-|:---|:---|:---|:---|
-| [Git](https://git-scm.com/) | Any | `git --version` | For cloning the repository |
-| [Python](https://www.python.org/downloads/) | 3.11+ | `python --version` | Backend runtime |
-| [Node.js](https://nodejs.org/) | 20.9+ | `node --version` | Frontend runtime for local Web installs |
-| [npm](https://www.npmjs.com/) | Bundled with Node.js | `npm --version` | Installed with Node.js |
+For the full local app, the recommended order is **choose a workspace → install → `deeptutor init` → `deeptutor start`**. `deeptutor start` can backfill missing default files as a safety net, but normal first-run setup should go through `deeptutor init` so ports and model settings are explicit before the Web app starts.
 
-> **Windows only (missing compiler fix):** If you do not have Visual Studio, install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and ensure the **Desktop development with C++** workload is selected.
+### Option 1 — Install DeepTutor
 
-You'll also need an **API key** from at least one LLM provider (e.g. [OpenAI](https://platform.openai.com/api-keys), [DeepSeek](https://platform.deepseek.com/), [Anthropic](https://console.anthropic.com/)). The Setup Tour will walk you through entering it.
+Use this when you want the full local Web app and CLI without cloning the repository.
 
-### Option A — Setup Tour (Recommended)
+```bash
+mkdir -p my-deeptutor
+cd my-deeptutor
+pip install -U deeptutor
+deeptutor init
+deeptutor start
+```
 
-A guided CLI wizard for first-time local Web setup. It checks your environment, installs Python and Node.js dependencies, writes `.env`, and lets you choose optional add-ons such as TutorBot, Matrix, and Math Animator.
+`deeptutor init` writes configuration under `data/user/settings/` in the directory where you run it. It prompts for:
+
+- Backend port, default `8001`
+- Frontend port, default `3782`
+- LLM provider binding, base URL, API key, and model name
+- Optional embedding provider for Knowledge Base / RAG
+
+After `deeptutor start`, open the frontend URL printed in the terminal. With default ports, that URL is [http://127.0.0.1:3782](http://127.0.0.1:3782). If you changed `frontend_port` during `deeptutor init` or later edited `data/user/settings/system.json`, use that configured port instead.
+
+Keep the `deeptutor start` terminal open. Press `Ctrl+C` in that terminal to stop both backend and frontend.
+
+Notes:
+
+- `deeptutor start` starts the FastAPI backend and the packaged Next.js frontend together.
+- The packaged Web app does not require `git clone` or `npm install`, but it still needs a local Node.js 20+ runtime to execute the bundled Next.js standalone server.
+- If you deliberately skip `deeptutor init` for a quick trial, the app starts with safe default ports and empty model settings; configure models afterward in **Settings → Models**.
+
+### Option 2 — Install From Source
+
+Use this when you are developing DeepTutor or want to run directly from a checkout.
 
 **1. Clone the repository**
 
@@ -157,9 +182,7 @@ git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 ```
 
-**2. Create and activate a Python environment**
-
-Pick **one** of the following based on your system.
+**2. Create a Python environment**
 
 macOS / Linux with `venv`:
 
@@ -177,7 +200,7 @@ py -3.11 -m venv .venv
 python -m pip install --upgrade pip
 ```
 
-Anaconda / Miniconda:
+Conda / Miniconda:
 
 ```bash
 conda create -n deeptutor python=3.11
@@ -185,459 +208,136 @@ conda activate deeptutor
 python -m pip install --upgrade pip
 ```
 
-**3. Launch the guided tour**
+**3. Install the local package and frontend dependencies**
 
 ```bash
-python scripts/start_tour.py
-```
-
-During the install step, the tour asks which dependency profile you want:
-
-| Choice | What it installs | When to choose it |
-|:---|:---|:---|
-| Web app (recommended) | CLI + API server + RAG/document parsing | Most first-time users |
-| Web + TutorBot | Adds TutorBot engine and common channel SDKs | If you want autonomous tutor bots or channel integrations |
-| Web + TutorBot + Matrix | Adds Matrix / Element channel support without E2EE | If you need Matrix/Element rooms; install `matrix-e2e` only for encrypted rooms |
-| Math Animator add-on | Installs Manim separately | Only if you need animation generation and have LaTeX/ffmpeg/system build tools ready |
-
-Once the wizard finishes:
-
-```bash
-python scripts/start_web.py
-```
-
-> **Daily launch** — The tour is only needed once. From now on, keep that Python environment activated and run `python scripts/start_web.py` to boot both the backend and frontend. The frontend URL is printed in the terminal. Re-run `start_tour.py` only if you want to reconfigure providers, change ports, or install optional add-ons.
-
-> **Updating a local install** — If you installed with Option A or Option B from a git clone, run `python scripts/update.py`. The updater fetches the remote for your current branch, shows the local-vs-remote commit gap, asks you to confirm the detected branch mapping, then performs a safe fast-forward pull.
-
-### Option B — Manual Local Install
-
-Use this path if you prefer to run each setup command yourself.
-
-**1. Clone the repository**
-
-```bash
-git clone https://github.com/HKUDS/DeepTutor.git
-cd DeepTutor
-```
-
-**2. Create and activate a Python environment**
-
-Pick **one** of the following.
-
-macOS / Linux with `venv`:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-```
-
-Windows PowerShell with `venv`:
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-```
-
-Anaconda / Miniconda:
-
-```bash
-conda create -n deeptutor python=3.11
-conda activate deeptutor
-python -m pip install --upgrade pip
-```
-
-**3. Install dependencies**
-
-```bash
-# Backend + Web server dependencies. Includes CLI, RAG, document parsing,
-# and built-in LLM provider SDKs.
-python -m pip install -e ".[server]"
-
-# Optional add-ons — install only the ones you need:
-#   python -m pip install -e ".[tutorbot]"       # TutorBot engine + channel SDKs
-#   python -m pip install -e ".[tutorbot,matrix]" # TutorBot + Matrix channel without E2EE/libolm
-#   python -m pip install -e ".[matrix-e2e]"      # Optional encrypted Matrix rooms; requires libolm
-#   python -m pip install -e ".[math-animator]"  # Manim; also requires LaTeX/ffmpeg/system build tools
-#   python -m pip install -e ".[all]"            # Everything above + dev tools
-
-# Frontend dependencies. Requires Node.js 20.9+.
+pip install -e .
 cd web
 npm install
 cd ..
 ```
 
-**4. Configure environment**
+**4. Configure and start**
 
 ```bash
-cp .env.example .env
+deeptutor init
+deeptutor start
 ```
 
-Edit `.env` and fill in at least the LLM fields. Embedding fields are needed for Knowledge Base features and can be left for later if you only want to try chat first.
+Source installs use the local `web/` directory for the frontend. They are intentionally developer-friendly and do not write configuration to `.env`; edit `data/user/settings/*.json` or use the Web Settings page.
 
-```dotenv
-# LLM (required for chat)
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
-LLM_API_KEY=sk-xxx
-LLM_HOST=https://api.openai.com/v1
-
-# Embedding (required for Knowledge Base / RAG)
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-3-large
-EMBEDDING_API_KEY=sk-xxx
-# v1.3.0+: use the full endpoint URL, not just https://api.openai.com/v1
-EMBEDDING_HOST=https://api.openai.com/v1/embeddings
-# Leave empty unless you need to force a specific dimension.
-EMBEDDING_DIMENSION=
-```
-
-<details>
-<summary><b>Supported LLM Providers</b></summary>
-
-| Provider | Binding | Default Base URL |
-|:--|:--|:--|
-| AiHubMix | `aihubmix` | `https://aihubmix.com/v1` |
-| Anthropic | `anthropic` | `https://api.anthropic.com/v1` |
-| Azure OpenAI | `azure_openai` | — |
-| BytePlus | `byteplus` | `https://ark.ap-southeast.bytepluses.com/api/v3` |
-| BytePlus Coding Plan | `byteplus_coding_plan` | `https://ark.ap-southeast.bytepluses.com/api/coding/v3` |
-| Custom | `custom` | — |
-| Custom (Anthropic API) | `custom_anthropic` | — |
-| DashScope | `dashscope` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| DeepSeek | `deepseek` | `https://api.deepseek.com` |
-| Gemini | `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
-| GitHub Copilot | `github_copilot` | `https://api.githubcopilot.com` |
-| Groq | `groq` | `https://api.groq.com/openai/v1` |
-| llama.cpp | `llama_cpp` | `http://localhost:8080/v1` |
-| LM Studio | `lm_studio` | `http://localhost:1234/v1` |
-| MiniMax | `minimax` | `https://api.minimaxi.com/v1` |
-| MiniMax (Anthropic) | `minimax_anthropic` | `https://api.minimaxi.com/anthropic` |
-| Mistral | `mistral` | `https://api.mistral.ai/v1` |
-| Moonshot | `moonshot` | `https://api.moonshot.cn/v1` |
-| NVIDIA NIM | `nvidia_nim` | `https://integrate.api.nvidia.com/v1` |
-| Ollama | `ollama` | `http://localhost:11434/v1` |
-| OpenAI | `openai` | `https://api.openai.com/v1` |
-| OpenAI Codex | `openai_codex` | `https://chatgpt.com/backend-api` |
-| OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
-| OpenVINO Model Server | `ovms` | `http://localhost:8000/v3` |
-| Qianfan | `qianfan` | `https://qianfan.baidubce.com/v2` |
-| SiliconFlow | `siliconflow` | `https://api.siliconflow.cn/v1` |
-| Step Fun | `stepfun` | `https://api.stepfun.com/v1` |
-| vLLM/Local | `vllm` | — |
-| VolcEngine | `volcengine` | `https://ark.cn-beijing.volces.com/api/v3` |
-| VolcEngine Coding Plan | `volcengine_coding_plan` | `https://ark.cn-beijing.volces.com/api/coding/v3` |
-| Xiaomi MIMO | `xiaomi_mimo` | `https://api.xiaomimimo.com/v1` |
-| Zhipu AI | `zhipu` | `https://open.bigmodel.cn/api/paas/v4` |
-
-</details>
-
-<details>
-<summary><b>Supported Embedding Providers</b></summary>
-
-| Provider | Binding | Model Example | Default Dim |
-|:--|:--|:--|:--|
-| OpenAI | `openai` | `text-embedding-3-large` | 3072 |
-| Azure OpenAI | `azure_openai` | deployment name | — |
-| Cohere | `cohere` | `embed-v4.0` | 1024 |
-| Jina | `jina` | `jina-embeddings-v3` | 1024 |
-| Ollama | `ollama` | `nomic-embed-text` | 768 |
-| vLLM / LM Studio | `vllm` | Any embedding model | — |
-| Any OpenAI-compatible | `custom` | — | — |
-
-OpenAI-compatible providers (DashScope, SiliconFlow, etc.) work via the `custom` or `openai` binding.
-
-</details>
-
-<details>
-<summary><b>Supported Web Search Providers</b></summary>
-
-| Provider | Env Key | Notes |
-|:--|:--|:--|
-| Brave | `BRAVE_API_KEY` | Recommended, free tier available |
-| Tavily | `TAVILY_API_KEY` | |
-| Serper | `SERPER_API_KEY` | Google Search results via Serper |
-| Jina | `JINA_API_KEY` | |
-| SearXNG | — | Self-hosted, no API key needed |
-| DuckDuckGo | — | No API key needed |
-| Perplexity | `PERPLEXITY_API_KEY` | Requires API key |
-
-</details>
-
-**5. Start services**
-
-The quickest way to launch everything:
+Useful developer extras:
 
 ```bash
-python scripts/start_web.py
+pip install -e ".[dev]"             # tests/lint tools
+pip install -e ".[tutorbot]"        # TutorBot engine + channel SDKs
+pip install -e ".[matrix]"          # Matrix channel without E2EE/libolm
+pip install -e ".[matrix-e2e]"      # Matrix E2EE; requires libolm
+pip install -e ".[math-animator]"   # Manim addon; requires LaTeX/ffmpeg/system libs
 ```
 
-This starts both the backend and frontend. Keep the terminal open, then open the frontend URL printed in the terminal.
+### Option 3 — Docker
 
-Alternatively, start each service manually in separate terminals:
+Use this when you want the full Web app in one container. Images are published to GitHub Container Registry:
+
+- `ghcr.io/hkuds/deeptutor:latest` — stable release
+- `ghcr.io/hkuds/deeptutor:pre` — pre-release, when available
 
 ```bash
-# Backend (FastAPI)
-python -m deeptutor.api.run_server
-
-# Frontend (Next.js) — in a separate terminal
-cd web && npm run dev -- -p 3782
+docker pull ghcr.io/hkuds/deeptutor:latest
+docker run -p 127.0.0.1:3782:3782 \
+  -p 127.0.0.1:8001:8001 \
+  -v deeptutor-data:/app/data \
+  ghcr.io/hkuds/deeptutor:latest
 ```
 
-| Service | Default Port |
-|:---:|:---:|
-| Backend | `8001` |
-| Frontend | `3782` |
+Then open [http://127.0.0.1:3782](http://127.0.0.1:3782). Config, API keys, logs, workspace files, memory, and knowledge bases are stored in the `deeptutor-data` volume under `/app/data`.
 
-Open [http://localhost:3782](http://localhost:3782) and you're ready to go.
+The container creates `/app/data/user/settings/*.json` automatically on first boot. You can configure model providers directly in the Web Settings page without preparing local JSON files manually.
 
-### Option C — Docker Deployment
+To use different host ports, change the left side of the `-p` mappings. For example, `-p 127.0.0.1:8088:3782` makes the Web UI available at `http://127.0.0.1:8088` while the container still listens on `3782`. If you change the container-side ports in `/app/data/user/settings/system.json`, restart the container and make the right side of each `-p host:container` mapping match the configured container port.
 
-Docker wraps the backend and frontend into a single container — no local Python or Node.js required. You only need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + Compose on Linux).
+#### Connecting To Ollama Or Other Host Services
 
-**1. Configure environment variables** (required for both options below)
+Inside a Docker container, `localhost` refers to the container itself, not your host machine. If you run Ollama, LM Studio, llama.cpp, vLLM, or another model service on the host, use one of these approaches.
+
+Option A — host gateway, recommended for normal Docker runs:
 
 ```bash
-git clone https://github.com/HKUDS/DeepTutor.git
-cd DeepTutor
-cp .env.example .env
+docker run -p 127.0.0.1:3782:3782 \
+  -p 127.0.0.1:8001:8001 \
+  --add-host=host.docker.internal:host-gateway \
+  -v deeptutor-data:/app/data \
+  ghcr.io/hkuds/deeptutor:latest
 ```
 
-Edit `.env` and fill in at least the required fields (same as [Option B](#option-b--manual-local-install) above).
+Then in **DeepTutor Settings → Models**, set the provider Base URL to `host.docker.internal`:
 
-**2a. Pull official image (recommended)**
+- Ollama LLM endpoint: `http://host.docker.internal:11434/v1`
+- Ollama embedding endpoint: `http://host.docker.internal:11434/api/embed`
+- LM Studio: `http://host.docker.internal:1234/v1`
+- llama.cpp: `http://host.docker.internal:8080/v1`
 
-Official images are published to [GitHub Container Registry](https://github.com/HKUDS/DeepTutor/pkgs/container/deeptutor) on every release, built for `linux/amd64` and `linux/arm64`.
+On Docker Desktop for macOS/Windows, `host.docker.internal` is usually available even without `--add-host`. On Linux, the `--add-host=host.docker.internal:host-gateway` flag is the portable way to create that hostname on modern Docker Engine.
+
+Option B — host networking, Linux only:
 
 ```bash
-docker compose -f docker-compose.ghcr.yml up -d
+docker run --network=host \
+  -v deeptutor-data:/app/data \
+  ghcr.io/hkuds/deeptutor:latest
 ```
 
-To pin a specific version, edit the image tag in `docker-compose.ghcr.yml`:
+No `-p` mapping is needed in host-network mode. The container shares the host network directly, so open [http://127.0.0.1:3782](http://127.0.0.1:3782) by default, or the `frontend_port` configured in `/app/data/user/settings/system.json`. In this mode, host services can usually be reached with normal localhost URLs such as `http://127.0.0.1:11434/v1`. Host networking exposes container ports directly on the host and may conflict with existing services.
 
-```yaml
-image: ghcr.io/hkuds/deeptutor:1.3.4  # or :latest
-```
+To stop a foreground Docker run, press `Ctrl+C`. If you started it detached with `-d`, run `docker stop <container-name-or-id>`.
 
-**2b. Build from source**
+### Option 4 — CLI Only
+
+Use this when you do not need the Web UI.
 
 ```bash
-docker compose up -d
+pip install -U deeptutor-cli
+deeptutor init --cli
+deeptutor chat
 ```
 
-This builds the image locally from `Dockerfile` and starts the container.
+`deeptutor init --cli` uses the same `data/user/settings/` layout as the full app, but changes the wizard behavior:
 
-**3. Verify & manage**
+- It skips backend/frontend port prompts because CLI-only usage does not start the Web app.
+- It still writes default `system.json`, `auth.json`, `integrations.json`, `model_catalog.json`, `main.yaml`, and `agents.yaml` so the runtime layout is complete.
+- It still prompts for the active LLM provider and model.
+- It asks whether to configure embeddings, but the default answer is `No`; choose `Yes` if you plan to use `deeptutor kb ...` or RAG tools.
 
-Open [http://localhost:3782](http://localhost:3782) once the container is healthy.
+Common CLI commands:
 
 ```bash
-docker compose logs -f   # tail logs
-docker compose down       # stop and remove container
+deeptutor chat
+deeptutor chat --capability deep_solve --tool rag --kb my-kb
+deeptutor run chat "Explain Fourier transform"
+deeptutor run deep_solve "Solve x^2 = 4" --tool rag --kb my-kb
+deeptutor kb create my-kb --doc textbook.pdf
+deeptutor kb list
+deeptutor memory show
 ```
 
-<details>
-<summary><b>Cloud / remote server deployment</b></summary>
+`deeptutor-cli` does not ship Web assets or server dependencies. If you later want the Web app, install the full package with `pip install -U deeptutor`, run `deeptutor init` if you want to add Web ports, and then run `deeptutor start` from the same workspace.
 
-When deploying to a remote server, the browser needs to know the public URL of the backend API. Add one more variable to your `.env`:
+### Configuration Reference
 
-```dotenv
-# Set to the public URL where the backend is reachable
-NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
-```
+The Web Settings page is the recommended editor, but the files are plain JSON/YAML and can be managed directly:
 
-The frontend startup script applies this value at runtime — no rebuild needed.
+| File | Purpose |
+|:---|:---|
+| `data/user/settings/model_catalog.json` | LLM, embedding, and search provider profiles; API keys; active models |
+| `data/user/settings/system.json` | Backend/frontend ports, public API base, CORS, SSL verification, attachment directory |
+| `data/user/settings/auth.json` | Optional auth toggle, username, password hash, token/cookie settings |
+| `data/user/settings/integrations.json` | Optional PocketBase and sidecar integration settings |
+| `data/user/settings/interface.json` | UI language/theme/sidebar preferences |
+| `data/user/settings/main.yaml` | Runtime behavior defaults and path injection |
+| `data/user/settings/agents.yaml` | Capability/tool temperature and token settings |
 
-</details>
-
-<details>
-<summary><b>Authentication (public deployments)</b></summary>
-
-Authentication is **disabled by default** — no login is required on localhost. For multi-tenant deployments (per-user workspaces, admin-curated models / KBs / skills, audit log), see the dedicated [Multi-User](#-multi-user--shared-deployments-with-per-user-workspaces) section below for the full setup, env-var reference, and operational caveats.
-
-**Headless single-user (no `/register` flow):** if you can't reach the browser to bootstrap the first admin (e.g. an unattended container), pre-seed the credential via env vars:
-
-```bash
-# Generate a bcrypt hash on any host with the project checked out:
-python -c "from deeptutor.services.auth import hash_password; print(hash_password('yourpassword'))"
-```
-
-```dotenv
-AUTH_ENABLED=true
-AUTH_USERNAME=admin
-AUTH_PASSWORD_HASH=<paste hash here>
-# Optional. Auto-generated under multi-user/_system/auth/auth_secret if blank.
-AUTH_SECRET=your-secret-here
-```
-
-This env-var path serves a single account and is treated as the admin. Once you run the browser registration flow, the on-disk store at `multi-user/_system/auth/users.json` takes priority and the env vars become a fallback.
-
-</details>
-
-<details>
-<summary><b>PocketBase sidecar (optional auth + storage)</b></summary>
-
-PocketBase is an optional lightweight backend that replaces the built-in SQLite/JSON auth and session storage. It adds OAuth-ready authentication, real-time subscriptions, and a visual admin panel — with zero changes required to switch back if you don't set `POCKETBASE_URL`.
-
-> ⚠️ **PocketBase mode is currently single-user only.** The default schema has no `role` field on `users` (every login resolves to `role=user`, so no admin can be created), and the session/message/turn queries are not filtered by `user_id`. Multi-user deployments should keep `POCKETBASE_URL` blank and use the default JSON/SQLite backend.
-
-**When to use it:** local single-user setups that want OAuth-ready auth and a visual admin panel without yet caring about per-user isolation.
-
-**Quick start (Docker Compose):**
-
-```bash
-# PocketBase starts automatically alongside DeepTutor when using docker compose
-docker compose up -d
-
-# 1. Open the admin panel and create your admin account
-open http://localhost:8090/_/
-
-# 2. Bootstrap collections (run once)
-pip install pocketbase
-python scripts/pb_setup.py
-
-# 3. Enable PocketBase in .env and restart
-```
-
-**Required `.env` additions:**
-
-```dotenv
-POCKETBASE_URL=http://localhost:8090          # or http://pocketbase:8090 inside Docker
-POCKETBASE_ADMIN_EMAIL=admin@example.com
-POCKETBASE_ADMIN_PASSWORD=your-admin-password
-```
-
-**devenv users:**
-
-```bash
-devenv up   # starts PocketBase on :8090 alongside backend and frontend
-```
-
-Leave `POCKETBASE_URL` unset (or remove it) to fall back to the built-in SQLite backend at any time — no data migration needed for new sessions.
-
-</details>
-
-<details>
-<summary><b>Development mode (hot-reload)</b></summary>
-
-Layer the dev override to mount source code and enable hot-reload for both services:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-```
-
-Changes to `deeptutor/`, `deeptutor_cli/`, `scripts/`, and `web/` are reflected immediately.
-
-</details>
-
-<details>
-<summary><b>Custom ports</b></summary>
-
-Override the default ports in `.env`:
-
-```dotenv
-BACKEND_PORT=9001
-FRONTEND_PORT=4000
-```
-
-Then restart:
-
-```bash
-docker compose up -d     # or docker compose -f docker-compose.ghcr.yml up -d
-```
-
-</details>
-
-<details>
-<summary><b>Data persistence</b></summary>
-
-User data and knowledge bases are persisted via Docker volumes mapped to local directories:
-
-| Container path | Host path | Content |
-|:---|:---|:---|
-| `/app/data/user` | `./data/user` | Settings, workspace, sessions, logs |
-| `/app/data/memory` | `./data/memory` | Shared long-term memory (`SUMMARY.md`, `PROFILE.md`) |
-| `/app/data/knowledge_bases` | `./data/knowledge_bases` | Uploaded documents & vector indices |
-
-These directories survive `docker compose down` and are reused on the next `docker compose up`.
-
-</details>
-
-<details>
-<summary><b>Environment variables reference</b></summary>
-
-> See [`.env.example`](.env.example) for the canonical, fully-commented list. The table below covers the variables most users touch.
-
-| Variable | Required | Description |
-|:---|:---:|:---|
-| `LLM_BINDING` | **Yes** | LLM provider (`openai`, `anthropic`, `deepseek`, etc.) |
-| `LLM_MODEL` | **Yes** | Model name (e.g. `gpt-4o`) |
-| `LLM_API_KEY` | **Yes** | Your LLM API key |
-| `LLM_HOST` | **Yes** | Chat-completions base URL |
-| `LLM_API_VERSION` | No | Required for Azure OpenAI; blank otherwise |
-| `LLM_REASONING_EFFORT` | No | DeepSeek `high`/`max`/`minimal` or OpenAI o-series `low`/`medium`/`high` |
-| `EMBEDDING_BINDING` | Knowledge Base only | Embedding provider |
-| `EMBEDDING_MODEL` | Knowledge Base only | Embedding model name |
-| `EMBEDDING_API_KEY` | Knowledge Base only | Embedding API key |
-| `EMBEDDING_HOST` | Knowledge Base only | Full embedding endpoint URL (v1.3.0+ — called verbatim, no path appended) |
-| `EMBEDDING_DIMENSION` | No | Vector dimension; leave empty for auto-detection |
-| `EMBEDDING_SEND_DIMENSIONS` | No | Tri-state — `true`/`false`/blank (auto) |
-| `SEARCH_PROVIDER` | No | `brave`, `tavily`, `serper`, `jina`, `perplexity`, `searxng`, `duckduckgo` |
-| `SEARCH_API_KEY` | No | Search API key |
-| `SEARCH_BASE_URL` | No | Required for self-hosted SearXNG |
-| `SEARCH_PROXY` | No | Optional HTTP/HTTPS proxy for outbound search traffic |
-| `BACKEND_PORT` | No | Backend port (default `8001`) |
-| `FRONTEND_PORT` | No | Frontend port (default `3782`) |
-| `POCKETBASE_PORT` | No | Docker port mapping for the optional PocketBase sidecar (default `8090`) |
-| `NEXT_PUBLIC_API_BASE_EXTERNAL` | No | Public backend URL for cloud deployment |
-| `NEXT_PUBLIC_API_BASE` | No | Direct backend URL override for the Next.js client |
-| `CORS_ORIGIN` | No | Single extra origin appended to the FastAPI CORS allowlist |
-| `CORS_ORIGINS` | No | Comma/newline-separated extra origins for authenticated remote deployments |
-| `DISABLE_SSL_VERIFY` | No | Disable outbound TLS verification (default `false`) |
-| `AUTH_ENABLED` | No | Require login when `true` (default `false`) |
-| `NEXT_PUBLIC_AUTH_ENABLED` | No | Optional frontend override; blank derives from `AUTH_ENABLED` |
-| `AUTH_SECRET` | No | JWT signing secret; generated under `multi-user/_system/auth/auth_secret` if blank |
-| `AUTH_TOKEN_EXPIRE_HOURS` | No | Session duration in hours (default `24`) |
-| `AUTH_COOKIE_SECURE` | No | Mark the auth cookie `Secure` when serving over HTTPS (default `false`) |
-| `AUTH_USERNAME` | No | Single-user mode: admin username |
-| `AUTH_PASSWORD_HASH` | No | Single-user mode: bcrypt hash of admin password |
-| `POCKETBASE_URL` | No | Enable the PocketBase sidecar by setting it (single-user only — see warning above) |
-| `POCKETBASE_ADMIN_EMAIL` / `POCKETBASE_ADMIN_PASSWORD` | No | Admin credentials for the Python backend to manage PocketBase collections |
-| `POCKETBASE_EXTERNAL_URL` | No | Public PocketBase URL for OAuth redirects (remote deployments only) |
-| `CHAT_ATTACHMENT_DIR` | No | Override for the chat attachment storage root |
-
-</details>
-
-### Option D — CLI Only
-
-If you just want the CLI without the web frontend:
-
-```bash
-# Includes RAG, document parsing, and all built-in LLM provider SDKs.
-# Same set as Option B minus FastAPI/uvicorn.
-python -m pip install -e ".[cli]"
-```
-
-You still need to configure your LLM provider. The quickest way:
-
-```bash
-cp .env.example .env   # then edit .env to fill in your API keys
-```
-
-Once configured, you're ready to go:
-
-```bash
-deeptutor chat                                   # Interactive REPL
-deeptutor run chat "Explain Fourier transform"   # One-shot capability
-deeptutor run deep_solve "Solve x^2 = 4"         # Multi-agent problem solving
-deeptutor kb create my-kb --doc textbook.pdf     # Build a knowledge base
-```
-
-> See [DeepTutor CLI](#%EF%B8%8F-deeptutor-cli--agent-native-interface) for the full feature guide and command reference.
-
----
+Minimal model setup can be done in the browser: open **Settings → Models**, add an LLM profile, set Base URL / API key / model name, and save. Add an embedding profile only if you plan to use Knowledge Base / RAG features.
 
 ## 📖 Explore DeepTutor
 
@@ -888,13 +588,11 @@ Flip on authentication and DeepTutor turns into a multi-tenant deployment with *
 **Quick start (5 steps):**
 
 ```bash
-# 1. In the project root .env, enable auth.
-echo 'AUTH_ENABLED=true' >> .env
-# Optional — JWT signing secret. Auto-generated on first boot if blank.
-echo 'AUTH_SECRET=<paste 64+ random characters>' >> .env
+# 1. Enable auth in data/user/settings/auth.json:
+#    {"enabled": true, "token_expire_hours": 24, "cookie_secure": false}
 
-# 2. Restart the web stack — start_web.py mirrors AUTH_ENABLED to the frontend.
-python scripts/start_web.py
+# 2. Restart the web stack.
+deeptutor start
 
 # 3. Open http://localhost:3782/register and create the first account.
 #    The first registration is the only public one; that user becomes admin
@@ -940,17 +638,17 @@ multi-user/
 
 **Configuration reference:**
 
-| Variable | Required | Description |
+| Setting | Required | Description |
 |:---|:---|:---|
-| `AUTH_ENABLED` | Yes | Set to `true` to enable multi-user auth. Default `false` (single-user mode — admin paths everywhere). |
-| `AUTH_SECRET` | Recommended | JWT signing secret. Auto-generated under `multi-user/_system/auth/auth_secret` if blank. |
-| `AUTH_TOKEN_EXPIRE_HOURS` | No | JWT lifetime; defaults to `24`. |
-| `AUTH_USERNAME` / `AUTH_PASSWORD_HASH` | No | Single-user fallback credentials (legacy env-var path). Leave blank when using multi-user. |
-| `NEXT_PUBLIC_AUTH_ENABLED` | Auto | Mirrored from `AUTH_ENABLED` by `start_web.py` so the Next.js middleware redirects unauthenticated requests to `/login`. |
+| `data/user/settings/auth.json: enabled` | Yes | Set to `true` to enable multi-user auth. Default `false` (single-user mode — admin paths everywhere). |
+| `multi-user/_system/auth/auth_secret` | Recommended | JWT signing secret. Auto-generated on first authenticated boot if missing. |
+| `data/user/settings/auth.json: token_expire_hours` | No | JWT lifetime; defaults to `24`. |
+| `data/user/settings/auth.json: username/password_hash` | No | Optional headless single-user bootstrap credential. Leave blank when using browser registration. |
+| `data/user/settings/system.json` | No | `deeptutor start` derives frontend auth flags and API base from runtime settings. |
 
-> ⚠️ **PocketBase mode (`POCKETBASE_URL` set) is single-user only.** The default PocketBase schema has no `role` field on `users` (every login resolves to `role=user`, no admin can be created), and `sessions` / `messages` / `turns` queries are not filtered by `user_id`. Multi-user deployments must keep `POCKETBASE_URL` blank and use the default JSON/SQLite backend.
+> ⚠️ **PocketBase mode (`integrations.pocketbase_url` set) is single-user only.** The default PocketBase schema has no `role` field on `users` (every login resolves to `role=user`, no admin can be created), and `sessions` / `messages` / `turns` queries are not filtered by `user_id`. Multi-user deployments must keep `integrations.pocketbase_url` blank and use the default JSON/SQLite backend.
 
-> ⚠️ **Single-process recommendation.** The first-user-becomes-admin promotion is protected by an in-process `threading.Lock`. Multi-worker deployments should provision the first admin offline (start with `AUTH_ENABLED=false`, register the admin via `python scripts/start_tour.py` or the bootstrap flow, then flip the flag) or back the user store with an external system.
+> ⚠️ **Single-process recommendation.** The first-user-becomes-admin promotion is protected by an in-process `threading.Lock`. Multi-worker deployments should provision the first admin offline (start with `auth.json.enabled=false`, register the admin via the bootstrap flow, then set `auth.json.enabled=true`) or back the user store with an external system.
 
 ## 🗺️ Roadmap
 

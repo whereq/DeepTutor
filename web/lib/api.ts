@@ -1,21 +1,20 @@
 // API configuration and utility functions
 
-// Get API base URL from environment variable.
-// The launcher injects NEXT_PUBLIC_API_BASE from the canonical project-root `.env`.
+// Get API base URL injected by the launcher from data/user/settings/system.json.
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE ||
   (() => {
     if (typeof window !== "undefined") {
       console.error("NEXT_PUBLIC_API_BASE is not set.");
       console.error(
-        "Please configure NEXT_PUBLIC_API_BASE in your environment and restart the application.",
+        "Please configure data/user/settings/system.json and restart the application.",
       );
       console.error(
         "Run python scripts/start_tour.py to rebuild your local setup if needed.",
       );
     }
     throw new Error(
-      "NEXT_PUBLIC_API_BASE is not configured. Please set it in your environment and restart.",
+      "NEXT_PUBLIC_API_BASE is not configured. Please update data/user/settings/system.json and restart.",
     );
   })();
 

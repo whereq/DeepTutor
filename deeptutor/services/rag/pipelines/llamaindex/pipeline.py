@@ -7,6 +7,8 @@ import json
 import logging
 from pathlib import Path
 import traceback
+
+from deeptutor.runtime.home import get_runtime_data_root
 from typing import Any, Callable, Dict, List, Optional
 
 from deeptutor.services.embedding import get_embedding_config
@@ -28,7 +30,7 @@ from .embedding_adapter import (
 from .errors import search_error_result
 
 DEFAULT_KB_BASE_DIR = str(
-    Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "data" / "knowledge_bases"
+    get_runtime_data_root() / "knowledge_bases"
 )
 
 SignatureProvider = Callable[[], EmbeddingSignature | None]

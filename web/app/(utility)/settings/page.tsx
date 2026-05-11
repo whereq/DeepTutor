@@ -938,7 +938,7 @@ function SettingsPageContent() {
       const payload = await response.json();
       setCatalog(payload.catalog);
       setDraft(cloneCatalog(payload.catalog));
-      setToast(t("Applied to .env"));
+      setToast(t("Applied to runtime settings"));
       const statusResponse = await apiFetch(apiUrl("/api/v1/system/status"));
       setStatus((await statusResponse.json()) as SystemStatus);
     } finally {

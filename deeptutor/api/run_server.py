@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 import sys
 
+from deeptutor.runtime.home import get_runtime_home
+
 # Windows: uvicorn defaults to SelectorEventLoop which does not support
 # asyncio.create_subprocess_exec.  Switch to ProactorEventLoop so that
 # child-process APIs (used by Math Animator renderer, etc.) work correctly.
@@ -26,15 +28,9 @@ if hasattr(sys.stderr, "reconfigure"):
 
 
 def main() -> None:
-    # Get project root directory
-    project_root = Path(__file__).parent.parent.parent
-
-    # Change to project root to ensure correct module imports
+    # Runtime workspace root owns data/user/settings and generated outputs.
+    project_root = get_runtime_home()
     os.chdir(str(project_root))
-
-    # Ensure project root is in Python path
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
 
     # Get port from configuration
     from deeptutor.logging import configure_logging

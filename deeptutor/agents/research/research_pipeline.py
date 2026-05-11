@@ -1284,13 +1284,9 @@ async def main():
     """Main function"""
     import argparse
 
-    from dotenv import load_dotenv
     import yaml
 
     from deeptutor.services.llm import get_llm_config
-
-    # Load environment variables
-    load_dotenv()
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="DR-in-KG 2.0 - Deep Research System")

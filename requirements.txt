@@ -7,9 +7,10 @@
 # Files under requirements/ mirror those extras for Docker/CI installs that
 # don't yet have access to pyproject.toml + source code.
 #
-# Preferred install (from a source clone):
-#   pip install -e ".[cli]"            # CLI (RAG + providers + document parsing)
-#   pip install -e ".[server]"         # CLI + FastAPI/uvicorn (Web/API)
+# Preferred installs:
+#   pip install deeptutor               # Full app (public wheel)
+#   pip install deeptutor-cli           # CLI-only public wheel
+#   pip install -e .                    # Source checkout
 #   pip install -e ".[tutorbot]"       # Server + TutorBot agent engine
 #   pip install -e ".[matrix]"         # Matrix channel for TutorBot (needs libolm)
 #   pip install -e ".[math-animator]"  # Manim animation engine (addon)

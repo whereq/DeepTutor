@@ -58,8 +58,9 @@ Extended features in `deeptutor/plugins/`:
 ## CLI Usage
 
 ```bash
-# Install CLI
-pip install -e ".[cli]"
+# Install full app or CLI-only
+pip install deeptutor
+# or: pip install deeptutor-cli
 
 # Run any capability (agent-first entry point)
 deeptutor run chat "Explain Fourier transform"
@@ -78,7 +79,7 @@ deeptutor kb create my-kb --doc textbook.pdf
 deeptutor plugin list
 deeptutor memory show
 
-# API server (requires .[server])
+# API server (included in `pip install deeptutor`)
 deeptutor serve --port 8001
 ```
 
@@ -141,15 +142,16 @@ class MyPlugin(BaseCapability):
 
 ## Dependency Layers
 
-Defined in `pyproject.toml` `[project.optional-dependencies]`. Mirrored as flat
-lists in `requirements/*.txt` for Docker/CI installs without source code.
+Public install paths and source extras are defined in `pyproject.toml`.
+Requirements files mirror the same dependency groups for Docker/CI installs.
 
 ```
-.[cli]            — CLI full (LLM + RAG + providers + document parsing)
-.[server]         — .[cli] + FastAPI/uvicorn (for Web/API)
-.[tutorbot]       — .[server] + TutorBot agent engine + channel SDKs
+pip install deeptutor      — Full app (CLI + Web/API + packaged Web assets)
+pip install deeptutor-cli  — CLI-only (LLM + RAG + providers + document parsing)
+pip install -e .           — Source install for development
+.[tutorbot]       — Full app + TutorBot agent engine + channel SDKs
 .[matrix]         — Matrix channel for TutorBot (matrix-nio[e2e]; needs libolm)
 .[math-animator]  — Manim addon (for `deeptutor animate`)
-.[dev]            — .[server] + test/lint tools
+.[dev]            — Full app + test/lint tools
 .[all]            — Everything above
 ```

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 import json
-import os
 import threading
 from threading import Lock
 import time
@@ -15,7 +13,6 @@ from deeptutor.services.llm.client import reset_llm_client
 from deeptutor.services.llm.config import clear_llm_config_cache
 
 from .context_window_detection import detect_context_window
-from .env_store import get_env_store
 from .model_catalog import get_model_catalog_service
 from .provider_runtime import (
     resolve_embedding_runtime_config,
@@ -30,21 +27,6 @@ def _redact(value: str) -> str:
     if len(value) <= 8:
         return "****"
     return f"{value[:4]}...{value[-4:]}"
-
-
-@contextmanager
-def temporary_env(values: dict[str, str]):
-    original: dict[str, str | None] = {key: os.environ.get(key) for key in values}
-    try:
-        for key, value in values.items():
-            os.environ[key] = value
-        yield
-    finally:
-        for key, original_value in original.items():
-            if original_value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = original_value
 
 
 @dataclass
@@ -101,7 +83,6 @@ class ConfigTestRunner:
 
     def _run_sync(self, run: TestRun, catalog: dict[str, Any]) -> None:
         try:
-            env_values = get_env_store().render_from_catalog(catalog)
             service = run.service
             profile = get_model_catalog_service().get_active_profile(catalog, service)
             model = get_model_catalog_service().get_active_model(catalog, service)
@@ -121,15 +102,14 @@ class ConfigTestRunner:
                     model=model,
                 )
 
-            with temporary_env(env_values):
-                if service == "llm":
-                    asyncio.run(self._test_llm(run, catalog))
-                elif service == "embedding":
-                    asyncio.run(self._test_embedding(run, model or {}, catalog))
-                elif service == "search":
-                    self._test_search(run, catalog)
-                else:
-                    raise ValueError(f"Unsupported service: {service}")
+            if service == "llm":
+                asyncio.run(self._test_llm(run, catalog))
+            elif service == "embedding":
+                asyncio.run(self._test_embedding(run, model or {}, catalog))
+            elif service == "search":
+                self._test_search(run, catalog)
+            else:
+                raise ValueError(f"Unsupported service: {service}")
             if not run.cancelled and run.status == "running":
                 run.status = "completed"
                 run.emit("completed", f"{service.upper()} test completed successfully.")
@@ -440,19 +420,19 @@ class ConfigTestRunner:
         from deeptutor.services.search import web_search
 
         resolved = resolve_search_runtime_config(catalog=catalog)
-        if not resolved.requested_provider:
+        if resolved.provider == "none":
             run.status = "completed"
             run.emit("completed", "Search skipped because no active provider is configured.")
             return
         if resolved.unsupported_provider:
             raise ValueError(
                 f"Search provider `{resolved.requested_provider}` is deprecated/unsupported. "
-                "Switch to brave/tavily/jina/searxng/duckduckgo/perplexity."
+                "Switch to none/brave/tavily/jina/searxng/duckduckgo/perplexity/serper."
             )
         if resolved.missing_credentials:
             raise ValueError(
                 f"Search provider `{resolved.requested_provider}` requires api_key. "
-                "Set profile.api_key or PERPLEXITY_API_KEY."
+                "Set profile.api_key in Settings > Catalog."
             )
         provider = resolved.provider
         run.emit("info", f"Resolved search provider `{provider}`.")
@@ -475,4 +455,4 @@ def get_config_test_runner() -> ConfigTestRunner:
     return ConfigTestRunner.get_instance()
 
 
-__all__ = ["ConfigTestRunner", "TestRun", "get_config_test_runner", "temporary_env"]
+__all__ = ["ConfigTestRunner", "TestRun", "get_config_test_runner"]

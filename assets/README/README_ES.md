@@ -147,7 +147,7 @@ Necesitas al menos una **API key** de un proveedor LLM. El Setup Tour ayuda a re
 
 ### Opción A — Setup Tour (recomendado)
 
-Asistente CLI para la primera instalación web local: entorno, dependencias Python/Node, `.env`, complementos TutorBot/Matrix/Math Animator.
+Asistente CLI para la primera instalación web local: entorno, dependencias Python/Node, `data/user/settings/*.json`, complementos TutorBot/Matrix/Math Animator.
 
 **1.** `git clone … && cd DeepTutor`
 
@@ -167,34 +167,30 @@ Luego: `python scripts/start_web.py`
 ```bash
 python -m pip install -e ".[server]"
 cd web && npm install && cd ..
-cp .env.example .env
+python scripts/start_tour.py
 ```
 
 Opcionales: `.[tutorbot]`, `.[tutorbot,matrix]`, `.[math-animator]`, `.[all]`. Node **20.9+**.
 
-Ejemplo mínimo de `.env` (LLM obligatorio; embeddings para KB):
+Ejemplo mínimo de `data/user/settings/*.json` (LLM obligatorio; embeddings para KB):
 
-```dotenv
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
-LLM_API_KEY=sk-xxx
-LLM_HOST=https://api.openai.com/v1
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-3-large
-EMBEDDING_API_KEY=sk-xxx
-EMBEDDING_HOST=https://api.openai.com/v1/embeddings
-EMBEDDING_DIMENSION=
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
-Tablas completas de proveedores LLM, embeddings y búsqueda web: véase el [README en inglés](../../README.md) o [`.env.example`](../../.env.example).
+Tablas completas de proveedores LLM, embeddings y búsqueda web: véase el [README en inglés](../../README.md) o [`README.md`](../../README.md).
 
 Arranque: `python scripts/start_web.py` o backend `python -m deeptutor.api.run_server` + frontend `cd web && npm run dev -- -p 3782`. Puertos por defecto **8001** / **3782**.
 
 ### Opción C — Docker
 
-`cp .env.example .env`, rellena como la opción B. Imagen GHCR: `docker compose -f docker-compose.ghcr.yml up -d`. Build local: `docker compose up -d`.
+`python scripts/start_tour.py`, rellena como la opción B. Imagen GHCR: `python scripts/docker_compose.py -f docker-compose.ghcr.yml up -d`. Build local: `python scripts/docker_compose.py up -d`.
 
-Remoto: `NEXT_PUBLIC_API_BASE_EXTERNAL`. Autenticación y PocketBase: mismos `<details>` que en inglés; despliegues multiusuario: sección [Multiusuario](#multi-user).
+Remoto: `system.next_public_api_base_external`. Autenticación y PocketBase: mismos `<details>` que en inglés; despliegues multiusuario: sección [Multiusuario](#multi-user).
 
 ### Opción D — Solo CLI
 
@@ -273,8 +269,8 @@ Capacidades, KB, sesiones, memoria y bots desde terminal; salida Rich o JSON. Re
 Al activar la autenticación, obtienes **espacios aislados por usuario** y **recursos curados por el administrador**. El primer registro es admin; el resto de cuentas es por invitación (`/admin/users`, API admin). Cada usuario solo ve LLM, KB y skills asignados.
 
 ```bash
-echo 'AUTH_ENABLED=true' >> .env
-echo 'AUTH_SECRET=<64+ caracteres aleatorios>' >> .env
+# Set auth.json enabled=true
+# JWT secret is stored in multi-user/_system/auth/auth_secret
 python scripts/start_web.py
 # http://localhost:3782/register — solo el primer registro es público
 # /admin/users → Añadir usuario → icono deslizante → asignar modelos, KB, skills
@@ -284,9 +280,7 @@ python scripts/start_web.py
 
 **Usuario:** árbol bajo `multi-user/<uid>/`, KB/skills asignados en solo lectura con insignia, ajustes redactados (sin claves ni URLs de proveedor), turnos de chat solo con modelo concedido (sin fallback silencioso).
 
-**Variables:** `AUTH_ENABLED`, `AUTH_SECRET`, `AUTH_TOKEN_EXPIRE_HOURS`, `NEXT_PUBLIC_AUTH_ENABLED` (reflejado por `start_web.py`), etc.
-
-> ⚠️ **PocketBase (`POCKETBASE_URL`) solo monousuario** — sin campo `role`, consultas sin filtrar por `user_id`. Para multiusuario deja `POCKETBASE_URL` vacío.
+> ⚠️ **PocketBase (`integrations.pocketbase_url`) solo monousuario** — sin campo `role`, consultas sin filtrar por `user_id`. Para multiusuario deja `integrations.pocketbase_url` vacío.
 
 > ⚠️ **Recomendado un solo proceso** para el primer admin; en varios workers crea el admin sin autenticación o usa almacén externo.
 

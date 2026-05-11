@@ -4,11 +4,11 @@
 # Mirrors pyproject.toml `[project.optional-dependencies].cli` plus core deps.
 # Keep in sync with pyproject.toml when adding/updating dependencies.
 #
-# Preferred install (from a source clone): pip install -e ".[cli]"
+# Public install: pip install deeptutor-cli
+# Source compatibility: pip install -e ".[cli]"
 # Use this file for Docker/CI when pyproject.toml/source code aren't yet available.
 
 # --- Config & templating ---
-python-dotenv>=1.0.0
 PyYAML>=6.0
 jinja2>=3.1.0
 

@@ -13,7 +13,7 @@ requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 dependencies = [
-    "python-dotenv>=1.0.0",
+    # Core runtime
     "PyYAML>=6.0",
     "jinja2>=3.1.0",
     "openai>=1.30.0",
@@ -30,14 +30,38 @@ dependencies = [
     "typer[all]>=0.9.0",
     "rich>=13.0.0",
     "prompt_toolkit>=3.0.36",
+    # Full app dependencies included by default for `pip install deeptutor`.
+    "anthropic>=0.30.0",
+    "dashscope>=1.14.0",
+    "perplexityai>=0.1.0",
+    "oauth-cli-kit>=0.1.1; python_version >= '3.11'",
+    "llama-index>=0.14.12",
+    "PyMuPDF>=1.26.0",
+    "numpy>=1.24.0,<3.0.0",
+    "arxiv>=2.0.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "python-pptx>=1.0.0",
+    "pypdf>=4.0.0",
+    "defusedxml>=0.7.1",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.24.0",
+    "websockets>=12.0",
+    "python-multipart>=0.0.6",
+    "bcrypt>=4.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "pocketbase>=0.12.0",
+    "loguru>=0.7.3,<1.0.0",
+    "json-repair>=0.57.0,<1.0.0",
 ]
 
 [project.scripts]
 deeptutor = "deeptutor_cli.main:main"
 
 [project.optional-dependencies]
-# Full CLI: RAG (LlamaIndex), document parsing, and LLM provider SDKs.
-# Mirrors requirements/cli.txt — keep in sync.
+# Compatibility extra for source installs and older docs. These packages are
+# already included in the public `deeptutor` wheel; the separate public
+# `deeptutor-cli` distribution uses the same list without Web assets/server deps.
 cli = [
     # LLM provider SDKs
     "anthropic>=0.30.0",
@@ -57,9 +81,8 @@ cli = [
     "defusedxml>=0.7.1",
 ]
 
-# Web/API server (CLI + FastAPI). Mirrors requirements/server.txt.
-# loguru / json-repair live here (not in [tutorbot]) because provider_core
-# imports them unconditionally — needed by every server install path.
+# Compatibility extra for source installs and older docs. These packages are
+# already included in the public `deeptutor` wheel.
 server = [
     "deeptutor[cli]",
     "fastapi>=0.100.0",
@@ -137,6 +160,9 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["deeptutor*", "deeptutor_cli*"]
+
+[tool.setuptools.package-data]
+deeptutor_web = ["**/*", ".next/**/*"]
 
 # ============================================
 # Black code formatter configuration

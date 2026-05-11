@@ -4,12 +4,14 @@
 # This Dockerfile builds a production-ready image for DeepTutor
 # containing both the FastAPI backend and Next.js frontend
 #
-# Build: docker compose build
-# Run:   docker compose up -d
+# Build/run:
+#   docker build -t deeptutor:local .
+#   docker run -p 127.0.0.1:3782:3782 -p 127.0.0.1:8001:8001 \
+#     -v deeptutor-data:/app/data deeptutor:local
 #
 # Prerequisites:
-#   1. Copy .env.example to .env and configure your API keys
-#   2. Runtime settings are created under data/user/settings on first start
+#   1. Runtime settings are created under data/user/settings on first start
+#   2. Configure provider profiles from the web Settings page or model_catalog.json
 # ============================================
 
 # ============================================
@@ -21,9 +23,6 @@
 FROM --platform=$BUILDPLATFORM node:22-slim AS frontend-builder
 
 WORKDIR /app/web
-
-# Accept build argument for backend port
-ARG BACKEND_PORT=8001
 
 # Application version (e.g. "v1.2.3"). Passed by CI from the release tag
 # and inlined into the Next.js bundle via NEXT_PUBLIC_APP_VERSION so the
@@ -42,9 +41,11 @@ RUN npm config set fetch-timeout 600000 && \
 # Copy frontend source code
 COPY web/ ./
 
-# Create .env.local with placeholder that will be replaced at runtime
-# Use a unique placeholder that can be safely replaced
-RUN echo "NEXT_PUBLIC_API_BASE=__NEXT_PUBLIC_API_BASE_PLACEHOLDER__" > .env.local
+# Create .env.local with placeholders that will be replaced at runtime.
+RUN printf '%s\n' \
+    'NEXT_PUBLIC_API_BASE=__NEXT_PUBLIC_API_BASE_PLACEHOLDER__' \
+    'NEXT_PUBLIC_AUTH_ENABLED=__NEXT_PUBLIC_AUTH_ENABLED_PLACEHOLDER__' \
+    > .env.local
 
 # Build Next.js for production with standalone output
 # This allows runtime environment variable injection
@@ -117,9 +118,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NODE_ENV=production \
     APP_VERSION=${APP_VERSION} \
     NEXT_PUBLIC_APP_VERSION=${APP_VERSION} \
-    # Default ports (can be overridden)
-    BACKEND_PORT=8001 \
-    FRONTEND_PORT=3782
+    DEEPTUTOR_IGNORE_PROCESS_ENV_OVERRIDES=1
 
 WORKDIR /app
 
@@ -243,6 +242,11 @@ set -e
 # Get the backend port (default to 8001)
 BACKEND_PORT=${BACKEND_PORT:-8001}
 FRONTEND_PORT=${FRONTEND_PORT:-3782}
+AUTH_ENABLED=${NEXT_PUBLIC_AUTH_ENABLED:-${AUTH_ENABLED:-false}}
+case "$(echo "$AUTH_ENABLED" | tr '[:upper:]' '[:lower:]')" in
+    1|true|yes|on) AUTH_ENABLED=true ;;
+    *) AUTH_ENABLED=false ;;
+esac
 
 # Determine the API base URL with multiple fallback options
 # Priority: NEXT_PUBLIC_API_BASE_EXTERNAL > NEXT_PUBLIC_API_BASE > auto-detect
@@ -259,16 +263,26 @@ else
     # Note: This only works for local development, not cloud deployments
     API_BASE="http://localhost:${BACKEND_PORT}"
     echo "[Frontend] 📌 Using default API URL: ${API_BASE}"
-    echo "[Frontend] ⚠️  For cloud deployment, set NEXT_PUBLIC_API_BASE_EXTERNAL to your server's public URL"
-    echo "[Frontend]    Example: -e NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:${BACKEND_PORT}"
+    echo "[Frontend] ⚠️  For cloud deployment, set system.next_public_api_base_external in data/user/settings/system.json"
+    echo "[Frontend]    Example: \"next_public_api_base_external\": \"https://your-server.com:${BACKEND_PORT}\""
 fi
 
 echo "[Frontend] 🚀 Starting Next.js frontend on port ${FRONTEND_PORT}..."
 
 # Replace placeholder in built Next.js files
 # This is necessary because NEXT_PUBLIC_* vars are inlined at build time
+escape_sed_replacement() {
+    printf '%s' "$1" | sed -e 's/[|\/&]/\\&/g'
+}
+
+API_BASE_ESCAPED="$(escape_sed_replacement "$API_BASE")"
+AUTH_ENABLED_ESCAPED="$(escape_sed_replacement "$AUTH_ENABLED")"
+
 find /app/web/.next -type f \( -name "*.js" -o -name "*.json" \) -exec \
-    sed -i "s|__NEXT_PUBLIC_API_BASE_PLACEHOLDER__|${API_BASE}|g" {} \; 2>/dev/null || true
+    sed -i \
+        -e "s|__NEXT_PUBLIC_API_BASE_PLACEHOLDER__|${API_BASE_ESCAPED}|g" \
+        -e "s|__NEXT_PUBLIC_AUTH_ENABLED_PLACEHOLDER__|${AUTH_ENABLED_ESCAPED}|g" \
+        {} \; 2>/dev/null || true
 
 # Start Next.js standalone server
 # The standalone server reads PORT and HOSTNAME from environment variables
@@ -288,23 +302,33 @@ echo "============================================"
 echo "🚀 Starting DeepTutor"
 echo "============================================"
 
-# Set default ports if not provided
-export BACKEND_PORT=${BACKEND_PORT:-8001}
-export FRONTEND_PORT=${FRONTEND_PORT:-3782}
+export DEEPTUTOR_IGNORE_PROCESS_ENV_OVERRIDES=1
 
-echo "📌 Backend Port: ${BACKEND_PORT}"
-echo "📌 Frontend Port: ${FRONTEND_PORT}"
-
-# Check for required environment variables
-if [ -z "$LLM_API_KEY" ]; then
-    echo "⚠️  Warning: LLM_API_KEY not set"
-    echo "   Please provide LLM configuration via environment variables or .env file"
-fi
-
-if [ -z "$LLM_MODEL" ]; then
-    echo "⚠️  Warning: LLM_MODEL not set"
-    echo "   Please configure LLM_MODEL in your .env file"
-fi
+# Docker is JSON-driven. Ignore runtime env names even if the host or a stale
+# Compose environment provides them; the entrypoint re-exports values from
+# data/user/settings/*.json below.
+for key in \
+    BACKEND_PORT \
+    FRONTEND_PORT \
+    NEXT_PUBLIC_API_BASE_EXTERNAL \
+    NEXT_PUBLIC_API_BASE \
+    CORS_ORIGIN \
+    CORS_ORIGINS \
+    DISABLE_SSL_VERIFY \
+    CHAT_ATTACHMENT_DIR \
+    AUTH_ENABLED \
+    NEXT_PUBLIC_AUTH_ENABLED \
+    AUTH_USERNAME \
+    AUTH_PASSWORD_HASH \
+    AUTH_TOKEN_EXPIRE_HOURS \
+    AUTH_COOKIE_SECURE \
+    POCKETBASE_URL \
+    POCKETBASE_PORT \
+    POCKETBASE_EXTERNAL_URL \
+    POCKETBASE_ADMIN_EMAIL \
+    POCKETBASE_ADMIN_PASSWORD; do
+    unset "$key"
+done
 
 # Initialize user data directories if empty
 echo "📁 Checking data directories..."
@@ -315,9 +339,28 @@ from deeptutor.services.setup import init_user_directories
 init_user_directories(Path('/app'))
 " 2>/dev/null || echo "   ⚠️ Directory initialization skipped (will be created on first use)"
 
+echo "⚙️  Loading runtime JSON settings..."
+eval "$(python - <<'PY'
+import shlex
+from deeptutor.services.config import export_runtime_settings_to_env
+
+for key, value in export_runtime_settings_to_env(overwrite=True).items():
+    print(f"export {key}={shlex.quote(str(value))}")
+PY
+)"
+
+export BACKEND_PORT=${BACKEND_PORT:-8001}
+export FRONTEND_PORT=${FRONTEND_PORT:-3782}
+
+echo "📌 Backend Port: ${BACKEND_PORT}"
+echo "📌 Frontend Port: ${FRONTEND_PORT}"
+
 echo "============================================"
 echo "📦 Configuration loaded from:"
-echo "   - Environment variables (.env file)"
+echo "   - data/user/settings/system.json"
+echo "   - data/user/settings/auth.json"
+echo "   - data/user/settings/integrations.json"
+echo "   - data/user/settings/model_catalog.json"
 echo "   - data/user/settings/main.yaml"
 echo "   - data/user/settings/agents.yaml"
 echo "============================================"
@@ -328,12 +371,29 @@ EOF
 
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
+RUN cat > /app/healthcheck.py <<'EOF'
+from pathlib import Path
+import json
+import urllib.request
+
+port = 8001
+settings_path = Path("/app/data/user/settings/system.json")
+try:
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    port = int(settings.get("backend_port") or port)
+except Exception:
+    pass
+
+urllib.request.urlopen(f"http://localhost:{port}/", timeout=5).close()
+EOF
+
 # Expose ports
 EXPOSE 8001 3782
 
-# Health check
+# Health check. Read the port from JSON so standalone `docker run` does not
+# depend on a Dockerfile-level BACKEND_PORT default.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${BACKEND_PORT:-8001}/ || exit 1
+    CMD python /app/healthcheck.py
 
 # Set entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

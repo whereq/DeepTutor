@@ -58,7 +58,6 @@ MANIFEST
 .env
 *.env
 *.env.local
-!.env.example
 env/
 venv/
 ENV/

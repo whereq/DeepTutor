@@ -118,7 +118,6 @@ def check_backend_packages() -> tuple[bool, int, int]:
     # Required packages: (pip_name, import_name, min_version, is_optional)
     packages = [
         # Core
-        ("python-dotenv", "dotenv", "1.0.0", False),
         ("PyYAML", "yaml", "6.0", False),
         ("tiktoken", "tiktoken", "0.5.0", False),
         ("jinja2", "jinja2", "3.1.0", False),
@@ -308,72 +307,45 @@ def check_system_tools() -> bool:
     return all_ok
 
 
-def check_env_file(project_root: Path) -> bool:
-    """Check .env file configuration"""
-    print_header("Environment Configuration")
+def check_runtime_settings(project_root: Path) -> bool:
+    """Check data/user/settings runtime configuration."""
+    print_header("Runtime Settings")
 
-    env_file = project_root / ".env"
-    env_example = project_root / ".env.example"
-
-    if env_file.exists():
-        print_success(".env file exists")
-
-        # Check for required keys (without revealing values)
-        required_keys = [
-            "LLM_BINDING",
-            "LLM_MODEL",
-            "LLM_API_KEY",
-            "LLM_HOST",
-            "EMBEDDING_BINDING",
-            "EMBEDDING_MODEL",
-            "EMBEDDING_API_KEY",
-            "EMBEDDING_HOST",
-            "EMBEDDING_DIMENSION",
-        ]
-        optional_keys = [
-            "SEARCH_PROVIDER",
-            "SEARCH_API_KEY",
-            "SEARCH_BASE_URL",
-            "NEXT_PUBLIC_API_BASE_EXTERNAL",
-            "NEXT_PUBLIC_API_BASE",
-            "DISABLE_SSL_VERIFY",
-        ]
-
-        try:
-            with open(env_file) as f:
-                content = f.read()
-                lines = content.split("\n")
-                env_vars = {}
-                for line in lines:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        key = line.split("=")[0].strip()
-                        value = line.split("=", 1)[1].strip() if "=" in line else ""
-                        env_vars[key] = value
-
-            for key in required_keys:
-                if key in env_vars and env_vars[key]:
-                    print_success(f"  ✓ {key} is set")
-                else:
-                    print_warning(f"  ⚠ {key} is not set (required)")
-
-            for key in optional_keys:
-                if key in env_vars and env_vars[key]:
-                    print_success(f"  ✓ {key} is set")
-                else:
-                    print_info(f"  ○ {key} is not set (optional)")
-
-        except Exception as e:
-            print_warning(f"Could not read .env file: {e}")
-
-        return True
-    else:
-        print_warning(".env file not found")
-        if env_example.exists():
-            print_info("Copy .env.example to .env and configure your API keys")
+    settings_dir = project_root / "data" / "user" / "settings"
+    required_files = ["system.json", "auth.json", "integrations.json", "model_catalog.json"]
+    ok = True
+    for name in required_files:
+        path = settings_dir / name
+        if path.exists():
+            print_success(f"{name} exists")
         else:
-            print_info("Create a .env file with your provider configuration (LLM_* / EMBEDDING_*)")
+            print_warning(f"{name} is missing")
+            ok = False
+
+    if not ok:
+        print_info("Run `deeptutor init` or start the app once to create defaults.")
         return False
+
+    try:
+        import json
+
+        catalog = json.loads((settings_dir / "model_catalog.json").read_text(encoding="utf-8"))
+        services = catalog.get("services", {})
+        for service_name in ("llm", "embedding", "search"):
+            service = services.get(service_name, {})
+            profiles = service.get("profiles") or []
+            if profiles:
+                print_success(f"  ✓ {service_name} profile configured")
+            else:
+                level = print_info if service_name == "search" else print_warning
+                level(f"  ○ {service_name} profile not configured")
+                if service_name != "search":
+                    ok = False
+    except Exception as e:
+        print_warning(f"Could not inspect model_catalog.json: {e}")
+        ok = False
+
+    return ok
 
 
 def main():
@@ -427,11 +399,11 @@ def main():
     check_system_tools()
     summary.append(("System Tools", "✅ Checked"))
 
-    # 5. Environment configuration
-    if check_env_file(project_root):
-        summary.append(("Environment Config", "✅ .env exists"))
+    # 5. Runtime settings
+    if check_runtime_settings(project_root):
+        summary.append(("Runtime Settings", "✅ configured"))
     else:
-        summary.append(("Environment Config", "⚠️ .env missing"))
+        summary.append(("Runtime Settings", "⚠️ incomplete"))
 
     # Print summary
     print_header("Summary")
@@ -442,10 +414,10 @@ def main():
     print("")
     if all_checks_passed:
         print_success("All required dependencies are installed!")
-        print_info("You can start DeepTutor with: python scripts/start_web.py")
+        print_info("You can start DeepTutor with: deeptutor start")
     else:
         print_error("Some dependencies are missing!")
-        print_info("Run: python scripts/start_tour.py")
+        print_info("Run: deeptutor init")
         print_info("Or manually install missing packages")
 
     print("=" * 60 + "\n")

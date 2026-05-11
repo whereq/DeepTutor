@@ -145,7 +145,7 @@ Potrzebujesz też **klucza API** od co najmniej jednego dostawcy LLM (np. [OpenA
 
 ### Opcja A — Setup Tour (zalecane)
 
-Interaktywny wizard CLI dla pierwszej lokalnej instalacji Web: sprawdza środowisko, instaluje zależności Python i Node.js, tworzy `.env` oraz pozwala wybrać dodatki (TutorBot, Matrix, Math Animator).
+Interaktywny wizard CLI dla pierwszej lokalnej instalacji Web: sprawdza środowisko, instaluje zależności Python i Node.js, tworzy ustawienia JSON w `data/user/settings` oraz pozwala wybrać dodatki (TutorBot, Matrix, Math Animator).
 
 **1. Sklonuj repozytorium**
 
@@ -239,26 +239,17 @@ cd ..
 **4. Skonfiguruj środowisko**
 
 ```bash
-cp .env.example .env
+python scripts/start_tour.py
 ```
 
-Edytuj `.env` i wypełnij przynajmniej pola LLM. Pola embedding są potrzebne dla bazy wiedzy.
+Edytuj `data/user/settings/*.json` i wypełnij przynajmniej pola LLM. Pola embedding są potrzebne dla bazy wiedzy.
 
-```dotenv
-# LLM (wymagane do czatu)
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
-LLM_API_KEY=sk-xxx
-LLM_HOST=https://api.openai.com/v1
-
-# Embedding (wymagane dla Bazy Wiedzy / RAG)
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-3-large
-EMBEDDING_API_KEY=sk-xxx
-# v1.3.0+: użyj pełnego URL endpointu, nie tylko https://api.openai.com/v1
-EMBEDDING_HOST=https://api.openai.com/v1/embeddings
-# Zostaw puste, chyba że musisz wymusić konkretny wymiar
-EMBEDDING_DIMENSION=
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 <details>
@@ -368,15 +359,15 @@ Docker łączy backend i frontend w jednym kontenerze — nie wymagana lokalna i
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
-cp .env.example .env
+python scripts/start_tour.py
 ```
 
-Edytuj `.env` jak w Opcji B.
+Edytuj `data/user/settings/*.json` jak w Opcji B.
 
 **2a. Pobierz oficjalny obraz (zalecane)**
 
 ```bash
-docker compose -f docker-compose.ghcr.yml up -d
+python scripts/docker_compose.py -f docker-compose.ghcr.yml up -d
 ```
 
 Aby przypiąć konkretną wersję, edytuj tag w `docker-compose.ghcr.yml`:
@@ -388,23 +379,25 @@ image: ghcr.io/hkuds/deeptutor:1.3.4  # lub :latest
 **2b. Kompilacja ze źródeł**
 
 ```bash
-docker compose up -d
+python scripts/docker_compose.py up -d
 ```
 
 **3. Weryfikacja i zarządzanie**
 
 ```bash
-docker compose logs -f   # wyświetlaj logi
-docker compose down       # zatrzymaj i usuń kontener
+python scripts/docker_compose.py logs -f   # wyświetlaj logi
+python scripts/docker_compose.py down       # zatrzymaj i usuń kontener
 ```
 
 <details>
 <summary><b>Cloud / serwer zdalny</b></summary>
 
-Na serwerze zdalnym przeglądarka musi znać publiczny URL backendu. Dodaj do `.env`:
+Na serwerze zdalnym przeglądarka musi znać publiczny URL backendu. Dodaj do `data/user/settings/*.json`:
 
-```dotenv
-NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
+```json
+{
+  "next_public_api_base_external": "https://your-server.com:8001"
+}
 ```
 
 </details>
@@ -420,11 +413,12 @@ Uwierzytelnianie jest **domyślnie wyłączone**. Dla wdrożeń multi-tenant zob
 python -c "from deeptutor.services.auth import hash_password; print(hash_password('yourpassword'))"
 ```
 
-```dotenv
-AUTH_ENABLED=true
-AUTH_USERNAME=admin
-AUTH_PASSWORD_HASH=<wklej hash tutaj>
-AUTH_SECRET=your-secret-here
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 </details>
@@ -434,19 +428,21 @@ AUTH_SECRET=your-secret-here
 
 PocketBase to opcjonalny, lekki backend zastępujący wbudowane SQLite/JSON.
 
-> ⚠️ **Tryb PocketBase jest aktualnie tylko dla jednego użytkownika.** Domyślny schemat nie ma pola `role` w `users` (każde logowanie = `role=user`), a zapytania nie są filtrowane po `user_id`. Wdrożenia multi-użytkownik: zostaw `POCKETBASE_URL` puste.
+> ⚠️ **Tryb PocketBase jest aktualnie tylko dla jednego użytkownika.** Domyślny schemat nie ma pola `role` w `users` (każde logowanie = `role=user`), a zapytania nie są filtrowane po `user_id`. Wdrożenia multi-użytkownik: zostaw `integrations.pocketbase_url` puste.
 
 ```bash
-docker compose up -d
+python scripts/docker_compose.py up -d
 open http://localhost:8090/_/
 pip install pocketbase
 python scripts/pb_setup.py
 ```
 
-```dotenv
-POCKETBASE_URL=http://localhost:8090
-POCKETBASE_ADMIN_EMAIL=admin@example.com
-POCKETBASE_ADMIN_PASSWORD=your-admin-password
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 </details>
@@ -455,7 +451,7 @@ POCKETBASE_ADMIN_PASSWORD=your-admin-password
 <summary><b>Tryb programowania (hot-reload)</b></summary>
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+python scripts/docker_compose.py -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
 Zmiany w `deeptutor/`, `deeptutor_cli/`, `scripts/` i `web/` są odzwierciedlane natychmiast.
@@ -465,12 +461,14 @@ Zmiany w `deeptutor/`, `deeptutor_cli/`, `scripts/` i `web/` są odzwierciedlane
 <details>
 <summary><b>Niestandardowe porty</b></summary>
 
-```dotenv
-BACKEND_PORT=9001
-FRONTEND_PORT=4000
+```json
+{
+  "backend_port": 9001,
+  "frontend_port": 4000
+}
 ```
 
-Następnie: `docker compose up -d`
+Następnie: `python scripts/docker_compose.py up -d`
 
 </details>
 
@@ -486,39 +484,11 @@ Następnie: `docker compose up -d`
 </details>
 
 <details>
-<summary><b>Opis zmiennych środowiskowych</b></summary>
+<summary><b>Runtime settings / deployment overrides</b></summary>
 
-> Pełna lista z komentarzami w [`.env.example`](../../.env.example).
+Runtime settings live in `data/user/settings/*.json`; `model_catalog.json` is the source of truth for model, embedding, and search provider credentials. Non-model runtime settings live in `system.json`, `auth.json`, and `integrations.json`.
 
-| Zmienna | Wymagana | Opis |
-|:---|:---:|:---|
-| `LLM_BINDING` | **Tak** | Dostawca LLM (`openai`, `anthropic`, `deepseek` itp.) |
-| `LLM_MODEL` | **Tak** | Nazwa modelu (np. `gpt-4o`) |
-| `LLM_API_KEY` | **Tak** | Klucz API LLM |
-| `LLM_HOST` | **Tak** | Bazowy URL completions |
-| `LLM_API_VERSION` | Nie | Wymagane dla Azure OpenAI |
-| `LLM_REASONING_EFFORT` | Nie | DeepSeek `high`/`max`/`minimal` lub OpenAI o-series `low`/`medium`/`high` |
-| `EMBEDDING_BINDING` | Tylko KB | Dostawca embeddings |
-| `EMBEDDING_MODEL` | Tylko KB | Nazwa modelu embeddings |
-| `EMBEDDING_API_KEY` | Tylko KB | Klucz API embeddings |
-| `EMBEDDING_HOST` | Tylko KB | Pełny URL endpointu embeddings (v1.3.0+) |
-| `EMBEDDING_DIMENSION` | Nie | Wymiar wektora; puste = auto-detekcja |
-| `SEARCH_PROVIDER` | Nie | `brave`, `tavily`, `serper`, `jina`, `perplexity`, `searxng`, `duckduckgo` |
-| `SEARCH_API_KEY` | Nie | Klucz API wyszukiwania |
-| `BACKEND_PORT` | Nie | Port backendu (domyślnie `8001`) |
-| `FRONTEND_PORT` | Nie | Port frontendu (domyślnie `3782`) |
-| `NEXT_PUBLIC_API_BASE_EXTERNAL` | Nie | Publiczny URL backendu dla wdrożeń cloud |
-| `CORS_ORIGIN` | Nie | Dodatkowe origin do listy CORS FastAPI |
-| `DISABLE_SSL_VERIFY` | Nie | Wyłącz weryfikację TLS (domyślnie `false`) |
-| `AUTH_ENABLED` | Nie | `true` wymaga logowania (domyślnie `false`) |
-| `AUTH_SECRET` | Nie | Sekret JWT; puste = auto-generacja |
-| `AUTH_TOKEN_EXPIRE_HOURS` | Nie | Czas ważności sesji w godzinach (domyślnie `24`) |
-| `AUTH_COOKIE_SECURE` | Nie | Oznacz cookie `Secure` przy HTTPS (domyślnie `false`) |
-| `AUTH_USERNAME` | Nie | Single-user: nazwa admina |
-| `AUTH_PASSWORD_HASH` | Nie | Single-user: hash bcrypt hasła admina |
-| `POCKETBASE_URL` | Nie | Włącza sidecar PocketBase (tylko single-user) |
-| `POCKETBASE_ADMIN_EMAIL` / `POCKETBASE_ADMIN_PASSWORD` | Nie | Dane admin dla backendu Python |
-| `CHAT_ATTACHMENT_DIR` | Nie | Nadpisanie katalogu załączników czatu |
+Docker startup is JSON-driven via `scripts/docker_compose.py`; use `data/user/settings/*.json` rather than the project-root `.env` or legacy `BACKEND_PORT` / `FRONTEND_PORT` variables.
 
 </details>
 
@@ -526,7 +496,7 @@ Następnie: `docker compose up -d`
 
 ```bash
 python -m pip install -e ".[cli]"
-cp .env.example .env   # następnie edytuj .env i wprowadź klucze API
+python scripts/start_tour.py   # następnie edytuj data/user/settings/*.json i wprowadź klucze API
 ```
 
 ```bash
@@ -765,10 +735,10 @@ Włącz uwierzytelnianie, a DeepTutor staje się wdrożeniem multi-tenant z **iz
 **Szybki start (5 kroków):**
 
 ```bash
-# 1. Włącz auth w .env w katalogu głównym
-echo 'AUTH_ENABLED=true' >> .env
+# 1. Włącz auth w data/user/settings/*.json w katalogu głównym
+# Set auth.json enabled=true
 # Opcjonalne — sekret JWT; auto-generowany jeśli puste
-echo 'AUTH_SECRET=<wklej 64+ losowych znaków>' >> .env
+# JWT secret is stored in multi-user/_system/auth/auth_secret
 
 # 2. Uruchom ponownie web stack
 python scripts/start_web.py
@@ -815,17 +785,11 @@ multi-user/
     └── knowledge_bases/...
 ```
 
-**Konfiguracja:**
+**Configuration reference:**
 
-| Zmienna | Wymagana | Opis |
-|:---|:---|:---|
-| `AUTH_ENABLED` | Tak | `true` włącza multi-user auth. Domyślnie `false`. |
-| `AUTH_SECRET` | Zalecane | Sekret JWT; puste = zapis do `multi-user/_system/auth/auth_secret`. |
-| `AUTH_TOKEN_EXPIRE_HOURS` | Nie | Ważność JWT; domyślnie 24 godziny. |
-| `AUTH_USERNAME` / `AUTH_PASSWORD_HASH` | Nie | Dane fallback dla single-user. Puste w trybie multi-user. |
-| `NEXT_PUBLIC_AUTH_ENABLED` | Auto | Lustro `AUTH_ENABLED` przez `start_web.py` dla Next.js middleware. |
+Runtime settings live in `data/user/settings/*.json`. For headless single-user bootstrap, set `username` and `password_hash` in `auth.json`; for multi-user registration, leave those blank and use the identity store.
 
-> ⚠️ **Tryb PocketBase (`POCKETBASE_URL` ustawiony) — tylko single-user** — brak pola `role`, brak filtrowania po `user_id`. Multi-user: zostaw `POCKETBASE_URL` puste.
+> ⚠️ **Tryb PocketBase (`integrations.pocketbase_url` ustawiony) — tylko single-user** — brak pola `role`, brak filtrowania po `user_id`. Multi-user: zostaw `integrations.pocketbase_url` puste.
 
 > ⚠️ **Zalecany jeden proces.** Promocja pierwszego admina chroniona przez `threading.Lock`. Multi-worker: utwórz pierwszego admina offline.
 

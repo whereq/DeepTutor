@@ -8,8 +8,6 @@ import json
 import logging
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from deeptutor.agents.question import AgentCoordinator
 
 logging.basicConfig(level=logging.WARNING, force=True)
@@ -19,8 +17,6 @@ for logger_name in ["openai", "httpx", "httpcore"]:
     logger.propagate = False
 
 project_root = Path(__file__).resolve().parents[3]
-
-load_dotenv(dotenv_path=project_root / ".env", override=False)
 
 
 async def run_single_example(coordinator: AgentCoordinator):

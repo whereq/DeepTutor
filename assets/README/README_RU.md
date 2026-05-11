@@ -146,7 +146,7 @@
 
 ### Вариант A — интерактивный тур (рекомендуется)
 
-**Один интерактивный CLI-скрипт** ведёт от свежего клона к запущенному приложению — без ручного `pip install`, `npm install` и правки `.env`. В пошаговом сценарии из 7 этапов всё определяется, устанавливается и настраивается.
+**Один интерактивный CLI-скрипт** ведёт от свежего клона к запущенному приложению — без ручного `pip install`, `npm install` и правки `data/user/settings/*.json`. В пошаговом сценарии из 7 этапов всё определяется, устанавливается и настраивается.
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
@@ -193,24 +193,17 @@ cd web && npm install && cd ..
 **2. Настройка окружения**
 
 ```bash
-cp .env.example .env
+python scripts/start_tour.py
 ```
 
-Отредактируйте `.env` и заполните как минимум обязательные поля:
+Отредактируйте `data/user/settings/*.json` и заполните как минимум обязательные поля:
 
-```dotenv
-# LLM (обязательно)
-LLM_BINDING=openai
-LLM_MODEL=gpt-4o-mini
-LLM_API_KEY=sk-xxx
-LLM_HOST=https://api.openai.com/v1
-
-# Эмбеддинги (обязательно для базы знаний)
-EMBEDDING_BINDING=openai
-EMBEDDING_MODEL=text-embedding-3-large
-EMBEDDING_API_KEY=sk-xxx
-EMBEDDING_HOST=https://api.openai.com/v1
-EMBEDDING_DIMENSION=3072
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 <details>
@@ -320,17 +313,17 @@ Docker упаковывает backend и frontend в один контейнер
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
-cp .env.example .env
+python scripts/start_tour.py
 ```
 
-Заполните `.env` как минимум обязательные поля (как в [варианте B](#option-b-manual)).
+Заполните `data/user/settings/*.json` как минимум обязательные поля (как в [варианте B](#option-b-manual)).
 
 **2a. Официальный образ (рекомендуется)**
 
 Официальные образы публикуются в [GitHub Container Registry](https://github.com/HKUDS/DeepTutor/pkgs/container/deeptutor) для `linux/amd64` и `linux/arm64`.
 
 ```bash
-docker compose -f docker-compose.ghcr.yml up -d
+python scripts/docker_compose.py -f docker-compose.ghcr.yml up -d
 ```
 
 Чтобы зафиксировать версию, измените тег образа в `docker-compose.ghcr.yml`:
@@ -342,7 +335,7 @@ image: ghcr.io/hkuds/deeptutor:1.0.0  # или :latest
 **2b. Сборка из исходников**
 
 ```bash
-docker compose up -d
+python scripts/docker_compose.py up -d
 ```
 
 Собирает образ из `Dockerfile` локально и запускает контейнер.
@@ -352,18 +345,19 @@ docker compose up -d
 Откройте [http://localhost:3782](http://localhost:3782), когда контейнер станет healthy.
 
 ```bash
-docker compose logs -f   # логи
-docker compose down       # остановить и удалить контейнер
+python scripts/docker_compose.py logs -f   # логи
+python scripts/docker_compose.py down       # остановить и удалить контейнер
 ```
 
 <details>
 <summary><b>Облако / удалённый сервер</b></summary>
 
-На удалённом сервере браузеру нужен публичный URL backend API. Добавьте в `.env`:
+На удалённом сервере браузеру нужен публичный URL backend API. Добавьте в `data/user/settings/*.json`:
 
-```dotenv
-# Публичный URL, по которому доступен backend
-NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
+```json
+{
+  "next_public_api_base_external": "https://your-server.com:8001"
+}
 ```
 
 Скрипт запуска фронтенда подставляет значение во время выполнения — пересборка не нужна.
@@ -381,11 +375,12 @@ NEXT_PUBLIC_API_BASE_EXTERNAL=https://your-server.com:8001
 python -c "from deeptutor.services.auth import hash_password; print(hash_password('yourpassword'))"
 ```
 
-```dotenv
-AUTH_ENABLED=true
-AUTH_USERNAME=admin
-AUTH_PASSWORD_HASH=<вставьте хеш>
-AUTH_SECRET=your-secret-here
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 </details>
@@ -395,19 +390,21 @@ AUTH_SECRET=your-secret-here
 
 PocketBase — опциональный лёгкий бэкенд, заменяющий встроенные SQLite/JSON аутентификацию и хранилище сессий.
 
-> ⚠️ **PocketBase режим только для одиночного пользователя.** Нет поля `role` в `users`, запросы не фильтруются по `user_id`. Мультипользователь: оставьте `POCKETBASE_URL` пустым.
+> ⚠️ **PocketBase режим только для одиночного пользователя.** Нет поля `role` в `users`, запросы не фильтруются по `user_id`. Мультипользователь: оставьте `integrations.pocketbase_url` пустым.
 
 ```bash
-docker compose up -d
+python scripts/docker_compose.py up -d
 open http://localhost:8090/_/
 pip install pocketbase
 python scripts/pb_setup.py
 ```
 
-```dotenv
-POCKETBASE_URL=http://localhost:8090
-POCKETBASE_ADMIN_EMAIL=admin@example.com
-POCKETBASE_ADMIN_PASSWORD=your-admin-password
+```jsonc
+// Runtime configuration now lives in data/user/settings/.
+// Model/provider credentials: model_catalog.json
+// Ports/CORS/attachments: system.json
+// Auth settings: auth.json (JWT secret stays in multi-user/_system/auth/auth_secret)
+// PocketBase and sidecars: integrations.json
 ```
 
 </details>
@@ -418,7 +415,7 @@ POCKETBASE_ADMIN_PASSWORD=your-admin-password
 Подключите dev-override, чтобы смонтировать исходники и включить hot-reload для обоих сервисов:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+python scripts/docker_compose.py -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
 Изменения в `deeptutor/`, `deeptutor_cli/`, `scripts/` и `web/` применяются сразу.
@@ -428,17 +425,19 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 <details>
 <summary><b>Свои порты</b></summary>
 
-Переопределите порты в `.env`:
+Переопределите порты в `data/user/settings/*.json`:
 
-```dotenv
-BACKEND_PORT=9001
-FRONTEND_PORT=4000
+```json
+{
+  "backend_port": 9001,
+  "frontend_port": 4000
+}
 ```
 
 Затем перезапустите:
 
 ```bash
-docker compose up -d     # или docker compose -f docker-compose.ghcr.yml up -d
+python scripts/docker_compose.py up -d     # или python scripts/docker_compose.py -f docker-compose.ghcr.yml up -d
 ```
 
 </details>
@@ -454,30 +453,16 @@ docker compose up -d     # или docker compose -f docker-compose.ghcr.yml up -
 | `/app/data/memory` | `./data/memory` | Общая долгосрочная память (`SUMMARY.md`, `PROFILE.md`) |
 | `/app/data/knowledge_bases` | `./data/knowledge_bases` | Загруженные документы и векторные индексы |
 
-Каталоги сохраняются после `docker compose down` и используются снова при следующем `up`.
+Каталоги сохраняются после `python scripts/docker_compose.py down` и используются снова при следующем `up`.
 
 </details>
 
 <details>
-<summary><b>Справочник переменных окружения</b></summary>
+<summary><b>Runtime settings / deployment overrides</b></summary>
 
-| Переменная | Обяз. | Описание |
-|:---|:---:|:---|
-| `LLM_BINDING` | **Да** | Провайдер LLM (`openai`, `anthropic`, …) |
-| `LLM_MODEL` | **Да** | Имя модели (напр. `gpt-4o`) |
-| `LLM_API_KEY` | **Да** | API-ключ LLM |
-| `LLM_HOST` | **Да** | URL эндпоинта |
-| `EMBEDDING_BINDING` | **Да** | Провайдер эмбеддингов |
-| `EMBEDDING_MODEL` | **Да** | Имя модели эмбеддингов |
-| `EMBEDDING_API_KEY` | **Да** | Ключ API эмбеддингов |
-| `EMBEDDING_HOST` | **Да** | Эндпоинт эмбеддингов |
-| `EMBEDDING_DIMENSION` | **Да** | Размерность вектора |
-| `SEARCH_PROVIDER` | Нет | Поиск (`tavily`, `jina`, `serper`, `perplexity`, …) |
-| `SEARCH_API_KEY` | Нет | Ключ поиска |
-| `BACKEND_PORT` | Нет | Порт backend (по умолч. `8001`) |
-| `FRONTEND_PORT` | Нет | Порт frontend (по умолч. `3782`) |
-| `NEXT_PUBLIC_API_BASE_EXTERNAL` | Нет | Публичный URL backend для облака |
-| `DISABLE_SSL_VERIFY` | Нет | Отключить проверку SSL (по умолч. `false`) |
+Runtime settings live in `data/user/settings/*.json`; `model_catalog.json` is the source of truth for model, embedding, and search provider credentials. Non-model runtime settings live in `system.json`, `auth.json`, and `integrations.json`.
+
+Docker startup is JSON-driven via `scripts/docker_compose.py`; use `data/user/settings/*.json` rather than the project-root `.env` or legacy `BACKEND_PORT` / `FRONTEND_PORT` variables.
 
 </details>
 
@@ -492,7 +477,7 @@ pip install -e ".[cli]"
 Провайдер LLM всё равно нужно настроить. Быстрый путь:
 
 ```bash
-cp .env.example .env   # затем отредактируйте .env и укажите ключи
+python scripts/start_tour.py   # затем отредактируйте data/user/settings/*.json и укажите ключи
 ```
 
 После настройки:
@@ -739,9 +724,9 @@ deeptutor session open <id>
 **Быстрый старт (5 шагов):**
 
 ```bash
-# 1. Включите аутентификацию в .env в корне проекта
-echo 'AUTH_ENABLED=true' >> .env
-echo 'AUTH_SECRET=<вставьте 64+ случайных символа>' >> .env
+# 1. Включите аутентификацию в data/user/settings/*.json в корне проекта
+# Set auth.json enabled=true
+# JWT secret is stored in multi-user/_system/auth/auth_secret
 
 # 2. Перезапустите веб-стек
 python scripts/start_web.py
@@ -788,17 +773,11 @@ multi-user/
     └── knowledge_bases/...
 ```
 
-**Справочник конфигурации:**
+**Configuration reference:**
 
-| Переменная | Обяз. | Описание |
-|:---|:---|:---|
-| `AUTH_ENABLED` | Да | `true` для включения мультипользовательской аутентификации. По умолчанию `false`. |
-| `AUTH_SECRET` | Рекомендуется | Секрет подписи JWT; пустое значение — автогенерация в `multi-user/_system/auth/auth_secret`. |
-| `AUTH_TOKEN_EXPIRE_HOURS` | Нет | Срок JWT; по умолчанию 24 часа. |
-| `AUTH_USERNAME` / `AUTH_PASSWORD_HASH` | Нет | Резервные учётные данные для одиночного пользователя. Оставьте пустым в мультипользовательском режиме. |
-| `NEXT_PUBLIC_AUTH_ENABLED` | Авто | Зеркалируется из `AUTH_ENABLED` через `start_web.py`. |
+Runtime settings live in `data/user/settings/*.json`. For headless single-user bootstrap, set `username` and `password_hash` in `auth.json`; for multi-user registration, leave those blank and use the identity store.
 
-> ⚠️ **PocketBase режим (`POCKETBASE_URL` задан) — только для одиночного пользователя** — нет поля `role`, нет фильтрации по `user_id`. Мультипользователь: оставьте `POCKETBASE_URL` пустым.
+> ⚠️ **PocketBase режим (`integrations.pocketbase_url` задан) — только для одиночного пользователя** — нет поля `role`, нет фильтрации по `user_id`. Мультипользователь: оставьте `integrations.pocketbase_url` пустым.
 
 > ⚠️ **Рекомендуется один процесс.** Повышение первого администратора защищено `threading.Lock`. Несколько воркеров: создайте первого администратора офлайн.
 

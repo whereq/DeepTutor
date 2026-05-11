@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import html
 import json
-import os
 import re
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -107,9 +106,9 @@ class WebSearchTool(Tool):
             return f"Error: unknown search provider '{provider}'"
 
     async def _search_brave(self, query: str, n: int) -> str:
-        api_key = self.config.api_key or os.environ.get("BRAVE_API_KEY", "")
+        api_key = self.config.api_key
         if not api_key:
-            logger.warning("BRAVE_API_KEY not set, falling back to DuckDuckGo")
+            logger.warning("Brave api_key not configured, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, n)
         try:
             async with httpx.AsyncClient(proxy=self.proxy) as client:
@@ -133,9 +132,9 @@ class WebSearchTool(Tool):
             return f"Error: {e}"
 
     async def _search_tavily(self, query: str, n: int) -> str:
-        api_key = self.config.api_key or os.environ.get("TAVILY_API_KEY", "")
+        api_key = self.config.api_key
         if not api_key:
-            logger.warning("TAVILY_API_KEY not set, falling back to DuckDuckGo")
+            logger.warning("Tavily api_key not configured, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, n)
         try:
             async with httpx.AsyncClient(proxy=self.proxy) as client:
@@ -151,9 +150,9 @@ class WebSearchTool(Tool):
             return f"Error: {e}"
 
     async def _search_searxng(self, query: str, n: int) -> str:
-        base_url = (self.config.base_url or os.environ.get("SEARXNG_BASE_URL", "")).strip()
+        base_url = self.config.base_url.strip()
         if not base_url:
-            logger.warning("SEARXNG_BASE_URL not set, falling back to DuckDuckGo")
+            logger.warning("SearXNG base_url not configured, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, n)
         endpoint = f"{base_url.rstrip('/')}/search"
         is_valid, error_msg = _validate_url(endpoint)
@@ -173,9 +172,9 @@ class WebSearchTool(Tool):
             return f"Error: {e}"
 
     async def _search_jina(self, query: str, n: int) -> str:
-        api_key = self.config.api_key or os.environ.get("JINA_API_KEY", "")
+        api_key = self.config.api_key
         if not api_key:
-            logger.warning("JINA_API_KEY not set, falling back to DuckDuckGo")
+            logger.warning("Jina api_key not configured, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, n)
         try:
             headers = {"Accept": "application/json", "Authorization": f"Bearer {api_key}"}
@@ -260,9 +259,8 @@ class WebFetchTool(Tool):
         """Try fetching via Jina Reader API. Returns None on failure."""
         try:
             headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
-            jina_key = os.environ.get("JINA_API_KEY", "")
-            if jina_key:
-                headers["Authorization"] = f"Bearer {jina_key}"
+            if self.config.api_key:
+                headers["Authorization"] = f"Bearer {self.config.api_key}"
             async with httpx.AsyncClient(proxy=self.proxy, timeout=20.0) as client:
                 r = await client.get(f"https://r.jina.ai/{url}", headers=headers)
                 if r.status_code == 429:

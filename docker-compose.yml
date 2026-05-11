@@ -4,31 +4,32 @@
 # This file provides orchestration for DeepTutor services
 #
 # Usage:
-#   Production:  docker compose up -d
-#   Development: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-#   Build only:  docker compose build
+#   Production:  python scripts/docker_compose.py up -d
+#   Development: python scripts/docker_compose.py -f docker-compose.yml -f docker-compose.dev.yml up
+#   Build only:  python scripts/docker_compose.py build
 #
 # Prerequisites:
-#   1. Copy .env.example to .env and configure your API keys
-#   2. Runtime settings are stored in ./data/user/settings (created automatically)
+#   1. Runtime settings are stored in ./data/user/settings (created automatically)
+#   2. Configure model providers from the web Settings page or model_catalog.json
+#   3. Use scripts/docker_compose.py so port mappings are rendered from system.json
 #
 # Local LLM (LM Studio / Ollama / vLLM):
-#   Use "host.docker.internal" instead of "localhost" for LLM_HOST / EMBEDDING_HOST.
-#   See .env.example for details.
+#   Use "host.docker.internal" instead of "localhost" in provider base_url fields.
+#   Configure provider endpoints in data/user/settings/model_catalog.json or the UI.
 # ============================================
 
 services:
   # ============================================
   # PocketBase — optional auth + storage sidecar
-  # Set POCKETBASE_URL=http://pocketbase:8090 in .env to activate.
-  # Leave POCKETBASE_URL blank to run without PocketBase (SQLite fallback).
+  # Set integrations.pocketbase_url=http://pocketbase:8090 to activate.
+  # Leave integrations.pocketbase_url blank to run without PocketBase (SQLite fallback).
   # ============================================
   pocketbase:
     image: ghcr.io/muchobien/pocketbase:latest
     container_name: pocketbase
     restart: unless-stopped
     ports:
-      - "${POCKETBASE_PORT:-8090}:8090"
+      - "${DEEPTUTOR_DOCKER_POCKETBASE_PORT:-8090}:8090"
     volumes:
       - ./data/pocketbase:/pb/pb_data
     networks:
@@ -48,65 +49,11 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
-      args:
-        # Pass backend port at build time for Next.js static optimization
-        - BACKEND_PORT=${BACKEND_PORT:-8001}
     container_name: deeptutor
     restart: unless-stopped
     ports:
-      - "${BACKEND_PORT:-8001}:${BACKEND_PORT:-8001}"
-      - "${FRONTEND_PORT:-3782}:${FRONTEND_PORT:-3782}"
-
-    # Load environment variables from .env file
-    env_file:
-      - .env
-
-    environment:
-      # LLM Configuration (Required)
-      - LLM_BINDING=${LLM_BINDING:-openai}
-      - LLM_MODEL=${LLM_MODEL}
-      - LLM_API_KEY=${LLM_API_KEY}
-      - LLM_HOST=${LLM_HOST}
-      - LLM_API_VERSION=${LLM_API_VERSION:-}
-      - DISABLE_SSL_VERIFY=${DISABLE_SSL_VERIFY:-false}
-      # Embedding Configuration (Required for Knowledge Base)
-      - EMBEDDING_BINDING=${EMBEDDING_BINDING:-openai}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-large}
-      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY}
-      - EMBEDDING_HOST=${EMBEDDING_HOST}
-      - EMBEDDING_DIMENSION=${EMBEDDING_DIMENSION:-3072}
-      - EMBEDDING_API_VERSION=${EMBEDDING_API_VERSION:-}
-      # Web Search Configuration (Optional)
-      - SEARCH_PROVIDER=${SEARCH_PROVIDER:-}
-      - SEARCH_API_KEY=${SEARCH_API_KEY:-}
-      - SEARCH_BASE_URL=${SEARCH_BASE_URL:-}
-      # ============================================
-      # Service Ports Configuration
-      # ============================================
-      # Backend API port (default: 8001)
-      - BACKEND_PORT=${BACKEND_PORT:-8001}
-      # Frontend web port (default: 3782)
-      - FRONTEND_PORT=${FRONTEND_PORT:-3782}
-      # ============================================
-      # API URL Configuration (Important for Remote Deployment)
-      # ============================================
-      # The frontend runs in the USER'S BROWSER — "localhost" means the user's machine,
-      # not the Docker host. This matters when Docker runs on a remote server.
-      #
-      # LOCAL (browsing from the same machine running Docker):
-      #   Leave blank — defaults to http://localhost:8001, which works via port mapping.
-      #
-      # REMOTE SERVER (Docker on a server, accessed from another machine):
-      #   Set to the server's public IP or hostname, e.g.:
-      #     NEXT_PUBLIC_API_BASE_EXTERNAL=http://203.0.113.10:8001
-      #   Without this the browser tries localhost:8001 on the user's laptop and all
-      #   API calls (including WebSocket) will fail.
-      - NEXT_PUBLIC_API_BASE_EXTERNAL=${NEXT_PUBLIC_API_BASE_EXTERNAL:-}
-      # Alternative: Direct API base URL (same priority as NEXT_PUBLIC_API_BASE_EXTERNAL)
-      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-}
-      # Extra frontend origin(s) allowed by FastAPI CORS when auth is enabled.
-      - CORS_ORIGIN=${CORS_ORIGIN:-}
-      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - "${DEEPTUTOR_DOCKER_BACKEND_PORT:-8001}:${DEEPTUTOR_DOCKER_BACKEND_PORT:-8001}"
+      - "${DEEPTUTOR_DOCKER_FRONTEND_PORT:-3782}:${DEEPTUTOR_DOCKER_FRONTEND_PORT:-3782}"
 
     volumes:
       # Mount local data directory for persistence (read-write)
@@ -116,7 +63,7 @@ services:
       - ./data/knowledge_bases:/app/data/knowledge_bases
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-8001}/"]
+      test: ["CMD", "curl", "-f", "http://localhost:${DEEPTUTOR_DOCKER_BACKEND_PORT:-8001}/"]
       interval: 30s
       timeout: 10s
       retries: 3

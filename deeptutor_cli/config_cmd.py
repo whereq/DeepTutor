@@ -20,19 +20,19 @@ def register(app: typer.Typer) -> None:
         import json
 
         from deeptutor.services.config import (
-            get_env_store,
+            load_system_settings,
             load_config_with_main,
             resolve_embedding_runtime_config,
             resolve_llm_runtime_config,
             resolve_search_runtime_config,
         )
 
-        summary = get_env_store().as_summary()
+        system_settings = load_system_settings()
         llm_runtime = resolve_llm_runtime_config()
         embedding_runtime = resolve_embedding_runtime_config()
         search_runtime = resolve_search_runtime_config()
         llm_info = {
-            "binding_hint": summary.llm["binding"],
+            "binding_hint": llm_runtime.binding_hint,
             "provider": llm_runtime.provider_name,
             "provider_mode": llm_runtime.provider_mode,
             "model": llm_runtime.model,
@@ -51,12 +51,12 @@ def register(app: typer.Typer) -> None:
             json.dumps(
                 {
                     "ports": {
-                        "backend": summary.backend_port,
-                        "frontend": summary.frontend_port,
+                        "backend": system_settings["backend_port"],
+                        "frontend": system_settings["frontend_port"],
                     },
                     "llm": llm_info,
                     "embedding": {
-                        "binding_hint": summary.embedding["binding"],
+                        "binding_hint": embedding_runtime.binding_hint,
                         "provider": embedding_runtime.provider_name,
                         "provider_mode": embedding_runtime.provider_mode,
                         "model": embedding_runtime.model,

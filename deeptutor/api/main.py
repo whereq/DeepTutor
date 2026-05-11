@@ -1,28 +1,21 @@
 from contextlib import asynccontextmanager
 import logging
-import os
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from deeptutor.logging import configure_logging
-from deeptutor.services.config import get_env_store
+from deeptutor.services.config import (
+    ensure_runtime_settings_files,
+    export_runtime_settings_to_env,
+    load_auth_settings,
+    load_system_settings,
+)
 from deeptutor.services.path_service import get_path_service
 
-_env_values = get_env_store().load()
-for _key in (
-    "AUTH_ENABLED",
-    "AUTH_SECRET",
-    "AUTH_TOKEN_EXPIRE_HOURS",
-    "AUTH_USERNAME",
-    "AUTH_PASSWORD_HASH",
-    "POCKETBASE_URL",
-    "POCKETBASE_ADMIN_EMAIL",
-    "POCKETBASE_ADMIN_PASSWORD",
-):
-    if _key in _env_values:
-        os.environ[_key] = _env_values[_key]
+ensure_runtime_settings_files()
+export_runtime_settings_to_env(overwrite=True)
 configure_logging()
 logger = logging.getLogger(__name__)
 
@@ -44,9 +37,6 @@ CONFIG_DRIFT_ERROR_TEMPLATE = (
     "registered in the runtime tool registry. Register the missing tools or "
     "remove the stale tool names from the capability manifests."
 )
-TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
-
-
 class SafeOutputStaticFiles(StaticFiles):
     """Static file mount that only exposes explicitly whitelisted artifacts."""
 
@@ -88,10 +78,6 @@ def validate_tool_consistency():
         raise
 
 
-def _env_truthy(value: str | None) -> bool:
-    return str(value or "").strip().lower() in TRUTHY_ENV_VALUES
-
-
 def _split_origins(value: str | None) -> list[str]:
     if not value:
         return []
@@ -108,9 +94,11 @@ def _split_origins(value: str | None) -> list[str]:
 
 def _build_cors_settings() -> dict[str, object]:
     """Build CORS settings for both localhost and remote Docker deployments."""
-    frontend_port = os.getenv("FRONTEND_PORT", "3782").strip() or "3782"
-    extra_origins = _split_origins(os.getenv("CORS_ORIGIN")) + _split_origins(
-        os.getenv("CORS_ORIGINS")
+    system_settings = load_system_settings()
+    auth_settings = load_auth_settings()
+    frontend_port = str(system_settings["frontend_port"])
+    extra_origins = _split_origins(system_settings["cors_origin"]) + _split_origins(
+        ",".join(system_settings["cors_origins"])
     )
     origins = [
         f"http://localhost:{frontend_port}",
@@ -126,7 +114,7 @@ def _build_cors_settings() -> dict[str, object]:
     # pre-v1.3.8 behavior and allow remote Docker/LAN origins out of the box.
     # When auth is enabled, require explicit CORS_ORIGIN(S) for credentialed
     # cross-origin requests.
-    allow_origin_regex = None if _env_truthy(os.getenv("AUTH_ENABLED")) else r"https?://.*"
+    allow_origin_regex = None if auth_settings["enabled"] else r"https?://.*"
     return {"allow_origins": origins, "allow_origin_regex": allow_origin_regex}
 
 

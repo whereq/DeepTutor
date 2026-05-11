@@ -63,7 +63,7 @@ jobs:
           python -c "from deeptutor.runtime.orchestrator import ChatOrchestrator; print('✅ Orchestrator imports OK')"
           python -c "from deeptutor.runtime.registry.tool_registry import get_tool_registry; print('✅ Tool registry imports OK')"
           python -c "from deeptutor.runtime.registry.capability_registry import get_capability_registry; print('✅ Capability registry imports OK')"
-          python -c "from deeptutor.services.config.env_store import EnvStore; print('✅ EnvStore imports OK')"
+          python -c "from deeptutor.services.config.runtime_settings import RuntimeSettingsService; print('✅ RuntimeSettingsService imports OK')"
           python -c "from deeptutor.api.routers.unified_ws import unified_websocket; print('✅ Unified WS imports OK')"
           python -c "from deeptutor.services.prompt.manager import PromptManager; print('✅ Prompt manager imports OK')"
           python -c "from deeptutor.logging import configure_logging, bind_log_context, capture_process_logs, ProcessLogEvent; print('✅ Logging imports OK')"

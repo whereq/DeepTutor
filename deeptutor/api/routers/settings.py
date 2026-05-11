@@ -168,12 +168,14 @@ def _provider_choices() -> dict[str, list[dict[str, str]]]:
         key=lambda p: p["label"].lower(),
     )
     search = [
+        {"value": "none", "label": "None", "base_url": ""},
         {"value": "brave", "label": "Brave", "base_url": ""},
         {"value": "tavily", "label": "Tavily", "base_url": ""},
         {"value": "jina", "label": "Jina", "base_url": ""},
         {"value": "searxng", "label": "SearXNG", "base_url": ""},
         {"value": "duckduckgo", "label": "DuckDuckGo", "base_url": ""},
         {"value": "perplexity", "label": "Perplexity", "base_url": ""},
+        {"value": "serper", "label": "Serper", "base_url": ""},
     ]
     return {"llm": llm, "embedding": embedding, "search": search}
 
@@ -218,12 +220,12 @@ async def update_catalog(payload: CatalogPayload):
 async def apply_catalog(payload: CatalogPayload | None = None):
     _require_settings_admin()
     catalog = payload.catalog if payload is not None else get_model_catalog_service().load()
-    rendered = get_model_catalog_service().apply(catalog)
+    applied = get_model_catalog_service().apply(catalog)
     _invalidate_runtime_caches()
     return {
-        "message": "Catalog applied to the active .env configuration.",
+        "message": "Catalog applied to runtime settings.",
         "catalog": get_model_catalog_service().load(),
-        "env": rendered,
+        "runtime": applied,
     }
 
 
@@ -361,7 +363,7 @@ class TourCompletePayload(BaseModel):
 async def complete_tour(payload: TourCompletePayload | None = None):
     _require_settings_admin()
     catalog = payload.catalog if payload and payload.catalog else get_model_catalog_service().load()
-    rendered = get_model_catalog_service().apply(catalog)
+    applied = get_model_catalog_service().apply(catalog)
     _invalidate_runtime_caches()
     now = int(time.time())
     launch_at = now + 3
@@ -385,7 +387,7 @@ async def complete_tour(payload: TourCompletePayload | None = None):
         "message": "Configuration saved. DeepTutor will restart shortly.",
         "launch_at": launch_at,
         "redirect_at": redirect_at,
-        "env": rendered,
+        "runtime": applied,
     }
 
 
@@ -393,5 +395,5 @@ async def complete_tour(payload: TourCompletePayload | None = None):
 async def reopen_tour():
     return {
         "message": "Run the terminal setup guide from the project root to re-open the guided setup.",
-        "command": "python scripts/start_tour.py",
+        "command": "deeptutor init",
     }

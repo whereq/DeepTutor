@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
 from deeptutor.logging import configure_logging
 from deeptutor.runtime.mode import RunMode, set_mode
-from deeptutor.services.setup import get_backend_port
 
 from .book import register as register_book
 from .bot import register as register_bot
 from .chat import register as register_chat
 from .common import build_turn_request, console, maybe_run
 from .config_cmd import register as register_config
+from .init_cmd import register as register_init
 from .kb import register as register_kb
 from .memory import register as register_memory
 from .notebook import register as register_notebook
@@ -62,6 +64,7 @@ register_session(session_app)
 register_notebook(notebook_app)
 register_provider(provider_app)
 register_book(book_app)
+register_init(app)
 
 
 @app.command("run")
@@ -104,22 +107,19 @@ def run_capability(
 
 
 @app.command()
-def start() -> None:
-    """Launch backend + frontend together."""
-    from pathlib import Path
-    import subprocess
-    import sys
+def start(
+    home: Path | None = typer.Option(None, "--home", help="Runtime workspace root."),
+) -> None:
+    """Launch backend + frontend together. Press Ctrl+C to stop."""
+    from deeptutor.runtime.launcher import start as start_web
 
-    script = str(Path(__file__).resolve().parent.parent / "scripts" / "start_web.py")
-    result = subprocess.run([sys.executable, script], check=False)
-    if result.returncode:
-        raise typer.Exit(code=result.returncode)
+    start_web(home=home)
 
 
 @app.command()
 def serve(
     host: str = typer.Option("0.0.0.0", help="Bind address."),
-    port: int = typer.Option(get_backend_port(), help="Port number."),
+    port: int | None = typer.Option(None, help="Port number."),
     reload: bool = typer.Option(False, help="Enable auto-reload for development."),
 ) -> None:
     """Start the DeepTutor API server."""
@@ -127,6 +127,10 @@ def serve(
     import sys
 
     set_mode(RunMode.SERVER)
+    if port is None:
+        from deeptutor.services.setup import get_backend_port
+
+        port = get_backend_port()
 
     # Windows: uvicorn defaults to SelectorEventLoop which does not support
     # asyncio.create_subprocess_exec.  Switch to ProactorEventLoop so that
@@ -139,7 +143,7 @@ def serve(
     except ImportError:
         console.print(
             "[bold red]Error:[/] API server dependencies not installed.\n"
-            "Run: pip install -e '.[server]'"
+            "Run: pip install -U deeptutor"
         )
         raise typer.Exit(code=1)
 

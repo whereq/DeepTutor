@@ -9,16 +9,24 @@ Agent-first 的命令行界面。两条核心路径：
 
 ```bash
 # 仅 CLI（含 RAG / 文档解析 / 各家 LLM provider SDK）
-pip install -e ".[cli]"
+pip install deeptutor-cli
+deeptutor init --cli
 
 # CLI + Web/API 服务
-pip install -e ".[server]"
+pip install deeptutor
+deeptutor init
+
+# 源码开发
+pip install -e .
+deeptutor init
 
 # 可选附加组件
 pip install -e ".[tutorbot]"       # TutorBot 智能体引擎 + 各渠道 SDK
 pip install -e ".[math-animator]"  # 数学动画（另需系统 LaTeX/ffmpeg）
 pip install -e ".[all]"            # 全部依赖（含开发工具）
 ```
+
+`deeptutor init --cli` 和普通 `deeptutor init` 使用同一套 `data/user/settings/` 配置目录；区别是 `--cli` 不询问 Web 后端/前端端口，仍会创建 `system.json`、`auth.json`、`integrations.json`、`model_catalog.json`、`main.yaml` 和 `agents.yaml`，并继续询问 LLM 配置。Embedding 配置默认跳过；如果要使用 `deeptutor kb ...` 或 RAG，请在向导里选择配置 embedding，或稍后编辑 `data/user/settings/model_catalog.json`。
 
 ---
 
@@ -124,6 +132,8 @@ deeptutor chat [options]
 deeptutor serve [--host 0.0.0.0] [--port 8001] [--reload]
 ```
 
+`deeptutor serve` 需要完整 Web/API 依赖；如果你是通过 `pip install deeptutor-cli` 安装的 CLI-only 包，请先切换到 `pip install -U deeptutor`。
+
 ---
 
 ## 资源管理命令
@@ -166,7 +176,6 @@ deeptutor notebook remove-record <id> <record_id>
 
 ```bash
 deeptutor memory show
-deeptutor memory export ./backup/
 deeptutor memory clear --force
 ```
 

@@ -131,9 +131,7 @@ def extract_questions_with_llm(
             "images": [List of relative paths to related images]
         }
     """
-    import os
-
-    binding = binding or os.getenv("LLM_BINDING", "openai")
+    binding = binding or get_llm_config().binding
 
     image_list = []
     if images_dir.exists():
@@ -353,7 +351,7 @@ def extract_questions_from_paper(paper_dir: str, output_dir: str | None = None) 
     except ValueError as e:
         print(f"✗ {e!s}")
         print(
-            "Tip: Please create .env file in project root and configure LLM-related environment variables"
+            "Tip: Configure an active LLM profile in Settings > Catalog"
         )
         return False
 

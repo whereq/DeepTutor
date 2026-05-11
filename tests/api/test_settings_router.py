@@ -35,22 +35,9 @@ class _FakeCatalogService:
     def load(self) -> dict[str, Any]:
         return deepcopy(self._catalog)
 
-    def apply(self, catalog: dict[str, Any]) -> dict[str, str]:
+    def apply(self, catalog: dict[str, Any]) -> dict[str, Any]:
         current = self.save(catalog)
-        llm_profile = current["services"]["llm"]["profiles"][0]
-        llm_model = llm_profile["models"][0]
-        embedding_profile = current["services"]["embedding"]["profiles"][0]
-        embedding_model = embedding_profile["models"][0]
-        return {
-            "LLM_BINDING": llm_profile["binding"],
-            "LLM_API_KEY": llm_profile["api_key"],
-            "LLM_HOST": llm_profile["base_url"],
-            "LLM_MODEL": llm_model["model"],
-            "EMBEDDING_BINDING": embedding_profile["binding"],
-            "EMBEDDING_API_KEY": embedding_profile["api_key"],
-            "EMBEDDING_HOST": embedding_profile["base_url"],
-            "EMBEDDING_MODEL": embedding_model["model"],
-        }
+        return {"catalog_path": "memory://model_catalog.json", "services": list(current["services"])}
 
 
 def _build_catalog(
@@ -302,8 +289,7 @@ async def test_apply_catalog_invalidates_runtime_caches(monkeypatch: pytest.Monk
     new_embedding_client = embedding_client_module.get_embedding_client()
 
     assert response["catalog"] == applied_catalog
-    assert response["env"]["LLM_MODEL"] == "gpt-after-apply"
-    assert response["env"]["EMBEDDING_MODEL"] == "text-embedding-after-apply"
+    assert response["runtime"]["catalog_path"]
     assert new_llm_config.model == "gpt-after-apply"
     assert new_llm_client is not old_llm_client
     assert new_llm_client.config.base_url == "https://after-apply-llm.example/v1"
@@ -351,8 +337,7 @@ async def test_complete_tour_invalidates_runtime_caches(
     new_embedding_client = embedding_client_module.get_embedding_client()
     cache = tour_cache.read_text(encoding="utf-8")
 
-    assert response["env"]["LLM_MODEL"] == "gpt-after-tour"
-    assert response["env"]["EMBEDDING_MODEL"] == "text-embedding-after-tour"
+    assert response["runtime"]["catalog_path"]
     assert response["status"] == "completed"
     assert new_llm_config.model == "gpt-after-tour"
     assert new_llm_client is not old_llm_client
