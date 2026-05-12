@@ -286,6 +286,47 @@ class Generator(BaseAgent):
         normalized = str(question_type or "").strip().lower()
         return normalized if normalized in {"choice", "written", "coding"} else "written"
 
+    @staticmethod
+    def _normalize_markdown_paragraphs(text: str) -> str:
+        """Convert single newlines into paragraph breaks for markdown rendering.
+
+        LLMs often emit single ``\n`` characters between logical paragraphs
+        (e.g.  (1)…  (2)…).  In markdown a single newline is treated as a
+        soft-break / space, so the front-end renders everything as one dense
+        block.  This helper turns isolated single newlines into ``\n\n`` so
+        that react-markdown creates separate ``<p>`` tags, while preserving
+        existing blank lines and structural markers (lists, code fences, etc.).
+        """
+        if not text:
+            return text
+        lines = text.split("\n")
+        result: list[str] = []
+        prev_blank = True
+        for line in lines:
+            stripped = line.rstrip()
+            if stripped == "":
+                result.append("")
+                prev_blank = True
+                continue
+            # Structural lines that should start a new paragraph
+            is_structural = (
+                stripped.startswith("```")
+                or stripped.startswith("|")
+                or stripped.startswith("#")
+                or stripped.startswith("-")
+                or stripped.startswith("*")
+                or stripped.startswith(">")
+                or re.match(r"^\s*\d+[.):]", stripped)
+                or re.match(r"^\s*[-*+]\s", stripped)
+            )
+            if not prev_blank and not is_structural:
+                # This line continues the previous paragraph in the raw text,
+                # but we want it as its own paragraph for display.
+                result.append("")
+            result.append(stripped)
+            prev_blank = False
+        return "\n".join(result)
+
     @classmethod
     def _normalize_payload_shape(
         cls,
@@ -294,9 +335,15 @@ class Generator(BaseAgent):
     ) -> dict[str, Any]:
         normalized = dict(payload or {})
         normalized["question_type"] = expected_type
-        normalized["question"] = str(normalized.get("question", "") or "").strip()
-        normalized["correct_answer"] = str(normalized.get("correct_answer", "") or "").strip()
-        normalized["explanation"] = str(normalized.get("explanation", "") or "").strip()
+        normalized["question"] = cls._normalize_markdown_paragraphs(
+            str(normalized.get("question", "") or "").strip()
+        )
+        normalized["correct_answer"] = cls._normalize_markdown_paragraphs(
+            str(normalized.get("correct_answer", "") or "").strip()
+        )
+        normalized["explanation"] = cls._normalize_markdown_paragraphs(
+            str(normalized.get("explanation", "") or "").strip()
+        )
 
         raw_options = normalized.get("options")
         if expected_type == "choice":
