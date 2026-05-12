@@ -127,10 +127,14 @@ export default function MemorySection() {
       const d = await readMemoryResponse(res);
       setData(d);
       setEditors({ summary: d.summary || "", profile: d.profile || "" });
+    } catch (error) {
+      setToast(
+        error instanceof Error ? error.message : t("Memory request failed"),
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadMemory();
@@ -198,6 +202,10 @@ export default function MemorySection() {
       setData(d);
       setEditors((prev) => ({ ...prev, [activeTab]: d[activeTab] || "" }));
       setToast(t("{{label}} cleared", { label: t(tab.label) }));
+    } catch (error) {
+      setToast(
+        error instanceof Error ? error.message : t("Memory clear failed"),
+      );
     } finally {
       setClearing(false);
     }

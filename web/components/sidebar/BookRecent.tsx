@@ -48,7 +48,7 @@ export function BookRecent({ collapsed = false, limit = 4 }: BookRecentProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch("/api/v1/book/books");
+        const res = await apiFetch(apiUrl("/api/v1/book/books"));
         if (!res.ok) return;
         const data = await res.json();
         const items: RecentBook[] = Array.isArray(data?.books)

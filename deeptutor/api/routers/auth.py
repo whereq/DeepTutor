@@ -1,8 +1,18 @@
 """Auth router — login, logout, status, registration, and user-management endpoints."""
 
+from contextvars import Token as _CtxToken
 import logging
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
+from fastapi import (
+    APIRouter,
+    Cookie,
+    Depends,
+    Header,
+    HTTPException,
+    Response,
+    WebSocket,
+    status,
+)
 from pydantic import BaseModel, field_validator
 
 from deeptutor.services.config import load_auth_settings
@@ -197,10 +207,11 @@ def require_auth(
 class _WsAuthFailed:
     """Sentinel: ws_require_auth failed and closed the WebSocket."""
 
-ws_auth_failed = _WsAuthFailed()
+
+ws_auth_failed: _WsAuthFailed = _WsAuthFailed()
 
 
-async def ws_require_auth(ws):
+async def ws_require_auth(ws: WebSocket) -> _CtxToken | _WsAuthFailed:
     """Authenticate a WebSocket connection and set the user ContextVar.
 
     Must be called **before** ``ws.accept()`` so the server can reject
@@ -219,8 +230,7 @@ async def ws_require_auth(ws):
         try:
             ...
         finally:
-            if user_token is not None:
-                reset_current_user(user_token)
+            reset_current_user(user_token)
     """
     from deeptutor.multi_user.context import set_current_user, user_from_token_payload
     from deeptutor.multi_user.paths import local_admin_user
