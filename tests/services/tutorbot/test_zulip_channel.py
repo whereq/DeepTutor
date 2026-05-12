@@ -691,7 +691,10 @@ class TestSend:
 
 class TestUploadAndSend:
     @pytest.mark.asyncio
-    async def test_upload_uses_call_endpoint(self):
+    async def test_upload_uses_call_endpoint(self, tmp_path: Path):
+        test_file = tmp_path / "test.png"
+        test_file.write_bytes(b"fake-image")
+
         ch = _make_channel()
         mock_client = MagicMock()
 
@@ -709,7 +712,7 @@ class TestUploadAndSend:
             channel="zulip",
             chat_id="pm:42",
             content="",
-            media=["/tmp/test.png"],
+            media=[str(test_file)],
             metadata={"msg_type": "private", "recipient_user_id": "42"},
         )
         await ch.send(msg)
@@ -721,6 +724,209 @@ class TestUploadAndSend:
         ]
         assert len(upload_calls) == 1
         assert upload_calls[0].kwargs["timeout"] == 60.0
+        files_arg = upload_calls[0].kwargs["files"]
+        assert len(files_arg) == 1
+        assert hasattr(files_arg[0], "read")
+
+    @pytest.mark.asyncio
+    async def test_upload_passes_file_object_not_string(self, tmp_path: Path):
+        test_file = tmp_path / "test.png"
+        test_file.write_bytes(b"fake-image")
+
+        ch = _make_channel()
+        mock_client = MagicMock()
+        mock_client.call_endpoint.return_value = {
+            "result": "success",
+            "uri": "/user_uploads/img.png",
+        }
+        ch._client = mock_client
+
+        await ch._upload_and_send(
+            "pm:42",
+            str(test_file),
+            {"msg_type": "private", "recipient_user_id": "42"},
+        )
+
+        call_kwargs = mock_client.call_endpoint.call_args.kwargs
+        files_arg = call_kwargs["files"]
+        assert len(files_arg) == 1
+        f = files_arg[0]
+        assert hasattr(f, "name")
+        assert hasattr(f, "read")
+
+    @pytest.mark.asyncio
+    async def test_upload_skips_unresolvable_path(self):
+        ch = _make_channel()
+        mock_client = MagicMock()
+        ch._client = mock_client
+
+        with patch.object(ch, "_resolve_media_path", return_value=None):
+            await ch._upload_and_send(
+                "pm:42",
+                "/nonexistent/file.png",
+                {"msg_type": "private", "recipient_user_id": "42"},
+            )
+
+        mock_client.call_endpoint.assert_not_called()
+
+
+class TestResolveMediaPath:
+    def test_existing_local_path_returned_directly(self, tmp_path: Path):
+        test_file = tmp_path / "image.png"
+        test_file.write_bytes(b"data")
+
+        ch = _make_channel()
+        result = ch._resolve_media_path(str(test_file))
+        assert result == str(test_file)
+
+    def test_zulip_upload_path_finds_cached_file(self, tmp_path: Path):
+        ch = _make_channel()
+        path_id = "/user_uploads/2/ce/abc123/photo.png"
+
+        with patch(
+            "deeptutor.tutorbot.channels.zulip.get_media_dir",
+            return_value=tmp_path,
+        ):
+            dest = ZulipChannel._attachment_destination(
+                tmp_path, "photo.png", path_id, 0
+            )
+            dest.write_bytes(b"cached-data")
+
+            result = ch._resolve_media_path(path_id)
+            assert result is not None
+            assert result == str(dest)
+
+    def test_zulip_upload_path_downloads_if_not_cached(self, tmp_path: Path):
+        ch = _make_channel()
+        path_id = "/user_uploads/2/ce/abc123/photo.png"
+
+        with patch(
+            "deeptutor.tutorbot.channels.zulip.get_media_dir",
+            return_value=tmp_path,
+        ), patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status = MagicMock()
+            mock_resp.content = b"downloaded-data"
+            mock_get.return_value = mock_resp
+
+            result = ch._resolve_media_path(path_id)
+            assert result is not None
+            assert Path(result).read_bytes() == b"downloaded-data"
+            mock_get.assert_called_once()
+
+    def test_full_url_resolved_to_zulip_path(self, tmp_path: Path):
+        ch = _make_channel()
+        url = "https://example.zulipchat.com/user_uploads/2/ce/abc/photo.png"
+
+        with patch(
+            "deeptutor.tutorbot.channels.zulip.get_media_dir",
+            return_value=tmp_path,
+        ), patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status = MagicMock()
+            mock_resp.content = b"data"
+            mock_get.return_value = mock_resp
+
+            result = ch._resolve_media_path(url)
+            assert result is not None
+
+    def test_non_zulip_nonexistent_path_returns_none(self):
+        ch = _make_channel()
+        result = ch._resolve_media_path("/some/random/path.png")
+        assert result is None
+
+
+class TestSendMetadataEnrichment:
+    @pytest.mark.asyncio
+    async def test_send_enriches_metadata_from_recipient_map(self, tmp_path: Path):
+        ch = _make_channel()
+        mock_client = MagicMock()
+        mock_client.call_endpoint.return_value = {"result": "success"}
+        ch._client = mock_client
+
+        ch._recipient_map["pm:42"] = {
+            "msg_type": "private",
+            "recipient_user_id": "42",
+            "sender_email": "user@example.com",
+        }
+
+        from deeptutor.tutorbot.bus.events import OutboundMessage
+
+        msg = OutboundMessage(
+            channel="zulip",
+            chat_id="pm:42",
+            content="Hello",
+            metadata={"message_id": "200"},
+        )
+        await ch.send(msg)
+
+        assert msg.metadata["msg_type"] == "private"
+        assert msg.metadata["recipient_user_id"] == "42"
+        assert msg.metadata["message_id"] == "200"
+
+    @pytest.mark.asyncio
+    async def test_send_preserves_existing_metadata(self):
+        ch = _make_channel()
+        mock_client = MagicMock()
+        mock_client.call_endpoint.return_value = {"result": "success"}
+        ch._client = mock_client
+
+        ch._recipient_map["pm:42"] = {
+            "msg_type": "private",
+            "recipient_user_id": "42",
+        }
+
+        from deeptutor.tutorbot.bus.events import OutboundMessage
+
+        msg = OutboundMessage(
+            channel="zulip",
+            chat_id="pm:42",
+            content="Hello",
+            metadata={"msg_type": "stream", "stream": "general", "topic": "test"},
+        )
+        await ch.send(msg)
+
+        assert msg.metadata["msg_type"] == "stream"
+        assert msg.metadata["stream"] == "general"
+
+
+class TestSendToolHintFilter:
+    @pytest.mark.asyncio
+    async def test_tool_hint_message_skipped(self):
+        ch = _make_channel()
+        mock_client = MagicMock()
+        ch._client = mock_client
+
+        from deeptutor.tutorbot.bus.events import OutboundMessage
+
+        msg = OutboundMessage(
+            channel="zulip",
+            chat_id="pm:42",
+            content='message("Hello")',
+            metadata={"_progress": True, "_tool_hint": True},
+        )
+        await ch.send(msg)
+
+        mock_client.call_endpoint.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_progress_message_without_tool_hint_sent(self):
+        ch = _make_channel()
+        mock_client = MagicMock()
+        mock_client.call_endpoint.return_value = {"result": "success"}
+        ch._client = mock_client
+
+        from deeptutor.tutorbot.bus.events import OutboundMessage
+
+        msg = OutboundMessage(
+            channel="zulip",
+            chat_id="pm:42",
+            content="Thinking...",
+            metadata={"_progress": True, "msg_type": "private", "recipient_user_id": "42"},
+        )
+        await ch.send(msg)
+
+        mock_client.call_endpoint.assert_called()
 
 
 class TestStop:
