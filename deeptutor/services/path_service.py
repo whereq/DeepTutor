@@ -410,6 +410,12 @@ def get_path_service() -> PathService:
 
         return get_current_path_service()
     except Exception:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "get_path_service() fell back to default instance; "
+            "multi-user path resolution failed",
+            exc_info=True,
+        )
         return PathService.get_instance()
 
 

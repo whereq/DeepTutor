@@ -1,8 +1,18 @@
 """Auth router — login, logout, status, registration, and user-management endpoints."""
 
+from contextvars import Token as _CtxToken
 import logging
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
+from fastapi import (
+    APIRouter,
+    Cookie,
+    Depends,
+    Header,
+    HTTPException,
+    Response,
+    WebSocket,
+    status,
+)
 from pydantic import BaseModel, field_validator
 
 from deeptutor.services.config import load_auth_settings
@@ -192,6 +202,50 @@ def require_auth(
 
     set_current_user(user_from_token_payload(payload))
     return payload
+
+
+class _WsAuthFailed:
+    """Sentinel: ws_require_auth failed and closed the WebSocket."""
+
+
+ws_auth_failed: _WsAuthFailed = _WsAuthFailed()
+
+
+async def ws_require_auth(ws: WebSocket) -> _CtxToken | _WsAuthFailed:
+    """Authenticate a WebSocket connection and set the user ContextVar.
+
+    Must be called **before** ``ws.accept()`` so the server can reject
+    unauthenticated upgrades cleanly.
+
+    Returns a ContextVar reset token on success, or ``ws_auth_failed``
+    on failure (the WebSocket is already closed — the caller should
+    ``return`` immediately).
+
+    Usage::
+
+        user_token = await ws_require_auth(ws)
+        if user_token is ws_auth_failed:
+            return
+        await ws.accept()
+        try:
+            ...
+        finally:
+            reset_current_user(user_token)
+    """
+    from deeptutor.multi_user.context import set_current_user, user_from_token_payload
+    from deeptutor.multi_user.paths import local_admin_user
+    from deeptutor.services.auth import AUTH_ENABLED, decode_token
+
+    if not AUTH_ENABLED:
+        return set_current_user(local_admin_user())
+
+    token = ws.query_params.get("token") or ws.cookies.get("dt_token")
+    payload = decode_token(token) if token else None
+    if not payload:
+        await ws.close(code=4001)
+        return ws_auth_failed
+
+    return set_current_user(user_from_token_payload(payload))
 
 
 def require_admin(

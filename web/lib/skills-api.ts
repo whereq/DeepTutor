@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
 
 const SKILLS_CACHE_PREFIX = "skills:";
@@ -63,7 +63,7 @@ export async function listSkills(options?: {
   return withClientCache<SkillInfo[]>(
     `${SKILLS_CACHE_PREFIX}list`,
     async () => {
-      const response = await fetch(apiUrl("/api/v1/skills/list"), {
+      const response = await apiFetch(apiUrl("/api/v1/skills/list"), {
         cache: "no-store",
       });
       const data = await asJson(response);
@@ -81,7 +81,7 @@ export async function listSkills(options?: {
 }
 
 export async function getSkill(name: string): Promise<SkillDetail> {
-  const response = await fetch(
+  const response = await apiFetch(
     apiUrl(`/api/v1/skills/${encodeURIComponent(name)}`),
     {
       cache: "no-store",
@@ -99,7 +99,7 @@ export async function getSkill(name: string): Promise<SkillDetail> {
 export async function createSkill(
   payload: CreateSkillPayload,
 ): Promise<SkillInfo> {
-  const response = await fetch(apiUrl("/api/v1/skills/create"), {
+  const response = await apiFetch(apiUrl("/api/v1/skills/create"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -122,7 +122,7 @@ export async function updateSkill(
   name: string,
   payload: UpdateSkillPayload,
 ): Promise<SkillInfo> {
-  const response = await fetch(
+  const response = await apiFetch(
     apiUrl(`/api/v1/skills/${encodeURIComponent(name)}`),
     {
       method: "PUT",
@@ -140,7 +140,7 @@ export async function updateSkill(
 }
 
 export async function deleteSkill(name: string): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     apiUrl(`/api/v1/skills/${encodeURIComponent(name)}`),
     {
       method: "DELETE",
@@ -156,7 +156,7 @@ export async function listSkillTags(options?: {
   return withClientCache<string[]>(
     SKILL_TAGS_CACHE_KEY,
     async () => {
-      const response = await fetch(apiUrl("/api/v1/skills/tags/list"), {
+      const response = await apiFetch(apiUrl("/api/v1/skills/tags/list"), {
         cache: "no-store",
       });
       const data = await asJson(response);
@@ -167,7 +167,7 @@ export async function listSkillTags(options?: {
 }
 
 export async function createSkillTag(name: string): Promise<string> {
-  const response = await fetch(apiUrl("/api/v1/skills/tags/create"), {
+  const response = await apiFetch(apiUrl("/api/v1/skills/tags/create"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -181,7 +181,7 @@ export async function renameSkillTag(
   oldName: string,
   newName: string,
 ): Promise<string> {
-  const response = await fetch(
+  const response = await apiFetch(
     apiUrl(`/api/v1/skills/tags/${encodeURIComponent(oldName)}`),
     {
       method: "PUT",
@@ -195,7 +195,7 @@ export async function renameSkillTag(
 }
 
 export async function deleteSkillTag(name: string): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     apiUrl(`/api/v1/skills/tags/${encodeURIComponent(name)}`),
     {
       method: "DELETE",

@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 import {
   listNotebooks,
   type NotebookSummary as RealNotebookSummary,
@@ -301,7 +301,7 @@ export default function SaveToNotebookModal({
     }
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         apiUrl("/api/v1/notebook/add_record_with_summary"),
         {
           method: "POST",

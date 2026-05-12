@@ -1437,6 +1437,13 @@ async def clear_progress(kb_name: str):
 @router.websocket("/{kb_name}/progress/ws")
 async def websocket_progress(websocket: WebSocket, kb_name: str):
     """WebSocket endpoint for real-time progress updates"""
+    from deeptutor.api.routers.auth import ws_auth_failed, ws_require_auth
+    from deeptutor.multi_user.context import reset_current_user
+
+    user_token = await ws_require_auth(websocket)
+    if user_token is ws_auth_failed:
+        return
+
     await websocket.accept()
 
     broadcaster = ProgressBroadcaster.get_instance()
@@ -1565,6 +1572,11 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
             await websocket.close()
         except Exception:
             pass
+        if user_token is not None:
+            try:
+                reset_current_user(user_token)
+            except Exception:
+                pass
 
 
 @router.post("/{kb_name}/link-folder", response_model=LinkedFolderInfo)
