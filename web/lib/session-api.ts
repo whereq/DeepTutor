@@ -194,7 +194,7 @@ export async function deleteMessage(
   sessionId: string,
   messageId: number,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     apiUrl(`/api/v1/sessions/${sessionId}/messages/${messageId}`),
     { method: "DELETE" },
   );
