@@ -648,6 +648,125 @@ class SQLiteSessionStore:
     async def delete_message(self, message_id: int | str) -> bool:
         return await self._run(self._delete_message_sync, message_id)
 
+    def _delete_turn_by_message_sync(self, session_id: str, message_id: int) -> dict[str, Any]:
+        with self._connect() as conn:
+            msg = conn.execute(
+                """
+                SELECT id, session_id, role, attachments_json, created_at
+                FROM messages
+                WHERE id = ?
+                """,
+                (int(message_id),),
+            ).fetchone()
+            if msg is None or msg["session_id"] != session_id:
+                return {
+                    "deleted": False,
+                    "attachment_ids": [],
+                    "turn_id": None,
+                    "was_running": False,
+                }
+
+            role = msg["role"]
+            paired_msg = None
+            if role == "user":
+                paired_msg = conn.execute(
+                    """
+                    SELECT id, session_id, role, attachments_json, created_at
+                    FROM messages
+                    WHERE session_id = ? AND role = 'assistant' AND id > ?
+                    ORDER BY id ASC
+                    LIMIT 1
+                    """,
+                    (session_id, int(message_id)),
+                ).fetchone()
+            elif role == "assistant":
+                paired_msg = conn.execute(
+                    """
+                    SELECT id, session_id, role, attachments_json, created_at
+                    FROM messages
+                    WHERE session_id = ? AND role = 'user' AND id < ?
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    (session_id, int(message_id)),
+                ).fetchone()
+
+            user_msg = msg if role == "user" else paired_msg
+            turn_id = None
+            was_running = False
+            if user_msg is not None:
+                user_created_at = user_msg["created_at"]
+                turn_row = conn.execute(
+                    """
+                    SELECT id, status
+                    FROM turns
+                    WHERE session_id = ? AND created_at >= ?
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                    """,
+                    (session_id, user_created_at),
+                ).fetchone()
+                if turn_row is not None:
+                    turn_id = turn_row["id"]
+                    was_running = turn_row["status"] == "running"
+
+            if was_running:
+                return {
+                    "deleted": False,
+                    "attachment_ids": [],
+                    "turn_id": turn_id,
+                    "was_running": True,
+                }
+
+            attachment_ids: list[str] = []
+            for m in [msg, paired_msg]:
+                if m is not None:
+                    atts = _json_loads(m["attachments_json"], [])
+                    for att in atts:
+                        aid = att.get("id") or att.get("attachment_id")
+                        if aid:
+                            attachment_ids.append(aid)
+
+            if turn_id is not None:
+                conn.execute("DELETE FROM turn_events WHERE turn_id = ?", (turn_id,))
+                conn.execute("DELETE FROM turns WHERE id = ?", (turn_id,))
+
+            ids_to_delete = [int(message_id)]
+            if paired_msg is not None:
+                ids_to_delete.append(int(paired_msg["id"]))
+            conn.execute(
+                f"DELETE FROM messages WHERE id IN ({','.join('?' * len(ids_to_delete))})",  # nosec B608
+                tuple(ids_to_delete),
+            )
+
+            session_row = conn.execute(
+                "SELECT summary_up_to_msg_id FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            if session_row is not None:
+                summary_up_to = int(session_row["summary_up_to_msg_id"])
+                if any(mid <= summary_up_to for mid in ids_to_delete):
+                    conn.execute(
+                        "UPDATE sessions SET summary_up_to_msg_id = 0 WHERE id = ?",
+                        (session_id,),
+                    )
+
+            conn.execute(
+                "UPDATE sessions SET updated_at = ? WHERE id = ?",
+                (time.time(), session_id),
+            )
+            conn.commit()
+
+        return {
+            "deleted": True,
+            "attachment_ids": attachment_ids,
+            "turn_id": turn_id,
+            "was_running": was_running,
+        }
+
+    async def delete_turn_by_message(self, session_id: str, message_id: int) -> dict[str, Any]:
+        return await self._run(self._delete_turn_by_message_sync, session_id, message_id)
+
     def _get_last_message_sync(
         self, session_id: str, role: str | None = None
     ) -> dict[str, Any] | None:

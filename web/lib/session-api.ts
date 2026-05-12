@@ -189,3 +189,14 @@ export async function recordQuizResults(
   );
   await expectJson<{ recorded: boolean }>(response);
 }
+
+export async function deleteMessage(
+  sessionId: string,
+  messageId: number,
+): Promise<void> {
+  const response = await apiFetch(
+    apiUrl(`/api/v1/sessions/${sessionId}/messages/${messageId}`),
+    { method: "DELETE" },
+  );
+  await expectJson<{ deleted: boolean }>(response);
+}

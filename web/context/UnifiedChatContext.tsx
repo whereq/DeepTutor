@@ -19,7 +19,11 @@ import {
 } from "@/context/app-shell-storage";
 import type { StreamEvent, ChatMessage, LLMSelection } from "@/lib/unified-ws";
 import { UnifiedWSClient } from "@/lib/unified-ws";
-import { getSession, type SessionMessage } from "@/lib/session-api";
+import {
+  getSession,
+  deleteMessage,
+  type SessionMessage,
+} from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
 import { shouldAppendEventContent } from "@/lib/stream";
@@ -117,6 +121,7 @@ export interface MessageRequestSnapshot {
 }
 
 export interface MessageItem {
+  id?: number;
   role: "user" | "assistant" | "system";
   content: string;
   capability?: string;
@@ -182,6 +187,7 @@ type Action =
       llmSelection?: LLMSelection | null;
       language?: string;
     }
+  | { type: "DELETE_TURN"; key: string; messageId: number }
   | { type: "NEW_SESSION"; key: string };
 
 function createSessionEntry(
@@ -269,6 +275,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             messages: [
               ...session.messages,
               {
+                id: -Date.now(),
                 role: "user",
                 content: action.content,
                 capability: action.capability || "",
@@ -343,6 +350,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             messages: [
               ...(state.sessions[action.key]?.messages ?? []),
               {
+                id: -Date.now(),
                 role: "assistant",
                 content: "",
                 events: [],
@@ -362,6 +370,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
       let last = msgs[msgs.length - 1];
       if (last?.role !== "assistant") {
         msgs.push({
+          id: -Date.now(),
           role: "assistant",
           content: "",
           events: [],
@@ -480,6 +489,42 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         },
       };
     }
+    case "DELETE_TURN": {
+      const session = state.sessions[action.key];
+      if (!session) return state;
+      const idx = session.messages.findIndex((m) => m.id === action.messageId);
+      if (idx === -1) return state;
+      const msg = session.messages[idx];
+      const toRemove = new Set<number>();
+      toRemove.add(idx);
+      if (msg.role === "user") {
+        if (
+          idx + 1 < session.messages.length &&
+          session.messages[idx + 1].role === "assistant"
+        ) {
+          toRemove.add(idx + 1);
+        }
+      } else if (msg.role === "assistant") {
+        if (idx - 1 >= 0 && session.messages[idx - 1].role === "user") {
+          toRemove.add(idx - 1);
+        }
+      }
+      const nextMessages = session.messages.filter((_, i) => !toRemove.has(i));
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [action.key]: {
+            ...session,
+            messages: nextMessages,
+            isStreaming: false,
+            status: "idle",
+            updatedAt: Date.now(),
+          },
+        },
+        sidebarRefreshToken: state.sidebarRefreshToken + 1,
+      };
+    }
     case "NEW_SESSION": {
       const MAX_CACHED_SESSIONS = 20;
       let nextSessions = {
@@ -531,6 +576,7 @@ interface ChatContextValue {
   ) => void;
   cancelStreamingTurn: () => void;
   regenerateLastMessage: () => void;
+  deleteTurn: (messageId: number) => Promise<void>;
   newSession: () => void;
   loadSession: (sessionId: string) => Promise<void>;
   selectedSessionId: string | null;
@@ -714,6 +760,7 @@ export function UnifiedChatProvider({
             attachments,
           );
           return {
+            id: message.id,
             role: message.role,
             content:
               message.role === "assistant"
@@ -1216,6 +1263,38 @@ export function UnifiedChatProvider({
     dispatch({ type: "NEW_SESSION", key: makeDraftKey() });
   }, [makeDraftKey]);
 
+  const deleteTurn = useCallback(
+    async (messageId: number) => {
+      const currentState = stateRef.current;
+      const key = currentState.selectedKey;
+      if (!key) return;
+      const session = currentState.sessions[key];
+      if (!session || !session.sessionId) return;
+      if (session.isStreaming) return;
+      let effectiveId = messageId;
+      if (messageId < 0) {
+        const origIdx = session.messages.findIndex((m) => m.id === messageId);
+        if (origIdx === -1) return;
+        try {
+          await loadSession(session.sessionId);
+        } catch {
+          return;
+        }
+        const refreshed = stateRef.current.sessions[key];
+        const realId = refreshed?.messages[origIdx]?.id;
+        if (realId == null || realId < 0) return;
+        effectiveId = realId;
+      }
+      try {
+        await deleteMessage(session.sessionId, effectiveId);
+        dispatch({ type: "DELETE_TURN", key, messageId: effectiveId });
+      } catch (err) {
+        console.error("Failed to delete turn:", err);
+      }
+    },
+    [loadSession],
+  );
+
   const value: ChatContextValue = {
     state: derivedState,
     setTools,
@@ -1226,6 +1305,7 @@ export function UnifiedChatProvider({
     sendMessage,
     cancelStreamingTurn,
     regenerateLastMessage,
+    deleteTurn,
     newSession,
     loadSession,
     selectedSessionId: derivedState.sessionId,

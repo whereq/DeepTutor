@@ -12,6 +12,7 @@ import {
   RefreshCcw,
   Wand2,
   X,
+  Trash2,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -52,6 +53,7 @@ const VisualizationViewer = dynamic(
 );
 
 interface ChatMessageItem {
+  id?: number;
   role: "user" | "assistant" | "system";
   content: string;
   capability?: string;
@@ -336,17 +338,57 @@ const UserMessage = memo(function UserMessage({
   msg,
   index,
   onPreviewAttachment,
+  onDeleteTurn,
 }: {
   msg: ChatMessageItem;
   index: number;
   onPreviewAttachment?: (attachment: MessageAttachment) => void;
+  onDeleteTurn?: (messageId: number) => void;
 }) {
   const { t } = useTranslation();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   if (msg.content.startsWith("[Quiz Performance]")) return null;
 
   return (
-    <div key={`${msg.role}-${index}`} className="flex justify-end">
+    <div key={`${msg.role}-${index}`} className="group flex justify-end">
       <div className="max-w-[75%] space-y-1.5">
+        <div className="flex justify-end">
+          <div className="relative">
+            {!confirmDelete ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="rounded-md p-1 text-[var(--muted-foreground)] opacity-0 transition-opacity group-hover:opacity-100 hover:text-[var(--destructive)]"
+                title={t("Delete")}
+              >
+                <Trash2 size={14} strokeWidth={1.5} />
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 text-[12px]">
+                <span className="text-[var(--muted-foreground)]">
+                  {t("Delete this turn?")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (msg.id != null) onDeleteTurn?.(msg.id);
+                    setConfirmDelete(false);
+                  }}
+                  className="rounded-md px-2 py-0.5 font-medium text-[var(--destructive)] hover:bg-[var(--destructive)]/10"
+                >
+                  {t("Delete")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className="rounded-md px-2 py-0.5 font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)]/40"
+                >
+                  {t("Cancel")}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="flex justify-end pr-1">
           <span className="text-[10px] tracking-wide text-[var(--muted-foreground)]">
             {t(getModeBadgeLabel(msg.capability))}
@@ -686,6 +728,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   onConfirmOutline,
   onPreviewAttachment,
   onSwitchToManualMode,
+  onDeleteTurn,
 }: {
   messages: ChatMessageItem[];
   isStreaming: boolean;
@@ -707,6 +750,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   // button after a terminal failure. Optional so non-auto chat surfaces don't
   // have to wire it.
   onSwitchToManualMode?: () => void;
+  onDeleteTurn?: (messageId: number) => void;
 }) {
   const { t } = useTranslation();
   const outlineStatusByIndex = useMemo(() => {
@@ -783,6 +827,7 @@ export const ChatMessageList = memo(function ChatMessageList({
               msg={msg}
               index={i}
               onPreviewAttachment={onPreviewAttachment}
+              onDeleteTurn={onDeleteTurn}
             />
           );
         }
