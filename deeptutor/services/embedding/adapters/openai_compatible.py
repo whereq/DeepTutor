@@ -6,6 +6,8 @@ from typing import Any, Dict
 
 import httpx
 
+from deeptutor.services.llm.openai_http_client import disable_ssl_verify_enabled
+
 from .base import (
     BaseEmbeddingAdapter,
     EmbeddingProviderError,
@@ -190,7 +192,9 @@ class OpenAICompatibleEmbeddingAdapter(BaseEmbeddingAdapter):
         last_exc: Exception | None = None
         for attempt in range(1 + self._MAX_RETRIES):
             try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
+                async with httpx.AsyncClient(
+                    timeout=timeout, verify=not disable_ssl_verify_enabled()
+                ) as client:
                     response = await client.post(url, json=payload, headers=headers)
 
                     # Handle rate limiting (429) with retry
