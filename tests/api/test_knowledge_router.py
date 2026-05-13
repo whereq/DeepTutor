@@ -102,7 +102,7 @@ def test_rag_providers_returns_llamaindex_only() -> None:
             {
                 "id": "llamaindex",
                 "name": "LlamaIndex",
-                "description": "Pure vector retrieval, fastest processing speed.",
+                "description": "LlamaIndex retrieval with hybrid BM25/vector fusion when available.",
             }
         ]
     }
@@ -119,9 +119,12 @@ def test_supported_file_types_returns_upload_policy() -> None:
     assert ".xlsx" in payload["extensions"]
     assert ".pptx" in payload["extensions"]
     assert ".md" in payload["extensions"]
+    assert ".png" in payload["extensions"]
     assert payload["max_file_size_bytes"] > payload["max_pdf_size_bytes"] > 0
     assert ".pdf" in payload["accept"]
     assert ".docx" in payload["accept"]
+    assert ".png" in payload["accept"]
+    assert "image/png" in payload["accept"]
 
 
 def test_create_kb_does_not_require_llm_precheck(monkeypatch, tmp_path: Path) -> None:

@@ -64,9 +64,14 @@ def test_parse_chunks_keeps_reasoning_content_out_of_visible_content(provider_cl
     assert response.reasoning_content == "internal reasoning"
 
 
-def _build_services_kwargs(provider_name: str, reasoning_effort: str) -> dict:
+def _build_services_kwargs(
+    provider_name: str,
+    reasoning_effort: str | None,
+    *,
+    model: str = "deepseek-v4-pro",
+) -> dict:
     provider = ServicesOpenAICompatProvider.__new__(ServicesOpenAICompatProvider)
-    provider.default_model = "deepseek-v4-pro"
+    provider.default_model = model
     provider._spec = find_service_provider(provider_name)
     return provider._build_kwargs(
         messages=[{"role": "user", "content": "hello"}],
@@ -79,9 +84,14 @@ def _build_services_kwargs(provider_name: str, reasoning_effort: str) -> dict:
     )
 
 
-def _build_tutorbot_kwargs(provider_name: str, reasoning_effort: str) -> dict:
+def _build_tutorbot_kwargs(
+    provider_name: str,
+    reasoning_effort: str | None,
+    *,
+    model: str = "deepseek-v4-pro",
+) -> dict:
     provider = TutorBotOpenAICompatProvider.__new__(TutorBotOpenAICompatProvider)
-    provider.default_model = "deepseek-v4-pro"
+    provider.default_model = model
     provider._spec = find_tutorbot_provider(provider_name)
     return provider._build_kwargs(
         messages=[{"role": "user", "content": "hello"}],
@@ -101,6 +111,24 @@ def test_services_provider_minimal_reasoning_uses_extra_body_only() -> None:
     assert kwargs["extra_body"] == {"thinking": {"type": "disabled"}}
 
 
+def test_services_deepseek_v4_flash_disables_thinking_by_default() -> None:
+    kwargs = _build_services_kwargs(
+        "deepseek",
+        None,
+        model="deepseek-v4-flash",
+    )
+
+    assert "reasoning_effort" not in kwargs
+    assert kwargs["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+def test_services_deepseek_v4_pro_enables_thinking_by_default() -> None:
+    kwargs = _build_services_kwargs("deepseek", None)
+
+    assert kwargs["reasoning_effort"] == "high"
+    assert kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+
+
 def test_services_dashscope_minimal_reasoning_uses_enable_thinking_only() -> None:
     kwargs = _build_services_kwargs("dashscope", "minimal")
 
@@ -110,6 +138,17 @@ def test_services_dashscope_minimal_reasoning_uses_enable_thinking_only() -> Non
 
 def test_tutorbot_provider_minimal_reasoning_uses_extra_body_only() -> None:
     kwargs = _build_tutorbot_kwargs("deepseek", "minimal")
+
+    assert "reasoning_effort" not in kwargs
+    assert kwargs["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+def test_tutorbot_deepseek_v4_flash_disables_thinking_by_default() -> None:
+    kwargs = _build_tutorbot_kwargs(
+        "deepseek",
+        None,
+        model="deepseek-v4-flash",
+    )
 
     assert "reasoning_effort" not in kwargs
     assert kwargs["extra_body"] == {"thinking": {"type": "disabled"}}

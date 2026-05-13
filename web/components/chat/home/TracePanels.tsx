@@ -20,6 +20,10 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import {
+  formatTurnDuration,
+  getTurnDurationSeconds,
+} from "@/lib/trace-timing";
 import type { StreamEvent } from "@/lib/unified-ws";
 
 type TraceMetadata = {
@@ -32,6 +36,10 @@ type TraceMetadata = {
   trace_kind?: string;
   trace_id?: string;
   call_state?: string;
+  // Set by the chat pipeline on the final iteration's reasoning sub-trace.
+  // Marks "this sub-trace's text has been re-emitted as the final-response
+  // CONTENT event in the same turn, so don't render it as a duplicate row."
+  absorbed_into_final?: boolean;
   step_id?: string;
   round?: number;
   query?: string;
@@ -142,37 +150,6 @@ function getTraceGroup(events: StreamEvent[]) {
   return "";
 }
 
-function getTraceDurationLabel(events: StreamEvent[]) {
-  let start: number | null = null;
-  let end: number | null = null;
-  for (const event of events) {
-    const state = String(getTraceMeta(event).call_state || "");
-    if (state === "running" && start === null) start = event.timestamp;
-    if ((state === "complete" || state === "error") && end === null)
-      end = event.timestamp;
-  }
-  if (start === null || end === null) return "";
-  const seconds = Math.max(1, Math.round(end - start));
-  return `${seconds}s`;
-}
-
-function getTraceStartTimestamp(events: StreamEvent[]) {
-  for (const event of events) {
-    const state = String(getTraceMeta(event).call_state || "");
-    if (state === "running") return event.timestamp;
-  }
-  return null;
-}
-
-function getActiveTraceDurationSeconds(
-  events: StreamEvent[],
-  nowSeconds: number,
-) {
-  const start = getTraceStartTimestamp(events);
-  if (start === null) return null;
-  return Math.max(1, Math.round(nowSeconds - start));
-}
-
 function isTracePending(events: StreamEvent[]) {
   let hasRunning = false;
   let hasTerminal = false;
@@ -186,7 +163,6 @@ function isTracePending(events: StreamEvent[]) {
 
 function getTraceHeader(
   events: StreamEvent[],
-  nowSeconds?: number,
   nested?: boolean,
   t: (key: string, opts?: Record<string, unknown>) => string = (k) => k,
 ) {
@@ -195,10 +171,6 @@ function getTraceHeader(
   const group = getTraceGroup(events);
   const kind = getTraceCallKind(events);
   const meta = getTraceMeta(events[0]);
-  const duration =
-    kind === "math_render_output" && isTracePending(events) && nowSeconds
-      ? `${getActiveTraceDurationSeconds(events, nowSeconds) ?? 1}s`
-      : getTraceDurationLabel(events);
 
   let title = label;
   if (
@@ -244,9 +216,7 @@ function getTraceHeader(
     }
   }
 
-  return duration
-    ? t("{{title}} for {{duration}}", { title, duration })
-    : title;
+  return title;
 }
 
 function getTraceText(
@@ -302,6 +272,14 @@ function buildDisplayItems(traceGroups: TraceItem[]): DisplayItem[] {
     const kind = getTraceCallKind(group.events);
 
     if (kind === "llm_final_response") continue;
+    // The chat pipeline streams the final iteration's prose as ``thinking``
+    // events into a sub-trace AND re-emits it as a ``llm_final_response``
+    // content event. The sub-trace itself is tagged ``absorbed_into_final``
+    // on its terminal progress event so we drop it here — otherwise the
+    // final answer would appear twice (once in the trace box, once in the
+    // body).
+    if (group.events.some((e) => getTraceMeta(e).absorbed_into_final === true))
+      continue;
 
     if (groupType === "react_round" && stepId) {
       if (stepId_ === stepId) {
@@ -320,25 +298,6 @@ function buildDisplayItems(traceGroups: TraceItem[]): DisplayItem[] {
   }
   flushStep();
   return items;
-}
-
-function getStepGroupDuration(traces: TraceItem[]): string {
-  let start: number | null = null;
-  let end: number | null = null;
-  for (const trace of traces) {
-    for (const event of trace.events) {
-      const state = String(getTraceMeta(event).call_state || "");
-      if (state === "running" && (start === null || event.timestamp < start))
-        start = event.timestamp;
-      if (
-        (state === "complete" || state === "error") &&
-        (end === null || event.timestamp > end)
-      )
-        end = event.timestamp;
-    }
-  }
-  if (start === null || end === null) return "";
-  return `${Math.max(1, Math.round(end - start))}s`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -714,7 +673,6 @@ export function CallTracePanel({
   nested?: boolean;
 }) {
   const { t } = useTranslation();
-  const [nowSeconds, setNowSeconds] = useState(() => Date.now() / 1000);
 
   // Sticky-bottom auto-scroll for the outer trace card. While the user is
   // pinned near the bottom we keep them there as new trace events stream in;
@@ -740,15 +698,6 @@ export function CallTracePanel({
     stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
   }, []);
 
-  useEffect(() => {
-    if (!isStreaming) return;
-    const timer = window.setInterval(
-      () => setNowSeconds(Date.now() / 1000),
-      1000,
-    );
-    return () => window.clearInterval(timer);
-  }, [isStreaming]);
-
   const traceGroups = useMemo(() => {
     const groups: TraceItem[] = [];
     const indexById = new Map<string, number>();
@@ -773,7 +722,12 @@ export function CallTracePanel({
     [traceGroups],
   );
 
-  if (!traceGroups.length) return null;
+  // Hide the outer container entirely when no sub-trace ends up being
+  // rendered. ``traceGroups`` can be non-empty even when every group is
+  // filtered out by ``buildDisplayItems`` (final-response groups and groups
+  // tagged ``absorbed_into_final``) — in that case we used to draw an
+  // empty bordered box. Check the materialised displayItems instead.
+  if (!displayItems.length) return null;
 
   function renderTraceRow(
     { callId, events: callEvents }: TraceItem,
@@ -786,7 +740,7 @@ export function CallTracePanel({
     const role = getTraceRole(callEvents);
     const group = getTraceGroup(callEvents);
     const kind = getTraceCallKind(callEvents);
-    const header = getTraceHeader(callEvents, nowSeconds, nested, t);
+    const header = getTraceHeader(callEvents, nested, t);
     const active =
       Boolean(isStreaming) && isGloballyLast && isTracePending(callEvents);
     const isFinalResponse = kind === "llm_final_response";
@@ -876,9 +830,6 @@ export function CallTracePanel({
             Boolean(isStreaming) &&
             isLastDisplayItem &&
             isTracePending(lastTrace.events);
-          const stepDuration = isActiveStep
-            ? ""
-            : getStepGroupDuration(item.traces);
 
           return (
             <ExpandableDetails
@@ -891,10 +842,9 @@ export function CallTracePanel({
                     className="shrink-0 transition-transform group-open/step:rotate-180"
                   />
                   <Sparkles size={12} strokeWidth={1.6} className="shrink-0" />
-                  <span>Step {item.stepId}</span>
+                  <span>{t("Step {{n}}", { n: item.stepId })}</span>
                   <span className="text-[11px] opacity-60">
-                    {roundCount} {roundCount === 1 ? "round" : "rounds"}
-                    {stepDuration ? ` · ${stepDuration}` : ""}
+                    {t("{{count}} round", { count: roundCount })}
                   </span>
                   {isActiveStep && (
                     <Loader2 size={11} className="animate-spin" />
@@ -917,7 +867,6 @@ export function CallTracePanel({
 
                     if (trGroup === "react_round") {
                       const roundNum = trMeta.round;
-                      const duration = getTraceDurationLabel(trace.events);
                       const thoughtText = getTraceText(trace.events, [
                         "thinking",
                       ]);
@@ -942,13 +891,8 @@ export function CallTracePanel({
                           )}
                           <div className="mb-1 flex items-center gap-1.5 not-italic text-[11px]">
                             <span className="font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                              Round {roundNum}
+                              {t("Round {{n}}", { n: roundNum })}
                             </span>
-                            {duration && (
-                              <span className="font-normal text-[var(--muted-foreground)]/40">
-                                {duration}
-                              </span>
-                            )}
                             {roundActive && (
                               <Loader2 size={10} className="animate-spin" />
                             )}
@@ -1018,12 +962,7 @@ export function CallTracePanel({
                     }
 
                     /* Non-round trace (retrieve, tool, etc.) — inline within the step */
-                    const inlineHeader = getTraceHeader(
-                      trace.events,
-                      nowSeconds,
-                      true,
-                      t,
-                    );
+                    const inlineHeader = getTraceHeader(trace.events, true, t);
                     const progressEvts = trace.events.filter(
                       (e) =>
                         e.type === "progress" &&
@@ -1287,6 +1226,16 @@ export function StreamingStatus({
 }) {
   const { t } = useTranslation();
   const hasFinalContent = Boolean(content && content.trim().length > 0);
+  const [nowSeconds, setNowSeconds] = useState(() => Date.now() / 1000);
+  useEffect(() => {
+    if (!isStreaming) return;
+    const timer = window.setInterval(
+      () => setNowSeconds(Date.now() / 1000),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [isStreaming]);
+
   // Only render once we either have a streaming turn OR a completed turn that
   // produced visible content — empty placeholders (e.g. system message
   // shells) shouldn't show a status row.
@@ -1305,6 +1254,18 @@ export function StreamingStatus({
         : mode === "responded"
           ? t("DeepTutor responded.")
           : t("DeepTutor reasoning…");
+
+  // Single turn-level clock. Ticks every second while the turn is in
+  // flight and freezes on the final elapsed time once the answer ends —
+  // replaces the per-sub-trace duration chips that used to live inside
+  // the trace card.
+  const turnSeconds = getTurnDurationSeconds(
+    events,
+    nowSeconds,
+    Boolean(isStreaming),
+  );
+  const durationLabel =
+    turnSeconds != null ? formatTurnDuration(turnSeconds) : null;
   // Static label after the answer is done — no breathing animation. The other
   // three states are live so they pulse to signal ongoing work. The icon also
   // stretches/contracts on its own cycle (out of phase with the opacity fade)
@@ -1332,6 +1293,11 @@ export function StreamingStatus({
         className={`${breathingClass} ${markPulseClass} shrink-0 text-[var(--primary)]/90`}
       />
       <span className={breathingClass}>{label}</span>
+      {durationLabel ? (
+        <span className="text-[12px] font-medium tabular-nums text-[var(--muted-foreground)]/55">
+          · {durationLabel}
+        </span>
+      ) : null}
       {collapsible ? (
         <ChevronDown
           size={14}
@@ -1344,12 +1310,19 @@ export function StreamingStatus({
     </>
   );
 
+  // role="status" + aria-live="polite" surfaces mode transitions
+  // (reasoning → tool using → responding → responded) to screen readers
+  // without barging in on the user. aria-atomic="false" so only the changed
+  // label is announced rather than the whole row each tick.
   if (collapsible && onToggle) {
     return (
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded ? "true" : "false"}
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
         className={`mb-3 -ml-1 flex items-center gap-2.5 rounded-md px-1 py-0.5 text-[14px] font-semibold leading-none transition-colors hover:bg-[var(--muted)]/40 ${textColor}`}
       >
         {rowContent}
@@ -1359,6 +1332,9 @@ export function StreamingStatus({
 
   return (
     <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="false"
       className={`mb-3 flex items-center gap-2.5 text-[14px] font-semibold leading-none ${textColor}`}
     >
       {rowContent}
@@ -1381,10 +1357,27 @@ export function TraceSurface({
   isStreaming?: boolean;
   content?: string;
 }) {
-  const hasCallTrace = useMemo(
-    () => events.some((event) => Boolean(event.metadata?.call_id)),
-    [events],
-  );
+  // ``hasCallTrace`` decides whether the status row gets a clickable
+  // chevron AND whether the trace panel below is mounted. We must filter
+  // out groups that CallTracePanel itself would discard — otherwise the
+  // chevron toggles a panel that's intentionally empty (final-response
+  // only, or all reasoning sub-traces absorbed into the final answer).
+  const hasCallTrace = useMemo(() => {
+    const seen = new Map<string, { hasFinal: boolean; hasAbsorbed: boolean }>();
+    for (const event of events) {
+      const meta = (event.metadata ?? {}) as Record<string, unknown>;
+      const cid = String(meta.call_id || "");
+      if (!cid) continue;
+      const entry = seen.get(cid) ?? { hasFinal: false, hasAbsorbed: false };
+      if (meta.call_kind === "llm_final_response") entry.hasFinal = true;
+      if (meta.absorbed_into_final === true) entry.hasAbsorbed = true;
+      seen.set(cid, entry);
+    }
+    for (const { hasFinal, hasAbsorbed } of seen.values()) {
+      if (!hasFinal && !hasAbsorbed) return true;
+    }
+    return false;
+  }, [events]);
   const [expanded, setExpanded] = useState(true);
   const toggle = useCallback(() => setExpanded((prev) => !prev), []);
 

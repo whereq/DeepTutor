@@ -231,6 +231,7 @@ function formatContextWindowSource(
 ): string {
   if (source === "manual") return t("Manual");
   if (source === "metadata") return t("Auto");
+  if (source === "known_model") return t("Known");
   if (source === "default") return t("Default");
   return t("Unset");
 }
@@ -1755,6 +1756,11 @@ function SettingsPageContent() {
                                       ? t(
                                           "Detected from the provider during the latest LLM test and saved into model_catalog.json.",
                                         )
+                                      : activeModel.context_window_source ===
+                                          "known_model"
+                                        ? t(
+                                            "Matched built-in model metadata during the latest LLM test and saved into model_catalog.json.",
+                                          )
                                       : activeModel.context_window_source ===
                                           "default"
                                         ? t(

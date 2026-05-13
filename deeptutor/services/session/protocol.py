@@ -54,6 +54,7 @@ class SessionStoreProtocol(Protocol):
         events: list[dict[str, Any]] | None = None,
         attachments: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
+        parent_message_id: int | None = None,
     ) -> int: ...
 
     async def delete_message(self, message_id: int | str) -> bool: ...
@@ -64,7 +65,9 @@ class SessionStoreProtocol(Protocol):
 
     async def get_messages(self, session_id: str) -> list[dict[str, Any]]: ...
 
-    async def get_messages_for_context(self, session_id: str) -> list[dict[str, Any]]: ...
+    async def get_messages_for_context(
+        self, session_id: str, leaf_message_id: int | None = None
+    ) -> list[dict[str, Any]]: ...
 
     async def list_sessions(
         self,

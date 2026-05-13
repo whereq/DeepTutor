@@ -40,11 +40,24 @@ _DEFAULT_OPENROUTER_HEADERS = {
     "HTTP-Referer": "https://github.com/HKUDS/DeepTutor",
     "X-OpenRouter-Title": "DeepTutor",
 }
+_THINKING_DISABLED_BY_DEFAULT: tuple[tuple[str, str], ...] = (
+    ("deepseek", "deepseek-v4-flash"),
+)
 
 
 def _short_tool_id() -> str:
     """9-char alphanumeric ID compatible with all providers (incl. Mistral)."""
     return "".join(secrets.choice(_ALNUM) for _ in range(9))
+
+
+def _disable_thinking_by_default(spec: ProviderSpec | None, model_name: str) -> bool:
+    if not spec:
+        return False
+    normalized = (model_name or "").strip().lower()
+    return any(
+        spec.name == provider and pattern in normalized
+        for provider, pattern in _THINKING_DISABLED_BY_DEFAULT
+    )
 
 
 def _get(obj: Any, key: str) -> Any:
@@ -276,6 +289,11 @@ class OpenAICompatProvider(LLMProvider):
                 extra = {"reasoning_split": thinking_enabled}
             if extra:
                 kwargs.setdefault("extra_body", {}).update(extra)
+        elif spec and _disable_thinking_by_default(spec, model_name):
+            if spec.name == "deepseek":
+                kwargs.setdefault("extra_body", {}).update(
+                    {"thinking": {"type": "disabled"}}
+                )
 
         # Providers that handle thinking via extra_body don't need a
         # top-level reasoning_effort when the intent is to disable thinking.

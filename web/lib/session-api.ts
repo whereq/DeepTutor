@@ -21,6 +21,9 @@ export interface SessionMessage {
   }>;
   metadata?: Record<string, unknown>;
   created_at: number;
+  /** Edit-branching: id of the message this row continues. `null` for the
+   *  first message in a session. Siblings share the same parent. */
+  parent_message_id?: number | null;
 }
 
 export interface SessionSummary {
@@ -47,6 +50,10 @@ export interface SessionSummary {
     knowledge_bases?: string[];
     language?: string;
     llm_selection?: LLMSelection | null;
+    /** Edit-branching: maps a parent_message_id → the child id currently
+     *  shown at that branch point. Missing keys default to the latest
+     *  sibling (most recently created child). */
+    selected_branches?: Record<string, number>;
   };
 }
 
@@ -85,6 +92,10 @@ export interface SessionDetail {
     knowledge_bases?: string[];
     language?: string;
     llm_selection?: LLMSelection | null;
+    /** Edit-branching: maps a parent_message_id → the child id currently
+     *  shown at that branch point. Missing keys default to the latest
+     *  sibling (most recently created child). */
+    selected_branches?: Record<string, number>;
   };
   messages: SessionMessage[];
   active_turns?: ActiveTurnSummary[];
@@ -199,4 +210,19 @@ export async function deleteMessage(
     { method: "DELETE" },
   );
   await expectJson<{ deleted: boolean }>(response);
+}
+
+export async function updateBranchSelection(
+  sessionId: string,
+  selectedBranches: Record<string, number>,
+): Promise<void> {
+  const response = await apiFetch(
+    apiUrl(`/api/v1/sessions/${sessionId}/branch-selection`),
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selected_branches: selectedBranches }),
+    },
+  );
+  await expectJson<{ selected_branches: Record<string, number> }>(response);
 }

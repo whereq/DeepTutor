@@ -98,6 +98,28 @@ class ToolPromptComposer:
                 lines.append(f"- {name}: {hint.short_description}")
         return "\n".join(lines)
 
+    def format_list_with_usage(self, hints: list[ToolHintEntry]) -> str:
+        """Per-tool bullet that includes ``when_to_use`` and ``input_format``.
+
+        Used by the chat persona prompt so the LLM has enough per-tool
+        guidance to decide *whether* to call it, not just *what it is*.
+        Tools without a ``short_description`` are skipped entirely so the
+        block never carries empty bullets.
+        """
+        when_label = "When to use" if self.language != "zh" else "适用场景"
+        input_label = "Input" if self.language != "zh" else "参数格式"
+        blocks: list[str] = []
+        for name, hint in hints:
+            if not hint.short_description:
+                continue
+            entry: list[str] = [f"- `{name}` — {hint.short_description}"]
+            if hint.when_to_use:
+                entry.append(f"    {when_label}: {hint.when_to_use}")
+            if hint.input_format:
+                entry.append(f"    {input_label}: {hint.input_format}")
+            blocks.append("\n".join(entry))
+        return "\n".join(blocks)
+
     def format_table(
         self,
         hints: list[ToolHintEntry],

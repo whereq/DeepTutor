@@ -56,3 +56,16 @@ def test_detect_context_window_uses_runtime_default_when_metadata_missing(
 
     assert result.context_window == 20000
     assert result.source == "default"
+
+
+def test_detect_context_window_uses_known_model_metadata_when_provider_omits_window(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "deeptutor.services.config.context_window_detection._detect_from_models_endpoint",
+        _metadata_none,
+    )
+    result = asyncio.run(detect_context_window(_config(model="deepseek-v4-flash")))
+
+    assert result.context_window == 1_000_000
+    assert result.source == "known_model"

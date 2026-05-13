@@ -5,6 +5,11 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type SessionSummary } from "@/lib/session-api";
 import { normalizeMessageContent, truncateText } from "@/lib/message-content";
+import {
+  formatRelativeTime,
+  getDayGroupKey,
+  type DayGroupKey,
+} from "@/lib/relative-time";
 
 type SessionRuntimeStatus =
   | "idle"
@@ -80,38 +85,6 @@ function StatusIndicator({ status }: { status?: SessionRuntimeStatus }) {
   return null;
 }
 
-function groupLabel(timestamp: number): string {
-  const now = new Date();
-  const date = new Date(timestamp * 1000);
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).getTime();
-  const startOfItemDay = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  ).getTime();
-  const diffDays = Math.floor((startOfToday - startOfItemDay) / 86400000);
-  if (diffDays <= 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return "Last 7 days";
-  return "Earlier";
-}
-
-function relativeTime(timestamp: number): string {
-  const diffSeconds = Math.round(timestamp - Date.now() / 1000);
-  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  const abs = Math.abs(diffSeconds);
-  if (abs < 60) return formatter.format(diffSeconds, "second");
-  if (abs < 3600)
-    return formatter.format(Math.round(diffSeconds / 60), "minute");
-  if (abs < 86400)
-    return formatter.format(Math.round(diffSeconds / 3600), "hour");
-  return formatter.format(Math.round(diffSeconds / 86400), "day");
-}
-
 export default function SessionList({
   sessions,
   activeSessionId,
@@ -121,17 +94,31 @@ export default function SessionList({
   onRename,
   onDelete,
 }: SessionListProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
 
+  // The group-key tokens are stable across locales; the translated labels
+  // (and their ordering) are built once per language change. Memoizing on
+  // i18n.language so the labels recompute when the user flips the language
+  // switcher.
+  const groupLabels = useMemo<Record<DayGroupKey, string>>(
+    () => ({
+      today: t("Today"),
+      yesterday: t("Yesterday"),
+      last_7_days: t("Last 7 days"),
+      earlier: t("Earlier"),
+    }),
+    [t, i18n.language],
+  );
+
   const grouped = useMemo(() => {
-    const buckets = new Map<string, SessionSummary[]>();
+    const buckets = new Map<DayGroupKey, SessionSummary[]>();
     for (const session of sessions) {
-      const label = groupLabel(session.updated_at);
-      const current = buckets.get(label) ?? [];
+      const key = getDayGroupKey(session.updated_at);
+      const current = buckets.get(key) ?? [];
       current.push(session);
-      buckets.set(label, current);
+      buckets.set(key, current);
     }
     return Array.from(buckets.entries());
   }, [sessions]);
@@ -192,13 +179,13 @@ export default function SessionList({
   if (compact) {
     return (
       <div className="ml-5 border-l border-[var(--border)]/30 py-1">
-        {grouped.map(([label, items], groupIdx) => (
-          <div key={label}>
+        {grouped.map(([key, items], groupIdx) => (
+          <div key={key}>
             {groupIdx > 0 && (
               <div className="my-1 ml-3 mr-2 border-t border-[var(--border)]/20" />
             )}
             <div className="px-3 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]/40">
-              {label}
+              {groupLabels[key]}
             </div>
             {items.map((session) => {
               const active = activeSessionId === session.session_id;
@@ -298,10 +285,10 @@ export default function SessionList({
   /* ---- Classic style ---- */
   return (
     <div className="space-y-4">
-      {grouped.map(([label, items]) => (
-        <div key={label}>
+      {grouped.map(([key, items]) => (
+        <div key={key}>
           <div className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
-            {label}
+            {groupLabels[key]}
           </div>
           <div className="divide-y divide-[var(--border)]/45 overflow-hidden rounded-lg border border-[var(--border)]/45 bg-[var(--card)]/50">
             {items.map((session) => {
@@ -365,7 +352,11 @@ export default function SessionList({
                           {truncateText(
                             normalizeMessageContent(session.last_message),
                             120,
-                          ) || relativeTime(session.updated_at)}
+                          ) ||
+                            formatRelativeTime(
+                              session.updated_at,
+                              i18n.language,
+                            )}
                         </div>
                       )}
                     </div>

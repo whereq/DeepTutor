@@ -1,5 +1,4 @@
 import asyncio
-from dataclasses import asdict
 from datetime import datetime
 import json
 import logging
@@ -11,13 +10,11 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
 from deeptutor.co_writer.edit_agent import (
     EditAgent,
     load_history,
     print_stats,
     save_history,
-    save_tool_call,
     tool_calls_dir,
 )
 from deeptutor.co_writer.storage import (
@@ -25,7 +22,6 @@ from deeptutor.co_writer.storage import (
     CoWriterDocumentSummary,
     get_co_writer_storage,
 )
-from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm import clean_thinking_tags
@@ -226,34 +222,22 @@ async def _run_react_edit(
     language: str,
     stream: StreamBus | None = None,
 ) -> dict[str, object]:
-    selected_text, instruction, tools, knowledge_bases, prompt = _prepare_react_edit_request(
+    selected_text, instruction, tools, _knowledge_bases, _prompt = _prepare_react_edit_request(
         request, language
     )
     operation_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
 
-    context = UnifiedContext(
-        session_id="",
-        user_message=prompt,
-        conversation_history=[],
-        enabled_tools=tools,
-        active_capability="chat",
-        knowledge_bases=knowledge_bases,
-        attachments=[],
-        config_overrides={},
-        language=language,
-        metadata={"source": "co_writer_react_edit", "mode": request.mode},
-    )
-
-    pipeline = AgenticChatPipeline(language=language)
+    # NOTE: this endpoint previously invoked the chat pipeline's private
+    # stage methods to pre-compute a "thinking" pass and a one-shot tool
+    # round before the edit agent ran. That coupling broke when the chat
+    # pipeline collapsed to a single iterative loop. The endpoint kept its
+    # response shape (``thinking`` and ``tool_traces``) but the values are
+    # now empty by default — the edit agent does its job directly. If
+    # pre-edit retrieval becomes needed again, build it inside co_writer
+    # rather than parasitising the chat pipeline.
     active_stream = stream or StreamBus()
-    enabled_tools = pipeline._normalize_enabled_tools(context.enabled_tools)
-    thinking_text = await pipeline._stage_thinking(context, enabled_tools, active_stream)
-    tool_traces = await pipeline._stage_acting(
-        context=context,
-        enabled_tools=enabled_tools,
-        thinking_text=thinking_text,
-        stream=active_stream,
-    )
+    thinking_text = ""
+    tool_traces: list = []
 
     agent = get_edit_agent()
     system_prompt = (
@@ -267,23 +251,6 @@ async def _run_react_edit(
         mode=request.mode,
         language=language,
     )
-    if thinking_text.strip():
-        if language.startswith("zh"):
-            final_prompt += f"\n内部推理摘要（不要暴露给用户）:\n{thinking_text.strip()}\n"
-        else:
-            final_prompt += (
-                f"\nInternal reasoning summary (do not reveal):\n{thinking_text.strip()}\n"
-            )
-    if tool_traces:
-        formatted_traces = pipeline._format_tool_traces(tool_traces)
-        if language.startswith("zh"):
-            final_prompt += f"\n工具结果（只吸收事实，不要解释过程）:\n{formatted_traces}\n"
-        else:
-            final_prompt += (
-                f"\nTool results (absorb the facts only, do not explain the process):\n"
-                f"{formatted_traces}\n"
-            )
-
     response_chunks: list[str] = []
     if stream is None:
         async for _c in agent.stream_llm(
@@ -321,21 +288,6 @@ async def _run_react_edit(
     )
 
     tool_call_file = None
-    if tool_traces:
-        tool_call_file = save_tool_call(
-            operation_id,
-            "react_tools",
-            {
-                "type": "react_tools",
-                "timestamp": datetime.now().isoformat(),
-                "operation_id": operation_id,
-                "mode": request.mode,
-                "tools": tools,
-                "kb_name": request.kb_name,
-                "thinking": thinking_text,
-                "tool_traces": [asdict(trace) for trace in tool_traces],
-            },
-        )
 
     history = load_history()
     history.append(
@@ -362,7 +314,7 @@ async def _run_react_edit(
         "edited_text": edited_text,
         "operation_id": operation_id,
         "thinking": thinking_text,
-        "tool_traces": [asdict(trace) for trace in tool_traces],
+        "tool_traces": tool_traces,
     }
     if stream is not None:
         await active_stream.result(result, source="co_writer_react_edit")

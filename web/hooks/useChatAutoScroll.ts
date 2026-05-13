@@ -90,9 +90,14 @@ export function useChatAutoScroll({
   // After streaming ends, dynamically-loaded components (e.g. MathAnimatorViewer
   // via next/dynamic) may render and grow the content height. Detect that and
   // scroll to bottom so the user can see the full result.
-  // hasMessages is in deps so the observer attaches once the messages
-  // container mounts on session reopen — without it, the container ref is null
-  // on initial mount and the observer is never set up.
+  //
+  // This observer used to run for the entire lifetime of the conversation,
+  // which meant any post-stream DOM change — including the user expanding a
+  // trace `<details>` row to read it — was treated as "new content arrived"
+  // and pulled the user back to the bottom. We now gate it to a short window
+  // right after `isStreaming` flips false, which is when late-mounting
+  // dynamic components actually settle.
+  const POST_STREAM_AUTOSCROLL_WINDOW_MS = 4000;
   useEffect(() => {
     if (isStreaming) return;
     if (!hasMessages) return;
@@ -102,11 +107,13 @@ export function useChatAutoScroll({
 
     let prevHeight = container.scrollHeight;
     let rafId = 0;
+    const deadline = performance.now() + POST_STREAM_AUTOSCROLL_WINDOW_MS;
 
     const check = () => {
       if (rafId) return;
       rafId = requestAnimationFrame(() => {
         rafId = 0;
+        if (performance.now() > deadline) return;
         const curHeight = container.scrollHeight;
         if (curHeight > prevHeight && shouldAutoScrollRef.current) {
           scrollToBottom("instant");
@@ -117,8 +124,13 @@ export function useChatAutoScroll({
 
     const mo = new MutationObserver(check);
     mo.observe(container, { childList: true, subtree: true });
+    const stopTimer = window.setTimeout(() => {
+      mo.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    }, POST_STREAM_AUTOSCROLL_WINDOW_MS);
 
     return () => {
+      window.clearTimeout(stopTimer);
       mo.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };

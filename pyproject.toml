@@ -36,6 +36,7 @@ dependencies = [
     "perplexityai>=0.1.0",
     "oauth-cli-kit>=0.1.1",
     "llama-index>=0.14.12",
+    "llama-index-retrievers-bm25>=0.7.1,<0.8.0",
     "PyMuPDF>=1.26.0",
     "numpy>=1.24.0,<3.0.0",
     "arxiv>=2.0.0",
@@ -70,6 +71,7 @@ cli = [
     "oauth-cli-kit>=0.1.1",
     # RAG (LlamaIndex)
     "llama-index>=0.14.12",
+    "llama-index-retrievers-bm25>=0.7.1,<0.8.0",
     "PyMuPDF>=1.26.0",
     "numpy>=1.24.0,<3.0.0",
     "arxiv>=2.0.0",
@@ -144,6 +146,13 @@ dev = [
     "pre-commit>=3.0.0",
     "safety<3.0.0",
     "bandit>=1.8.0",
+    # Test fixture builders for document-loader tests. Runtime pulls these via
+    # cli/server, but dev keeps them explicit for pytest collection.
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "python-pptx>=1.0.0",
+    "pypdf>=4.0.0",
+    "defusedxml>=0.7.1",
 ]
 
 # Everything: server + tutorbot + non-E2EE matrix + math-animator + dev tools.

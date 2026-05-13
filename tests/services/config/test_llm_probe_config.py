@@ -174,6 +174,44 @@ class TestLlmProbeUsesAgentsYaml:
         )
 
     @pytest.mark.asyncio
+    async def test_probe_passes_runtime_api_version_and_reasoning_effort(
+        self, monkeypatch
+    ):
+        from deeptutor.services import llm as llm_module
+        from deeptutor.services.config import test_runner as test_runner_module
+        from deeptutor.services.config.test_runner import ConfigTestRunner, TestRun
+
+        captured_kwargs: dict[str, Any] = {}
+
+        async def _fake_llm_complete(**kwargs):
+            captured_kwargs.update(kwargs)
+            return "OK I am a reasoning model"
+
+        monkeypatch.setattr(
+            test_runner_module,
+            "resolve_llm_runtime_config",
+            lambda catalog: _stub_resolved_llm(
+                api_version="2026-05-01",
+                reasoning_effort="high",
+            ),
+        )
+        monkeypatch.setattr(
+            test_runner_module,
+            "detect_context_window",
+            _stub_context_window_detection,
+        )
+        monkeypatch.setattr(llm_module, "get_token_limit_kwargs", _real_get_token_limit_kwargs)
+        monkeypatch.setattr(llm_module, "complete", _fake_llm_complete)
+        monkeypatch.setattr(llm_module, "clear_llm_config_cache", lambda: None)
+
+        runner = ConfigTestRunner()
+        run = TestRun(id="test-llm-probe-runtime-fields", service="llm")
+        await runner._test_llm(run, catalog={})
+
+        assert captured_kwargs["api_version"] == "2026-05-01"
+        assert captured_kwargs["reasoning_effort"] == "high"
+
+    @pytest.mark.asyncio
     async def test_probe_persists_detected_context_window_when_catalog_present(
         self, tmp_path, monkeypatch
     ):
@@ -259,21 +297,25 @@ class TestLlmProbeUsesAgentsYaml:
 # ---------------------------------------------------------------------------
 
 
-def _stub_resolved_llm():
+def _stub_resolved_llm(**overrides: Any):
     """Return a minimal resolved LLM config stub."""
     from deeptutor.services.config.provider_runtime import ResolvedLLMConfig
 
+    values = {
+        "model": "gpt-4o-mini",
+        "api_key": "sk-test",
+        "base_url": "https://api.example.com/v1",
+        "effective_url": "https://api.example.com/v1",
+        "binding": "openai",
+        "provider_name": "openai",
+        "provider_mode": "standard",
+        "api_version": "",
+        "extra_headers": {},
+        "reasoning_effort": None,
+    }
+    values.update(overrides)
     return ResolvedLLMConfig(
-        model="gpt-4o-mini",
-        api_key="sk-test",
-        base_url="https://api.example.com/v1",
-        effective_url="https://api.example.com/v1",
-        binding="openai",
-        provider_name="openai",
-        provider_mode="standard",
-        api_version="",
-        extra_headers={},
-        reasoning_effort=None,
+        **values,
     )
 
 

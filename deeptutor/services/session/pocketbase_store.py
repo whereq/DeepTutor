@@ -290,7 +290,12 @@ class PocketBaseSessionStore:
         events: list[dict[str, Any]] | None = None,
         attachments: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
+        parent_message_id: int | None = None,
     ) -> int:
+        # ``parent_message_id`` is accepted to match the protocol shape but is
+        # not yet wired through PocketBase storage — branching only works on
+        # the SQLite backend today.
+        _ = parent_message_id
         now = time.time()
 
         def _add():
@@ -385,7 +390,12 @@ class PocketBaseSessionStore:
             logger.warning(f"get_messages failed: {exc}")
             return []
 
-    async def get_messages_for_context(self, session_id: str) -> list[dict[str, Any]]:
+    async def get_messages_for_context(
+        self, session_id: str, leaf_message_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        # leaf_message_id (branch-aware context) is not supported on PocketBase
+        # yet; fall back to the linear, append-only view.
+        _ = leaf_message_id
         messages = await self.get_messages(session_id)
         return [
             {"id": m["id"], "role": m["role"], "content": m["content"] or ""}

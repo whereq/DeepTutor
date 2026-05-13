@@ -312,8 +312,6 @@ export default memo(function ChatComposer({
     [onAddFiles],
   );
 
-  const activeCapabilityKey = activeCap.value || "chat";
-
   useEffect(() => {
     if (!hasMessages) textareaRef.current?.focus();
   }, [hasMessages]);
@@ -456,7 +454,6 @@ export default memo(function ChatComposer({
           <ComposerInput
             ref={inputHandleRef}
             textareaRef={textareaRef}
-            activeCapabilityKey={activeCapabilityKey}
             isMathAnimatorMode={isMathAnimatorMode}
             isVisualizeMode={isVisualizeMode}
             canSendEmpty={hasReferences}
@@ -998,7 +995,7 @@ export default memo(function ChatComposer({
                   <button
                     type="button"
                     onClick={onCancelStreaming}
-                    className="group relative inline-flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-[0_4px_12px_rgba(195,90,44,0.18)] transition-[background-color,box-shadow] hover:bg-[var(--primary)]/90 hover:shadow-[0_6px_16px_rgba(195,90,44,0.28)]"
+                    className="group relative inline-flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-[0_4px_12px_color-mix(in_srgb,var(--primary)_18%,transparent)] transition-[background-color,box-shadow] hover:bg-[var(--primary)]/90 hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--primary)_28%,transparent)]"
                     aria-label={t("Stop generating")}
                     title={t("Stop generating")}
                   >
@@ -1033,10 +1030,10 @@ export default memo(function ChatComposer({
                         : undefined
                     }
                     aria-disabled={!canSend}
-                    className={`rounded-full p-[7px] shadow-[0_4px_12px_rgba(195,90,44,0.15)] transition-[transform,opacity,box-shadow] disabled:opacity-25 disabled:shadow-none ${
+                    className={`rounded-full p-[7px] shadow-[0_4px_12px_color-mix(in_srgb,var(--primary)_15%,transparent)] transition-[transform,opacity,box-shadow] disabled:opacity-25 disabled:shadow-none ${
                       isConfigBlocked
                         ? "bg-[var(--muted-foreground)]/30 text-white hover:bg-[var(--muted-foreground)]/45"
-                        : "bg-[var(--primary)] text-white hover:shadow-[0_6px_16px_rgba(195,90,44,0.22)]"
+                        : "bg-[var(--primary)] text-white hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
                     }`}
                     aria-label={t("Send")}
                   >

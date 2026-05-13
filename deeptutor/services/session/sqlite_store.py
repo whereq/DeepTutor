@@ -21,6 +21,18 @@ def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+# Sentinel so ``add_message`` can distinguish "caller wants the legacy
+# auto-pick-latest-message default" from "caller explicitly wants the
+# message attached at the session root (parent = NULL)". Both surface as
+# ``None`` in the public ``parent_message_id`` arg, which is why we need
+# a sentinel separate from None.
+class _Unset:
+    pass
+
+
+_PARENT_AUTO = _Unset()
+
+
 def _json_loads(value: str | None, default: Any) -> Any:
     if not value:
         return default
@@ -109,11 +121,20 @@ class SQLiteSessionStore:
                     events_json TEXT DEFAULT '',
                     attachments_json TEXT DEFAULT '',
                     metadata_json TEXT DEFAULT '{}',
-                    created_at REAL NOT NULL
+                    created_at REAL NOT NULL,
+                    -- Edit-branching: NULL for the first message in a session;
+                    -- otherwise the immediately preceding message on the path
+                    -- this row continues. Siblings (same parent) are alternate
+                    -- branches the user can switch between.
+                    parent_message_id INTEGER
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_messages_session_created
                     ON messages(session_id, created_at, id);
+                -- ``idx_messages_parent`` is created after the
+                -- parent_message_id migration runs (see below). Putting it
+                -- in this script would fail on legacy DBs where the column
+                -- gets added by ALTER TABLE further down.
 
                 CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
                     ON sessions(updated_at DESC);
@@ -202,6 +223,34 @@ class SQLiteSessionStore:
             }
             if "metadata_json" not in message_columns:
                 conn.execute("ALTER TABLE messages ADD COLUMN metadata_json TEXT DEFAULT '{}'")
+            if "parent_message_id" not in message_columns:
+                conn.execute("ALTER TABLE messages ADD COLUMN parent_message_id INTEGER")
+                # Backfill: for every existing session, treat the message stream
+                # as a single linear path — each row's parent is the previous
+                # row (by id) in the same session. Rows with no predecessor stay
+                # NULL. We do this per session in pure Python to avoid relying
+                # on window functions, which older SQLite builds may not have.
+                sessions_rows = conn.execute("SELECT id FROM sessions").fetchall()
+                for srow in sessions_rows:
+                    prev_id: int | None = None
+                    msg_rows = conn.execute(
+                        "SELECT id FROM messages WHERE session_id = ? ORDER BY id ASC",
+                        (srow[0],),
+                    ).fetchall()
+                    for mrow in msg_rows:
+                        if prev_id is not None:
+                            conn.execute(
+                                "UPDATE messages SET parent_message_id = ? WHERE id = ?",
+                                (prev_id, mrow[0]),
+                            )
+                        prev_id = mrow[0]
+            # Always ensure the parent-lookup index exists — covers both
+            # the legacy-migration case (just added the column) and the
+            # fresh-DB case (created above without the index inline).
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_messages_parent "
+                "ON messages(session_id, parent_message_id)"
+            )
             conn.commit()
 
     async def _run(self, fn, *args):
@@ -572,6 +621,7 @@ class SQLiteSessionStore:
         events: list[dict[str, Any]] | None = None,
         attachments: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
+        parent_message_id: int | None | _Unset = _PARENT_AUTO,
     ) -> int:
         now = time.time()
         with self._connect() as conn:
@@ -581,12 +631,29 @@ class SQLiteSessionStore:
             if session is None:
                 raise ValueError(f"Session not found: {session_id}")
 
+            resolved_parent_id: int | None
+            if isinstance(parent_message_id, _Unset):
+                # Legacy auto-append path: chain off the latest row in the
+                # session so the linear thread stays connected.
+                last_row = conn.execute(
+                    "SELECT id FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                    (session_id,),
+                ).fetchone()
+                resolved_parent_id = int(last_row["id"]) if last_row is not None else None
+            else:
+                # Caller pinned a parent explicitly — including ``None``,
+                # which means "attach at the session root" (used by edits
+                # of the very first message in a session).
+                resolved_parent_id = (
+                    int(parent_message_id) if parent_message_id is not None else None
+                )
+
             cur = conn.execute(
                 """
                 INSERT INTO messages (
                     session_id, role, content, capability, events_json,
-                    attachments_json, metadata_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    attachments_json, metadata_json, created_at, parent_message_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
@@ -597,6 +664,7 @@ class SQLiteSessionStore:
                     _json_dumps(attachments or []),
                     _json_dumps(metadata or {}),
                     now,
+                    resolved_parent_id,
                 ),
             )
 
@@ -627,6 +695,7 @@ class SQLiteSessionStore:
         events: list[dict[str, Any]] | None = None,
         attachments: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
+        parent_message_id: int | None | _Unset = _PARENT_AUTO,
     ) -> int:
         return await self._run(
             self._add_message_sync,
@@ -637,6 +706,7 @@ class SQLiteSessionStore:
             events,
             attachments,
             metadata,
+            parent_message_id,
         )
 
     def _delete_message_sync(self, message_id: int | str) -> bool:
@@ -775,7 +845,7 @@ class SQLiteSessionStore:
                 row = conn.execute(
                     """
                     SELECT id, session_id, role, content, capability, events_json,
-                           attachments_json, metadata_json, created_at
+                           attachments_json, metadata_json, created_at, parent_message_id
                     FROM messages
                     WHERE session_id = ?
                     ORDER BY id DESC
@@ -787,7 +857,7 @@ class SQLiteSessionStore:
                 row = conn.execute(
                     """
                     SELECT id, session_id, role, content, capability, events_json,
-                           attachments_json, metadata_json, created_at
+                           attachments_json, metadata_json, created_at, parent_message_id
                     FROM messages
                     WHERE session_id = ? AND role = ?
                     ORDER BY id DESC
@@ -805,6 +875,8 @@ class SQLiteSessionStore:
         return await self._run(self._get_last_message_sync, session_id, role)
 
     def _serialize_message(self, row: sqlite3.Row) -> dict[str, Any]:
+        row_keys = row.keys()
+        parent_id = row["parent_message_id"] if "parent_message_id" in row_keys else None
         return {
             "id": row["id"],
             "session_id": row["session_id"],
@@ -815,6 +887,7 @@ class SQLiteSessionStore:
             "attachments": _json_loads(row["attachments_json"], []),
             "metadata": _json_loads(row["metadata_json"], {}),
             "created_at": row["created_at"],
+            "parent_message_id": int(parent_id) if parent_id is not None else None,
         }
 
     def _get_messages_sync(self, session_id: str) -> list[dict[str, Any]]:
@@ -822,7 +895,7 @@ class SQLiteSessionStore:
             rows = conn.execute(
                 """
                 SELECT id, session_id, role, content, capability, events_json,
-                       attachments_json, metadata_json, created_at
+                       attachments_json, metadata_json, created_at, parent_message_id
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY id ASC
@@ -831,27 +904,107 @@ class SQLiteSessionStore:
             ).fetchall()
         return [self._serialize_message(row) for row in rows]
 
+    def _get_message_path_sync(
+        self, session_id: str, leaf_message_id: int
+    ) -> list[dict[str, Any]]:
+        """Return the chain of messages from the session root down to
+        ``leaf_message_id`` (inclusive), in chronological order.
+
+        Used by the turn runtime to build LLM context for a branched
+        re-run: only ancestors of the new user message are included, so
+        sibling branches at any depth are excluded.
+        """
+        with self._connect() as conn:
+            chain: list[dict[str, Any]] = []
+            current: int | None = int(leaf_message_id)
+            # Bound the walk defensively in case of corrupted parent pointers.
+            safety = 10_000
+            while current is not None and safety > 0:
+                row = conn.execute(
+                    """
+                    SELECT id, session_id, role, content, capability, events_json,
+                           attachments_json, metadata_json, created_at, parent_message_id
+                    FROM messages
+                    WHERE id = ? AND session_id = ?
+                    """,
+                    (current, session_id),
+                ).fetchone()
+                if row is None:
+                    break
+                chain.append(self._serialize_message(row))
+                parent = row["parent_message_id"]
+                current = int(parent) if parent is not None else None
+                safety -= 1
+        chain.reverse()
+        return chain
+
+    async def get_message_path(
+        self, session_id: str, leaf_message_id: int
+    ) -> list[dict[str, Any]]:
+        return await self._run(self._get_message_path_sync, session_id, int(leaf_message_id))
+
     async def get_messages(self, session_id: str) -> list[dict[str, Any]]:
         return await self._run(self._get_messages_sync, session_id)
 
-    def _get_messages_for_context_sync(self, session_id: str) -> list[dict[str, Any]]:
+    def _get_messages_for_context_sync(
+        self, session_id: str, leaf_message_id: int | None = None
+    ) -> list[dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, role, content
-                FROM messages
-                WHERE session_id = ?
-                  AND role IN ('user', 'assistant', 'system')
-                ORDER BY id ASC
-                """,
-                (session_id,),
-            ).fetchall()
-        return [
-            {"id": row["id"], "role": row["role"], "content": row["content"] or ""} for row in rows
-        ]
+            if leaf_message_id is None:
+                rows = conn.execute(
+                    """
+                    SELECT id, role, content
+                    FROM messages
+                    WHERE session_id = ?
+                      AND role IN ('user', 'assistant', 'system')
+                    ORDER BY id ASC
+                    """,
+                    (session_id,),
+                ).fetchall()
+                return [
+                    {
+                        "id": row["id"],
+                        "role": row["role"],
+                        "content": row["content"] or "",
+                    }
+                    for row in rows
+                ]
+            # Branch-aware path walk: include only ancestors (+ leaf) so
+            # sibling branches at any depth are excluded from LLM context.
+            chain: list[dict[str, Any]] = []
+            current: int | None = int(leaf_message_id)
+            safety = 10_000
+            while current is not None and safety > 0:
+                row = conn.execute(
+                    """
+                    SELECT id, role, content, parent_message_id
+                    FROM messages
+                    WHERE id = ? AND session_id = ?
+                      AND role IN ('user', 'assistant', 'system')
+                    """,
+                    (current, session_id),
+                ).fetchone()
+                if row is None:
+                    break
+                chain.append(
+                    {
+                        "id": row["id"],
+                        "role": row["role"],
+                        "content": row["content"] or "",
+                    }
+                )
+                parent = row["parent_message_id"]
+                current = int(parent) if parent is not None else None
+                safety -= 1
+        chain.reverse()
+        return chain
 
-    async def get_messages_for_context(self, session_id: str) -> list[dict[str, Any]]:
-        return await self._run(self._get_messages_for_context_sync, session_id)
+    async def get_messages_for_context(
+        self, session_id: str, leaf_message_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        return await self._run(
+            self._get_messages_for_context_sync, session_id, leaf_message_id
+        )
 
     def _list_sessions_sync(
         self,

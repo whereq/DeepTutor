@@ -115,7 +115,7 @@ function HtmlRenderer({ html }: { html: string }) {
         ref={iframeRef}
         title="HTML visualization"
         sandbox="allow-scripts"
-        className="w-full rounded-lg border border-[var(--border)] bg-white"
+        className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)]"
         style={{ minHeight: 480, height: 560 }}
       />
     </div>
@@ -269,13 +269,15 @@ export default function VisualizationViewer({
         </span>
       </div>
 
-      {/* Code panel */}
+      {/* Code panel — matches the always-dark .md-code-block style used by the
+          markdown renderers so a "Show code" toggle inside a chart message
+          looks identical to a fenced code block in the assistant response. */}
       {showCode && (
-        <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[#1f2937]">
+        <div className="md-code-block overflow-hidden rounded-xl border border-[var(--border)] bg-[#1f2937]">
           <div className="border-b border-white/10 px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-[#9ca3af]">
             {result.code.language}
           </div>
-          <pre className="max-h-80 overflow-auto p-4 text-[13px] leading-relaxed text-[#d1d5db]">
+          <pre className="max-h-80 overflow-auto p-4 text-[13px] leading-relaxed text-[#e5e7eb]">
             <code>{result.code.content}</code>
           </pre>
         </div>
@@ -316,7 +318,7 @@ export default function VisualizationViewer({
             </button>
           </div>
           <div
-            className="flex flex-1 items-center justify-center overflow-auto rounded-xl bg-white p-6 shadow-2xl"
+            className="flex flex-1 items-center justify-center overflow-auto rounded-xl bg-[var(--card)] p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full max-w-[1600px]">

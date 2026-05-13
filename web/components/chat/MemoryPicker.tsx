@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Brain, Check, FileText, ScrollText, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
+import PickerShell from "@/components/common/PickerShell";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 
 interface MemoryPickerProps {
@@ -70,10 +71,14 @@ export default function MemoryPicker({
     onClose();
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-[var(--background)]/65 p-4 backdrop-blur-md">
+    <PickerShell
+      open={open}
+      onClose={onClose}
+      labelledBy="memory-picker-title"
+      className="p-4 backdrop-blur-md"
+      backdropClass="bg-[var(--background)]/65"
+    >
       <div className="surface-card w-full max-w-xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[0_22px_70px_rgba(0,0,0,0.18)]">
         <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
           <div className="min-w-0">
@@ -81,7 +86,10 @@ export default function MemoryPicker({
               <Brain className="h-3 w-3" />
               {t("Memory Reference")}
             </div>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+            <h2
+              id="memory-picker-title"
+              className="text-lg font-semibold text-[var(--foreground)]"
+            >
               {t("Select Memory")}
             </h2>
             <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
@@ -167,6 +175,6 @@ export default function MemoryPicker({
           </div>
         </div>
       </div>
-    </div>
+    </PickerShell>
   );
 }

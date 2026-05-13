@@ -159,6 +159,18 @@ class SupportedFileTypesInfo(BaseModel):
     max_pdf_size_bytes: int
 
 
+IMAGE_ACCEPT_MIME_TYPES = {
+    ".bmp": "image/bmp",
+    ".gif": "image/gif",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+    ".webp": "image/webp",
+}
+
+
 def _build_unique_task_id(task_type: str, task_key_prefix: str) -> str:
     task_manager = TaskIDManager.get_instance()
     task_key = f"{task_key_prefix}_{datetime.now().isoformat()}_{uuid4().hex[:8]}"
@@ -426,7 +438,6 @@ async def run_initialization_task(initializer: KnowledgeBaseInitializer, task_id
 
             await initializer.process_documents()
             _task_log(task_id, "Document processing complete")
-            initializer.extract_numbered_items()
             _task_log(task_id, "Finalizing initialization")
             indexed_count = len(FileTypeRouter.collect_supported_files(initializer.raw_dir))
 
@@ -558,15 +569,6 @@ async def run_upload_processing_task(
             processed_files = await adder.process_new_documents(staged_files)
             _task_log(task_id, f"Indexed {len(processed_files)} file(s)")
 
-            if processed_files:
-                progress_tracker.update(
-                    ProgressStage.EXTRACTING_ITEMS,
-                    "Extracting numbered items...",
-                    current=0,
-                    total=len(processed_files),
-                )
-                adder.extract_numbered_items_for_new_docs(processed_files, batch_size=20)
-
             adder.update_metadata(len(processed_files) if processed_files else 0)
 
             if folder_id and processed_files:
@@ -651,9 +653,14 @@ async def get_rag_providers():
 async def get_supported_file_types():
     """Return the current upload policy so the web client stays in sync."""
     extensions = sorted(FileTypeRouter.get_supported_extensions())
+    accept_items = extensions + [
+        mime
+        for extension, mime in sorted(IMAGE_ACCEPT_MIME_TYPES.items())
+        if extension in FileTypeRouter.IMAGE_EXTENSIONS
+    ]
     return SupportedFileTypesInfo(
         extensions=extensions,
-        accept=",".join(extensions),
+        accept=",".join(dict.fromkeys(accept_items)),
         max_file_size_bytes=DocumentValidator.MAX_FILE_SIZE,
         max_pdf_size_bytes=DocumentValidator.MAX_PDF_SIZE,
     )

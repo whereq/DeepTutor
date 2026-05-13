@@ -86,6 +86,10 @@ export interface StartTurnMessage {
   }[];
   skills?: string[];
   llm_selection?: LLMSelection | null;
+  /** Edit-branching: when present (even as ``null``) the new user message
+   *  attaches at this exact parent — creating a sibling rather than
+   *  appending to the session tail. */
+  parent_message_id?: number | null;
 }
 
 export interface SubscribeTurnMessage {

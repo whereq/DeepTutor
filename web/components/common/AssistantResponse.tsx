@@ -34,8 +34,18 @@ export default function AssistantResponse({
 
   if (!hasRenderableSegment) return null;
 
+  // role="article" lets screen-reader users locate each assistant turn as a
+  // structured landmark. aria-live="polite" + aria-atomic="false" announces
+  // streamed-in content as the user pauses, without re-reading the whole
+  // bubble each token. Together this is the minimal pattern that turns a
+  // silent stream into an audible one.
   return (
-    <div className={className}>
+    <div
+      role="article"
+      aria-live="polite"
+      aria-atomic="false"
+      className={className}
+    >
       {segments.map((segment, index) => {
         if (segment.kind === "think") {
           return (

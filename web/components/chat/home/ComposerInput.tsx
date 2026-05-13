@@ -4,8 +4,8 @@ import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useImperativeHandle,
-  useLayoutEffect,
   useRef,
   useState,
   type RefObject,
@@ -15,10 +15,10 @@ import ChatSpaceMenu, {
   type ChatSpaceSelectionCounts,
 } from "@/components/chat/space/ChatSpaceMenu";
 import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
+import { useAutoSizedTextarea } from "@/lib/use-auto-sized-textarea";
 
 interface ComposerInputProps {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
-  activeCapabilityKey: string;
   isMathAnimatorMode: boolean;
   isVisualizeMode: boolean;
   // When true, parent has attachments/references queued and will accept a
@@ -55,7 +55,6 @@ export const ComposerInput = memo(
   forwardRef<ComposerInputHandle, ComposerInputProps>(function ComposerInput(
     {
       textareaRef,
-      activeCapabilityKey,
       isMathAnimatorMode,
       isVisualizeMode,
       canSendEmpty,
@@ -101,15 +100,7 @@ export const ComposerInput = memo(
       [setInputBoth, onInputChange],
     );
 
-    useLayoutEffect(() => {
-      const el = textareaRef.current;
-      if (!el) return;
-      el.style.height = "28px";
-      const next = Math.max(el.scrollHeight, 28);
-      const bounded = Math.min(next, 200);
-      el.style.height = `${bounded}px`;
-      el.style.overflowY = next > 200 ? "auto" : "hidden";
-    }, [input, activeCapabilityKey, textareaRef]);
+    useAutoSizedTextarea(textareaRef, input, { min: 28, max: 200 });
 
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -207,10 +198,31 @@ export const ComposerInput = memo(
       ],
     );
 
+    // Close the @-popup on outside click. Without this, clicking anywhere
+    // outside the popup or textarea left the menu hovering indefinitely.
+    // We bind on mousedown so the close fires before a synthetic click on
+    // a sibling button (e.g. the Tools menu) can re-open something else.
+    const popupRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (!showAtPopup) return;
+      const handler = (e: MouseEvent) => {
+        const target = e.target as Node | null;
+        if (!target) return;
+        if (popupRef.current?.contains(target)) return;
+        if (textareaRef.current?.contains(target)) return;
+        setShowAtPopup(false);
+      };
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }, [showAtPopup, textareaRef]);
+
     return (
       <div className="px-4 pt-3.5 pb-2">
         {showAtPopup && (
-          <div className="absolute bottom-full left-0 z-[70] mb-2">
+          <div
+            ref={popupRef}
+            className="absolute bottom-full left-0 z-[70] mb-2"
+          >
             <ChatSpaceMenu
               variant="mention"
               selectedCounts={selectedCounts}
@@ -228,6 +240,12 @@ export const ComposerInput = memo(
           onClick={handleTextareaClick}
           onPaste={onPaste}
           rows={1}
+          // Cap input at 32k chars. A bigger paste (e.g. an entire textbook
+          // dumped via Cmd+V) would force a layout reflow on every keystroke
+          // and lock the page; the cap is a defensive guard, not a real
+          // product limit. Users hit by this cap should be using the
+          // attachment path, not the composer body.
+          maxLength={32000}
           suppressHydrationWarning
           placeholder={
             isMathAnimatorMode

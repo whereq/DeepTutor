@@ -39,6 +39,59 @@ export interface KnowledgeBaseFile {
   mime_type?: string | null;
 }
 
+const IMAGE_UPLOAD_EXTENSIONS = [
+  ".bmp",
+  ".gif",
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".tif",
+  ".tiff",
+  ".webp",
+];
+
+const IMAGE_UPLOAD_MIME_TYPES = [
+  "image/bmp",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/tiff",
+  "image/webp",
+];
+
+function normalizeUploadPolicy(data: unknown): KnowledgeUploadPolicy {
+  const payload = data as Partial<KnowledgeUploadPolicy> | null | undefined;
+  const extensions = Array.from(
+    new Set([
+      ...(Array.isArray(payload?.extensions) ? payload.extensions : []),
+      ...IMAGE_UPLOAD_EXTENSIONS,
+    ]),
+  ).sort();
+  const serverAccept =
+    typeof payload?.accept === "string"
+      ? payload.accept
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+  const accept = Array.from(
+    new Set([...serverAccept, ...extensions, ...IMAGE_UPLOAD_MIME_TYPES]),
+  ).join(",");
+
+  return {
+    extensions,
+    accept,
+    max_file_size_bytes:
+      typeof payload?.max_file_size_bytes === "number"
+        ? payload.max_file_size_bytes
+        : 100 * 1024 * 1024,
+    max_pdf_size_bytes:
+      typeof payload?.max_pdf_size_bytes === "number"
+        ? payload.max_pdf_size_bytes
+        : 50 * 1024 * 1024,
+  };
+}
+
 export async function listKnowledgeBases(options?: { force?: boolean }) {
   return withClientCache<KnowledgeBaseSummary[]>(
     `${KNOWLEDGE_CACHE_PREFIX}list`,
@@ -89,18 +142,7 @@ export async function getKnowledgeUploadPolicy(options?: { force?: boolean }) {
         },
       );
       const data = await response.json();
-      return {
-        extensions: Array.isArray(data?.extensions) ? data.extensions : [],
-        accept: typeof data?.accept === "string" ? data.accept : "",
-        max_file_size_bytes:
-          typeof data?.max_file_size_bytes === "number"
-            ? data.max_file_size_bytes
-            : 100 * 1024 * 1024,
-        max_pdf_size_bytes:
-          typeof data?.max_pdf_size_bytes === "number"
-            ? data.max_pdf_size_bytes
-            : 50 * 1024 * 1024,
-      };
+      return normalizeUploadPolicy(data);
     },
     {
       force: options?.force,

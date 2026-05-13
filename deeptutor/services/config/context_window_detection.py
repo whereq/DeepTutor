@@ -31,6 +31,10 @@ _CONTEXT_WINDOW_KEYS = (
     "max_sequence_length",
 )
 
+_KNOWN_CONTEXT_WINDOWS: tuple[tuple[str, int], ...] = (
+    ("deepseek-v4", 1_000_000),
+)
+
 
 @dataclass(frozen=True)
 class ContextWindowDetectionResult:
@@ -59,6 +63,16 @@ def _record_identities(item: Mapping[str, Any]) -> set[str]:
     for key in ("id", "model", "name"):
         aliases.update(_model_aliases(str(item.get(key, "") or "")))
     return aliases
+
+
+def _known_context_window(model: str) -> int | None:
+    normalized = (model or "").strip().lower()
+    if not normalized:
+        return None
+    for pattern, context_window in _KNOWN_CONTEXT_WINDOWS:
+        if pattern in normalized:
+            return context_window
+    return None
 
 
 def _recursive_context_window(value: Any) -> int | None:
@@ -172,6 +186,15 @@ async def detect_context_window(
             context_window=metadata_window,
             source="metadata",
             detail="Detected from provider `/models` metadata.",
+            detected_at=detected_at,
+        )
+
+    known_window = _known_context_window(llm_config.model)
+    if known_window is not None:
+        return ContextWindowDetectionResult(
+            context_window=known_window,
+            source="known_model",
+            detail="Matched built-in context-window metadata for this model family.",
             detected_at=detected_at,
         )
 

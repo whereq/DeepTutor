@@ -56,6 +56,9 @@ _THINKING_STYLE_MAP = {
     "enable_thinking": lambda enabled: {"enable_thinking": enabled},
     "reasoning_split": lambda enabled: {"reasoning_split": enabled},
 }
+_THINKING_DISABLED_BY_DEFAULT: tuple[tuple[str, str], ...] = (
+    ("deepseek", "deepseek-v4-flash"),
+)
 
 
 def _short_tool_id() -> str:
@@ -103,6 +106,16 @@ def _responses_circuit_key(
     model_name = (model or default_model or "").strip().lower()
     effort = (reasoning_effort or "").strip().lower() or "none"
     return f"{model_name}|{effort}"
+
+
+def _disable_thinking_by_default(spec: "ProviderSpec | None", model_name: str) -> bool:
+    if not spec:
+        return False
+    normalized = (model_name or "").strip().lower()
+    return any(
+        spec.name == provider and pattern in normalized
+        for provider, pattern in _THINKING_DISABLED_BY_DEFAULT
+    )
 
 
 class OpenAICompatProvider(LLMProvider):
@@ -320,6 +333,16 @@ class OpenAICompatProvider(LLMProvider):
             thinking_enabled = semantic_effort != "minimal"
             extra = _THINKING_STYLE_MAP.get(spec.thinking_style, lambda _enabled: None)(
                 thinking_enabled
+            )
+            if extra:
+                kwargs.setdefault("extra_body", {}).update(extra)
+        elif (
+            spec
+            and spec.thinking_style
+            and _disable_thinking_by_default(spec, model_name)
+        ):
+            extra = _THINKING_STYLE_MAP.get(spec.thinking_style, lambda _enabled: None)(
+                False
             )
             if extra:
                 kwargs.setdefault("extra_body", {}).update(extra)

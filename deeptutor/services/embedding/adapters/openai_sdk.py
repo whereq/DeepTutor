@@ -147,5 +147,6 @@ class OpenAISDKEmbeddingAdapter(BaseEmbeddingAdapter):
             "model": self.model,
             "dimensions": self.dimensions,
             "supports_variable_dimensions": False,
+            "multimodal": False,
             "provider": "openai_sdk",
         }

@@ -113,6 +113,8 @@ class ToolRegistry:
         hints = self.get_prompt_hints(names, language=language)
         if format == "list":
             return composer.format_list(hints)
+        if format == "list_with_usage":
+            return composer.format_list_with_usage(hints)
         if format == "table":
             return composer.format_table(
                 hints,

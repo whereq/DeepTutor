@@ -155,6 +155,44 @@ def _format_question_bank_entry(entry: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+async def _count_branch_user_turns(
+    store: SessionStoreProtocol,
+    session_id: str,
+    leaf_message_id: int | None,
+) -> int:
+    """Count user messages on the active branch's ancestor chain.
+
+    Used by the chat source inventory to assign ``first_seen_turn`` for
+    *fresh* sources (= current turn = past_user_turns + 1). When
+    ``leaf_message_id`` is ``None`` (legacy linear append) all messages
+    in the session are counted; otherwise we walk the
+    ``parent_message_id`` chain so sibling branches don't inflate the
+    count. Kept tiny and protocol-only (``get_messages``) so it stays
+    compatible with every store backend.
+    """
+    all_msgs = await store.get_messages(session_id)
+    if leaf_message_id is None:
+        return sum(1 for m in all_msgs if m.get("role") == "user")
+    by_id: dict[int, dict[str, Any]] = {}
+    for m in all_msgs:
+        mid = m.get("id")
+        if mid is not None:
+            by_id[int(mid)] = m
+    count = 0
+    current: int | None = int(leaf_message_id)
+    safety = 10_000
+    while current is not None and safety > 0:
+        m = by_id.get(int(current))
+        if m is None:
+            break
+        if m.get("role") == "user":
+            count += 1
+        parent = m.get("parent_message_id")
+        current = int(parent) if parent is not None else None
+        safety -= 1
+    return count
+
+
 async def _build_question_bank_context(
     store: SessionStoreProtocol,
     entry_ids: list[Any],
@@ -348,6 +386,9 @@ class _TurnExecution:
     payload: dict[str, Any]
     task: asyncio.Task[None] | None = None
     subscribers: list[_LiveSubscriber] = field(default_factory=list)
+    events: list[dict[str, Any]] = field(default_factory=list)
+    next_seq: int = 1
+    events_flushed: bool = False
 
 
 class TurnRuntimeManager:
@@ -475,7 +516,7 @@ class TurnRuntimeManager:
             session_metadata["superseded_turn_id"] = str(superseded_turn_id)
         if runtime_only_config.get("_regenerate"):
             session_metadata["regenerate"] = True
-        await self._persist_and_publish(
+        await self._publish_live_event(
             execution,
             StreamEvent(
                 type=StreamEventType.SESSION,
@@ -624,21 +665,33 @@ class TurnRuntimeManager:
         queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         subscriber = _LiveSubscriber(queue=queue)
         execution: _TurnExecution | None = None
+        live_backlog: list[dict[str, Any]] = []
         async with self._lock:
             execution = self._executions.get(turn_id)
             if execution is not None:
                 execution.subscribers.append(subscriber)
+                live_backlog = [
+                    item
+                    for item in execution.events
+                    if int(item.get("seq") or 0) > last_seq
+                ]
 
-        catchup = await self.store.get_turn_events(turn_id, after_seq=last_seq)
+        for item in live_backlog:
+            seq = int(item.get("seq") or 0)
+            if seq <= last_seq:
+                continue
+            last_seq = seq
+            yield item
+
+        catchup = []
+        if execution is None:
+            catchup = await self.store.get_turn_events(turn_id, after_seq=last_seq)
         for item in catchup:
             seq = int(item.get("seq") or 0)
             if seq <= last_seq:
                 continue
             last_seq = seq
-            if execution is None:
-                yield item
-            else:
-                queue.put_nowait(item)
+            yield item
 
         turn = await self.store.get_turn(turn_id)
         if execution is None:
@@ -682,6 +735,7 @@ class TurnRuntimeManager:
         attachment_records = []
         assistant_events: list[dict[str, Any]] = []
         assistant_content = ""
+        stream_done_sent = False
         llm_scope_token: Token[LLMConfig | None] | None = None
         reset_active_llm_selection: Callable[[Token[LLMConfig | None] | None], None] | None = None
 
@@ -708,6 +762,25 @@ class TurnRuntimeManager:
             request_config.pop("_regenerated_from_message_id", None)
             request_config.pop("_superseded_turn_id", None)
             raw_user_content = str(payload.get("content", "") or "")
+            # Edit-branching tip: when the FE includes ``parent_message_id``
+            # (even as ``null``), the new user message attaches at that
+            # exact parent — creating a sibling of any existing children
+            # and forcing LLM context to come from that parent's ancestor
+            # chain only. When the key is absent (legacy callers), the
+            # store auto-appends to the latest message in the session.
+            branch_parent_explicit = "parent_message_id" in payload
+            branch_parent_raw = payload.get("parent_message_id")
+            branch_parent_id: int | None
+            if branch_parent_explicit:
+                try:
+                    branch_parent_id = (
+                        int(branch_parent_raw) if branch_parent_raw is not None else None
+                    )
+                except (TypeError, ValueError):
+                    branch_parent_id = None
+                    branch_parent_explicit = False
+            else:
+                branch_parent_id = None
             notebook_references = payload.get("notebook_references", []) or []
             history_references = payload.get("history_references", []) or []
             question_notebook_references = payload.get("question_notebook_references", []) or []
@@ -799,7 +872,9 @@ class TurnRuntimeManager:
             ]
 
             if followup_question_context:
-                existing_messages = await self.store.get_messages_for_context(session_id)
+                existing_messages = await self.store.get_messages_for_context(
+                    session_id, leaf_message_id=branch_parent_id
+                )
                 if not existing_messages:
                     await self.store.add_message(
                         session_id=session_id,
@@ -815,13 +890,16 @@ class TurnRuntimeManager:
             builder = ContextBuilder(self.store)
 
             async def _emit_context_event(event: StreamEvent) -> None:
-                await self._persist_and_publish(execution, event)
+                if event.source in {"context", "context_builder"}:
+                    return
+                await self._publish_live_event(execution, event)
 
             history_result = await builder.build(
                 session_id=session_id,
                 llm_config=llm_config,
                 language=payload.get("language", "en"),
                 on_event=_emit_context_event,
+                leaf_message_id=branch_parent_id,
             )
             memory_service = get_memory_service()
             memory_context = memory_service.build_memory_context(memory_references)
@@ -878,123 +956,175 @@ class TurnRuntimeManager:
                 user_block = user_skill_service.load_for_context(user_picks)
                 skills_context = "\n\n".join(part for part in (admin_block, user_block) if part)
 
-            if notebook_references:
-                referenced_records = get_notebook_manager().get_records_by_references(
-                    notebook_references
+            # Chat capability uses the lightweight manifest + read_source
+            # affordance (no upstream LLM call, no wholesale-dump into the
+            # user message). All other capabilities keep the legacy concat
+            # path because their internal pipelines consume the named blocks
+            # (``[Notebook Context]`` etc.) directly.
+            is_chat_capability = (capability_name or "") in {"", "chat"}
+
+            source_manifest_text = ""
+            source_index: dict[str, str] = {}
+
+            if is_chat_capability:
+                from deeptutor.services.session.source_inventory import (
+                    build_inventory,
+                    render_manifest,
                 )
-                if referenced_records:
-                    analysis_agent = NotebookAnalysisAgent(
-                        language=str(payload.get("language", "en") or "en")
+
+                resolved_notebook_records = (
+                    get_notebook_manager().get_records_by_references(notebook_references)
+                    if notebook_references
+                    else []
+                )
+                # Current turn ordinal = (#user messages on this branch's
+                # ancestor chain) + 1. ``_count_branch_user_turns`` walks
+                # the same lineage the inventory builder uses, so we agree
+                # on what "turn N" means for the historical labels.
+                current_turn_ordinal = await _count_branch_user_turns(
+                    self.store, session_id, branch_parent_id
+                ) + 1
+                inventory = await build_inventory(
+                    self.store,
+                    session_id=session_id,
+                    leaf_message_id=branch_parent_id,
+                    current_turn_ordinal=current_turn_ordinal,
+                    fresh_attachment_records=attachment_records,
+                    fresh_notebook_records=resolved_notebook_records,
+                    fresh_book_context_text=book_context,
+                    fresh_book_references=book_references,
+                    fresh_history_session_ids=history_references,
+                    fresh_question_entry_ids=question_notebook_references,
+                )
+                source_manifest_text, source_index = render_manifest(inventory)
+                effective_user_message = raw_user_content
+            else:
+                if notebook_references:
+                    referenced_records = get_notebook_manager().get_records_by_references(
+                        notebook_references
                     )
-                    notebook_context = await analysis_agent.analyze(
-                        user_question=raw_user_content,
-                        records=referenced_records,
-                        emit=_emit_context_event,
-                    )
-
-            if history_references:
-                history_records: list[dict[str, Any]] = []
-                for session_ref in history_references:
-                    history_session_id = str(session_ref or "").strip()
-                    if not history_session_id:
-                        continue
-
-                    history_session = await self.store.get_session(history_session_id)
-                    if not history_session:
-                        continue
-
-                    history_messages = await self.store.get_messages_for_context(history_session_id)
-                    transcript_lines = [
-                        f"## {str(message.get('role', '')).title()}\n{message.get('content', '')}"
-                        for message in history_messages
-                        if str(message.get("content", "") or "").strip()
-                    ]
-                    if not transcript_lines:
-                        continue
-
-                    history_summary = str(
-                        history_session.get("compressed_summary", "") or ""
-                    ).strip()
-                    if not history_summary:
-                        history_summary = _clip_text(
-                            " ".join(
-                                str(message.get("content", "") or "").strip()
-                                for message in history_messages[-4:]
-                                if str(message.get("content", "") or "").strip()
-                            ),
-                            limit=400,
+                    if referenced_records:
+                        analysis_agent = NotebookAnalysisAgent(
+                            language=str(payload.get("language", "en") or "en")
                         )
-                    if not history_summary:
-                        history_summary = f"{len(history_messages)} messages"
+                        notebook_context = await analysis_agent.analyze(
+                            user_question=raw_user_content,
+                            records=referenced_records,
+                            emit=_emit_context_event,
+                        )
 
-                    history_records.append(
-                        {
-                            "id": history_session_id,
-                            "notebook_id": "__history__",
-                            "notebook_name": "History",
-                            "title": str(history_session.get("title", "") or "Untitled session"),
-                            "summary": history_summary,
-                            "output": "\n\n".join(transcript_lines),
-                            "metadata": {
-                                "session_id": history_session_id,
-                                "source": "history",
-                            },
-                        }
+                if history_references:
+                    history_records: list[dict[str, Any]] = []
+                    for session_ref in history_references:
+                        history_session_id = str(session_ref or "").strip()
+                        if not history_session_id:
+                            continue
+
+                        history_session = await self.store.get_session(history_session_id)
+                        if not history_session:
+                            continue
+
+                        history_messages = await self.store.get_messages_for_context(history_session_id)
+                        transcript_lines = [
+                            f"## {str(message.get('role', '')).title()}\n{message.get('content', '')}"
+                            for message in history_messages
+                            if str(message.get("content", "") or "").strip()
+                        ]
+                        if not transcript_lines:
+                            continue
+
+                        history_summary = str(
+                            history_session.get("compressed_summary", "") or ""
+                        ).strip()
+                        if not history_summary:
+                            history_summary = _clip_text(
+                                " ".join(
+                                    str(message.get("content", "") or "").strip()
+                                    for message in history_messages[-4:]
+                                    if str(message.get("content", "") or "").strip()
+                                ),
+                                limit=400,
+                            )
+                        if not history_summary:
+                            history_summary = f"{len(history_messages)} messages"
+
+                        history_records.append(
+                            {
+                                "id": history_session_id,
+                                "notebook_id": "__history__",
+                                "notebook_name": "History",
+                                "title": str(history_session.get("title", "") or "Untitled session"),
+                                "summary": history_summary,
+                                "output": "\n\n".join(transcript_lines),
+                                "metadata": {
+                                    "session_id": history_session_id,
+                                    "source": "history",
+                                },
+                            }
+                        )
+
+                    if history_records:
+                        analysis_agent = NotebookAnalysisAgent(
+                            language=str(payload.get("language", "en") or "en")
+                        )
+                        history_context = await analysis_agent.analyze(
+                            user_question=raw_user_content,
+                            records=history_records,
+                            emit=_emit_context_event,
+                        )
+                        if not history_context.strip():
+                            MAX_FALLBACK_CHARS = 8000
+                            parts: list[str] = []
+                            total = 0
+                            for record in history_records:
+                                output = record.get("output")
+                                if not output:
+                                    continue
+                                part = f"## Session: {record.get('title', 'Untitled')}\n{output}"
+                                if total + len(part) > MAX_FALLBACK_CHARS:
+                                    remaining = MAX_FALLBACK_CHARS - total
+                                    if remaining > 100:
+                                        parts.append(part[:remaining] + "\n...(truncated)")
+                                    break
+                                parts.append(part)
+                                total += len(part)
+                            history_context = "\n\n".join(parts)
+
+                if question_notebook_references:
+                    question_bank_context = await _build_question_bank_context(
+                        self.store, question_notebook_references
                     )
 
-                if history_records:
-                    analysis_agent = NotebookAnalysisAgent(
-                        language=str(payload.get("language", "en") or "en")
-                    )
-                    history_context = await analysis_agent.analyze(
-                        user_question=raw_user_content,
-                        records=history_records,
-                        emit=_emit_context_event,
-                    )
-                    if not history_context.strip():
-                        MAX_FALLBACK_CHARS = 8000
-                        parts: list[str] = []
-                        total = 0
-                        for record in history_records:
-                            output = record.get("output")
-                            if not output:
-                                continue
-                            part = f"## Session: {record.get('title', 'Untitled')}\n{output}"
-                            if total + len(part) > MAX_FALLBACK_CHARS:
-                                remaining = MAX_FALLBACK_CHARS - total
-                                if remaining > 100:
-                                    parts.append(part[:remaining] + "\n...(truncated)")
-                                break
-                            parts.append(part)
-                            total += len(part)
-                        history_context = "\n\n".join(parts)
-
-            if question_notebook_references:
-                question_bank_context = await _build_question_bank_context(
-                    self.store, question_notebook_references
-                )
-
-            effective_user_message = raw_user_content
-            context_parts: list[str] = []
-            if document_texts:
-                context_parts.append("[Attached Documents]\n" + "\n\n".join(document_texts))
-            if book_context:
-                context_parts.append(f"[Book Context]\n{book_context}")
-            if notebook_context:
-                context_parts.append(f"[Notebook Context]\n{notebook_context}")
-            if history_context:
-                context_parts.append(f"[History Context]\n{history_context}")
-            if question_bank_context:
-                context_parts.append(f"[Question Bank Context]\n{question_bank_context}")
-            if context_parts:
-                context_parts.append(f"[User Question]\n{raw_user_content}")
-                effective_user_message = "\n\n".join(context_parts)
+                effective_user_message = raw_user_content
+                context_parts: list[str] = []
+                if document_texts:
+                    context_parts.append("[Attached Documents]\n" + "\n\n".join(document_texts))
+                if book_context:
+                    context_parts.append(f"[Book Context]\n{book_context}")
+                if notebook_context:
+                    context_parts.append(f"[Notebook Context]\n{notebook_context}")
+                if history_context:
+                    context_parts.append(f"[History Context]\n{history_context}")
+                if question_bank_context:
+                    context_parts.append(f"[Question Bank Context]\n{question_bank_context}")
+                if context_parts:
+                    context_parts.append(f"[User Question]\n{raw_user_content}")
+                    effective_user_message = "\n\n".join(context_parts)
 
             conversation_history = list(history_result.conversation_history)
             conversation_context_text = history_result.context_text
 
+            new_user_message_id: int | None = None
             if persist_user_message:
-                await self.store.add_message(
+                # Pass parent explicitly only when the FE pinned it (covers
+                # both branched edits with a positive id and root edits
+                # with explicit null). Otherwise let the store auto-append.
+                parent_kwargs: dict[str, Any] = (
+                    {"parent_message_id": branch_parent_id}
+                    if branch_parent_explicit
+                    else {}
+                )
+                new_user_message_id = await self.store.add_message(
                     session_id=session_id,
                     role="user",
                     content=raw_user_content,
@@ -1014,6 +1144,7 @@ class TurnRuntimeManager:
                         memory_references=memory_references,
                         llm_selection=payload.get("llm_selection"),
                     ),
+                    **parent_kwargs,
                 )
 
             context = UnifiedContext(
@@ -1026,10 +1157,9 @@ class TurnRuntimeManager:
                 attachments=attachments,
                 config_overrides=request_config,
                 language=payload.get("language", "en"),
-                notebook_context=notebook_context,
-                history_context=history_context,
                 memory_context=memory_context,
                 skills_context=skills_context,
+                source_manifest=source_manifest_text,
                 metadata={
                     "conversation_summary": history_result.conversation_summary,
                     "conversation_context_text": conversation_context_text,
@@ -1050,6 +1180,11 @@ class TurnRuntimeManager:
                     "llm_selection": payload.get("llm_selection") or {},
                     "llm_model": str(getattr(llm_config, "model", "") or ""),
                     "llm_provider": str(getattr(llm_config, "provider_name", "") or ""),
+                    # Per-turn full-text payload for read_source. Empty when
+                    # the manifest is empty (non-chat capabilities, or chat
+                    # turns with no attached sources). Consumed by the chat
+                    # pipeline's tool kwargs injector.
+                    "source_index": source_index,
                 },
             )
 
@@ -1057,19 +1192,46 @@ class TurnRuntimeManager:
             async for event in orch.handle(context):
                 if event.type == StreamEventType.SESSION:
                     continue
-                payload_event = await self._persist_and_publish(execution, event)
+                payload_event = await self._publish_live_event(execution, event)
+                if event.type == StreamEventType.DONE:
+                    stream_done_sent = True
                 if payload_event.get("type") not in {"done", "session"}:
                     assistant_events.append(payload_event)
                 if _should_capture_assistant_content(event):
                     assistant_content += event.content
 
-            await self.store.add_message(
-                session_id=session_id,
-                role="assistant",
-                content=assistant_content,
-                capability=capability_name,
-                events=assistant_events,
-            )
+            # Assistant continues the same branch as the user message it
+            # answers. If we just persisted a new user row we chain off
+            # that; if we did not (regenerate path) and the caller pinned a
+            # parent, we use it; otherwise we let the store auto-append
+            # (legacy behavior).
+            if new_user_message_id is not None:
+                await self.store.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=assistant_content,
+                    capability=capability_name,
+                    events=assistant_events,
+                    parent_message_id=new_user_message_id,
+                )
+            elif branch_parent_explicit:
+                await self.store.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=assistant_content,
+                    capability=capability_name,
+                    events=assistant_events,
+                    parent_message_id=branch_parent_id,
+                )
+            else:
+                await self.store.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=assistant_content,
+                    capability=capability_name,
+                    events=assistant_events,
+                )
+            await self._flush_buffered_events(execution)
             await self.store.update_turn_status(turn_id, "completed")
             if not is_regenerate:
                 try:
@@ -1083,45 +1245,59 @@ class TurnRuntimeManager:
                 except Exception:
                     logger.debug("Failed to refresh lightweight memory", exc_info=True)
         except asyncio.CancelledError:
+            if not stream_done_sent:
+                await self._publish_live_event(
+                    execution,
+                    StreamEvent(
+                        type=StreamEventType.ERROR,
+                        source=capability_name,
+                        content="Turn cancelled",
+                        metadata={"turn_terminal": True, "status": "cancelled"},
+                    ),
+                )
+                await self._publish_live_event(
+                    execution,
+                    StreamEvent(
+                        type=StreamEventType.DONE,
+                        source=capability_name,
+                        metadata={"status": "cancelled"},
+                    ),
+                )
+            await self._flush_buffered_events(execution)
             await self.store.update_turn_status(turn_id, "cancelled", "Turn cancelled")
-            await self._persist_and_publish(
-                execution,
-                StreamEvent(
-                    type=StreamEventType.ERROR,
-                    source=capability_name,
-                    content="Turn cancelled",
-                    metadata={"turn_terminal": True, "status": "cancelled"},
-                ),
-            )
-            await self._persist_and_publish(
-                execution,
-                StreamEvent(
-                    type=StreamEventType.DONE,
-                    source=capability_name,
-                    metadata={"status": "cancelled"},
-                ),
-            )
             raise
         except Exception as exc:
-            logger.error("Turn %s failed: %s", turn_id, exc, exc_info=True)
-            await self.store.update_turn_status(turn_id, "failed", str(exc))
-            await self._persist_and_publish(
-                execution,
-                StreamEvent(
-                    type=StreamEventType.ERROR,
-                    source=capability_name,
-                    content=str(exc),
-                    metadata={"turn_terminal": True, "status": "failed"},
-                ),
-            )
-            await self._persist_and_publish(
-                execution,
-                StreamEvent(
-                    type=StreamEventType.DONE,
-                    source=capability_name,
-                    metadata={"status": "failed"},
-                ),
-            )
+            if stream_done_sent:
+                logger.error(
+                    "Post-stream persistence for turn %s failed: %s",
+                    turn_id,
+                    exc,
+                    exc_info=True,
+                )
+                with contextlib.suppress(Exception):
+                    await self._flush_buffered_events(execution)
+                    await self.store.update_turn_status(turn_id, "failed", str(exc))
+            else:
+                logger.error("Turn %s failed: %s", turn_id, exc, exc_info=True)
+                await self._publish_live_event(
+                    execution,
+                    StreamEvent(
+                        type=StreamEventType.ERROR,
+                        source=capability_name,
+                        content=str(exc),
+                        metadata={"turn_terminal": True, "status": "failed"},
+                    ),
+                )
+                await self._publish_live_event(
+                    execution,
+                    StreamEvent(
+                        type=StreamEventType.DONE,
+                        source=capability_name,
+                        metadata={"status": "failed"},
+                    ),
+                )
+                await self._flush_buffered_events(execution)
+                await self.store.update_turn_status(turn_id, "failed", str(exc))
         finally:
             if llm_scope_token is not None and reset_active_llm_selection is not None:
                 reset_active_llm_selection(llm_scope_token)
@@ -1133,7 +1309,7 @@ class TurnRuntimeManager:
                             subscriber.queue.put_nowait(None)
                     self._executions.pop(turn_id, None)
 
-    async def _persist_and_publish(
+    async def _publish_live_event(
         self,
         execution: _TurnExecution,
         event: StreamEvent,
@@ -1143,26 +1319,50 @@ class TurnRuntimeManager:
         event.session_id = execution.session_id
         event.turn_id = execution.turn_id
         payload = event.to_dict()
-        try:
-            persisted = await self.store.append_turn_event(execution.turn_id, payload)
-        except ValueError as exc:
-            # A turn can disappear when the session is deleted while the turn task
-            # is still draining events. Avoid cascading failures in the error path.
-            if "Turn not found:" not in str(exc):
-                raise
-            logger.warning(
-                "Skip persisting event for missing turn %s (%s)",
-                execution.turn_id,
-                event.type.value,
-            )
-            persisted = payload
-        self._mirror_event_to_workspace(execution, persisted)
         async with self._lock:
-            subscribers = list(self._executions.get(execution.turn_id, execution).subscribers)
+            current = self._executions.get(execution.turn_id, execution)
+            seq = int(payload.get("seq") or 0)
+            if seq <= 0:
+                seq = current.next_seq
+                current.next_seq += 1
+                if current is not execution:
+                    execution.next_seq = max(execution.next_seq, current.next_seq)
+            else:
+                current.next_seq = max(current.next_seq, seq + 1)
+                execution.next_seq = max(execution.next_seq, seq + 1)
+            payload["seq"] = seq
+            current.events.append(payload)
+            if current is not execution:
+                execution.events.append(payload)
+            subscribers = list(current.subscribers)
         for subscriber in subscribers:
             with contextlib.suppress(asyncio.QueueFull):
-                subscriber.queue.put_nowait(persisted)
-        return persisted
+                subscriber.queue.put_nowait(payload)
+        return payload
+
+    async def _flush_buffered_events(self, execution: _TurnExecution) -> None:
+        """Persist buffered turn events after the live stream has already drained."""
+        async with self._lock:
+            if execution.events_flushed:
+                return
+            execution.events_flushed = True
+            events = list(execution.events)
+
+        for payload in events:
+            try:
+                persisted = await self.store.append_turn_event(execution.turn_id, payload)
+            except ValueError as exc:
+                # A turn can disappear when the session is deleted while the turn task
+                # is draining post-stream persistence. Avoid cascading failures.
+                if "Turn not found:" not in str(exc):
+                    raise
+                logger.warning(
+                    "Skip persisting event for missing turn %s (%s)",
+                    execution.turn_id,
+                    payload.get("type", ""),
+                )
+                continue
+            self._mirror_event_to_workspace(execution, persisted)
 
     @staticmethod
     def _mirror_event_to_workspace(execution: _TurnExecution, payload: dict[str, Any]) -> None:

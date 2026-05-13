@@ -98,6 +98,7 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
         async def handle(self, context):
             captured["user_message"] = context.user_message
             captured["metadata"] = context.metadata
+            captured["source_manifest"] = context.source_manifest
             yield StreamEvent(
                 type=StreamEventType.CONTENT,
                 source="chat",
@@ -164,8 +165,20 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     assert detail["messages"][0]["metadata"]["request_snapshot"]["bookReferences"] == [
         {"book_id": "book-1", "page_ids": ["page-1"]}
     ]
-    assert "[Book Context]" in str(captured["user_message"])
-    assert "A selected page." in str(captured["user_message"])
+    # Chat capability now routes attached sources through the manifest +
+    # ``read_source`` tool instead of inlining ``[Book Context]`` into the
+    # user message. The raw user message stays raw; the book payload
+    # surfaces in ``context.source_manifest`` and ``metadata.source_index``.
+    assert str(captured["user_message"]) == "hello, i'm frank"
+    manifest = str(captured.get("source_manifest") or "")
+    assert "[Attached Sources]" in manifest
+    # Book source id is now per-book (``bk-{book_id}``) so multi-book
+    # sessions can read_source each independently. The mocked book has id
+    # "book-1".
+    assert "bk-book-1" in manifest
+    source_index = (captured.get("metadata") or {}).get("source_index") or {}
+    assert "bk-book-1" in source_index
+    assert "A selected page." in source_index["bk-book-1"]
     assert captured["metadata"] and captured["metadata"]["book_references"] == [
         {"book_id": "book-1", "page_ids": ["page-1"]}
     ]

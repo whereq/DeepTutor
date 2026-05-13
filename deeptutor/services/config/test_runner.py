@@ -29,6 +29,21 @@ def _redact(value: str) -> str:
     return f"{value[:4]}...{value[-4:]}"
 
 
+def _coerce_int(value: Any, default: int, *, minimum: int = 1) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, parsed)
+
+
+def _coerce_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 @dataclass
 class TestRun:
     id: str
@@ -235,20 +250,25 @@ class ConfigTestRunner:
         from .loader import get_agent_params
 
         probe_params = get_agent_params("llm_probe")
-        max_tokens = max(1, int(probe_params.get("max_tokens", 1024)))
+        max_tokens = _coerce_int(probe_params.get("max_tokens"), 1024)
+        temperature = _coerce_float(probe_params.get("temperature"), 0.1)
         token_kwargs: dict[str, Any] = get_token_limit_kwargs(
             llm_config.model, max_tokens=max_tokens
         )
         run.emit("info", f"Token options: {json.dumps(token_kwargs)}")
+        if llm_config.reasoning_effort:
+            run.emit("info", f"Reasoning effort: {llm_config.reasoning_effort}")
         response = await llm_complete(
             model=llm_config.model,
             prompt="Say 'OK' and identify the model you are using.",
             system_prompt="Respond briefly but include your model identity if possible.",
             binding=llm_config.binding,
             api_key=llm_config.api_key or "sk-no-key-required",
-            base_url=llm_config.base_url or "",
-            temperature=0.1,
+            base_url=llm_config.effective_url or llm_config.base_url or "",
+            api_version=llm_config.api_version,
+            temperature=temperature,
             extra_headers=llm_config.extra_headers,
+            reasoning_effort=llm_config.reasoning_effort,
             **token_kwargs,
         )
         snippet = (response or "").strip()
@@ -289,7 +309,7 @@ class ConfigTestRunner:
 
         run.emit("info", "Loading embedding config from the active catalog selection.")
         resolved = resolve_embedding_runtime_config(catalog=catalog)
-        catalog_dim = int(str(model.get("dimension") or 0))
+        catalog_dim = _coerce_int(model.get("dimension"), 0, minimum=0)
         # Force the smoke probe to send NO `dimensions=` parameter so we get
         # the model's native max dim back. If we used the configured dim,
         # Matryoshka models (OpenAI text-embedding-3-*, Cohere embed-v4,
@@ -403,18 +423,12 @@ class ConfigTestRunner:
         # Always persist: the probe runs end-to-end successfully, so the
         # detected dim is authoritative. ``_persist_embedding_dimension`` also
         # writes the refreshed ``supported_dimensions`` CSV in the same save.
-        try:
-            saved_catalog = self._persist_embedding_dimension(catalog, model, detected_dim)
-            run.emit(
-                "catalog",
-                "Saved detected embedding dimension to model_catalog.json.",
-                catalog=saved_catalog,
-            )
-        except Exception as exc:  # pragma: no cover - persistence best-effort
-            run.emit(
-                "warning",
-                f"Could not save detected embedding dimension: {exc}",
-            )
+        saved_catalog = self._persist_embedding_dimension(catalog, model, detected_dim)
+        run.emit(
+            "catalog",
+            "Saved detected embedding dimension to model_catalog.json.",
+            catalog=saved_catalog,
+        )
 
     def _test_search(self, run: TestRun, catalog: dict[str, Any]) -> None:
         from deeptutor.services.search import web_search

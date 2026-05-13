@@ -5,10 +5,13 @@ import { memo, useCallback, useMemo, useState } from "react";
 import {
   BookOpen,
   Brain,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Coins,
   Copy,
   MessageSquare,
+  Pencil,
   RefreshCcw,
   Wand2,
   X,
@@ -32,6 +35,10 @@ import { extractVisualizeResult } from "@/lib/visualize-types";
 import type { StreamEvent } from "@/lib/unified-ws";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
 import type { SelectedBookReference } from "@/lib/book-references";
+import {
+  buildVisiblePath,
+  type SiblingInfo,
+} from "@/lib/message-branches";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import AutoModeAssistantMessage from "./AutoModeAssistantMessage";
 import { TraceSurface } from "./TracePanels";
@@ -60,6 +67,7 @@ interface ChatMessageItem {
   events?: StreamEvent[];
   attachments?: MessageAttachment[];
   requestSnapshot?: MessageRequestSnapshot;
+  parentMessageId?: number | null;
 }
 
 interface NotebookReferenceGroup {
@@ -334,61 +342,137 @@ function RoughActionButton({
   );
 }
 
+function BranchNavigator({
+  info,
+  onSwitch,
+}: {
+  info: SiblingInfo;
+  onSwitch: (childId: number) => void;
+}) {
+  const { t } = useTranslation();
+  const prevIdx = info.index - 2; // 0-based prev index
+  const nextIdx = info.index; // 0-based next index
+  const prevId = prevIdx >= 0 ? info.siblingIds[prevIdx] : null;
+  const nextId =
+    nextIdx < info.siblingIds.length ? info.siblingIds[nextIdx] : null;
+  return (
+    <div className="inline-flex items-center gap-0.5 text-[10.5px] text-[var(--muted-foreground)]">
+      <button
+        type="button"
+        onClick={() => prevId !== null && onSwitch(prevId)}
+        disabled={prevId === null}
+        aria-label={t("Previous branch")}
+        className="rounded p-0.5 transition-colors hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        <ChevronLeft size={12} strokeWidth={1.8} />
+      </button>
+      <span className="select-none tabular-nums">
+        {info.index} / {info.total}
+      </span>
+      <button
+        type="button"
+        onClick={() => nextId !== null && onSwitch(nextId)}
+        disabled={nextId === null}
+        aria-label={t("Next branch")}
+        className="rounded p-0.5 transition-colors hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        <ChevronRight size={12} strokeWidth={1.8} />
+      </button>
+    </div>
+  );
+}
+
+function DeleteTurnButton({ onDelete }: { onDelete: () => void }) {
+  const { t } = useTranslation();
+  const [confirm, setConfirm] = useState(false);
+  if (!confirm) {
+    return (
+      <RoughActionButton
+        icon={Trash2}
+        label={t("Delete")}
+        onClick={() => setConfirm(true)}
+      />
+    );
+  }
+  return (
+    <div className="inline-flex items-center gap-1.5 text-[11px]">
+      <span className="text-[var(--muted-foreground)]">
+        {t("Delete this turn?")}
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          onDelete();
+          setConfirm(false);
+        }}
+        className="rounded-md px-1.5 py-0.5 font-medium text-[var(--destructive)] hover:bg-[var(--destructive)]/10"
+      >
+        {t("Delete")}
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirm(false)}
+        className="rounded-md px-1.5 py-0.5 font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)]/40"
+      >
+        {t("Cancel")}
+      </button>
+    </div>
+  );
+}
+
 const UserMessage = memo(function UserMessage({
   msg,
   index,
   onPreviewAttachment,
-  onDeleteTurn,
+  onCopy,
+  onEdit,
+  editDisabled,
+  siblingInfo,
+  onSwitchBranch,
 }: {
   msg: ChatMessageItem;
   index: number;
   onPreviewAttachment?: (attachment: MessageAttachment) => void;
-  onDeleteTurn?: (messageId: number) => void;
+  onCopy?: (content: string) => void | Promise<void>;
+  onEdit?: (messageId: number, newContent: string) => void;
+  editDisabled?: boolean;
+  siblingInfo?: SiblingInfo;
+  onSwitchBranch?: (parentMessageId: number | null, childId: number) => void;
 }) {
   const { t } = useTranslation();
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(msg.content);
   if (msg.content.startsWith("[Quiz Performance]")) return null;
+  // ``msg.id`` can be a negative client-side sentinel for optimistic
+  // (just-sent, not yet reconciled with the server) rows. We still allow
+  // the Edit button to surface — ``editMessage`` in the context handles
+  // the optimistic case by triggering a session reload to resolve the
+  // real id before submitting the branch.
+  const canEdit =
+    Boolean(onEdit) && typeof msg.id === "number" && !editDisabled;
+  const startEdit = () => {
+    if (!canEdit) return;
+    setDraft(msg.content);
+    setEditing(true);
+  };
+  const cancelEdit = () => {
+    setEditing(false);
+    setDraft(msg.content);
+  };
+  const submitEdit = () => {
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === msg.content) {
+      cancelEdit();
+      return;
+    }
+    if (typeof msg.id !== "number") return;
+    onEdit?.(msg.id, trimmed);
+    setEditing(false);
+  };
 
   return (
     <div key={`${msg.role}-${index}`} className="group flex justify-end">
-      <div className="max-w-[75%] space-y-1.5">
-        <div className="flex justify-end">
-          <div className="relative">
-            {!confirmDelete ? (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                className="rounded-md p-1 text-[var(--muted-foreground)] opacity-0 transition-opacity group-hover:opacity-100 hover:text-[var(--destructive)]"
-                title={t("Delete")}
-              >
-                <Trash2 size={14} strokeWidth={1.5} />
-              </button>
-            ) : (
-              <div className="flex items-center gap-1.5 text-[12px]">
-                <span className="text-[var(--muted-foreground)]">
-                  {t("Delete this turn?")}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (msg.id != null) onDeleteTurn?.(msg.id);
-                    setConfirmDelete(false);
-                  }}
-                  className="rounded-md px-2 py-0.5 font-medium text-[var(--destructive)] hover:bg-[var(--destructive)]/10"
-                >
-                  {t("Delete")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(false)}
-                  className="rounded-md px-2 py-0.5 font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)]/40"
-                >
-                  {t("Cancel")}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+      <div className="flex max-w-[75%] flex-col items-end gap-1.5">
         <div className="flex justify-end pr-1">
           <span className="text-[10px] tracking-wide text-[var(--muted-foreground)]">
             {t(getModeBadgeLabel(msg.capability))}
@@ -454,6 +538,48 @@ const UserMessage = memo(function UserMessage({
               })}
           </div>
         )}
+        {editing ? (
+          <div className="w-[min(620px,75vw)] rounded-2xl border border-[var(--primary)]/40 bg-[var(--secondary)] px-3 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] shadow-sm">
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelEdit();
+                } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  submitEdit();
+                }
+              }}
+              rows={Math.min(8, Math.max(2, draft.split("\n").length))}
+              className="w-full resize-none border-0 bg-transparent text-[14px] leading-relaxed text-[var(--foreground)] outline-none focus:outline-none"
+            />
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <span className="text-[10.5px] text-[var(--muted-foreground)]/80">
+                {t("Use the arrows below to switch between branches.")}
+              </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="rounded-md px-2 py-0.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)]/40"
+                >
+                  {t("Cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={submitEdit}
+                  disabled={!draft.trim() || draft.trim() === msg.content}
+                  className="rounded-md bg-[var(--primary)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--primary-foreground)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {t("Send")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="rounded-2xl bg-[var(--secondary)] px-4 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] shadow-sm">
           {(() => {
             const snap = msg.requestSnapshot;
@@ -534,6 +660,33 @@ const UserMessage = memo(function UserMessage({
           })()}
           <div className="whitespace-pre-wrap">{msg.content}</div>
         </div>
+        )}
+        {!editing && (onCopy || canEdit || siblingInfo) && msg.content && (
+          <div className="flex h-5 items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            {siblingInfo && siblingInfo.total > 1 && (
+              <BranchNavigator
+                info={siblingInfo}
+                onSwitch={(childId) =>
+                  onSwitchBranch?.(siblingInfo.parentId, childId)
+                }
+              />
+            )}
+            {onCopy && (
+              <RoughActionButton
+                icon={Copy}
+                label={t("Copy")}
+                onClick={() => void onCopy(msg.content)}
+              />
+            )}
+            {canEdit && (
+              <RoughActionButton
+                icon={Pencil}
+                label={t("Edit")}
+                onClick={startEdit}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -729,6 +882,9 @@ export const ChatMessageList = memo(function ChatMessageList({
   onPreviewAttachment,
   onSwitchToManualMode,
   onDeleteTurn,
+  selectedBranches,
+  onEditMessage,
+  onSwitchBranch,
 }: {
   messages: ChatMessageItem[];
   isStreaming: boolean;
@@ -751,24 +907,36 @@ export const ChatMessageList = memo(function ChatMessageList({
   // have to wire it.
   onSwitchToManualMode?: () => void;
   onDeleteTurn?: (messageId: number) => void;
+  /** Edit-branching: selected sibling at each branch point. */
+  selectedBranches?: Record<string, number>;
+  onEditMessage?: (messageId: number, newContent: string) => void;
+  onSwitchBranch?: (parentMessageId: number | null, childId: number) => void;
 }) {
   const { t } = useTranslation();
+  // Visible path: when no branching has happened the result is identical
+  // to the input. After an edit, sibling branches are filtered out so the
+  // UI shows exactly one continuous thread, with arrow nav exposed on the
+  // user message where branching diverges.
+  const { messages: visibleMessages, siblingsByMessageId } = useMemo(
+    () => buildVisiblePath(messages, selectedBranches),
+    [messages, selectedBranches],
+  );
   const outlineStatusByIndex = useMemo(() => {
     const map = new Map<number, "editing" | "researching" | "done">();
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i];
+    for (let i = 0; i < visibleMessages.length; i++) {
+      const msg = visibleMessages[i];
       if (msg.role !== "assistant" || msg.capability !== "deep_research")
         continue;
       const resultEv = msg.events?.find((e) => e.type === "result");
       const meta = resultEv?.metadata as Record<string, unknown> | undefined;
       if (!meta?.outline_preview) continue;
-      const hasFollowup = messages
+      const hasFollowup = visibleMessages
         .slice(i + 1)
         .some(
           (m) => m.role === "assistant" && m.capability === "deep_research",
         );
       if (hasFollowup) {
-        const followup = messages
+        const followup = visibleMessages
           .slice(i + 1)
           .find(
             (m) => m.role === "assistant" && m.capability === "deep_research",
@@ -784,13 +952,13 @@ export const ChatMessageList = memo(function ChatMessageList({
       }
     }
     return map;
-  }, [messages, isStreaming]);
+  }, [visibleMessages, isStreaming]);
 
   const messageRows = useMemo(() => {
     // System messages are backend grounding (e.g. quiz follow-up context) and
     // must never be rendered as a chat bubble. Filter them out defensively in
     // addition to the hydration-time filter in UnifiedChatContext.
-    return messages
+    return visibleMessages
       .map((msg, index) => ({ msg, originalIndex: index }))
       .filter(({ msg }) => msg.role !== "system")
       .map(({ msg, originalIndex }) => {
@@ -802,37 +970,44 @@ export const ChatMessageList = memo(function ChatMessageList({
           };
         }
         const pairedUserMessage =
-          [...messages.slice(0, originalIndex)]
+          [...visibleMessages.slice(0, originalIndex)]
             .reverse()
             .find((previous) => previous.role === "user") ?? null;
         return { msg, originalIndex, pairedUserMessage };
       });
-  }, [messages]);
+  }, [visibleMessages]);
 
   const lastAssistantIndex = useMemo(() => {
-    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
-      if (messages[idx].role === "assistant") return idx;
+    for (let idx = visibleMessages.length - 1; idx >= 0; idx -= 1) {
+      if (visibleMessages[idx].role === "assistant") return idx;
     }
     return -1;
-  }, [messages]);
+  }, [visibleMessages]);
 
   return (
     <>
       {messageRows.map(({ msg, originalIndex, pairedUserMessage }) => {
         const i = originalIndex;
         if (msg.role === "user") {
+          const sib =
+            msg.id !== undefined ? siblingsByMessageId.get(msg.id) : undefined;
           return (
             <UserMessage
               key={`${msg.role}-${i}`}
               msg={msg}
               index={i}
               onPreviewAttachment={onPreviewAttachment}
-              onDeleteTurn={onDeleteTurn}
+              onCopy={onCopyAssistantMessage}
+              onEdit={onEditMessage}
+              editDisabled={isStreaming}
+              siblingInfo={sib}
+              onSwitchBranch={onSwitchBranch}
             />
           );
         }
 
-        const isActiveAssistant = isStreaming && i === messages.length - 1;
+        const isActiveAssistant =
+          isStreaming && i === visibleMessages.length - 1;
         const msgDone = !isActiveAssistant;
         const showActions = msgDone && hasVisibleMarkdownContent(msg.content);
         const isLastAssistant = i === lastAssistantIndex;
@@ -843,6 +1018,11 @@ export const ChatMessageList = memo(function ChatMessageList({
           Boolean(pairedUserMessage) &&
           (!pairedUserMessage?.capability ||
             pairedUserMessage?.capability === "chat");
+        const deletableTurnUserId =
+          msgDone && pairedUserMessage?.id != null && onDeleteTurn
+            ? pairedUserMessage.id
+            : null;
+        const showDelete = deletableTurnUserId != null;
 
         // The "Answer now" affordance lives inside the trace panel for the
         // currently-streaming assistant turn. We hand the panel a thin
@@ -887,20 +1067,27 @@ export const ChatMessageList = memo(function ChatMessageList({
               onRetry={onRegenerateMessage}
               onSwitchToManual={onSwitchToManualMode}
             />
-            {(showActions || costSummary) && (
+            {(showActions || costSummary || showDelete) && (
               <div className="mt-2 flex items-center">
-                {showActions && (
-                  <div className="flex gap-2">
-                    <RoughActionButton
-                      icon={Copy}
-                      label={t("Copy")}
-                      onClick={() => void onCopyAssistantMessage(msg.content)}
-                    />
-                    {showRegenerate && (
+                {(showActions || showDelete) && (
+                  <div className="flex items-center gap-2">
+                    {showActions && (
+                      <RoughActionButton
+                        icon={Copy}
+                        label={t("Copy")}
+                        onClick={() => void onCopyAssistantMessage(msg.content)}
+                      />
+                    )}
+                    {showActions && showRegenerate && (
                       <RoughActionButton
                         icon={RefreshCcw}
                         label={t("Regenerate")}
                         onClick={() => onRegenerateMessage()}
+                      />
+                    )}
+                    {showDelete && (
+                      <DeleteTurnButton
+                        onDelete={() => onDeleteTurn?.(deletableTurnUserId)}
                       />
                     )}
                   </div>

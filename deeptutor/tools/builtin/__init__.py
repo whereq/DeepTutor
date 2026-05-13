@@ -502,6 +502,72 @@ class GeoGebraAnalysisTool(_PromptHintsMixin, BaseTool):
         )
 
 
+class ReadSourceTool(_PromptHintsMixin, BaseTool):
+    """Load the full text of an attached Space source by its manifest id.
+
+    The chat pipeline auto-enables this tool whenever a turn has any non-image
+    attached source (notebook record, book reference, history session,
+    question-bank entry, or document attachment). The per-turn full-text
+    payload is carried in ``context.metadata["source_index"]`` as
+    ``{source_id: str}`` and injected into the tool call by
+    ``_augment_tool_kwargs``. The tool itself stays stateless.
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="read_source",
+            description=(
+                "Load the full text of one attached source by id. Use ONLY when "
+                "the preview shown in the Attached Sources manifest is "
+                "insufficient to answer the user's question. The id must be "
+                "copied verbatim from the manifest — do not invent ids. Do not "
+                "call this on every source 'just in case'."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="source_id",
+                    type="string",
+                    description=(
+                        "The source identifier from the Attached Sources "
+                        "manifest. Begins with one of: nb- (notebook record), "
+                        "bk- (book reference), hs- (history session), qb- "
+                        "(question-bank entry), at- (document attachment)."
+                    ),
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        source_id = str(kwargs.get("source_id") or "").strip()
+        if not source_id:
+            return ToolResult(
+                content="Error: source_id is required.",
+                success=False,
+            )
+        source_index = kwargs.get("source_index")
+        if not isinstance(source_index, dict) or not source_index:
+            return ToolResult(
+                content=(
+                    "Error: no attached sources are available for this turn."
+                ),
+                success=False,
+            )
+        full_text = source_index.get(source_id)
+        if not full_text:
+            available = ", ".join(sorted(source_index.keys()))
+            return ToolResult(
+                content=(
+                    f"Error: unknown source_id {source_id!r}. "
+                    f"Valid ids for this turn: {available or '(none)'}."
+                ),
+                success=False,
+            )
+        return ToolResult(
+            content=str(full_text),
+            metadata={"source_id": source_id, "char_count": len(str(full_text))},
+        )
+
+
 BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     BrainstormTool,
     RAGTool,
@@ -510,6 +576,7 @@ BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     ReasonTool,
     PaperSearchToolWrapper,
     GeoGebraAnalysisTool,
+    ReadSourceTool,
 )
 
 BUILTIN_TOOL_NAMES: tuple[str, ...] = tuple(tool_type().name for tool_type in BUILTIN_TOOL_TYPES)
@@ -531,6 +598,7 @@ __all__ = [
     "GeoGebraAnalysisTool",
     "PaperSearchToolWrapper",
     "RAGTool",
+    "ReadSourceTool",
     "ReasonTool",
     "WebSearchTool",
 ]

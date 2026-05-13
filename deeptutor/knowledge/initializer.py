@@ -223,11 +223,6 @@ class KnowledgeBaseInitializer:
         """No-op retained for compatibility with previous pipelines."""
         logger.info("Skipping legacy structure cleanup (llamaindex-only mode)")
 
-    def extract_numbered_items(self, batch_size: int = 20) -> None:
-        """Compatibility no-op: numbered-item extraction is deprecated."""
-        _ = batch_size
-        logger.info("Skipping numbered items extraction (deprecated feature removed)")
-
     async def display_statistics_generic(self) -> None:
         """Display basic statistics."""
         raw_files = list(self.raw_dir.glob("*")) if self.raw_dir.exists() else []
@@ -250,7 +245,6 @@ async def initialize_knowledge_base(
     base_dir: str = "./data/knowledge_bases",
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
-    skip_extract: bool = False,
 ) -> bool:
     """Convenience initializer used by CLI wrappers."""
     from deeptutor.knowledge.manager import KnowledgeBaseManager
@@ -267,8 +261,6 @@ async def initialize_knowledge_base(
         initializer.create_directory_structure()
         copied_files = initializer.copy_documents(source_files)
         await initializer.process_documents()
-        if not skip_extract:
-            initializer.extract_numbered_items()
         manager.update_kb_status(
             name=kb_name,
             status="ready",
@@ -322,8 +314,6 @@ async def main() -> None:
     parser.add_argument("--api-key", default=default_api_key)
     parser.add_argument("--base-url", default=default_base_url)
     parser.add_argument("--skip-processing", action="store_true")
-    parser.add_argument("--skip-extract", action="store_true")
-    parser.add_argument("--batch-size", type=int, default=20)
 
     args = parser.parse_args()
 
@@ -348,8 +338,6 @@ async def main() -> None:
 
     if not args.skip_processing:
         await initializer.process_documents()
-    if not args.skip_processing and not args.skip_extract:
-        initializer.extract_numbered_items(batch_size=args.batch_size)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 from typing import Any
 
-from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_storage
+from llama_index.core import StorageContext, load_index_from_storage
 
 from deeptutor.services.embedding.validation import validate_embedding_batch
 from deeptutor.services.rag.index_versioning import (
@@ -17,6 +17,8 @@ from deeptutor.services.rag.index_versioning import (
     resolve_storage_dir_for_read,
     resolve_storage_dir_for_write,
 )
+
+from . import ingestion, retrievers
 
 
 @dataclass(frozen=True)
@@ -65,19 +67,27 @@ def resolve_add_storage_plan(kb_dir: Path, signature: EmbeddingSignature | None)
 
 
 def create_index(documents: list[Any], storage_dir: Path, *, show_progress: bool = True) -> int:
-    index = VectorStoreIndex.from_documents(documents, show_progress=show_progress)
-    index.storage_context.persist(persist_dir=str(storage_dir))
-    return len(documents)
+    index, count = ingestion.create_index_from_documents(
+        documents, storage_dir, show_progress=show_progress
+    )
+    retrievers.persist_bm25_retriever(index, storage_dir, top_k=20)
+    return count
 
 
 def insert_documents(existing_storage: Path, storage_dir: Path, documents: list[Any]) -> int:
     storage_context = StorageContext.from_defaults(persist_dir=str(existing_storage))
     index = load_index_from_storage(storage_context)
     _validate_persisted_embeddings(index, existing_storage)
-    for document in documents:
-        index.insert(document)
+    if hasattr(index, "insert_nodes"):
+        count = ingestion.insert_documents_into_index(index, documents, show_progress=True)
+    else:
+        # Some tests use a tiny fake index that only implements insert().
+        for document in documents:
+            index.insert(document)
+        count = len(documents)
     index.storage_context.persist(persist_dir=str(storage_dir))
-    return len(documents)
+    retrievers.persist_bm25_retriever(index, storage_dir, top_k=20)
+    return count
 
 
 def _validate_embedding_dict(embedding_dict: Any, *, label: str) -> None:
@@ -166,7 +176,7 @@ def retrieve_nodes(storage_dir: Path, query: str, *, top_k: int = 5) -> list[Any
     storage_context = StorageContext.from_defaults(persist_dir=str(storage_dir))
     index = load_index_from_storage(storage_context)
     _validate_persisted_embeddings(index, storage_dir)
-    retriever = index.as_retriever(similarity_top_k=top_k)
+    retriever = retrievers.build_retriever(index, storage_dir, top_k=top_k)
     return retriever.retrieve(query)
 
 

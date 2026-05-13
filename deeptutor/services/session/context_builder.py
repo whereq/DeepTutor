@@ -310,9 +310,15 @@ class ContextBuilder:
         llm_config: LLMConfig,
         language: str = "en",
         on_event: Callable[[StreamEvent], Awaitable[None]] | None = None,
+        leaf_message_id: int | None = None,
     ) -> ContextBuildResult:
         session = await self.store.get_session(session_id)
-        messages = await self.store.get_messages_for_context(session_id)
+        # When ``leaf_message_id`` is given (edit-branch turn), only the
+        # ancestor path of that message is included in context — sibling
+        # branches at any depth are excluded.
+        messages = await self.store.get_messages_for_context(
+            session_id, leaf_message_id=leaf_message_id
+        )
         if session is None:
             return ContextBuildResult([], "", "", [], 0, self._history_budget(llm_config))
 

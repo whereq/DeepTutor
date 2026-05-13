@@ -673,3 +673,27 @@
     opacity: 1;
   }
 }
+
+/* ─── Reduced motion ──────────────────────────────────────────────────────
+   Honor the OS-level prefers-reduced-motion setting. We don't strip motion
+   entirely — interaction-critical transitions (drawer slide, menu reveal)
+   stay visible but are shortened to a near-imperceptible duration so the
+   UI still communicates state changes without vestibular jitter. Loop
+   animations (breathing, pulse, spin) are removed outright. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .dt-breathing-text,
+  .dt-mark-pulse,
+  .session-pulse,
+  .animate-spin {
+    animation: none !important;
+  }
+}

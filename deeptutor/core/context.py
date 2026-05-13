@@ -47,6 +47,12 @@ class UnifiedContext:
         attachments: Images / files sent with the message.
         config_overrides: Per-request config tweaks (e.g. temperature).
         language: UI / response language ("en" | "zh").
+        memory_context: Memory snapshot text injected into the system prompt.
+        skills_context: Skill instructions injected into the system prompt.
+        source_manifest: Plain-text manifest of attached sources (one line per
+            source: id/name/type/preview). Empty when no sources are attached.
+            Consumed by the chat capability to render an "Attached Sources"
+            section in the system prompt and to enable the ``read_source`` tool.
         metadata: Catch-all for capability-specific extras.
     """
 
@@ -59,8 +65,7 @@ class UnifiedContext:
     attachments: list[Attachment] = field(default_factory=list)
     config_overrides: dict[str, Any] = field(default_factory=dict)
     language: str = "en"
-    notebook_context: str = ""
-    history_context: str = ""
     memory_context: str = ""
     skills_context: str = ""
+    source_manifest: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)

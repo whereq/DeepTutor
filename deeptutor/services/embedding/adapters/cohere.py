@@ -20,26 +20,31 @@ class CohereEmbeddingAdapter(BaseEmbeddingAdapter):
             "dimensions": [256, 512, 1024, 1536],
             "default": 1024,
             "api_version": "v2",
+            "multimodal": True,
         },
         "embed-english-v3.0": {
             "dimensions": [1024],
             "default": 1024,
             "api_version": "v1",
+            "multimodal": False,
         },
         "embed-multilingual-v3.0": {
             "dimensions": [1024],
             "default": 1024,
             "api_version": "v1",
+            "multimodal": False,
         },
         "embed-multilingual-light-v3.0": {
             "dimensions": [384],
             "default": 384,
             "api_version": "v1",
+            "multimodal": False,
         },
         "embed-english-light-v3.0": {
             "dimensions": [384],
             "default": 384,
             "api_version": "v1",
+            "multimodal": False,
         },
     }
 
@@ -75,6 +80,10 @@ class CohereEmbeddingAdapter(BaseEmbeddingAdapter):
             if not request.truncate:
                 payload["truncate"] = "NONE"
         else:
+            if request.contents and not bool(model_info.get("multimodal", False)):
+                raise ValueError(
+                    f"Cohere model '{model_name}' does not support multimodal `contents`."
+                )
             payload = {
                 "model": model_name,
                 "embedding_types": ["float"],
@@ -151,11 +160,13 @@ class CohereEmbeddingAdapter(BaseEmbeddingAdapter):
     def get_model_info(self) -> Dict[str, Any]:
         model_info = self.MODELS_INFO.get(self.model, {})
         dimensions_list = model_info.get("dimensions", [])
+        api_version = self.api_version or model_info.get("api_version") or "v2"
         return {
             "model": self.model,
             "dimensions": model_info.get("default", self.dimensions),
             "supports_variable_dimensions": len(dimensions_list) > 1
             if isinstance(dimensions_list, list)
             else False,
+            "multimodal": bool(model_info.get("multimodal", False)) and api_version != "v1",
             "provider": "cohere",
         }

@@ -140,5 +140,6 @@ class OllamaEmbeddingAdapter(BaseEmbeddingAdapter):
             "dimensions": self.MODELS_INFO.get(self.model, self.dimensions),
             "local": True,
             "supports_variable_dimensions": False,
+            "multimodal": False,
             "provider": "ollama",
         }

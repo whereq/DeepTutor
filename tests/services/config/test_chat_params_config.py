@@ -101,41 +101,41 @@ class TestGetChatParams:
         assert params["react_fallback"]["max_tokens"] == 2500
 
 
-class TestChatLimitsDataclass:
-    """Verify _ChatLimits.from_config gracefully handles malformed input."""
+class TestReadIntHelper:
+    """Verify ``_read_int`` gracefully resolves the two chat token budgets
+    the single-loop pipeline still uses (``responding`` and ``answer_now``).
 
-    def test_from_config_with_empty_dict_uses_fallbacks(self):
-        from deeptutor.agents.chat.agentic_pipeline import _ChatLimits
+    The legacy four-stage budgets (``thinking``/``acting``/``observing``/
+    ``react_fallback``) are no longer consumed by the pipeline — they remain
+    valid keys in ``agents.yaml`` for forward/backward compatibility but
+    have no behavioral effect here.
+    """
 
-        limits = _ChatLimits.from_config({})
-        assert limits.responding == 8000
-        assert limits.answer_now == 8000
-        assert limits.thinking == 2000
-        assert limits.observing == 2000
-        assert limits.acting == 2000
-        assert limits.react_fallback == 1500
+    def test_empty_dict_falls_back_to_default(self):
+        from deeptutor.agents.chat.agentic_pipeline import _read_int
 
-    def test_from_config_with_chat_params_defaults(self):
-        from deeptutor.agents.chat.agentic_pipeline import _ChatLimits
+        assert _read_int({}, key="max_tokens", default=8000) == 8000
 
-        limits = _ChatLimits.from_config(DEFAULT_CHAT_PARAMS)
-        assert limits.responding == 8000
-        assert limits.react_fallback == 1500
+    def test_resolves_nested_max_tokens(self):
+        from deeptutor.agents.chat.agentic_pipeline import _read_int
 
-    def test_from_config_coerces_string_numbers(self):
-        from deeptutor.agents.chat.agentic_pipeline import _ChatLimits
+        cfg = {"max_tokens": 5000}
+        assert _read_int(cfg, key="max_tokens", default=8000) == 5000
 
-        limits = _ChatLimits.from_config({"responding": {"max_tokens": "5000"}})
-        assert limits.responding == 5000
+    def test_coerces_string_numbers(self):
+        from deeptutor.agents.chat.agentic_pipeline import _read_int
 
-    def test_from_config_falls_back_on_garbage(self):
-        from deeptutor.agents.chat.agentic_pipeline import _ChatLimits
+        cfg = {"max_tokens": "5000"}
+        assert _read_int(cfg, key="max_tokens", default=8000) == 5000
 
-        limits = _ChatLimits.from_config({"responding": {"max_tokens": "abc"}})
-        assert limits.responding == 8000
+    def test_falls_back_on_garbage(self):
+        from deeptutor.agents.chat.agentic_pipeline import _read_int
 
-    def test_from_config_handles_non_dict_stage_value(self):
-        from deeptutor.agents.chat.agentic_pipeline import _ChatLimits
+        cfg = {"max_tokens": "abc"}
+        assert _read_int(cfg, key="max_tokens", default=8000) == 8000
 
-        limits = _ChatLimits.from_config({"responding": 12345})
-        assert limits.responding == 8000
+    def test_non_dict_input_falls_back(self):
+        from deeptutor.agents.chat.agentic_pipeline import _read_int
+
+        assert _read_int(12345, key="max_tokens", default=8000) == 8000
+        assert _read_int(None, key="max_tokens", default=8000) == 8000

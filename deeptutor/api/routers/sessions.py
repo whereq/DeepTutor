@@ -21,6 +21,16 @@ class SessionRenameRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=100)
 
 
+class BranchSelectionRequest(BaseModel):
+    """Edit-branch picker state: `{parent_message_id: chosen_child_id}`.
+
+    Stored inside the session preferences blob so it survives reloads
+    without a dedicated column.
+    """
+
+    selected_branches: dict[str, int] = Field(default_factory=dict)
+
+
 class QuizResultItem(BaseModel):
     question_id: str = ""
     question: str = Field(..., min_length=1)
@@ -112,6 +122,20 @@ async def delete_session(session_id: str):
     except Exception:
         logger.exception("failed to clean up attachments for session %s", session_id)
     return {"deleted": True, "session_id": session_id}
+
+
+@router.put("/{session_id}/branch-selection")
+async def update_branch_selection(session_id: str, payload: BranchSelectionRequest):
+    store = get_sqlite_session_store()
+    session = await store.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    updated = await store.update_session_preferences(
+        session_id, {"selected_branches": dict(payload.selected_branches)}
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"selected_branches": payload.selected_branches}
 
 
 @router.delete("/{session_id}/messages/{message_id}")

@@ -310,11 +310,15 @@ export default function SimpleMarkdownRenderer({
       const raw = String(children).replace(/\n$/, "");
 
       if (raw.includes("\n")) {
+        // Use the same #1f2937 / #e5e7eb palette as RichMarkdownRenderer and
+        // RichCodeBlock so any stream-time fallback from Rich → Simple (or
+        // first-paint via Simple before the rich lock engages) looks visually
+        // identical to its rich counterpart.
         return (
           <div
-            className={`md-code-block ${gap} overflow-hidden rounded-xl border border-[var(--border)] bg-[#292524]`}
+            className={`md-code-block ${gap} overflow-hidden rounded-xl border border-[var(--border)] bg-[#1f2937]`}
           >
-            <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-[#D6D3D1]">
+            <pre className="overflow-x-auto p-4 text-sm leading-relaxed text-[#e5e7eb]">
               <code className="md-code-block__code" {...props}>
                 {raw}
               </code>

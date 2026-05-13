@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, Search, Sparkles, Wand2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import PickerShell from "@/components/common/PickerShell";
 import { listSkills, type SkillInfo } from "@/lib/skills-api";
 
 export interface SkillsPickerSelection {
@@ -111,12 +112,16 @@ export default function SkillsPicker({
     setSelected([]);
   };
 
-  if (!open) return null;
-
   const totalCount = auto ? 1 : selected.length;
 
   return (
-    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-[var(--background)]/65 p-4 backdrop-blur-md">
+    <PickerShell
+      open={open}
+      onClose={onClose}
+      labelledBy="skills-picker-title"
+      className="p-4 backdrop-blur-md"
+      backdropClass="bg-[var(--background)]/65"
+    >
       <div className="surface-card w-full max-w-3xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-[0_22px_70px_rgba(0,0,0,0.18)]">
         <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
           <div className="min-w-0">
@@ -124,7 +129,10 @@ export default function SkillsPicker({
               <Wand2 className="h-3 w-3" />
               {t("Skills Reference")}
             </div>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+            <h2
+              id="skills-picker-title"
+              className="text-lg font-semibold text-[var(--foreground)]"
+            >
               {t("Select Skills")}
             </h2>
             <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
@@ -280,6 +288,6 @@ export default function SkillsPicker({
           </div>
         </div>
       </div>
-    </div>
+    </PickerShell>
   );
 }

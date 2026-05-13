@@ -36,13 +36,21 @@ def test_agentic_chat_final_prompt_uses_selected_language(
         lambda: FakeRegistry(),
     )
 
-    zh_prompt = AgenticChatPipeline(language="zh")._responding_system_prompt([])
-    en_prompt = AgenticChatPipeline(language="en")._responding_system_prompt([])
+    from deeptutor.core.context import UnifiedContext
 
-    assert "你是 DeepTutor 的最终回答阶段" in zh_prompt
+    ctx = UnifiedContext()
+    zh_prompt = AgenticChatPipeline(language="zh")._build_system_prompt([], ctx)
+    en_prompt = AgenticChatPipeline(language="en")._build_system_prompt([], ctx)
+
+    # Single-loop pipeline merged the four stage prompts into one chat
+    # persona; the language directive (append_language_directive) still
+    # runs at the end, so per-language imperatives must surface.
     assert "请严格使用中文" in zh_prompt
-    assert "You are DeepTutor's final response stage" in en_prompt
     assert "Write ALL reader-facing text" in en_prompt
+    # Persona phrasing differs by language so the prompts are not just
+    # English text with a Chinese tail appended.
+    assert "你是 DeepTutor" in zh_prompt
+    assert "You are DeepTutor" in en_prompt
 
 
 def test_legacy_chat_agent_system_prompt_uses_selected_language() -> None:

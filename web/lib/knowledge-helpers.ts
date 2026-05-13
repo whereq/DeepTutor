@@ -160,7 +160,6 @@ const LIVE_PROGRESS_STAGES = new Set([
   "starting",
   "processing_documents",
   "processing_file",
-  "extracting_items",
 ]);
 
 export const kbHasLiveProgress = (kb: KnowledgeBase): boolean => {
