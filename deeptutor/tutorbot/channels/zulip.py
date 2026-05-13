@@ -49,6 +49,7 @@ class ZulipConfig(Base):
     api_key: str = Field(default="", repr=False)
     allow_from: list[str] = Field(default_factory=list)
     group_policy: Literal["mention", "open"] = "mention"
+    subscribe_streams: list[str] = Field(default_factory=list)
     timeout: float = Field(default=60.0)
 
 
@@ -68,6 +69,7 @@ class ZulipChannel(BaseChannel):
         self._client: Any = None
         self._bot_email: str = ""
         self._bot_user_id: int | None = None
+        self._bot_full_name: str = ""
         self._queue_id: str | None = None
         self._last_event_id: int = -1
         self._max_message_id: int = 0
@@ -118,11 +120,14 @@ class ZulipChannel(BaseChannel):
 
         self._bot_email = profile.get("email", self.config.email)
         self._bot_user_id = profile.get("user_id")
+        self._bot_full_name = profile.get("full_name", "")
         logger.info(
             "Zulip bot connected: {} (user_id={})",
             self._bot_email,
             self._bot_user_id,
         )
+
+        self._subscribe_to_streams()
 
         self._listener_thread = threading.Thread(
             target=self._run_listener, daemon=True, name="zulip-listener"
@@ -248,6 +253,54 @@ class ZulipChannel(BaseChannel):
 
         logger.info("Zulip listener stopped")
 
+    def _subscribe_to_streams(self) -> None:
+        streams = self.config.subscribe_streams
+        if not streams:
+            logger.info("No subscribe_streams configured, skipping auto-subscribe")
+            return
+
+        stream_names: list[str]
+        if "*" in streams:
+            try:
+                result = self._call_with_retry(self._client.get_streams, include_all=True)
+            except Exception as e:
+                logger.error("Zulip get_streams failed during auto-subscribe: {}", e)
+                return
+            if result.get("result") != "success":
+                logger.error("Failed to fetch streams for auto-subscribe: {}", result.get("msg"))
+                return
+            fetched = {s["name"] for s in result.get("streams", [])}
+            extra = {s for s in streams if s != "*"}
+            stream_names = list(fetched | extra)
+        else:
+            stream_names = list(streams)
+
+        if not stream_names:
+            logger.info("No streams to subscribe to")
+            return
+
+        subscriptions = [{"name": name} for name in stream_names]
+        try:
+            result = self._call_with_retry(
+                self._client.add_subscriptions, streams=subscriptions
+            )
+        except Exception as e:
+            logger.error("Zulip auto-subscribe failed: {}", e)
+            return
+        if result.get("result") == "success":
+            already_subscribed_names: set[str] = set()
+            for names in result.get("already_subscribed", {}).values():
+                already_subscribed_names.update(names)
+            new_count = len(stream_names) - len(already_subscribed_names)
+            logger.info(
+                "Zulip bot subscribed to {} streams ({} new, {} already subscribed)",
+                len(stream_names),
+                new_count,
+                len(stream_names) - new_count,
+            )
+        else:
+            logger.warning("Zulip auto-subscribe partial failure: {}", result.get("msg", "unknown"))
+
     def _register_queue(self) -> None:
         try:
             result = self._call_with_retry(
@@ -298,6 +351,14 @@ class ZulipChannel(BaseChannel):
 
         msg_type = message.get("type", "")
         content = message.get("content", "")
+        flags = message.get("flags", [])
+        logger.debug(
+            "Zulip message: type={}, flags={}, sender={}, subject={}",
+            msg_type,
+            flags,
+            message.get("sender_email", "?"),
+            message.get("subject", ""),
+        )
         content_type = message.get("content_type", "text/x-markdown")
         if content_type == "text/x-markdown":
             content = self._convert_zulip_latex_to_standard(content)
@@ -317,6 +378,11 @@ class ZulipChannel(BaseChannel):
             chat_id = self._stream_chat_id(stream_name, topic)
             if self.config.group_policy == "mention":
                 if not self._is_mentioned(message):
+                    logger.debug(
+                        "Zulip stream message ignored (not mentioned): stream={}, topic={}",
+                        stream_name,
+                        topic,
+                    )
                     return
             content = f"**[{stream_name} > {topic}]** {content}"
         elif msg_type == "private":

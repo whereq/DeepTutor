@@ -41,6 +41,7 @@ class TestZulipConfig:
         assert cfg.api_key == ""
         assert cfg.allow_from == []
         assert cfg.group_policy == "mention"
+        assert cfg.subscribe_streams == []
         assert cfg.timeout == 60.0
 
     def test_api_key_repr_false(self):
@@ -239,7 +240,7 @@ class TestExtractUploadLinks:
 
 
 class TestDownloadAttachments:
-    def test_extracts_from_markdown_content(self):
+    def test_extracts_from_markdown_content(self, tmp_path: Path):
         ch = _make_channel()
         message = {
             "content": "Check ![img.png](/user_uploads/2/ce/abc/img.png)",
@@ -249,22 +250,24 @@ class TestDownloadAttachments:
             ch,
             "_extract_upload_links",
             return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")],
-        ):
-            with patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get:
-                mock_resp = MagicMock()
-                mock_resp.raise_for_status = MagicMock()
-                mock_resp.content = b"fake-image-data"
-                mock_get.return_value = mock_resp
-                with patch.object(Path, "exists", return_value=False):
-                    with patch.object(Path, "write_bytes"):
-                        paths = ch._download_attachments(message)
-                        assert len(paths) == 1
-                        mock_get.assert_called_once()
-                        call_url = mock_get.call_args[0][0]
-                        assert (
-                            call_url
-                            == "https://example.zulipchat.com/user_uploads/2/ce/abc/img.png"
-                        )
+        ), patch(
+            "deeptutor.tutorbot.channels.zulip.get_media_dir",
+            return_value=tmp_path,
+        ), patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status = MagicMock()
+            mock_resp.content = b"fake-image-data"
+            mock_get.return_value = mock_resp
+            with patch.object(Path, "exists", return_value=False):
+                with patch.object(Path, "write_bytes"):
+                    paths = ch._download_attachments(message)
+                    assert len(paths) == 1
+                    mock_get.assert_called_once()
+                    call_url = mock_get.call_args[0][0]
+                    assert (
+                        call_url
+                        == "https://example.zulipchat.com/user_uploads/2/ce/abc/img.png"
+                    )
 
     def test_no_uploads_returns_empty(self):
         ch = _make_channel()
@@ -273,7 +276,7 @@ class TestDownloadAttachments:
             paths = ch._download_attachments(message)
             assert paths == []
 
-    def test_caches_existing_file(self):
+    def test_caches_existing_file(self, tmp_path: Path):
         ch = _make_channel()
         message = {
             "content": "![img.png](/user_uploads/2/ce/abc/img.png)",
@@ -283,9 +286,11 @@ class TestDownloadAttachments:
             ch,
             "_extract_upload_links",
             return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")],
+        ), patch(
+            "deeptutor.tutorbot.channels.zulip.get_media_dir",
+            return_value=tmp_path,
         ):
             from pathlib import Path as RealPath
-            from unittest.mock import mock_open
 
             with patch.object(RealPath, "exists", return_value=True):
                 paths = ch._download_attachments(message)
@@ -747,8 +752,13 @@ class TestUploadAndSend:
             {"msg_type": "private", "recipient_user_id": "42"},
         )
 
-        call_kwargs = mock_client.call_endpoint.call_args.kwargs
-        files_arg = call_kwargs["files"]
+        upload_calls = [
+            c
+            for c in mock_client.call_endpoint.call_args_list
+            if c.kwargs.get("url") == "user_uploads"
+        ]
+        assert len(upload_calls) == 1
+        files_arg = upload_calls[0].kwargs["files"]
         assert len(files_arg) == 1
         f = files_arg[0]
         assert hasattr(f, "name")
@@ -960,6 +970,85 @@ class TestStop:
         await asyncio.sleep(0)
         assert task.cancelled() or task.done()
         assert len(ch._typing_tasks) == 0
+
+
+class TestSubscribeStreams:
+    def test_no_streams_configured_skips(self):
+        ch = _make_channel(subscribe_streams=[])
+        mock_client = MagicMock()
+        ch._client = mock_client
+        ch._subscribe_to_streams()
+        mock_client.add_subscriptions.assert_not_called()
+        mock_client.get_streams.assert_not_called()
+
+    def test_explicit_stream_names(self):
+        ch = _make_channel(subscribe_streams=["general", "dev"])
+        mock_client = MagicMock()
+        mock_client.add_subscriptions.return_value = {
+            "result": "success",
+            "already_subscribed": {},
+        }
+        ch._client = mock_client
+        ch._subscribe_to_streams()
+        mock_client.add_subscriptions.assert_called_once()
+        call_kwargs = mock_client.add_subscriptions.call_args
+        streams_arg = call_kwargs.kwargs["streams"]
+        names = [s["name"] for s in streams_arg]
+        assert "general" in names
+        assert "dev" in names
+
+    def test_wildcard_subscribes_all_public_streams(self):
+        ch = _make_channel(subscribe_streams=["*"])
+        mock_client = MagicMock()
+        mock_client.get_streams.return_value = {
+            "result": "success",
+            "streams": [
+                {"name": "general"},
+                {"name": "dev"},
+                {"name": "announce"},
+            ],
+        }
+        mock_client.add_subscriptions.return_value = {
+            "result": "success",
+            "already_subscribed": {},
+        }
+        ch._client = mock_client
+        ch._subscribe_to_streams()
+        mock_client.get_streams.assert_called_once_with(include_all=True)
+        call_kwargs = mock_client.add_subscriptions.call_args
+        streams_arg = call_kwargs.kwargs["streams"]
+        names = {s["name"] for s in streams_arg}
+        assert names == {"general", "dev", "announce"}
+
+    def test_wildcard_fetch_failure_skips_subscribe(self):
+        ch = _make_channel(subscribe_streams=["*"])
+        mock_client = MagicMock()
+        mock_client.get_streams.return_value = {"result": "error", "msg": "forbidden"}
+        ch._client = mock_client
+        ch._subscribe_to_streams()
+        mock_client.add_subscriptions.assert_not_called()
+
+    def test_subscribe_partial_failure_logs_warning(self):
+        ch = _make_channel(subscribe_streams=["general"])
+        mock_client = MagicMock()
+        mock_client.add_subscriptions.return_value = {
+            "result": "error",
+            "msg": "some error",
+        }
+        ch._client = mock_client
+        ch._subscribe_to_streams()
+        mock_client.add_subscriptions.assert_called_once()
+
+    def test_subscribe_logs_already_subscribed(self):
+        ch = _make_channel(subscribe_streams=["general", "dev"])
+        mock_client = MagicMock()
+        mock_client.add_subscriptions.return_value = {
+            "result": "success",
+            "already_subscribed": {"bot@example.com": ["general"]},
+        }
+        ch._client = mock_client
+        ch._subscribe_to_streams()
+        mock_client.add_subscriptions.assert_called_once()
 
 
 class TestRegisterQueue:
