@@ -352,12 +352,16 @@ class ZulipChannel(BaseChannel):
         msg_type = message.get("type", "")
         content = message.get("content", "")
         flags = message.get("flags", [])
-        logger.debug(
-            "Zulip message: type={}, flags={}, sender={}, subject={}",
+        sender_email = message.get("sender_email", "?")
+        subject = message.get("subject", "")
+        display_recipient = message.get("display_recipient", "")
+        logger.info(
+            "Zulip message received: type={}, flags={}, sender={}, stream={}, topic={}",
             msg_type,
             flags,
-            message.get("sender_email", "?"),
-            message.get("subject", ""),
+            sender_email,
+            display_recipient if msg_type == "stream" else "N/A",
+            subject,
         )
         content_type = message.get("content_type", "text/x-markdown")
         if content_type == "text/x-markdown":
@@ -378,12 +382,14 @@ class ZulipChannel(BaseChannel):
             chat_id = self._stream_chat_id(stream_name, topic)
             if self.config.group_policy == "mention":
                 if not self._is_mentioned(message):
-                    logger.debug(
-                        "Zulip stream message ignored (not mentioned): stream={}, topic={}",
+                    logger.info(
+                        "Zulip stream message ignored (not mentioned): stream={}, topic={}, flags={}",
                         stream_name,
                         topic,
+                        message.get("flags", []),
                     )
                     return
+                logger.info("Zulip stream message will be processed: stream={}, topic={}", stream_name, topic)
             content = f"**[{stream_name} > {topic}]** {content}"
         elif msg_type == "private":
             chat_id = f"pm:{sender_id}"
@@ -443,10 +449,20 @@ class ZulipChannel(BaseChannel):
 
     def _is_mentioned(self, message: dict) -> bool:
         if self._bot_user_id is None:
+            logger.warning("Zulip _is_mentioned: bot_user_id is None, cannot check mention")
             return False
-        for flag in message.get("flags", []):
-            if isinstance(flag, str) and flag == "mentioned":
+        mention_flags = {
+            "mentioned",
+            "wildcard_mentioned",
+            "stream_wildcard_mentioned",
+            "topic_wildcard_mentioned",
+        }
+        flags = message.get("flags", [])
+        for flag in flags:
+            if isinstance(flag, str) and flag in mention_flags:
+                logger.debug("Zulip _is_mentioned: found flag={}", flag)
                 return True
+        logger.debug("Zulip _is_mentioned: no mention flags found, flags={}", flags)
         return False
 
     def _download_attachments(self, message: dict) -> list[str]:

@@ -178,6 +178,41 @@ class TestIsMentioned:
         ch._bot_user_id = None
         assert ch._is_mentioned({"flags": ["mentioned"]}) is False
 
+    def test_wildcard_mentioned_flag(self):
+        ch = _make_channel()
+        ch._bot_user_id = 100
+        assert ch._is_mentioned({"flags": ["wildcard_mentioned"]}) is True
+
+    def test_stream_wildcard_mentioned_flag(self):
+        ch = _make_channel()
+        ch._bot_user_id = 100
+        assert ch._is_mentioned({"flags": ["stream_wildcard_mentioned"]}) is True
+
+    def test_topic_wildcard_mentioned_flag(self):
+        ch = _make_channel()
+        ch._bot_user_id = 100
+        assert ch._is_mentioned({"flags": ["topic_wildcard_mentioned"]}) is True
+
+    def test_mentioned_with_other_flags(self):
+        ch = _make_channel()
+        ch._bot_user_id = 100
+        assert ch._is_mentioned({"flags": ["read", "mentioned", "starred"]}) is True
+
+    def test_missing_flags_field(self):
+        ch = _make_channel()
+        ch._bot_user_id = 100
+        assert ch._is_mentioned({}) is False
+
+    def test_flags_with_non_string_elements(self):
+        ch = _make_channel()
+        ch._bot_user_id = 100
+        assert ch._is_mentioned({"flags": ["mentioned", 123, None]}) is True
+
+    def test_multiple_mention_flags(self):
+        ch = _make_channel()
+        ch._bot_user_id = 100
+        assert ch._is_mentioned({"flags": ["mentioned", "wildcard_mentioned"]}) is True
+
 
 class TestExtractUploadLinks:
     def test_markdown_image(self):
