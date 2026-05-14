@@ -287,11 +287,11 @@ class ZulipChannel(BaseChannel):
         except Exception as e:
             logger.error("Zulip auto-subscribe failed: {}", e)
             return
-        if result.get("result") == "success":
-            already_subscribed_names: set[str] = set()
-            for names in result.get("already_subscribed", {}).values():
-                already_subscribed_names.update(names)
-            new_count = len(stream_names) - len(already_subscribed_names)
+        already_subscribed_names: set[str] = set()
+        for names in result.get("already_subscribed", {}).values():
+            already_subscribed_names.update(names)
+        new_count = len(stream_names) - len(already_subscribed_names)
+        if new_count > 0:
             logger.info(
                 "Zulip bot subscribed to {} streams ({} new, {} already subscribed)",
                 len(stream_names),
@@ -299,7 +299,15 @@ class ZulipChannel(BaseChannel):
                 len(stream_names) - new_count,
             )
         else:
-            logger.warning("Zulip auto-subscribe partial failure: {}", result.get("msg", "unknown"))
+            logger.info(
+                "Zulip bot already subscribed to {} streams (no new subscriptions)",
+                len(stream_names),
+            )
+        if result.get("result") != "success" and new_count == 0:
+            logger.debug(
+                "Zulip add_subscriptions returned non-success but all streams already subscribed: {}",
+                result.get("msg", "unknown"),
+            )
 
     def _register_queue(self) -> None:
         try:
