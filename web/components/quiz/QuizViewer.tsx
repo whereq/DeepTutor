@@ -814,7 +814,7 @@ export default function QuizViewer({
                   ? t("Write your code here...")
                   : t("Type your answer...")
               }
-              className={`w-full resize-none rounded-lg border px-3 py-2 text-[13px] outline-none transition-colors placeholder:text-[var(--muted-foreground)] ${
+              className={`w-full resize-y rounded-lg border px-3 py-2 text-[13px] outline-none transition-colors placeholder:text-[var(--muted-foreground)] ${
                 ans.submitted
                   ? "border-[var(--border)] bg-[var(--muted)] text-[var(--foreground)]"
                   : "border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:border-[var(--primary)]/40"
