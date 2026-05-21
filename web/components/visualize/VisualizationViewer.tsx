@@ -1,11 +1,40 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Code2, Copy, Check, ExternalLink, Maximize2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Mermaid } from "@/components/Mermaid";
 import { prepareIframeHtml } from "@/lib/iframe-html";
-import type { VisualizeResult } from "@/lib/visualize-types";
+import { isManimResult, type VisualizeResult } from "@/lib/visualize-types";
+
+const MathAnimatorViewer = dynamic(
+  () => import("@/components/math-animator/MathAnimatorViewer"),
+  { ssr: false },
+);
+
+function stripCodeFence(source: string): string {
+  const trimmed = source.trim();
+  const fenced = trimmed.match(
+    /^```(?:json|javascript|js)?\s*([\s\S]*?)\s*```$/i,
+  );
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
+function parseChartConfig(source: string): unknown {
+  const raw = stripCodeFence(source);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const jsonish = raw
+      .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":')
+      .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_match, value: string) =>
+        JSON.stringify(value.replace(/\\'/g, "'")),
+      )
+      .replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(jsonish);
+  }
+}
 
 function ChartJsRenderer({ config }: { config: string }) {
   const { t } = useTranslation();
@@ -28,10 +57,9 @@ function ChartJsRenderer({ config }: { config: string }) {
           chartRef.current = null;
         }
 
-        // eslint-disable-next-line no-new-func
-        const parsedConfig = new Function(
-          `"use strict"; return (${config});`,
-        )();
+        const parsedConfig = parseChartConfig(config) as ConstructorParameters<
+          typeof Chart
+        >[1];
 
         if (cancelled) return;
 
@@ -78,6 +106,7 @@ function ChartJsRenderer({ config }: { config: string }) {
 }
 
 function HtmlRenderer({ html }: { html: string }) {
+  const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const prepared = useMemo(() => prepareIframeHtml(html || ""), [html]);
@@ -90,11 +119,18 @@ function HtmlRenderer({ html }: { html: string }) {
 
   const handleOpenInNewTab = () => {
     try {
-      const blob = new Blob([prepared], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
+      const contentUrl = URL.createObjectURL(
+        new Blob([prepared], { type: "text/html" }),
+      );
+      const wrapper = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Visualization</title><style>html,body,iframe{height:100%;width:100%;margin:0;border:0;}</style></head><body><iframe sandbox="allow-scripts" src="${contentUrl}"></iframe></body></html>`;
+      const url = URL.createObjectURL(
+        new Blob([wrapper], { type: "text/html" }),
+      );
       window.open(url, "_blank", "noopener,noreferrer");
-      // Best-effort cleanup; the new tab keeps its own reference.
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(contentUrl);
+      }, 60_000);
     } catch {
       /* no-op */
     }
@@ -106,14 +142,14 @@ function HtmlRenderer({ html }: { html: string }) {
         type="button"
         onClick={handleOpenInNewTab}
         className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--background)]/90 px-2 py-1 text-[10px] font-medium text-[var(--muted-foreground)] backdrop-blur transition-colors hover:text-[var(--foreground)]"
-        title="Open in new tab"
+        title={t("Open in new tab")}
       >
         <ExternalLink size={10} strokeWidth={1.8} />
-        Open
+        {t("Open")}
       </button>
       <iframe
         ref={iframeRef}
-        title="HTML visualization"
+        title={t("HTML visualization")}
         sandbox="allow-scripts"
         className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)]"
         style={{ minHeight: 480, height: 560 }}
@@ -124,18 +160,17 @@ function HtmlRenderer({ html }: { html: string }) {
 
 function SvgRenderer({ svg }: { svg: string }) {
   const { t } = useTranslation();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const sanitizedSvg = useMemo(() => {
-    const trimmed = svg.trim();
-    if (!trimmed.startsWith("<svg")) {
-      setError(t("Invalid SVG: does not start with <svg"));
-      return "";
-    }
-    setError(null);
-    return trimmed;
-  }, [svg, t]);
+  const trimmedSvg = svg.trim();
+  const error = trimmedSvg.startsWith("<svg")
+    ? null
+    : t("Invalid SVG: does not start with <svg");
+  const svgUrl = useMemo(
+    () =>
+      error
+        ? ""
+        : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmedSvg)}`,
+    [error, trimmedSvg],
+  );
 
   if (error) {
     return (
@@ -151,15 +186,19 @@ function SvgRenderer({ svg }: { svg: string }) {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="flex justify-center overflow-x-auto"
-      dangerouslySetInnerHTML={{ __html: sanitizedSvg }}
-    />
+    <div className="flex justify-center overflow-x-auto">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={svgUrl} alt={t("SVG visualization")} className="max-w-full" />
+    </div>
   );
 }
 
-function renderVisualization(result: VisualizeResult) {
+type TextResult = Extract<
+  VisualizeResult,
+  { render_type: "svg" | "chartjs" | "mermaid" | "html" }
+>;
+
+function renderTextVisualization(result: TextResult) {
   if (result.render_type === "svg") {
     return <SvgRenderer svg={result.code.content} />;
   }
@@ -178,13 +217,14 @@ export default function VisualizationViewer({
   result: VisualizeResult;
 }) {
   const { t } = useTranslation();
+
+  // All hooks must run unconditionally before any early return — React
+  // requires a stable hook order across renders. The text-path body below
+  // is the only consumer of these states; the manim path returns earlier
+  // and ignores them.
   const [showCode, setShowCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-
-  // HTML iframe already provides its own "Open in new tab" affordance; the
-  // sandboxed iframe also doesn't behave well inside a re-rendered modal.
-  const supportsFullscreen = result.render_type !== "html";
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -199,6 +239,15 @@ export default function VisualizationViewer({
       document.body.style.overflow = prevOverflow;
     };
   }, [fullscreen]);
+
+  if (isManimResult(result)) {
+    return <MathAnimatorViewer result={result.manim} />;
+  }
+
+  // TypeScript narrows ``result`` to the text-only variant from here on.
+  // HTML iframe already provides its own "Open in new tab" affordance; the
+  // sandboxed iframe also doesn't behave well inside a re-rendered modal.
+  const supportsFullscreen = result.render_type !== "html";
 
   const handleCopy = async () => {
     try {
@@ -231,7 +280,7 @@ export default function VisualizationViewer({
             {t("Fullscreen")}
           </button>
         )}
-        {renderVisualization(result)}
+        {renderTextVisualization(result)}
       </div>
 
       {/* Toolbar */}
@@ -322,7 +371,7 @@ export default function VisualizationViewer({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full max-w-[1600px]">
-              {renderVisualization(result)}
+              {renderTextVisualization(result)}
             </div>
           </div>
         </div>

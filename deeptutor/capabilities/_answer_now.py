@@ -17,11 +17,13 @@ manim code, ...). This module provides the shared plumbing:
   fast-path output so the user knows which stages were skipped.
 
 The orchestrator no longer re-routes ``answer_now`` to ``chat``; instead
-each capability checks for the payload at the top of ``run()`` and
-dispatches to its own answer-now path. ``chat`` keeps its original
-synthesis behavior; structured-output capabilities (deep_question,
-math_animator, visualize) collapse the remaining stages into a single
-LLM call (or a code-gen + render pair, in math_animator's case).
+each capability that supports it checks for the payload at the top of
+``run()`` and dispatches to its own answer-now path. ``chat`` keeps its
+original synthesis behavior; ``visualize`` / ``math_animator`` collapse
+their remaining stages into a single LLM call (or a code-gen + render
+pair). ``deep_solve`` / ``deep_question`` / ``deep_research`` deliberately
+do not expose Answer Now — their UI gates the button so this module is
+never invoked for them.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from typing import Any, AsyncIterator
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
 from deeptutor.core.trace import build_trace_metadata, merge_trace_metadata, new_call_id
+from deeptutor.services.config import get_chat_params
 from deeptutor.services.llm import (
     clean_thinking_tags,
     get_llm_config,
@@ -169,7 +172,7 @@ async def stream_synthesis(
     trace_meta: dict[str, Any],
     system_prompt: str,
     user_prompt: str,
-    max_tokens: int = 1800,
+    max_tokens: int | None = None,
     push_content: bool = True,
     response_format: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
@@ -180,9 +183,31 @@ async def stream_synthesis(
     parse them, e.g. structured JSON outputs). When ``push_content``
     is true (default), every chunk is also pushed as a ``CONTENT``
     event so the frontend renders the answer live.
+
+    ``temperature`` and the default ``max_tokens`` are sourced from
+    ``capabilities.chat`` in ``agents.yaml`` (the same knobs the chat
+    capability uses for its own answer-now fallback), so users can tune
+    answer-now globally from the Settings UI instead of touching code.
+    Callers may still pass an explicit ``max_tokens`` to override the
+    setting per call site (e.g. visualize bumps it for ``html``).
     """
     llm_config = get_llm_config()
     model = getattr(llm_config, "model", None)
+
+    chat_cfg = get_chat_params()
+    try:
+        temperature = float(chat_cfg.get("temperature", 0.2))
+    except (TypeError, ValueError):
+        temperature = 0.2
+    if max_tokens is None:
+        answer_now_cfg = chat_cfg.get("answer_now") or {}
+        if isinstance(answer_now_cfg, dict):
+            try:
+                max_tokens = int(answer_now_cfg.get("max_tokens", 8000))
+            except (TypeError, ValueError):
+                max_tokens = 8000
+        else:
+            max_tokens = 8000
 
     await stream.progress(
         trace_meta.get("label", "Answer now"),
@@ -194,7 +219,7 @@ async def stream_synthesis(
         ),
     )
 
-    extra_kwargs: dict[str, Any] = {"temperature": 0.2}
+    extra_kwargs: dict[str, Any] = {"temperature": temperature}
     if model:
         extra_kwargs.update(get_token_limit_kwargs(model, max_tokens))
     if response_format is not None:

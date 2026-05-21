@@ -33,8 +33,6 @@ class ChatRequestConfig(BaseModel):
 class DeepSolveRequestConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    detailed_answer: bool = True
-
 
 class DeepQuestionRequestConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -43,8 +41,13 @@ class DeepQuestionRequestConfig(BaseModel):
     topic: str = ""
     num_questions: int = Field(default=1, ge=1, le=50)
     difficulty: str = ""
-    question_type: str = ""
-    preference: str = ""
+    # Allowed-types whitelist. Empty list means "any type — let the
+    # planner pick per question". Frontend sends the user's multi-select.
+    question_types: list[str] = Field(default_factory=list)
+    # Optional per-type quantity targets. When non-empty, sum must equal
+    # ``num_questions`` (frontend keeps them in sync). Empty dict means
+    # "no per-type targets — distribute freely across allowed types".
+    per_type_counts: dict[str, int] = Field(default_factory=dict)
     paper_path: str = ""
     max_questions: int = Field(default=10, ge=1, le=100)
 
@@ -52,7 +55,21 @@ class DeepQuestionRequestConfig(BaseModel):
 class VisualizeRequestConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    render_mode: Literal["auto", "svg", "chartjs", "mermaid", "html"] = "auto"
+    render_mode: Literal[
+        "auto",
+        "svg",
+        "chartjs",
+        "mermaid",
+        "html",
+        "manim_video",
+        "manim_image",
+    ] = "auto"
+    # Only meaningful when the routed render_type is manim_video / manim_image
+    # (either chosen explicitly or selected by AnalysisAgent in auto mode).
+    # Mirrors MathAnimatorRequestConfig defaults so the auto path stays
+    # zero-config.
+    quality: Literal["low", "medium", "high"] = "medium"
+    style_hint: str = Field(default="", max_length=500)
 
 
 class AutoRequestConfig(BaseModel):

@@ -117,6 +117,16 @@ PROVIDER_CAPABILITIES: dict[str, dict[str, object]] = {
         "vision_url_supported": False,
         "system_in_messages": True,
     },
+    # MiniMax's OpenAI-compatible endpoint supports Chat Completions tools /
+    # function calling for M-series text models. Response-format support is
+    # still disabled by the model override below.
+    "minimax": {
+        "supports_response_format": False,
+        "supports_streaming": True,
+        "supports_tools": True,
+        "supports_vision": False,
+        "system_in_messages": True,
+    },
     # Local providers (generally OpenAI-compatible)
     "ollama": {
         "supports_response_format": True,  # Ollama supports JSON mode

@@ -44,12 +44,18 @@ def test_client_complete_sync(monkeypatch: MonkeyPatch) -> None:
 
 
 def test_client_reports_multimodal_image_support() -> None:
-    assert LLMClient(
-        LLMConfig(model="gpt-4o", api_key="key", base_url="https://example.com")
-    ).supports_multimodal_images() is True
-    assert LLMClient(
-        LLMConfig(model="gpt-3.5-turbo", api_key="key", base_url="https://example.com")
-    ).supports_multimodal_images() is False
+    assert (
+        LLMClient(
+            LLMConfig(model="gpt-4o", api_key="key", base_url="https://example.com")
+        ).supports_multimodal_images()
+        is True
+    )
+    assert (
+        LLMClient(
+            LLMConfig(model="gpt-3.5-turbo", api_key="key", base_url="https://example.com")
+        ).supports_multimodal_images()
+        is False
+    )
 
 
 @pytest.mark.asyncio

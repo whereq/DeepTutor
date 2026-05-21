@@ -6,7 +6,10 @@ import importlib.util
 import time
 from typing import Any
 
+from deeptutor.capabilities._i18n import StatusI18n
+from deeptutor.capabilities._shared import emit_capability_result
 from deeptutor.capabilities.request_contracts import get_capability_request_schema
+from deeptutor.core.agentic.usage import UsageTracker
 from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
@@ -51,12 +54,14 @@ class MathAnimatorCapability(BaseCapability):
 
         llm_config = get_llm_config()
         request_config = validate_math_animator_request_config(context.config_overrides)
+        usage = UsageTracker(model=getattr(llm_config, "model", None))
+        i18n = StatusI18n(self.name, context.language)
         pipeline = MathAnimatorPipeline(
             api_key=llm_config.api_key,
             base_url=llm_config.base_url,
             api_version=llm_config.api_version,
             language=context.language,
-            trace_callback=self._build_trace_bridge(stream),
+            trace_callback=self._build_trace_bridge(stream, i18n=i18n),
         )
 
         answer_now_payload = extract_answer_now_context(context)
@@ -67,6 +72,8 @@ class MathAnimatorCapability(BaseCapability):
                 payload=answer_now_payload,
                 pipeline=pipeline,
                 request_config=request_config,
+                usage=usage,
+                i18n=i18n,
             )
             return
 
@@ -112,7 +119,7 @@ class MathAnimatorCapability(BaseCapability):
                 design=design,
             )
             await stream.progress(
-                message="Manim code prepared.",
+                message=i18n.t("code_prepared", "Manim code prepared."),
                 source=self.name,
                 stage="code_generation",
             )
@@ -120,7 +127,12 @@ class MathAnimatorCapability(BaseCapability):
 
         async def _on_retry(retry_attempt) -> None:
             await stream.progress(
-                message=f"Retry {retry_attempt.attempt}: {retry_attempt.error}",
+                message=i18n.t(
+                    "retry",
+                    f"Retry {retry_attempt.attempt}: {retry_attempt.error}",
+                    attempt=retry_attempt.attempt,
+                    error=retry_attempt.error,
+                ),
                 source=self.name,
                 stage="code_retry",
                 metadata={**render_call_meta, "trace_layer": "raw"},
@@ -148,7 +160,12 @@ class MathAnimatorCapability(BaseCapability):
         stage_start = time.perf_counter()
         async with stream.stage("code_retry", source=self.name):
             await stream.progress(
-                message=f"Rendering {request_config.output_mode} with quality={request_config.quality}.",
+                message=i18n.t(
+                    "rendering",
+                    f"Rendering {request_config.output_mode} with quality={request_config.quality}.",
+                    mode=request_config.output_mode,
+                    quality=request_config.quality,
+                ),
                 source=self.name,
                 stage="code_retry",
                 metadata={**render_call_meta, "call_state": "running"},
@@ -178,10 +195,16 @@ class MathAnimatorCapability(BaseCapability):
         timings["summary"] = round(time.perf_counter() - stage_start, 3)
 
         async with stream.stage("render_output", source=self.name):
+            artifact_count = len(render_result.artifacts)
+            artifact_key = "artifacts_one" if artifact_count == 1 else "artifacts_many"
             await stream.progress(
-                message=(
-                    f"Prepared {len(render_result.artifacts)} "
-                    f"{'artifact' if len(render_result.artifacts) == 1 else 'artifacts'}."
+                message=i18n.t(
+                    artifact_key,
+                    (
+                        f"Prepared {artifact_count} "
+                        f"{'artifact' if artifact_count == 1 else 'artifacts'}."
+                    ),
+                    count=artifact_count,
                 ),
                 source=self.name,
                 stage="render_output",
@@ -190,7 +213,8 @@ class MathAnimatorCapability(BaseCapability):
         timings["render_output"] = 0.0
         visual_review = getattr(render_result, "visual_review", None)
 
-        await stream.result(
+        await emit_capability_result(
+            stream,
             {
                 "response": summary.summary_text,
                 "summary": summary.model_dump(),
@@ -212,6 +236,7 @@ class MathAnimatorCapability(BaseCapability):
                 "design": design.model_dump(),
             },
             source=self.name,
+            usage=usage,
         )
 
     async def _run_answer_now(
@@ -222,6 +247,8 @@ class MathAnimatorCapability(BaseCapability):
         payload: dict[str, Any],
         pipeline,  # MathAnimatorPipeline
         request_config,  # MathAnimatorRequestConfig
+        usage: UsageTracker | None = None,
+        i18n: StatusI18n | None = None,
     ) -> None:
         """
         Fast-path for ``math_animator``:
@@ -243,6 +270,8 @@ class MathAnimatorCapability(BaseCapability):
             make_skip_notice,
         )
 
+        if i18n is None:
+            i18n = StatusI18n(self.name, context.language)
         original = str(payload.get("original_user_message") or context.user_message).strip()
         partial = str(payload.get("partial_response") or "").strip()
         trace_summary = format_trace_summary(payload.get("events"), language=context.language)
@@ -291,7 +320,10 @@ class MathAnimatorCapability(BaseCapability):
                 design=design,
             )
             await stream.progress(
-                message="Manim code prepared (answer-now fast path).",
+                message=i18n.t(
+                    "code_prepared_answer_now",
+                    "Manim code prepared (answer-now fast path).",
+                ),
                 source=self.name,
                 stage="code_generation",
             )
@@ -299,7 +331,12 @@ class MathAnimatorCapability(BaseCapability):
 
         async def _on_retry(retry_attempt) -> None:
             await stream.progress(
-                message=f"Retry {retry_attempt.attempt}: {retry_attempt.error}",
+                message=i18n.t(
+                    "retry",
+                    f"Retry {retry_attempt.attempt}: {retry_attempt.error}",
+                    attempt=retry_attempt.attempt,
+                    error=retry_attempt.error,
+                ),
                 source=self.name,
                 stage="code_retry",
                 metadata={**render_call_meta, "trace_layer": "raw"},
@@ -327,9 +364,14 @@ class MathAnimatorCapability(BaseCapability):
         stage_start = time.perf_counter()
         async with stream.stage("code_retry", source=self.name):
             await stream.progress(
-                message=(
-                    f"Rendering {request_config.output_mode} "
-                    f"(quality={request_config.quality}) — answer-now fast path."
+                message=i18n.t(
+                    "rendering_answer_now",
+                    (
+                        f"Rendering {request_config.output_mode} "
+                        f"(quality={request_config.quality}) — answer-now fast path."
+                    ),
+                    mode=request_config.output_mode,
+                    quality=request_config.quality,
                 ),
                 source=self.name,
                 stage="code_retry",
@@ -347,11 +389,19 @@ class MathAnimatorCapability(BaseCapability):
         timings["code_retry"] = round(time.perf_counter() - stage_start, 3)
 
         async with stream.stage("render_output", source=self.name):
+            artifact_count = len(render_result.artifacts)
+            artifact_key = (
+                "artifacts_one_answer_now" if artifact_count == 1 else "artifacts_many_answer_now"
+            )
             await stream.progress(
-                message=(
-                    f"Prepared {len(render_result.artifacts)} "
-                    f"{'artifact' if len(render_result.artifacts) == 1 else 'artifacts'} "
-                    "(answer-now)."
+                message=i18n.t(
+                    artifact_key,
+                    (
+                        f"Prepared {artifact_count} "
+                        f"{'artifact' if artifact_count == 1 else 'artifacts'} "
+                        "(answer-now)."
+                    ),
+                    count=artifact_count,
                 ),
                 source=self.name,
                 stage="render_output",
@@ -365,13 +415,15 @@ class MathAnimatorCapability(BaseCapability):
             language=context.language,
             stages_skipped=["concept_analysis", "concept_design", "summary"],
         )
-        summary_text = (
-            notice or "Answer-now: code generated and rendered without prior analysis/design."
+        summary_text = notice or i18n.t(
+            "answer_now_summary_fallback",
+            "Answer-now: code generated and rendered without prior analysis/design.",
         )
         if notice:
             await stream.content(summary_text, source=self.name, stage="summary")
 
-        await stream.result(
+        await emit_capability_result(
+            stream,
             {
                 "response": summary_text,
                 "summary": {
@@ -400,9 +452,10 @@ class MathAnimatorCapability(BaseCapability):
                 "metadata": {"answer_now": True},
             },
             source=self.name,
+            usage=usage,
         )
 
-    def _build_trace_bridge(self, stream: StreamBus):
+    def _build_trace_bridge(self, stream: StreamBus, i18n: StatusI18n | None = None):
         async def _trace_bridge(update: dict[str, Any]) -> None:
             event = str(update.get("event", "") or "")
             stage = str(update.get("phase") or update.get("stage") or "concept_analysis")
@@ -467,8 +520,13 @@ class MathAnimatorCapability(BaseCapability):
                 )
                 return
             if state == "error":
+                fallback = (
+                    i18n.t("llm_call_failed", "LLM call failed.")
+                    if i18n is not None
+                    else "LLM call failed."
+                )
                 await stream.error(
-                    str(update.get("response", "") or "LLM call failed."),
+                    str(update.get("response", "") or fallback),
                     source=self.name,
                     stage=stage,
                     metadata=merge_trace_metadata(

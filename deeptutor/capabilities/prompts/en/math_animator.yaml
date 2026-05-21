@@ -1,0 +1,12 @@
+status:
+  code_prepared: "Manim code prepared."
+  code_prepared_answer_now: "Manim code prepared (answer-now fast path)."
+  retry: "Retry {attempt}: {error}"
+  rendering: "Rendering {mode} with quality={quality}."
+  rendering_answer_now: "Rendering {mode} (quality={quality}) — answer-now fast path."
+  artifacts_one: "Prepared {count} artifact."
+  artifacts_many: "Prepared {count} artifacts."
+  artifacts_one_answer_now: "Prepared {count} artifact (answer-now)."
+  artifacts_many_answer_now: "Prepared {count} artifacts (answer-now)."
+  llm_call_failed: "LLM call failed."
+  answer_now_summary_fallback: "Answer-now: code generated and rendered without prior analysis/design."

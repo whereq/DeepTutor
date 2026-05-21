@@ -1,0 +1,12 @@
+status:
+  code_prepared: "Manim 代码已准备完成。"
+  code_prepared_answer_now: "Manim 代码已准备完成（极速回答路径）。"
+  retry: "第 {attempt} 次重试：{error}"
+  rendering: "正在以 quality={quality} 渲染 {mode}。"
+  rendering_answer_now: "正在以 quality={quality} 渲染 {mode}——极速回答路径。"
+  artifacts_one: "已准备 {count} 个产物。"
+  artifacts_many: "已准备 {count} 个产物。"
+  artifacts_one_answer_now: "已准备 {count} 个产物（极速回答）。"
+  artifacts_many_answer_now: "已准备 {count} 个产物（极速回答）。"
+  llm_call_failed: "LLM 调用失败。"
+  answer_now_summary_fallback: "极速回答：未经过分析/设计阶段，已直接生成并渲染代码。"
