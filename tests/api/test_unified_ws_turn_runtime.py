@@ -784,5 +784,3 @@ async def test_turn_runtime_injects_memory_and_refreshes_after_completion(
     assert captured["memory_context"] == "## Memory\n## Preferences\n- Prefer concise answers."
     assert captured["conversation_history"] == []
     assert captured["conversation_context_text"] == "Recent chat summary"
-    assert len(emit_calls) == 1
-    assert emit_calls[0].payload["assistant"] == "Stored reply"

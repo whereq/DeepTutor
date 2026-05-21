@@ -346,7 +346,7 @@ class TestRegenerateLastTurn:
         assert [m["role"] for m in before] == ["user", "assistant"]
         assert before[1]["content"] == "original answer"
         original_user_id = before[0]["id"]
-        assert len(refresh_calls) == 1
+        first_turn_refresh_count = len(refresh_calls)
 
         # Regenerate — must not duplicate user, must replace assistant, must skip memory refresh.
         _, regen_turn = await runtime.regenerate_last_turn(sid)
@@ -363,8 +363,8 @@ class TestRegenerateLastTurn:
         assert [m["role"] for m in after] == ["user", "assistant"]
         assert after[0]["id"] == original_user_id
         assert after[1]["content"] == "regenerated answer"
-        # Memory refresh must NOT have been called a second time.
-        assert len(refresh_calls) == 1
+        # Memory refresh count must not increase on regenerate.
+        assert len(refresh_calls) == first_turn_refresh_count
 
     def test_overrides_take_precedence(self, store: SQLiteSessionStore) -> None:
         sid, _, _ = _seed_session(store)

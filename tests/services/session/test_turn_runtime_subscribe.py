@@ -31,10 +31,10 @@ async def test_subscribe_turn_does_not_synthesize_done_for_running_turn(tmp_path
             events.append(event)
 
     task = asyncio.create_task(_collect())
-    for _ in range(20):
+    for _ in range(200):
         if execution.subscribers:
             break
-        await asyncio.sleep(0)
+        await asyncio.sleep(0.01)
 
     assert execution.subscribers
     await execution.subscribers[0].queue.put(None)

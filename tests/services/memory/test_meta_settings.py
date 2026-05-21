@@ -14,16 +14,16 @@ from deeptutor.services.memory.settings import (
 
 def test_settings_defaults_match_spec() -> None:
     s = MemorySettings()
-    assert s.update.l2_budget == 30
+    assert s.update.l2_budget == 20
     assert s.update.l3_budget == 10
-    assert s.audit.l2_budget == 30
+    assert s.audit.l2_budget == 20
     assert s.audit.l3_budget == 10
     assert s.dedup.iterations == 3
     assert s.dedup.auto_after_update is True
     assert s.chunking.overlap_ratio == 0.10
     assert s.chunking.boundary == "paragraph"
-    assert s.chunking.min_chunk_chars == 800
-    assert s.chunking.max_chunk_chars == 8000
+    assert s.chunking.min_chunk_chars == 1000
+    assert s.chunking.max_chunk_chars == 64000
     assert s.reference.enforce_required is True
     assert s.reference.drop_invalid_refs is True
 
@@ -39,7 +39,7 @@ def test_settings_partial_payload_falls_back_to_defaults() -> None:
     assert merged.update.l2_budget == 42
     assert merged.update.l3_budget == 10  # default
     assert merged.chunking.overlap_ratio == 0.25
-    assert merged.chunking.min_chunk_chars == 800
+    assert merged.chunking.min_chunk_chars == 1000
 
 
 def test_settings_clamps_out_of_range_values() -> None:

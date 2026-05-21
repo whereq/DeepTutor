@@ -9,12 +9,18 @@
 // instead of letting fetches die quietly.
 const API_BASE_PLACEHOLDER = "__NEXT_PUBLIC_API_BASE_PLACEHOLDER__";
 
-function resolveBuildTimeApiBase(): string {
-  const raw = process.env.NEXT_PUBLIC_API_BASE;
-  if (!raw || raw === API_BASE_PLACEHOLDER) {
+// Get API base URL injected by the launcher from data/user/settings/system.json.
+// We deliberately do NOT throw at module-load time: the Docker build embeds the
+// literal placeholder and Next.js evaluates this module during static export,
+// which would fail every prerendered page. The runtime check in resolveBase()
+// still surfaces missing/placeholder values on the first actual call.
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE ?? "";
+
+function assertApiBaseConfigured(value: string): string {
+  if (!value || value === API_BASE_PLACEHOLDER) {
     if (typeof window !== "undefined") {
       console.error(
-        raw === API_BASE_PLACEHOLDER
+        value === API_BASE_PLACEHOLDER
           ? "NEXT_PUBLIC_API_BASE placeholder was not substituted at startup."
           : "NEXT_PUBLIC_API_BASE is not set.",
       );
@@ -26,11 +32,8 @@ function resolveBuildTimeApiBase(): string {
       "NEXT_PUBLIC_API_BASE is not configured. Please update data/user/settings/system.json and restart.",
     );
   }
-  return raw;
+  return value;
 }
-
-// Get API base URL injected by the launcher from data/user/settings/system.json.
-export const API_BASE_URL = resolveBuildTimeApiBase();
 
 // Hostnames that always refer to the local machine. When the build-time base
 // URL points to one of these, but the page is opened from a non-local origin,
@@ -63,7 +66,7 @@ function isLoopbackHost(host: string): boolean {
  * like `http://localhost:8001/api` continue to work after the rewrite).
  */
 export function resolveBase(): string {
-  const base = API_BASE_URL;
+  const base = assertApiBaseConfigured(API_BASE_URL);
   if (typeof window === "undefined") return base;
   try {
     const url = new URL(base);
