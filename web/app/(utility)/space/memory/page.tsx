@@ -1,5 +1,5 @@
-import MemorySection from "@/components/space/MemorySection";
+import { redirect } from "next/navigation";
 
-export default function SpaceMemoryPage() {
-  return <MemorySection />;
+export default function SpaceMemoryRedirect() {
+  redirect("/memory");
 }
