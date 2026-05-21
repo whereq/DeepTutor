@@ -43,6 +43,7 @@ class PromptManager:
     NON_AGENT_MODULES: dict[str, str] = {
         "book": "book",
         "co_writer": "co_writer",
+        "capabilities": "capabilities",
     }
 
     def __new__(cls) -> "PromptManager":

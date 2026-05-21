@@ -317,7 +317,7 @@ export default function AdminUsersPage() {
                       {canManageAssignments && expandedUserId === user.id && (
                         <tr>
                           <td colSpan={4} className="p-0">
-                            <GrantEditor userId={user.id} />
+                            <GrantEditor key={user.id} userId={user.id} />
                           </td>
                         </tr>
                       )}
@@ -336,7 +336,7 @@ export default function AdminUsersPage() {
 
       {showCreateDialog && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4"
           role="dialog"
           aria-modal="true"
           onClick={closeCreateDialog}

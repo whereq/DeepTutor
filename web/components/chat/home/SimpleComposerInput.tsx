@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  memo,
-  useCallback,
-  useRef,
-  useState,
-  type RefObject,
-} from "react";
+import { memo, useCallback, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
 import { useAutoSizedTextarea } from "@/lib/use-auto-sized-textarea";

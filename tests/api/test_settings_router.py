@@ -301,6 +301,32 @@ async def test_apply_catalog_invalidates_runtime_caches(monkeypatch: pytest.Monk
 
 
 @pytest.mark.asyncio
+async def test_enabled_tools_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    settings_file = tmp_path / "interface.json"
+    monkeypatch.setattr(settings_router, "_settings_file", lambda: settings_file)
+
+    # Default state — no file yet, so the loader emits the full toggleable set.
+    assert set(settings_router.get_enabled_optional_tools()) == set(
+        settings_router.USER_TOGGLEABLE_TOOL_NAMES
+    )
+
+    # PUT a partial set; unknown tool names get filtered out.
+    update = settings_router.EnabledToolsUpdate(
+        enabled_tools=["web_search", "reason", "not_a_real_tool"]
+    )
+    response = await settings_router.update_enabled_tools(update)
+    assert response == {"enabled_optional_tools": ["web_search", "reason"]}
+    assert settings_router.get_enabled_optional_tools() == ["web_search", "reason"]
+
+    # Empty selection is a valid "all off" state.
+    response = await settings_router.update_enabled_tools(
+        settings_router.EnabledToolsUpdate(enabled_tools=[])
+    )
+    assert response == {"enabled_optional_tools": []}
+    assert settings_router.get_enabled_optional_tools() == []
+
+
+@pytest.mark.asyncio
 async def test_complete_tour_invalidates_runtime_caches(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

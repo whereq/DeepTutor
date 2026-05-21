@@ -100,8 +100,8 @@ async def test_incremental_add_migrates_matching_legacy_index_to_flat_version(
 def test_hybrid_retriever_uses_official_query_fusion_when_bm25_available(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from deeptutor.services.rag.pipelines.llamaindex.config import RetrievalConfig
     from deeptutor.services.rag.pipelines.llamaindex import retrievers as retriever_module
+    from deeptutor.services.rag.pipelines.llamaindex.config import RetrievalConfig
 
     captured: dict[str, object] = {}
 
@@ -145,8 +145,8 @@ def test_hybrid_retriever_uses_official_query_fusion_when_bm25_available(
 def test_hybrid_retriever_falls_back_to_vector_when_bm25_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from deeptutor.services.rag.pipelines.llamaindex.config import RetrievalConfig
     from deeptutor.services.rag.pipelines.llamaindex import retrievers as retriever_module
+    from deeptutor.services.rag.pipelines.llamaindex.config import RetrievalConfig
 
     calls: list[int] = []
 

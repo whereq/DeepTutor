@@ -170,9 +170,7 @@ def test_loader_skips_images_when_llm_is_text_only(
         def supports_multimodal_images(self) -> bool:
             return False
 
-    monkeypatch.setattr(
-        loader_module, "get_embedding_client", lambda: _MultimodalEmbeddingClient()
-    )
+    monkeypatch.setattr(loader_module, "get_embedding_client", lambda: _MultimodalEmbeddingClient())
     monkeypatch.setattr(loader_module, "get_llm_client", lambda: _TextOnlyLLMClient())
 
     documents = asyncio.run(loader_module.LlamaIndexDocumentLoader().load([str(image_path)]))

@@ -23,12 +23,14 @@ import {
   getSession,
   deleteMessage,
   updateBranchSelection,
+  updateSessionTitle,
   type SessionMessage,
 } from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
 import { buildVisiblePath, tipMessageId } from "@/lib/message-branches";
 import { shouldAppendEventContent } from "@/lib/stream";
+import { hasPendingAskUserInMessages } from "@/lib/ask-user-state";
 import { notify } from "@/lib/notifications";
 import i18n from "i18next";
 import {
@@ -72,15 +74,11 @@ export interface SendMessageOptions {
    *  sibling under this parent rather than appended to the session tail.
    *  ``null`` means "explicitly attach to the session root". */
   parentMessageId?: number | null;
-  // Surface that originated the turn. The backend stamps this onto the
-  // session row when ``ensure_session`` first creates it, then it never
-  // changes. Callers from /co-learn must pass ``"co_learn"`` so the auto
-  // routing surface doesn't leak into /chat's history.
-  kind?: import("@/lib/unified-ws").SessionKind;
 }
 
 export interface ChatState {
   sessionId: string | null;
+  sessionTitle: string;
   enabledTools: string[];
   activeCapability: string | null;
   knowledgeBases: string[];
@@ -195,6 +193,7 @@ type Action =
       type: "LOAD_SESSION";
       key: string;
       sessionId: string;
+      title?: string;
       messages: MessageItem[];
       activeTurnId?: string | null;
       status?: SessionRuntimeStatus;
@@ -205,6 +204,7 @@ type Action =
       language?: string;
       selectedBranches?: Record<string, number>;
     }
+  | { type: "SET_SESSION_TITLE"; key: string; title: string }
   | { type: "DELETE_TURN"; key: string; messageId: number }
   | { type: "NEW_SESSION"; key: string }
   | {
@@ -217,7 +217,8 @@ type Action =
       type: "REPLACE_SELECTED_BRANCHES";
       key: string;
       selectedBranches: Record<string, number>;
-    };
+    }
+  | { type: "BUMP_SIDEBAR_REFRESH" };
 
 function createSessionEntry(
   key: string,
@@ -226,6 +227,7 @@ function createSessionEntry(
   return {
     key,
     sessionId,
+    sessionTitle: "",
     enabledTools: [],
     activeCapability: null,
     knowledgeBases: [],
@@ -264,6 +266,15 @@ function updateSelectedSession(
       [key]: nextSession,
     },
   };
+}
+
+function isSameTurnEvent(a: StreamEvent, b: StreamEvent): boolean {
+  const aSeq = Number(a.seq || 0);
+  const bSeq = Number(b.seq || 0);
+  if (aSeq <= 0 || bSeq <= 0 || aSeq !== bSeq) return false;
+  const aTurn = a.turn_id || "";
+  const bTurn = b.turn_id || "";
+  return Boolean(aTurn && bTurn && aTurn === bTurn);
 }
 
 function reducer(state: ProviderState, action: Action): ProviderState {
@@ -425,6 +436,13 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         });
         last = msgs[msgs.length - 1];
       }
+      if (
+        (last?.events || []).some((event) =>
+          isSameTurnEvent(event, action.event),
+        )
+      ) {
+        return state;
+      }
       const events = [...(last?.events || []), action.event];
       let content = last?.content || "";
       if (shouldAppendEventContent(action.event))
@@ -487,6 +505,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         ...current,
         key: targetKey,
         sessionId: action.sessionId,
+        sessionTitle: current.sessionTitle || existing?.sessionTitle || "",
         activeTurnId: action.turnId || current.activeTurnId,
         status: current.isStreaming ? "running" : current.status,
         updatedAt: Date.now(),
@@ -515,6 +534,8 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             ...existing,
             key: action.key,
             sessionId: action.sessionId,
+            sessionTitle:
+              action.title !== undefined ? action.title : existing.sessionTitle,
             enabledTools: action.tools ?? existing.enabledTools,
             activeCapability:
               action.capability !== undefined
@@ -536,6 +557,22 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             updatedAt: Date.now(),
           },
         },
+      };
+    }
+    case "SET_SESSION_TITLE": {
+      const session = state.sessions[action.key];
+      if (!session) return state;
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [action.key]: {
+            ...session,
+            sessionTitle: action.title,
+            updatedAt: Date.now(),
+          },
+        },
+        sidebarRefreshToken: state.sidebarRefreshToken + 1,
       };
     }
     case "SET_SELECTED_BRANCH": {
@@ -607,6 +644,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         sidebarRefreshToken: state.sidebarRefreshToken + 1,
       };
     }
+    case "BUMP_SIDEBAR_REFRESH":
+      return {
+        ...state,
+        sidebarRefreshToken: state.sidebarRefreshToken + 1,
+      };
     case "NEW_SESSION": {
       const MAX_CACHED_SESSIONS = 20;
       let nextSessions = {
@@ -638,6 +680,11 @@ const initialState: ProviderState = {
   sidebarRefreshToken: 0,
 };
 
+// Grace window between the orchestrator's ``done`` event and the actual
+// WS disconnect. Keeps the connection alive long enough for post-turn
+// pushes like the LLM-generated ``session_meta`` title update to land.
+const POST_DONE_DISCONNECT_DELAY_MS = 15_000;
+
 interface ChatContextValue {
   state: ChatState;
   setTools: (tools: string[]) => void;
@@ -657,6 +704,24 @@ interface ChatContextValue {
     memoryReferences?: MemoryReferencePayload,
   ) => void;
   cancelStreamingTurn: () => void;
+  /**
+   * Deliver the user's reply for a turn that is paused on an
+   * ``ask_user`` tool call. Sends the reply via the unified WS so the
+   * backend can substitute it into the matching ``role=tool`` message
+   * and resume the agentic loop on the **same** turn. No-op when the
+   * active session has no live turn waiting on input.
+   *
+   * Accepts a plain string (legacy single-question reply) or a
+   * structured object with ``answers`` (v2 multi-question reply).
+   */
+  submitUserReply: (
+    reply:
+      | string
+      | {
+          text?: string;
+          answers?: Array<{ questionId: string; text: string }>;
+        },
+  ) => void;
   regenerateLastMessage: () => void;
   deleteTurn: (messageId: number) => Promise<void>;
   /** Re-send a user message under a new branch (sibling of the original).
@@ -666,6 +731,7 @@ interface ChatContextValue {
   editMessage: (messageId: number, newContent: string) => Promise<void>;
   /** Switch which sibling is currently visible at a branch point. */
   switchBranch: (parentMessageId: number | null, childId: number) => void;
+  renameSessionTitle: (title: string) => Promise<void>;
   newSession: () => void;
   loadSession: (sessionId: string) => Promise<void>;
   selectedSessionId: string | null;
@@ -918,6 +984,26 @@ export function UnifiedChatProvider({
         }
         return;
       }
+      if (event.type === "session_meta") {
+        // Post-turn metadata push (currently only used for the
+        // LLM-generated session title). The backend writes the new
+        // title to its store *before* sending this event. Update the
+        // active header immediately and bump the sidebar so history
+        // rows refresh to the generated title without a flicker.
+        const title = String(
+          (event.metadata as { title?: string } | undefined)?.title || "",
+        ).trim();
+        if (title) {
+          dispatch({
+            type: "SET_SESSION_TITLE",
+            key: effectiveKey,
+            title,
+          });
+        } else {
+          dispatch({ type: "BUMP_SIDEBAR_REFRESH" });
+        }
+        return;
+      }
       if (event.type === "done") {
         const status = String(
           (event.metadata as { status?: string } | undefined)?.status ||
@@ -931,16 +1017,25 @@ export function UnifiedChatProvider({
         });
         pendingRegenerateRef.current.delete(effectiveKey);
         const runner = runnersRef.current.get(effectiveKey);
-        runner?.client.disconnect();
-        runnersRef.current.delete(effectiveKey);
+        // Hold the WS open briefly so post-turn ``session_meta`` events
+        // (e.g. the LLM-generated title for the first user/assistant
+        // pair) can still reach us. The backend generates the title
+        // before its finally block sends the subscriber sentinel, but
+        // the title model can take a couple of seconds — disconnecting
+        // synchronously on ``done`` would race that publish.
+        if (runner) {
+          runnersRef.current.delete(effectiveKey);
+          window.setTimeout(() => {
+            runner.client.disconnect();
+          }, POST_DONE_DISCONNECT_DELAY_MS);
+        }
         // Reconcile optimistic client-side message ids with the
         // server's real ids after the turn finishes. Without this the
         // Edit button (which needs a real id to attach the new branch
         // under) and branch navigation (which keys off real ids) would
         // stay disabled until the user navigates away and back.
         if (status === "completed") {
-          const finishedSession =
-            stateRef.current.sessions[effectiveKey];
+          const finishedSession = stateRef.current.sessions[effectiveKey];
           const sessionId = finishedSession?.sessionId;
           if (sessionId) {
             loadSessionRef.current?.(sessionId).catch(() => {
@@ -1011,6 +1106,14 @@ export function UnifiedChatProvider({
           () => {
             const session = stateRef.current.sessions[record.key];
             if (session?.isStreaming) {
+              if (
+                hasPendingAskUserInMessages(
+                  session.messages,
+                  session.activeTurnId,
+                )
+              ) {
+                return;
+              }
               dispatch({
                 type: "STREAM_END",
                 key: record.key,
@@ -1030,6 +1133,10 @@ export function UnifiedChatProvider({
         ),
       };
       runnersRef.current.set(key, record);
+      const session = stateRef.current.sessions[key];
+      if (session?.activeTurnId) {
+        record.client.setResumeState(session.activeTurnId, session.lastSeq);
+      }
       record.client.connect();
       return record;
     },
@@ -1076,6 +1183,7 @@ export function UnifiedChatProvider({
         type: "LOAD_SESSION",
         key: session.session_id || session.id,
         sessionId: session.session_id || session.id,
+        title: session.title || "",
         messages: hydrateMessages(session.messages ?? []),
         activeTurnId: activeTurn?.turn_id || activeTurn?.id || null,
         status:
@@ -1162,6 +1270,11 @@ export function UnifiedChatProvider({
       const current = stateRef.current;
       for (const [key, session] of Object.entries(current.sessions)) {
         if (!session.isStreaming) continue;
+        if (
+          hasPendingAskUserInMessages(session.messages, session.activeTurnId)
+        ) {
+          continue;
+        }
         if (Date.now() - session.updatedAt <= IDLE_TIMEOUT_MS) continue;
 
         dispatch({
@@ -1234,20 +1347,46 @@ export function UnifiedChatProvider({
         replaySnapshot?.memoryReferences ?? memoryReferences;
       const effectiveBookReferences =
         replaySnapshot?.bookReferences ?? options?.bookReferences;
+      const effectiveAttachments =
+        replaySnapshot?.attachments?.map((a) => ({
+          type: a.type,
+          filename: a.filename,
+          base64: a.base64,
+          url: a.url,
+          mime_type: a.mime_type,
+        })) ?? msgAttachments;
+      const effectiveConfig = config ?? replaySnapshot?.config;
+      const effectiveNotebookReferences =
+        replaySnapshot?.notebookReferences ?? notebookReferences;
+      const effectiveHistoryReferences =
+        replaySnapshot?.historyReferences ?? historyReferences;
+      const effectiveQuestionNotebookReferences =
+        replaySnapshot?.questionNotebookReferences ??
+        questionNotebookReferences;
       const requestSnapshot: MessageRequestSnapshot = replaySnapshot ?? {
         content,
         capability: effectiveCapability,
         enabledTools: [...effectiveTools],
         knowledgeBases: [...effectiveKnowledgeBases],
         language: effectiveLanguage,
-        ...(msgAttachments?.length ? { attachments: msgAttachments } : {}),
-        ...(config && Object.keys(config).length > 0 ? { config } : {}),
-        ...(notebookReferences?.length ? { notebookReferences } : {}),
-        ...(historyReferences?.length
-          ? { historyReferences: [...historyReferences] }
+        ...(effectiveAttachments?.length
+          ? { attachments: effectiveAttachments }
           : {}),
-        ...(questionNotebookReferences?.length
-          ? { questionNotebookReferences: [...questionNotebookReferences] }
+        ...(effectiveConfig && Object.keys(effectiveConfig).length > 0
+          ? { config: effectiveConfig }
+          : {}),
+        ...(effectiveNotebookReferences?.length
+          ? { notebookReferences: effectiveNotebookReferences }
+          : {}),
+        ...(effectiveHistoryReferences?.length
+          ? { historyReferences: [...effectiveHistoryReferences] }
+          : {}),
+        ...(effectiveQuestionNotebookReferences?.length
+          ? {
+              questionNotebookReferences: [
+                ...effectiveQuestionNotebookReferences,
+              ],
+            }
           : {}),
         ...(effectiveBookReferences?.length
           ? { bookReferences: effectiveBookReferences }
@@ -1287,16 +1426,16 @@ export function UnifiedChatProvider({
           key,
           content,
           capability: effectiveCapability,
-          attachments: msgAttachments,
+          attachments: effectiveAttachments,
           requestSnapshot,
           parentMessageId: localParentId,
         });
       }
       dispatch({ type: "STREAM_START", key });
-      const effectiveConfig =
+      const effectiveTurnConfig =
         options?.persistUserMessage === false
-          ? { ...(config || {}), _persist_user_message: false }
-          : config;
+          ? { ...(effectiveConfig || {}), _persist_user_message: false }
+          : effectiveConfig;
       sendThroughRunner(key, {
         type: "start_turn",
         content,
@@ -1304,17 +1443,18 @@ export function UnifiedChatProvider({
         capability: effectiveCapability,
         knowledge_bases: effectiveKnowledgeBases,
         session_id: session.sessionId,
-        ...(options?.kind ? { kind: options.kind } : {}),
-        attachments,
+        attachments: effectiveAttachments,
         language: effectiveLanguage,
-        ...(notebookReferences?.length
-          ? { notebook_references: notebookReferences }
+        ...(effectiveNotebookReferences?.length
+          ? { notebook_references: effectiveNotebookReferences }
           : {}),
-        ...(historyReferences?.length
-          ? { history_references: historyReferences }
+        ...(effectiveHistoryReferences?.length
+          ? { history_references: effectiveHistoryReferences }
           : {}),
-        ...(questionNotebookReferences?.length
-          ? { question_notebook_references: questionNotebookReferences }
+        ...(effectiveQuestionNotebookReferences?.length
+          ? {
+              question_notebook_references: effectiveQuestionNotebookReferences,
+            }
           : {}),
         ...(effectiveBookReferences?.length
           ? { book_references: effectiveBookReferences }
@@ -1326,8 +1466,8 @@ export function UnifiedChatProvider({
         ...(effectiveLLMSelection
           ? { llm_selection: effectiveLLMSelection }
           : {}),
-        ...(effectiveConfig && Object.keys(effectiveConfig).length > 0
-          ? { config: effectiveConfig }
+        ...(effectiveTurnConfig && Object.keys(effectiveTurnConfig).length > 0
+          ? { config: effectiveTurnConfig }
           : {}),
         // Send ``parent_message_id`` only when we have a real (positive)
         // server id to chain under, or when the caller explicitly pinned
@@ -1358,6 +1498,44 @@ export function UnifiedChatProvider({
     }
     dispatch({ type: "STREAM_END", key, status: "cancelled" });
   }, []);
+
+  const submitUserReply = useCallback(
+    (
+      reply:
+        | string
+        | {
+            text?: string;
+            answers?: Array<{ questionId: string; text: string }>;
+          },
+    ) => {
+      const currentState = stateRef.current;
+      const key = currentState.selectedKey;
+      if (!key) return;
+      const session = currentState.sessions[key];
+      const turnId = session?.activeTurnId;
+      const pendingAskUser = session
+        ? hasPendingAskUserInMessages(session.messages, turnId)
+        : false;
+      // Only meaningful while a turn is live. A paused ask_user turn can be
+      // silent long enough for the socket to reconnect, so allow submission
+      // whenever the unresolved card and active turn id are still present.
+      if (!session || !turnId || (!session.isStreaming && !pendingAskUser)) {
+        return;
+      }
+      const message: import("@/lib/unified-ws").SubmitUserReplyMessage = {
+        type: "submit_user_reply",
+        turn_id: turnId,
+      };
+      if (typeof reply === "string") {
+        message.text = reply;
+      } else {
+        if (typeof reply.text === "string") message.text = reply.text;
+        if (Array.isArray(reply.answers)) message.answers = reply.answers;
+      }
+      sendThroughRunner(key, message);
+    },
+    [sendThroughRunner],
+  );
 
   const regenerateLastMessage = useCallback(() => {
     const currentState = stateRef.current;
@@ -1394,6 +1572,7 @@ export function UnifiedChatProvider({
     const current = ensureSelectedSession(state);
     return {
       sessionId: current.sessionId,
+      sessionTitle: current.sessionTitle,
       enabledTools: current.enabledTools,
       activeCapability: current.activeCapability,
       knowledgeBases: current.knowledgeBases,
@@ -1438,6 +1617,23 @@ export function UnifiedChatProvider({
 
   const setLanguage = useCallback((lang: string) => {
     dispatch({ type: "SET_LANGUAGE", lang });
+  }, []);
+
+  const renameSessionTitle = useCallback(async (title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    const currentState = stateRef.current;
+    const key = currentState.selectedKey;
+    if (!key) return;
+    const session = currentState.sessions[key];
+    const sessionId = session?.sessionId;
+    if (!sessionId) return;
+    const updated = await updateSessionTitle(sessionId, trimmed);
+    dispatch({
+      type: "SET_SESSION_TITLE",
+      key,
+      title: updated.title || trimmed,
+    });
   }, []);
 
   const newSession = useCallback(() => {
@@ -1509,7 +1705,8 @@ export function UnifiedChatProvider({
       if (!key) return;
       const session = currentState.sessions[key];
       if (!session) return;
-      const parentKey = parentMessageId == null ? "null" : String(parentMessageId);
+      const parentKey =
+        parentMessageId == null ? "null" : String(parentMessageId);
       dispatch({
         type: "SET_SELECTED_BRANCH",
         key,
@@ -1580,10 +1777,12 @@ export function UnifiedChatProvider({
       setLanguage,
       sendMessage,
       cancelStreamingTurn,
+      submitUserReply,
       regenerateLastMessage,
       deleteTurn,
       editMessage,
       switchBranch,
+      renameSessionTitle,
       newSession,
       loadSession,
       selectedSessionId: derivedState.sessionId,
@@ -1599,10 +1798,12 @@ export function UnifiedChatProvider({
       setLanguage,
       sendMessage,
       cancelStreamingTurn,
+      submitUserReply,
       regenerateLastMessage,
       deleteTurn,
       editMessage,
       switchBranch,
+      renameSessionTitle,
       newSession,
       loadSession,
       sessionStatuses,

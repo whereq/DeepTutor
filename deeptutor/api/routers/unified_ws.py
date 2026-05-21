@@ -12,6 +12,8 @@ Supported client message ``type`` values:
 - ``resume_from`` — resume an in-flight turn after reconnection.
 - ``unsubscribe`` — stop a previously created subscription.
 - ``cancel_turn`` — cancel a running turn.
+- ``submit_user_reply`` — deliver the user's reply for an ``ask_user``
+  paused turn so the agentic loop can resume on the same turn.
 - ``regenerate`` — re-run the last user message in the given session as a
   brand-new turn. Replaces the trailing assistant message (if any) and
   reuses the session's stored capability/tools/preferences. Optional
@@ -175,6 +177,42 @@ async def unified_websocket(ws: WebSocket) -> None:
                 cancelled = await runtime.cancel_turn(turn_id)
                 if not cancelled:
                     await safe_send({"type": "error", "content": f"Turn not found: {turn_id}"})
+                continue
+
+            if msg_type == "submit_user_reply":
+                turn_id = str(msg.get("turn_id") or "").strip()
+                if not turn_id:
+                    await safe_send({"type": "error", "content": "Missing turn_id."})
+                    continue
+                # Accept either the legacy ``text`` (single free-form
+                # reply) or the v2 ``answers`` (list of {questionId, text}
+                # pairs). Empty text is allowed (lets the user signal "I
+                # have no answer" without typing).
+                text = msg.get("text")
+                text_str = str(text) if text is not None else None
+                answers_raw = msg.get("answers")
+                answers: list[dict[str, Any]] | None = None
+                if isinstance(answers_raw, list):
+                    cleaned: list[dict[str, Any]] = []
+                    for entry in answers_raw:
+                        if not isinstance(entry, dict):
+                            continue
+                        qid = str(entry.get("questionId") or entry.get("id") or "").strip()
+                        if not qid:
+                            continue
+                        cleaned.append({"questionId": qid, "text": str(entry.get("text") or "")})
+                    answers = cleaned or None
+                from deeptutor.services.session import get_turn_runtime_manager
+
+                runtime = get_turn_runtime_manager()
+                accepted = await runtime.submit_user_reply(turn_id, text=text_str, answers=answers)
+                if not accepted:
+                    await safe_send(
+                        {
+                            "type": "error",
+                            "content": (f"Turn {turn_id} is not awaiting a user reply."),
+                        }
+                    )
                 continue
 
             if msg_type == "regenerate":

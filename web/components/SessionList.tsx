@@ -98,10 +98,18 @@ export default function SessionList({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
 
-  // The group-key tokens are stable across locales; the translated labels
-  // (and their ordering) are built once per language change. Memoizing on
-  // i18n.language so the labels recompute when the user flips the language
-  // switcher.
+  // The sentinel the backend writes when a session is created and not
+  // yet renamed by the LLM title generator. We swap it for a localized
+  // "New chat" string with a breathing animation so the sidebar shows
+  // something "alive" while the title is being generated in the
+  // background instead of a literal English sentinel.
+  const isPlaceholderTitle = (raw: string | null | undefined): boolean => {
+    const value = (raw ?? "").trim();
+    return value === "" || value === "New conversation";
+  };
+  const placeholderLabel = t("New chat");
+
+  // The group-key tokens stay stable; only the translated labels change.
   const groupLabels = useMemo<Record<DayGroupKey, string>>(
     () => ({
       today: t("Today"),
@@ -109,7 +117,7 @@ export default function SessionList({
       last_7_days: t("Last 7 days"),
       earlier: t("Earlier"),
     }),
-    [t, i18n.language],
+    [t],
   );
 
   const grouped = useMemo(() => {
@@ -231,11 +239,17 @@ export default function SessionList({
                       onClick={(event) => event.stopPropagation()}
                       className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--background)] px-1.5 py-px text-[12px] text-[var(--foreground)] outline-none focus:ring-1 focus:ring-[var(--primary)]/40"
                     />
+                  ) : isPlaceholderTitle(session.title) ? (
+                    <span
+                      className={`dt-breathing-text min-w-0 flex-1 truncate text-[13px] italic text-[var(--muted-foreground)] ${active ? "font-medium" : ""}`}
+                    >
+                      {placeholderLabel}
+                    </span>
                   ) : (
                     <span
                       className={`min-w-0 flex-1 truncate text-[13px] ${active ? "font-medium" : ""}`}
                     >
-                      {session.title || "Untitled chat"}
+                      {session.title}
                     </span>
                   )}
                   <div className="flex shrink-0 items-center gap-px opacity-0 transition-opacity group-hover:opacity-100">
@@ -337,13 +351,23 @@ export default function SessionList({
                         />
                       ) : (
                         <div className="flex items-center">
-                          <span
-                            className={`line-clamp-1 min-w-0 flex-1 text-[12px] leading-snug ${
-                              active ? "font-medium" : "font-normal"
-                            }`}
-                          >
-                            {session.title || "Untitled chat"}
-                          </span>
+                          {isPlaceholderTitle(session.title) ? (
+                            <span
+                              className={`dt-breathing-text line-clamp-1 min-w-0 flex-1 text-[12px] italic leading-snug text-[var(--muted-foreground)] ${
+                                active ? "font-medium" : "font-normal"
+                              }`}
+                            >
+                              {placeholderLabel}
+                            </span>
+                          ) : (
+                            <span
+                              className={`line-clamp-1 min-w-0 flex-1 text-[12px] leading-snug ${
+                                active ? "font-medium" : "font-normal"
+                              }`}
+                            >
+                              {session.title}
+                            </span>
+                          )}
                           <StatusIndicator status={session.status} />
                         </div>
                       )}

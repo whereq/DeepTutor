@@ -11,7 +11,6 @@
  */
 
 import { wsUrl } from "./api";
-import type { SurfaceKind } from "./session-surfaces";
 
 // ---- StreamEvent types (mirror Python StreamEventType) ----
 
@@ -28,6 +27,7 @@ export type StreamEventType =
   | "result"
   | "error"
   | "session"
+  | "session_meta"
   | "done";
 
 export interface StreamEvent {
@@ -49,14 +49,6 @@ export interface LLMSelection {
 
 // ---- Client message ----
 
-/**
- * Surface that originated the turn. Alias of ``SurfaceKind`` from
- * ``lib/session-surfaces`` so the two values never drift. The backend tags
- * the underlying session with this value so the /chat and /co-learn surfaces
- * never list each other's history. Defaults to ``"chat"`` when omitted.
- */
-export type SessionKind = SurfaceKind;
-
 export interface StartTurnMessage {
   type: "message" | "start_turn";
   content: string;
@@ -64,7 +56,6 @@ export interface StartTurnMessage {
   capability?: string | null;
   knowledge_bases?: string[];
   session_id?: string | null;
-  kind?: SessionKind;
   attachments?: {
     type: string;
     url?: string;
@@ -127,6 +118,23 @@ export interface RegenerateMessage {
   overrides?: Record<string, unknown>;
 }
 
+/**
+ * Deliver the user's answer for an ``ask_user`` paused turn so the
+ * agentic loop can resume on the same turn. The user's reply is
+ * substituted into the matching ``role=tool`` message body before the
+ * next LLM iteration runs.
+ *
+ * Either ``text`` (legacy single-question shape) or ``answers``
+ * (v2 multi-question shape) must be provided. When both are present
+ * the backend prefers ``answers``.
+ */
+export interface SubmitUserReplyMessage {
+  type: "submit_user_reply";
+  turn_id: string;
+  text?: string;
+  answers?: Array<{ questionId: string; text: string }>;
+}
+
 export type ChatMessage =
   | StartTurnMessage
   | SubscribeTurnMessage
@@ -134,7 +142,8 @@ export type ChatMessage =
   | ResumeTurnMessage
   | UnsubscribeMessage
   | CancelTurnMessage
-  | RegenerateMessage;
+  | RegenerateMessage
+  | SubmitUserReplyMessage;
 
 // ---- Connection manager ----
 

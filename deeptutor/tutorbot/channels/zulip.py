@@ -40,6 +40,15 @@ _CODE_BLOCK_RE = re.compile(
 )
 
 ZULIP_MAX_MESSAGE_LEN = 10000
+ZULIP_UPLOAD_PREFIX = "/user_uploads/"
+MENTION_FLAGS = frozenset(
+    {
+        "mentioned",
+        "wildcard_mentioned",
+        "stream_wildcard_mentioned",
+        "topic_wildcard_mentioned",
+    }
+)
 
 
 class ZulipConfig(Base):
@@ -69,7 +78,6 @@ class ZulipChannel(BaseChannel):
         self._client: Any = None
         self._bot_email: str = ""
         self._bot_user_id: int | None = None
-        self._bot_full_name: str = ""
         self._queue_id: str | None = None
         self._last_event_id: int = -1
         self._max_message_id: int = 0
@@ -120,7 +128,6 @@ class ZulipChannel(BaseChannel):
 
         self._bot_email = profile.get("email", self.config.email)
         self._bot_user_id = profile.get("user_id")
-        self._bot_full_name = profile.get("full_name", "")
         logger.info(
             "Zulip bot connected: {} (user_id={})",
             self._bot_email,
@@ -162,27 +169,33 @@ class ZulipChannel(BaseChannel):
             logger.warning("Zulip client not running")
             return
 
-        if msg.metadata.get("_tool_hint"):
-            return
+        metadata = self._metadata_for_send(msg)
 
-        if not msg.metadata.get("msg_type"):
-            stored = self._recipient_map.get(msg.chat_id)
-            if stored:
-                msg.metadata = {**stored, **msg.metadata}
-
-        if not msg.metadata.get("_progress", False):
+        if not metadata.get("_progress", False):
             self._stop_typing(msg.chat_id)
 
         try:
             for media_path in msg.media or []:
-                await self._upload_and_send(msg.chat_id, media_path, msg.metadata)
+                await self._upload_and_send(msg.chat_id, media_path, metadata)
 
             if msg.content and msg.content != "[empty message]":
                 converted = self._convert_latex_to_zulip(msg.content)
                 for chunk in split_message(converted, ZULIP_MAX_MESSAGE_LEN):
-                    await self._send_text(msg.chat_id, chunk, msg.metadata)
+                    await self._send_text(msg.chat_id, chunk, metadata)
         except Exception as e:
             logger.error("Zulip send error: {}", e)
+
+    def _metadata_for_send(self, msg: OutboundMessage) -> dict:
+        metadata = msg.metadata or {}
+        if metadata.get("msg_type"):
+            return metadata
+
+        stored = self._recipient_map.get(msg.chat_id)
+        if not stored:
+            return metadata
+
+        msg.metadata = {**stored, **metadata}
+        return msg.metadata
 
     def _call_with_retry(self, fn, *args, max_retries=3, **kwargs):
         for attempt in range(max_retries):
@@ -254,58 +267,92 @@ class ZulipChannel(BaseChannel):
         logger.info("Zulip listener stopped")
 
     def _subscribe_to_streams(self) -> None:
-        streams = self.config.subscribe_streams
-        if not streams:
-            logger.info("No subscribe_streams configured, skipping auto-subscribe")
+        stream_names = self._stream_names_to_subscribe()
+        if stream_names is None:
             return
-
-        stream_names: list[str]
-        if "*" in streams:
-            try:
-                result = self._call_with_retry(self._client.get_streams, include_all=True)
-            except Exception as e:
-                logger.error("Zulip get_streams failed during auto-subscribe: {}", e)
-                return
-            if result.get("result") != "success":
-                logger.error("Failed to fetch streams for auto-subscribe: {}", result.get("msg"))
-                return
-            fetched = {s["name"] for s in result.get("streams", [])}
-            extra = {s for s in streams if s != "*"}
-            stream_names = list(fetched | extra)
-        else:
-            stream_names = list(streams)
-
         if not stream_names:
-            logger.info("No streams to subscribe to")
+            logger.info("No subscribe_streams configured, skipping auto-subscribe")
             return
 
         subscriptions = [{"name": name} for name in stream_names]
         try:
-            result = self._call_with_retry(
-                self._client.add_subscriptions, streams=subscriptions
-            )
+            result = self._call_with_retry(self._client.add_subscriptions, streams=subscriptions)
         except Exception as e:
             logger.error("Zulip auto-subscribe failed: {}", e)
             return
+
+        self._log_subscription_result(result, set(stream_names))
+
+    def _stream_names_to_subscribe(self) -> list[str] | None:
+        streams = [s.strip() for s in self.config.subscribe_streams if s.strip()]
+        if not streams:
+            return []
+
+        if "*" not in streams:
+            return sorted(set(streams))
+
+        try:
+            result = self._call_with_retry(self._client.get_streams, include_all=True)
+        except Exception as e:
+            logger.error("Zulip get_streams failed during auto-subscribe: {}", e)
+            return None
+
+        if result.get("result") != "success":
+            logger.error("Failed to fetch streams for auto-subscribe: {}", result.get("msg"))
+            return None
+
+        fetched = {
+            stream.get("name")
+            for stream in result.get("streams", [])
+            if isinstance(stream, dict) and stream.get("name")
+        }
+        explicit = {stream for stream in streams if stream != "*"}
+        return sorted(fetched | explicit)
+
+    @staticmethod
+    def _already_subscribed_names(result: dict) -> set[str]:
+        already_subscribed = result.get("already_subscribed", {})
+        if isinstance(already_subscribed, list):
+            return {name for name in already_subscribed if isinstance(name, str)}
+        if not isinstance(already_subscribed, dict):
+            return set()
+
         already_subscribed_names: set[str] = set()
-        for names in result.get("already_subscribed", {}).values():
-            already_subscribed_names.update(names)
-        new_count = len(stream_names) - len(already_subscribed_names)
-        if new_count > 0:
-            logger.info(
-                "Zulip bot subscribed to {} streams ({} new, {} already subscribed)",
-                len(stream_names),
-                new_count,
-                len(stream_names) - new_count,
-            )
-        else:
-            logger.info(
-                "Zulip bot already subscribed to {} streams (no new subscriptions)",
-                len(stream_names),
-            )
-        if result.get("result") != "success" and new_count == 0:
+        for names in already_subscribed.values():
+            if isinstance(names, str):
+                already_subscribed_names.add(names)
+            elif isinstance(names, (list, tuple, set)):
+                already_subscribed_names.update(name for name in names if isinstance(name, str))
+        return already_subscribed_names
+
+    def _log_subscription_result(self, result: dict, stream_names: set[str]) -> None:
+        already_subscribed = self._already_subscribed_names(result) & stream_names
+        missing = stream_names - already_subscribed
+
+        if result.get("result") == "success":
+            if missing:
+                logger.info(
+                    "Zulip bot subscribed to {} streams ({} new, {} already subscribed)",
+                    len(stream_names),
+                    len(missing),
+                    len(already_subscribed),
+                )
+            else:
+                logger.info(
+                    "Zulip bot already subscribed to {} streams (no new subscriptions)",
+                    len(stream_names),
+                )
+            return
+
+        if not missing:
             logger.debug(
                 "Zulip add_subscriptions returned non-success but all streams already subscribed: {}",
+                result.get("msg", "unknown"),
+            )
+        else:
+            logger.warning(
+                "Zulip auto-subscribe did not subscribe {} streams: {}",
+                len(missing),
                 result.get("msg", "unknown"),
             )
 
@@ -359,17 +406,13 @@ class ZulipChannel(BaseChannel):
 
         msg_type = message.get("type", "")
         content = message.get("content", "")
-        flags = message.get("flags", [])
-        sender_email = message.get("sender_email", "?")
-        subject = message.get("subject", "")
-        display_recipient = message.get("display_recipient", "")
-        logger.info(
+        logger.debug(
             "Zulip message received: type={}, flags={}, sender={}, stream={}, topic={}",
             msg_type,
-            flags,
-            sender_email,
-            display_recipient if msg_type == "stream" else "N/A",
-            subject,
+            message.get("flags", []),
+            message.get("sender_email", "?"),
+            message.get("display_recipient", "") if msg_type == "stream" else "N/A",
+            message.get("subject", ""),
         )
         content_type = message.get("content_type", "text/x-markdown")
         if content_type == "text/x-markdown":
@@ -382,22 +425,23 @@ class ZulipChannel(BaseChannel):
         composite_sender = f"{sender_id}|{sender_email}" if sender_email else str(sender_id)
 
         if msg_type == "stream":
-            if isinstance(display_recipient, dict):
-                stream_name = display_recipient.get("name", str(display_recipient))
-            else:
-                stream_name = str(display_recipient)
+            stream_name = self._stream_name(display_recipient)
             topic = self._topic_label(subject)
             chat_id = self._stream_chat_id(stream_name, topic)
             if self.config.group_policy == "mention":
                 if not self._is_mentioned(message):
-                    logger.info(
+                    logger.debug(
                         "Zulip stream message ignored (not mentioned): stream={}, topic={}, flags={}",
                         stream_name,
                         topic,
                         message.get("flags", []),
                     )
                     return
-                logger.info("Zulip stream message will be processed: stream={}, topic={}", stream_name, topic)
+                logger.debug(
+                    "Zulip stream message will be processed: stream={}, topic={}",
+                    stream_name,
+                    topic,
+                )
             content = f"**[{stream_name} > {topic}]** {content}"
         elif msg_type == "private":
             chat_id = f"pm:{sender_id}"
@@ -415,10 +459,7 @@ class ZulipChannel(BaseChannel):
         }
 
         if msg_type == "stream":
-            if isinstance(display_recipient, dict):
-                metadata["stream"] = display_recipient.get("name", str(display_recipient))
-            else:
-                metadata["stream"] = display_recipient
+            metadata["stream"] = self._stream_name(display_recipient)
             metadata["topic"] = topic
         else:
             metadata["recipient_user_id"] = sender_id
@@ -442,6 +483,12 @@ class ZulipChannel(BaseChannel):
             )
 
     @staticmethod
+    def _stream_name(display_recipient: Any) -> str:
+        if isinstance(display_recipient, dict):
+            return display_recipient.get("name", str(display_recipient))
+        return str(display_recipient)
+
+    @staticmethod
     def _topic_label(subject: Any) -> str:
         topic = str(subject or "").strip()
         return topic or "(no topic)"
@@ -457,20 +504,16 @@ class ZulipChannel(BaseChannel):
 
     def _is_mentioned(self, message: dict) -> bool:
         if self._bot_user_id is None:
-            logger.warning("Zulip _is_mentioned: bot_user_id is None, cannot check mention")
+            logger.debug("Zulip _is_mentioned: bot_user_id is None, cannot check mention")
             return False
-        mention_flags = {
-            "mentioned",
-            "wildcard_mentioned",
-            "stream_wildcard_mentioned",
-            "topic_wildcard_mentioned",
-        }
-        flags = message.get("flags", [])
-        for flag in flags:
-            if isinstance(flag, str) and flag in mention_flags:
+        for flag in message.get("flags", []):
+            if isinstance(flag, str) and flag in MENTION_FLAGS:
                 logger.debug("Zulip _is_mentioned: found flag={}", flag)
                 return True
-        logger.debug("Zulip _is_mentioned: no mention flags found, flags={}", flags)
+        logger.debug(
+            "Zulip _is_mentioned: no mention flags found, flags={}",
+            message.get("flags", []),
+        )
         return False
 
     def _download_attachments(self, message: dict) -> list[str]:
@@ -485,25 +528,14 @@ class ZulipChannel(BaseChannel):
         media_dir = get_media_dir("zulip")
 
         for name, path_id in upload_links:
-            url = f"{self.config.site.rstrip('/')}{path_id}"
-            dest = self._attachment_destination(media_dir, name, path_id, len(paths))
-
-            if dest.exists():
-                paths.append(str(dest))
-                continue
-
-            try:
-                resp = requests.get(
-                    url,
-                    auth=(self.config.email, self.config.api_key),
-                    timeout=self.config.timeout,
-                )
-                resp.raise_for_status()
-                dest.write_bytes(resp.content)
-                paths.append(str(dest))
-                logger.debug("Downloaded Zulip attachment: {}", name or path_id)
-            except Exception as e:
-                logger.warning("Failed to download Zulip attachment {}: {}", name or path_id, e)
+            local_path = self._download_upload_path(
+                path_id,
+                media_dir=media_dir,
+                name=name,
+                index=len(paths),
+            )
+            if local_path:
+                paths.append(local_path)
 
         return paths
 
@@ -556,6 +588,53 @@ class ZulipChannel(BaseChannel):
                     links.append((name, path_id))
 
         return links
+
+    def _path_id_from_media(self, media_path: str) -> str | None:
+        if media_path.startswith(ZULIP_UPLOAD_PREFIX):
+            return media_path
+
+        site = self.config.site.rstrip("/")
+        if not site:
+            return None
+
+        prefix = f"{site}{ZULIP_UPLOAD_PREFIX}"
+        if media_path.startswith(prefix):
+            return f"{ZULIP_UPLOAD_PREFIX}{media_path[len(prefix) :]}"
+        return None
+
+    def _download_upload_path(
+        self,
+        path_id: str,
+        *,
+        media_dir: Path | None = None,
+        name: str | None = None,
+        index: int = 0,
+    ) -> str | None:
+        media_dir = media_dir or get_media_dir("zulip")
+        filename = name or Path(unquote(path_id)).name
+        dest = self._attachment_destination(media_dir, filename, path_id, index)
+
+        if dest.exists():
+            return str(dest)
+
+        url = f"{self.config.site.rstrip('/')}{path_id}"
+        try:
+            resp = requests.get(
+                url,
+                auth=(self.config.email, self.config.api_key),
+                timeout=self.config.timeout,
+            )
+            resp.raise_for_status()
+            dest.write_bytes(resp.content)
+            logger.debug("Downloaded Zulip attachment: {}", filename or path_id)
+            return str(dest)
+        except Exception as e:
+            logger.warning(
+                "Failed to download Zulip attachment {}: {}",
+                filename or path_id,
+                e,
+            )
+            return None
 
     @staticmethod
     def _convert_latex_to_zulip(text: str) -> str:
@@ -634,38 +713,11 @@ class ZulipChannel(BaseChannel):
         if Path(media_path).exists():
             return media_path
 
-        path_id: str | None = None
-        if media_path.startswith("/user_uploads/"):
-            path_id = media_path
-        elif self.config.site and media_path.startswith(self.config.site):
-            stripped = media_path[len(self.config.site.rstrip("/")):]
-            if stripped.startswith("/user_uploads/"):
-                path_id = stripped
-
+        path_id = self._path_id_from_media(media_path)
         if not path_id:
             return None
 
-        media_dir = get_media_dir("zulip")
-        name = Path(unquote(path_id)).name
-        dest = self._attachment_destination(media_dir, name, path_id, 0)
-
-        if dest.exists():
-            return str(dest)
-
-        url = f"{self.config.site.rstrip('/')}{path_id}"
-        try:
-            resp = requests.get(
-                url,
-                auth=(self.config.email, self.config.api_key),
-                timeout=self.config.timeout,
-            )
-            resp.raise_for_status()
-            dest.write_bytes(resp.content)
-            logger.debug("Downloaded Zulip attachment for re-upload: {}", name)
-            return str(dest)
-        except Exception as e:
-            logger.warning("Failed to download Zulip attachment {}: {}", name, e)
-            return None
+        return self._download_upload_path(path_id)
 
     async def _upload_and_send(self, chat_id: str, media_path: str, metadata: dict) -> None:
         client = self._client

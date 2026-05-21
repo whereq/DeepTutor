@@ -149,9 +149,7 @@ export default memo(function ChatSpaceMenu({
               type="button"
               role={isMention ? "option" : undefined}
               aria-selected={isMention ? isActive : undefined}
-              onMouseEnter={
-                isMention ? () => setActiveIdx(idx) : undefined
-              }
+              onMouseEnter={isMention ? () => setActiveIdx(idx) : undefined}
               onClick={() => onSelectItem(key as SelectableSpaceKey)}
               className={`flex w-full items-center gap-2.5 text-left transition-colors ${
                 isActive ? "bg-[var(--muted)]/60" : "hover:bg-[var(--muted)]/40"

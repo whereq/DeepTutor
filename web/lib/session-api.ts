@@ -1,6 +1,5 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
-import type { SurfaceKind } from "@/lib/session-surfaces";
 import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 
 export interface SessionMessage {
@@ -42,8 +41,6 @@ export interface SessionSummary {
     | "cancelled"
     | "rejected";
   active_turn_id?: string;
-  /** Originating surface — see ``SurfaceKind`` in lib/session-surfaces. */
-  kind?: SurfaceKind;
   preferences?: {
     capability?: string;
     tools?: string[];
@@ -128,18 +125,14 @@ async function expectJson<T>(response: Response): Promise<T> {
 export async function listSessions(
   limit = 50,
   offset = 0,
-  options?: { force?: boolean; kind?: SurfaceKind | null },
+  options?: { force?: boolean },
 ): Promise<SessionSummary[]> {
-  const kindKey = options?.kind ?? "all";
   const qs = new URLSearchParams({
     limit: String(limit),
     offset: String(offset),
   });
-  if (options?.kind) {
-    qs.set("kind", options.kind);
-  }
   return withClientCache<SessionSummary[]>(
-    `sessions:${kindKey}:${limit}:${offset}`,
+    `sessions:${limit}:${offset}`,
     async () => {
       const response = await apiFetch(
         apiUrl(`/api/v1/sessions?${qs.toString()}`),
@@ -189,13 +182,14 @@ export async function deleteSession(sessionId: string): Promise<void> {
 export async function recordQuizResults(
   sessionId: string,
   answers: QuizResultItem[],
+  turnId?: string | null,
 ): Promise<void> {
   const response = await apiFetch(
     apiUrl(`/api/v1/sessions/${sessionId}/quiz-results`),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ answers, turn_id: turnId || "" }),
     },
   );
   await expectJson<{ recorded: boolean }>(response);

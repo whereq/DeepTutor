@@ -16,6 +16,7 @@ import threading
 import time
 from typing import Callable
 from urllib import error as urlerror
+from urllib import parse as urlparse
 from urllib import request as urlrequest
 
 from deeptutor.runtime.banner import labels_for, print_banner, resolve_language
@@ -23,6 +24,7 @@ from deeptutor.runtime.home import DEEPTUTOR_HOME_ENV, PACKAGE_ROOT, get_runtime
 
 BACKEND_READY_TIMEOUT = 60
 FRONTEND_READY_TIMEOUT = 120
+FRONTEND_REUSE_PROBE_TIMEOUT = 2
 KILL_SIGNAL = getattr(signal, "SIGKILL", signal.SIGTERM)
 WEB_CACHE_DIR = Path("data") / "user" / "runtime" / "web"
 
@@ -53,6 +55,14 @@ class FrontendRuntime:
     kind: str
     command: list[str]
     cwd: Path
+
+
+@dataclass(frozen=True, slots=True)
+class ExistingFrontendRuntime:
+    url: str
+    port: int
+    pid: int | None
+    lock_path: Path
 
 
 def _log(message: str) -> None:
@@ -95,6 +105,8 @@ def _is_pid_alive(pid: int | None) -> bool:
         return False
     try:
         os.kill(pid, 0)
+    except PermissionError:
+        return True
     except OSError:
         return False
     return True
@@ -178,7 +190,7 @@ def _wait_for_http(
     *,
     name: str,
     url: str,
-    process: ManagedProcess,
+    process: ManagedProcess | None,
     timeout: int,
     should_stop: Callable[[], bool],
 ) -> None:
@@ -187,7 +199,7 @@ def _wait_for_http(
     while time.monotonic() < deadline:
         if should_stop():
             return
-        if process.process.poll() is not None:
+        if process is not None and process.process.poll() is not None:
             raise RuntimeError(_t("start.exited", name=name, code=process.process.returncode))
         try:
             with urlrequest.urlopen(url, timeout=1):  # noqa: S310  # nosec B310 - http(s) health-check URL constructed by caller
@@ -196,6 +208,14 @@ def _wait_for_http(
         except (urlerror.URLError, TimeoutError, OSError):
             time.sleep(0.5)
     raise RuntimeError(_t("start.not_ready", name=name, timeout=timeout))
+
+
+def _http_ready(url: str, *, timeout: float) -> bool:
+    try:
+        with urlrequest.urlopen(url, timeout=timeout):  # noqa: S310  # nosec B310 - launcher health check
+            return True
+    except (urlerror.URLError, TimeoutError, OSError):
+        return False
 
 
 def _packaged_web_dir() -> Path | None:
@@ -322,6 +342,141 @@ def _resolve_frontend(
     )
 
 
+def _coerce_pid(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int | str):
+        return None
+    try:
+        pid = int(value)
+    except (TypeError, ValueError):
+        return None
+    return pid if pid > 0 else None
+
+
+def _coerce_port(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int | str):
+        return None
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        return None
+    return port if 1 <= port <= 65535 else None
+
+
+def _local_app_url(value: object, port: int) -> str:
+    fallback = f"http://localhost:{port}"
+    if not isinstance(value, str) or not value.strip():
+        return fallback
+    raw = value.strip().rstrip("/")
+    try:
+        parsed = urlparse.urlparse(raw)
+    except ValueError:
+        return fallback
+    if parsed.scheme not in {"http", "https"}:
+        return fallback
+    if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        return fallback
+    if parsed.port != port:
+        return fallback
+    return raw
+
+
+def _detect_existing_source_frontend(frontend: FrontendRuntime) -> ExistingFrontendRuntime | None:
+    """Return an already-running Next dev server for this source checkout."""
+
+    if frontend.kind != "source":
+        return None
+
+    lock_candidates = [
+        frontend.cwd / ".next" / "dev" / "lock",
+        frontend.cwd / ".next" / "lock",
+    ]
+    for lock_path in lock_candidates:
+        try:
+            payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        port = _coerce_port(payload.get("port"))
+        if port is None:
+            continue
+        pid = _coerce_pid(payload.get("pid"))
+        if not _is_pid_alive(pid) and not _port_accepts_connection(port):
+            continue
+        return ExistingFrontendRuntime(
+            url=_local_app_url(payload.get("appUrl"), port),
+            port=port,
+            pid=pid,
+            lock_path=lock_path,
+        )
+    return None
+
+
+def _process_command(pid: int | None) -> str:
+    if pid is None or os.name == "nt":
+        return ""
+    ps = shutil.which("ps")
+    if not ps:
+        return ""
+    try:
+        completed = subprocess.run(
+            [ps, "-p", str(pid), "-o", "command="],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except Exception:
+        return ""
+    return completed.stdout.strip()
+
+
+def _looks_like_next_process(pid: int | None) -> bool:
+    command = _process_command(pid).lower()
+    return bool(
+        command
+        and ("next-server" in command or "next/dist/bin/next" in command or " next dev" in command)
+    )
+
+
+def _stop_unhealthy_source_frontend(frontend: ExistingFrontendRuntime) -> bool:
+    """Stop a locked Next dev server only when the lock points at Next itself."""
+
+    if frontend.pid is None:
+        return False
+    if not _is_pid_alive(frontend.pid):
+        try:
+            frontend.lock_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return True
+    if not _looks_like_next_process(frontend.pid):
+        return False
+
+    pgid = _get_pgid(frontend.pid)
+    try:
+        _send_tree_signal(frontend.pid, pgid, signal.SIGTERM)
+    except Exception:
+        return False
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and _is_pid_alive(frontend.pid):
+        time.sleep(0.2)
+
+    if _is_pid_alive(frontend.pid):
+        try:
+            _send_tree_signal(frontend.pid, pgid, KILL_SIGNAL)
+        except Exception:
+            return False
+        time.sleep(0.5)
+
+    try:
+        frontend.lock_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    return not _http_ready(frontend.url, timeout=0.5)
+
+
 def _install_signal_handlers(request_shutdown: Callable[[str | None], None]) -> None:
     def _handler(signum: int, _frame) -> None:
         try:
@@ -378,17 +533,38 @@ def start(home: str | Path | None = None) -> None:
         api_base=api_base,
         auth_enabled=auth_enabled,
     )
+    existing_frontend = _detect_existing_source_frontend(frontend)
+    if existing_frontend is not None and not _http_ready(
+        existing_frontend.url, timeout=FRONTEND_REUSE_PROBE_TIMEOUT
+    ):
+        pid = existing_frontend.pid if existing_frontend.pid is not None else "unknown"
+        _log(_t("start.restarting_frontend", url=existing_frontend.url, pid=pid))
+        if not _stop_unhealthy_source_frontend(existing_frontend):
+            raise SystemExit(
+                _t("start.frontend_restart_failed", url=existing_frontend.url, pid=pid)
+            )
+        existing_frontend = None
+    if existing_frontend is not None:
+        frontend_port = existing_frontend.port
+    frontend_url = (
+        existing_frontend.url
+        if existing_frontend is not None
+        else f"http://localhost:{frontend_port}"
+    )
 
     print_banner(language=language, mode_key="start.mode")
     _log(f"{_t('start.backend'):<10} {backend_url}")
     if api_base != backend_url:
         _log(f"{_t('start.browser_api'):<10} {api_base}")
-    _log(f"{_t('start.frontend'):<10} http://localhost:{frontend_port}")
+    _log(f"{_t('start.frontend'):<10} {frontend_url}")
     _log(f"{_t('start.workspace'):<10} {runtime_home}")
     _log(f"{_t('start.frontend_runtime')}: {frontend.kind}")
     _log(_t("start.press_ctrl_c"))
 
-    _ensure_ports_available(backend_port, frontend_port)
+    if existing_frontend is None:
+        _ensure_ports_available(backend_port, frontend_port)
+    else:
+        _ensure_ports_available(backend_port)
 
     common_env = os.environ.copy()
     common_env.update(runtime_env)
@@ -453,17 +629,28 @@ def start(home: str | Path | None = None) -> None:
             should_stop=lambda: shutdown_requested,
         )
 
-        _log(_t("start.starting_frontend"))
-        web = _spawn(frontend.command, cwd=frontend.cwd, env=common_env, name="frontend")
-        processes.append(web)
-        _wait_for_http(
-            name=_t("start.frontend"),
-            url=f"http://127.0.0.1:{frontend_port}/",
-            process=web,
-            timeout=FRONTEND_READY_TIMEOUT,
-            should_stop=lambda: shutdown_requested,
-        )
-        _log(_t("start.open_in_browser", url=f"http://localhost:{frontend_port}"))
+        if existing_frontend is not None:
+            pid = existing_frontend.pid if existing_frontend.pid is not None else "unknown"
+            _log(_t("start.reusing_frontend", url=frontend_url, pid=pid))
+            _wait_for_http(
+                name=_t("start.frontend"),
+                url=frontend_url,
+                process=None,
+                timeout=FRONTEND_READY_TIMEOUT,
+                should_stop=lambda: shutdown_requested,
+            )
+        else:
+            _log(_t("start.starting_frontend"))
+            web = _spawn(frontend.command, cwd=frontend.cwd, env=common_env, name="frontend")
+            processes.append(web)
+            _wait_for_http(
+                name=_t("start.frontend"),
+                url=f"http://127.0.0.1:{frontend_port}/",
+                process=web,
+                timeout=FRONTEND_READY_TIMEOUT,
+                should_stop=lambda: shutdown_requested,
+            )
+        _log(_t("start.open_in_browser", url=frontend_url))
 
         while not shutdown_requested:
             for proc in processes:

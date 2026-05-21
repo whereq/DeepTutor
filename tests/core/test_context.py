@@ -85,7 +85,7 @@ class TestUnifiedContext:
             config_overrides={"temperature": 0.5},
             language="zh",
             memory_context="user preference",
-            source_manifest="id=nb-1 name=\"Lecture\" type=notebook preview=\"...\"",
+            source_manifest='id=nb-1 name="Lecture" type=notebook preview="..."',
             metadata={"turn_id": "t1"},
         )
         assert ctx.session_id == "s1"

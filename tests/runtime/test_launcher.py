@@ -54,3 +54,43 @@ def test_packaged_web_cache_refreshes_when_public_settings_change(tmp_path: Path
 
     assert first == second
     assert "https://api.example" in (second / "server.js").read_text(encoding="utf-8")
+
+
+def test_detect_existing_source_frontend_from_next_dev_lock(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "web"
+    lock = source / ".next" / "dev" / "lock"
+    lock.parent.mkdir(parents=True)
+    lock.write_text(
+        '{"pid":12345,"port":3999,"appUrl":"http://localhost:3999"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(launcher, "_is_pid_alive", lambda pid: pid == 12345)
+    monkeypatch.setattr(launcher, "_port_accepts_connection", lambda port: False)
+
+    existing = launcher._detect_existing_source_frontend(
+        launcher.FrontendRuntime("source", [], source)
+    )
+
+    assert existing is not None
+    assert existing.url == "http://localhost:3999"
+    assert existing.port == 3999
+    assert existing.pid == 12345
+    assert existing.lock_path == lock
+
+
+def test_detect_existing_source_frontend_ignores_stale_lock(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "web"
+    lock = source / ".next" / "dev" / "lock"
+    lock.parent.mkdir(parents=True)
+    lock.write_text(
+        '{"pid":12345,"port":3999,"appUrl":"http://localhost:3999"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(launcher, "_is_pid_alive", lambda pid: False)
+    monkeypatch.setattr(launcher, "_port_accepts_connection", lambda port: False)
+
+    existing = launcher._detect_existing_source_frontend(
+        launcher.FrontendRuntime("source", [], source)
+    )
+
+    assert existing is None

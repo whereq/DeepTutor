@@ -166,6 +166,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"PocketBase startup check failed: {e}")
 
+    # Migrate any v1 memory files (PROFILE.md / SUMMARY.md) into a
+    # backup folder so the v2 three-layer subsystem starts clean.
+    try:
+        from deeptutor.services.memory import migrate_v1_if_needed
+
+        backup = migrate_v1_if_needed()
+        if backup is not None:
+            logger.info("v1 memory archived to %s", backup)
+    except Exception as e:
+        logger.warning(f"v1 memory migration failed: {e}")
+
     yield
 
     # Execute on shutdown
@@ -259,6 +270,7 @@ from deeptutor.api.routers import (
     attachments,
     auth,
     book,
+    capabilities_settings,
     chat,
     co_writer,
     dashboard,
@@ -268,14 +280,17 @@ from deeptutor.api.routers import (
     plugins_api,
     question,
     question_notebook,
+    quiz_judge,
     sessions,
     settings,
     skills,
-    solve,
     system,
     tutorbot,
     unified_ws,
     vision_solver,
+)
+from deeptutor.api.routers import (
+    tools as tools_router,
 )
 from deeptutor.multi_user.router import router as multi_user_router  # noqa: E402
 
@@ -295,7 +310,6 @@ app.include_router(
     dependencies=_auth,
 )
 
-app.include_router(solve.router, prefix="/api/v1", tags=["solve"], dependencies=_auth)
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"], dependencies=_auth)
 app.include_router(
     question.router, prefix="/api/v1/question", tags=["question"], dependencies=_auth
@@ -315,6 +329,12 @@ app.include_router(
 app.include_router(book.router, prefix="/api/v1/book", tags=["book"], dependencies=_auth)
 app.include_router(memory.router, prefix="/api/v1/memory", tags=["memory"], dependencies=_auth)
 app.include_router(
+    capabilities_settings.router,
+    prefix="/api/v1/capabilities",
+    tags=["capabilities"],
+    dependencies=_auth,
+)
+app.include_router(
     sessions.router, prefix="/api/v1/sessions", tags=["sessions"], dependencies=_auth
 )
 app.include_router(
@@ -327,6 +347,7 @@ app.include_router(
     settings.router, prefix="/api/v1/settings", tags=["settings"], dependencies=_auth
 )
 app.include_router(skills.router, prefix="/api/v1/skills", tags=["skills"], dependencies=_auth)
+app.include_router(tools_router.router, prefix="/api/v1/tools", tags=["tools"], dependencies=_auth)
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"], dependencies=_auth)
 app.include_router(
     plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"], dependencies=_auth
@@ -350,6 +371,10 @@ app.include_router(
 # Unified WebSocket endpoint — auth is checked inside the handler (WebSockets
 # cannot use FastAPI dependencies in the standard way)
 app.include_router(unified_ws.router, prefix="/api/v1", tags=["unified-ws"])
+
+# Quiz AI-judge WebSocket — same caveat as unified_ws above; auth is checked
+# inside the handler so the WS upgrade isn't rejected by an HTTP-style dep.
+app.include_router(quiz_judge.router, prefix="/api/v1", tags=["quiz-judge"])
 
 
 @app.get("/")

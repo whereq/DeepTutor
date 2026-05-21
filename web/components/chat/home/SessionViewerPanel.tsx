@@ -27,10 +27,12 @@ import dynamic from "next/dynamic";
 import {
   AlertCircle,
   ArrowRight,
+  Compass,
   ExternalLink,
   FileUp,
   Globe,
   Loader2,
+  MessageSquarePlus,
   Paperclip,
   X,
 } from "lucide-react";
@@ -40,17 +42,37 @@ import {
   resolveSourceUrl,
   type FilePreviewSource,
 } from "@/components/chat/preview/previewerFor";
+import QuizFollowupTabBody from "@/components/quiz/QuizFollowupTabBody";
+import type { QuizFollowupTabContext } from "@/context/QuizFollowupContext";
+import type { GeogebraTabPayload } from "@/context/GeogebraTabContext";
 import { apiUrl } from "@/lib/api";
 import { docIconFor } from "@/lib/doc-attachments";
 import type { MessageAttachment } from "@/context/UnifiedChatContext";
 
-const PdfPreview = dynamic(() => import("@/components/chat/preview/previewers/PdfPreview"));
-const ImagePreview = dynamic(() => import("@/components/chat/preview/previewers/ImagePreview"));
-const SvgPreview = dynamic(() => import("@/components/chat/preview/previewers/SvgPreview"));
-const MarkdownPreview = dynamic(() => import("@/components/chat/preview/previewers/MarkdownPreview"));
-const TextPreview = dynamic(() => import("@/components/chat/preview/previewers/TextPreview"));
-const OfficeTextPreview = dynamic(() => import("@/components/chat/preview/previewers/OfficeTextPreview"));
-const FallbackPreview = dynamic(() => import("@/components/chat/preview/previewers/FallbackPreview"));
+const PdfPreview = dynamic(
+  () => import("@/components/chat/preview/previewers/PdfPreview"),
+);
+const ImagePreview = dynamic(
+  () => import("@/components/chat/preview/previewers/ImagePreview"),
+);
+const SvgPreview = dynamic(
+  () => import("@/components/chat/preview/previewers/SvgPreview"),
+);
+const MarkdownPreview = dynamic(
+  () => import("@/components/chat/preview/previewers/MarkdownPreview"),
+);
+const TextPreview = dynamic(
+  () => import("@/components/chat/preview/previewers/TextPreview"),
+);
+const OfficeTextPreview = dynamic(
+  () => import("@/components/chat/preview/previewers/OfficeTextPreview"),
+);
+const FallbackPreview = dynamic(
+  () => import("@/components/chat/preview/previewers/FallbackPreview"),
+);
+const Geogebra = dynamic(() => import("@/components/Geogebra"), {
+  ssr: false,
+});
 
 const ANIM_MS = 220;
 
@@ -60,11 +82,27 @@ const ANIM_MS = 220;
 
 type ViewerTab =
   | { kind: "file"; id: string; label: string; source: FilePreviewSource }
-  | { kind: "web"; id: string; label: string; url: string };
+  | { kind: "web"; id: string; label: string; url: string }
+  | {
+      kind: "quiz-followup";
+      id: string;
+      label: string;
+      context: QuizFollowupTabContext;
+    }
+  | {
+      kind: "geogebra";
+      id: string;
+      label: string;
+      script: string;
+    };
 
 export interface SessionViewerPanelHandle {
   openFileTab(a: MessageAttachment): void;
   openWebTab(url: string): void;
+  /** Opens (or focuses) the follow-up chat tab for a quiz question. */
+  openQuizFollowupTab(context: QuizFollowupTabContext): void;
+  /** Opens (or focuses) an interactive GeoGebra applet tab. */
+  openGeogebraTab(payload: GeogebraTabPayload): void;
 }
 
 interface SessionViewerPanelProps {
@@ -80,6 +118,14 @@ function fileTabIdFor(a: MessageAttachment, fallback: number): string {
 
 function webTabIdFor(url: string): string {
   return `web:${url}`;
+}
+
+function quizFollowupTabIdFor(questionKey: string): string {
+  return `quiz-followup:${questionKey}`;
+}
+
+function geogebraTabIdFor(payloadId: string): string {
+  return `geogebra:${payloadId}`;
 }
 
 function hostnameFor(url: string): string {
@@ -172,10 +218,82 @@ function SessionViewerPanelInner(
     [onAutoOpen],
   );
 
+  const openQuizFollowupTab = useCallback(
+    (context: QuizFollowupTabContext) => {
+      setTabs((prev) => {
+        const id = quizFollowupTabIdFor(context.questionKey);
+        const existingIdx = prev.findIndex((tab) => tab.id === id);
+        // When the tab already exists, refresh its pinned context (answer
+        // text, judgment, etc.) since the learner may have updated it
+        // since the tab was first opened.
+        if (existingIdx >= 0) {
+          const refreshed: ViewerTab = {
+            kind: "quiz-followup",
+            id,
+            label: context.tabLabel,
+            context,
+          };
+          const next = [...prev];
+          next[existingIdx] = refreshed;
+          setActiveTabId(id);
+          return next;
+        }
+        const next: ViewerTab = {
+          kind: "quiz-followup",
+          id,
+          label: context.tabLabel,
+          context,
+        };
+        setActiveTabId(id);
+        return [...prev, next];
+      });
+      onAutoOpen();
+    },
+    [onAutoOpen],
+  );
+
+  const openGeogebraTab = useCallback(
+    (payload: GeogebraTabPayload) => {
+      setTabs((prev) => {
+        const id = geogebraTabIdFor(payload.id);
+        const existingIdx = prev.findIndex((tab) => tab.id === id);
+        if (existingIdx >= 0) {
+          // Refresh the script in case the assistant produced an updated
+          // version under the same payload id (e.g. a refined figure).
+          const refreshed: ViewerTab = {
+            kind: "geogebra",
+            id,
+            label: payload.title || "GeoGebra",
+            script: payload.script,
+          };
+          const next = [...prev];
+          next[existingIdx] = refreshed;
+          setActiveTabId(id);
+          return next;
+        }
+        const next: ViewerTab = {
+          kind: "geogebra",
+          id,
+          label: payload.title || "GeoGebra",
+          script: payload.script,
+        };
+        setActiveTabId(id);
+        return [...prev, next];
+      });
+      onAutoOpen();
+    },
+    [onAutoOpen],
+  );
+
   useImperativeHandle(
     ref,
-    () => ({ openFileTab, openWebTab }),
-    [openFileTab, openWebTab],
+    () => ({
+      openFileTab,
+      openWebTab,
+      openQuizFollowupTab,
+      openGeogebraTab,
+    }),
+    [openFileTab, openWebTab, openQuizFollowupTab, openGeogebraTab],
   );
 
   const closeTab = useCallback(
@@ -257,7 +375,14 @@ function SessionViewerPanelInner(
         {activeTab?.kind === "file" ? (
           <FileTabBody source={activeTab.source} />
         ) : activeTab?.kind === "web" ? (
-          <WebTabBody url={activeTab.url} />
+          <WebTabBody key={activeTab.url} url={activeTab.url} />
+        ) : activeTab?.kind === "quiz-followup" ? (
+          <QuizFollowupTabBody
+            key={activeTab.context.questionKey}
+            context={activeTab.context}
+          />
+        ) : activeTab?.kind === "geogebra" ? (
+          <GeogebraTabBody key={activeTab.id} script={activeTab.script} />
         ) : (
           <ViewerLanding
             onOpenWebTab={openWebTab}
@@ -302,34 +427,44 @@ function TabBar({
       <div className="flex min-w-0 flex-1 items-end gap-[2px] overflow-x-auto">
         {tabs.map((tab) => {
           const active = tab.id === activeTabId;
-          const Icon = tab.kind === "web" ? Globe : Paperclip;
+          const Icon =
+            tab.kind === "web"
+              ? Globe
+              : tab.kind === "quiz-followup"
+                ? MessageSquarePlus
+                : tab.kind === "geogebra"
+                  ? Compass
+                  : Paperclip;
           return (
-            <button
+            <div
               key={tab.id}
-              type="button"
-              onClick={() => onSelect(tab.id)}
-              className={`group inline-flex max-w-[180px] shrink-0 items-center gap-1.5 rounded-t-md px-2.5 py-1.5 text-[11.5px] font-medium transition-colors ${
+              className={`group inline-flex max-w-[180px] shrink-0 items-center rounded-t-md text-[11.5px] font-medium transition-colors ${
                 active
                   ? "bg-[var(--card)] text-[var(--foreground)]"
                   : "bg-transparent text-[var(--muted-foreground)] hover:bg-[color-mix(in_srgb,var(--card)_70%,transparent)] hover:text-[var(--foreground)]"
               }`}
               title={tab.label}
             >
-              <Icon size={11} strokeWidth={1.9} className="shrink-0" />
-              <span className="truncate">{tab.label}</span>
-              <span
-                role="button"
-                tabIndex={-1}
+              <button
+                type="button"
+                onClick={() => onSelect(tab.id)}
+                className="inline-flex min-w-0 flex-1 items-center gap-1.5 py-1.5 pl-2.5 pr-1 text-left"
+              >
+                <Icon size={11} strokeWidth={1.9} className="shrink-0" />
+                <span className="truncate">{tab.label}</span>
+              </button>
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   onCloseTab(tab.id);
                 }}
-                className="-mr-0.5 ml-0.5 rounded-sm p-[1px] text-[var(--muted-foreground)] opacity-60 transition-opacity hover:bg-[var(--muted)]/70 hover:text-[var(--foreground)] hover:opacity-100"
+                className="mr-1 rounded-sm p-[1px] text-[var(--muted-foreground)] opacity-60 transition-opacity hover:bg-[var(--muted)]/70 hover:text-[var(--foreground)] hover:opacity-100"
                 aria-label={t("Close tab")}
               >
                 <X size={10} />
-              </span>
-            </button>
+              </button>
+            </div>
           );
         })}
       </div>
@@ -413,7 +548,7 @@ function ViewerLanding({
         <button
           type="submit"
           disabled={!urlInput.trim()}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--primary)] px-3 py-1 text-[11px] font-medium text-white transition-opacity disabled:opacity-30"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--primary)] px-3 py-1 text-[11px] font-medium text-[var(--primary-foreground)] transition-opacity disabled:opacity-30"
           aria-label={t("Open URL")}
         >
           <ArrowRight size={11} strokeWidth={2.2} />
@@ -452,10 +587,7 @@ function ViewerLanding({
 
 function FileTabBody({ source }: { source: FilePreviewSource }) {
   const { t } = useTranslation();
-  const previewUrl = useMemo(
-    () => resolveSourceUrl(source, apiUrl),
-    [source],
-  );
+  const previewUrl = useMemo(() => resolveSourceUrl(source, apiUrl), [source]);
   const kind = previewKindFor(source);
   const filename = source.filename || t("Attachment");
   const spec = docIconFor(filename);
@@ -583,11 +715,9 @@ function WebTabBody({ url }: { url: string }) {
   }, [url]);
 
   useEffect(() => {
-    setLoaded(false);
-    setTimedOut(false);
     const timer = window.setTimeout(() => setTimedOut(true), 4500);
     return () => window.clearTimeout(timer);
-  }, [url]);
+  }, []);
 
   const blocked = timedOut && !loaded;
 
@@ -614,7 +744,7 @@ function WebTabBody({ url }: { url: string }) {
           onClick={openInBrowser}
           className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
             blocked
-              ? "bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90"
+              ? "bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary)]/90"
               : "border border-[var(--border)]/55 text-[var(--muted-foreground)] hover:border-[var(--primary)]/35 hover:text-[var(--primary)]"
           }`}
         >
@@ -636,9 +766,7 @@ function WebTabBody({ url }: { url: string }) {
           size={12}
           strokeWidth={1.9}
           className={`mt-[1px] shrink-0 ${
-            blocked
-              ? "text-[var(--primary)]"
-              : "text-[var(--muted-foreground)]"
+            blocked ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"
           }`}
         />
         <span>
@@ -673,6 +801,29 @@ function WebTabBody({ url }: { url: string }) {
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Geogebra tab body                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Renders an interactive GeoGebra applet for a ggbscript payload. The
+ * heavy lifting (deployggb.js load + applet mount + evalCommand loop)
+ * lives in the shared ``Geogebra`` component; this body just gives it
+ * the right size and chrome inside the tab.
+ */
+function GeogebraTabBody({ script }: { script: string }) {
+  return (
+    <div className="h-full w-full overflow-auto bg-[var(--card)] p-3">
+      <Geogebra
+        script={script}
+        width={560}
+        height={520}
+        className="m-0 border-0 bg-transparent"
+      />
     </div>
   );
 }

@@ -31,9 +31,7 @@ _CONTEXT_WINDOW_KEYS = (
     "max_sequence_length",
 )
 
-_KNOWN_CONTEXT_WINDOWS: tuple[tuple[str, int], ...] = (
-    ("deepseek-v4", 1_000_000),
-)
+_KNOWN_CONTEXT_WINDOWS: tuple[tuple[str, int], ...] = (("deepseek-v4", 1_000_000),)
 
 
 @dataclass(frozen=True)

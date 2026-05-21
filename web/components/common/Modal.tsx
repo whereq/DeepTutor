@@ -130,7 +130,7 @@ export default function Modal({
       // mousedown rather than click so dragging out of an input doesn't
       // accidentally close on mouseup.
       onMouseDown={handleBackdropMouseDown}
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in"
+      className="fixed inset-0 bg-[var(--overlay)] backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in"
     >
       <div
         ref={dialogRef}

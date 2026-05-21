@@ -464,10 +464,11 @@ async def bot_chat_ws(ws: WebSocket, bot_id: str):
                 await _safe_send({"type": "thinking", "content": text})
 
             try:
+                chat_id_value = data.get("chat_id", "web")
                 response = await mgr.send_message(
                     bot_id,
                     content,
-                    chat_id=data.get("chat_id", "web"),
+                    chat_id=chat_id_value,
                     on_progress=on_progress,
                 )
                 if not await _safe_send({"type": "content", "content": response}):

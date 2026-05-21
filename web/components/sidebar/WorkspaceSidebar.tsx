@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { SidebarShell } from "@/components/sidebar/SidebarShell";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -13,13 +13,10 @@ import {
   updateSessionTitle,
   type SessionSummary,
 } from "@/lib/session-api";
-import { surfaceForPath } from "@/lib/session-surfaces";
 
 export default function WorkspaceSidebar() {
   const { t } = useTranslation();
   const router = useRouter();
-  const pathname = usePathname();
-  const surface = useMemo(() => surfaceForPath(pathname), [pathname]);
   const {
     newSession,
     selectedSessionId,
@@ -35,23 +32,23 @@ export default function WorkspaceSidebar() {
       setLoadingSessions(true);
     }
     try {
-      setSessions(
-        await listSessions(50, 0, { force: true, kind: surface.kind }),
-      );
+      setSessions(await listSessions(50, 0, { force: true }));
       hasLoadedSessionsRef.current = true;
     } catch (error) {
       console.error("Failed to load sessions", error);
     } finally {
       setLoadingSessions(false);
     }
-  }, [surface.kind]);
+  }, []);
 
-  // Re-load when the user navigates between /chat and /co-learn so the
-  // sidebar only ever shows sessions for the active surface.
+  // First mount shows the skeleton; subsequent refreshes triggered by
+  // ``sidebarRefreshToken`` (STREAM_END, server-side session bind,
+  // turn deletion) silently swap in the new list. Resetting the ref
+  // each refresh briefly re-renders the loading skeleton, which the
+  // user perceives as a flicker on every message send / Answer Now.
   useEffect(() => {
-    hasLoadedSessionsRef.current = false;
     void refreshSessions();
-  }, [refreshSessions, sidebarRefreshToken, surface.kind]);
+  }, [refreshSessions, sidebarRefreshToken]);
 
   const orderedSessions = sessions
     .map((session, index) => {
@@ -77,14 +74,14 @@ export default function WorkspaceSidebar() {
 
   const handleNewChat = () => {
     newSession();
-    router.push(surface.basePath);
+    router.push("/chat");
   };
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
-      router.push(`${surface.basePath}/${sessionId}`);
+      router.push(`/chat/${sessionId}`);
     },
-    [router, surface.basePath],
+    [router],
   );
 
   const handleRenameSession = useCallback(
@@ -114,10 +111,10 @@ export default function WorkspaceSidebar() {
       );
       if (selectedSessionId === sessionId) {
         newSession();
-        router.push(surface.basePath);
+        router.push("/chat");
       }
     },
-    [newSession, router, selectedSessionId, surface.basePath, t],
+    [newSession, router, selectedSessionId, t],
   );
 
   return (

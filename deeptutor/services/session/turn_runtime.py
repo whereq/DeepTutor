@@ -14,6 +14,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Literal
 
 from deeptutor.core.stream import StreamEvent, StreamEventType
+from deeptutor.services.llm.utils import clean_thinking_tags
 from deeptutor.services.path_service import get_path_service
 from deeptutor.services.session.protocol import SessionStoreProtocol
 
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-MemoryReference = Literal["summary", "profile"]
+MemoryReference = Literal["recent", "profile", "scope", "preferences", "summary"]
 
 
 def _should_capture_assistant_content(event: StreamEvent) -> bool:
@@ -42,15 +43,74 @@ def _clip_text(value: str, limit: int = 4000) -> str:
     return text[:limit].rstrip() + "\n...[truncated]"
 
 
+_TITLE_QUOTE_PAIRS: tuple[tuple[str, str], ...] = (
+    ('"', '"'),
+    ("'", "'"),
+    ("“", "”"),
+    ("‘", "’"),
+    ("「", "」"),
+    ("『", "』"),
+    ("`", "`"),
+)
+_TITLE_PREFIXES: tuple[str, ...] = (
+    "Title:",
+    "title:",
+    "TITLE:",
+    "Title-",
+    "标题：",
+    "标题:",
+    "对话标题：",
+    "对话标题:",
+)
+_TITLE_TRAILING_PUNCT = ".。!！?？,，;；、 \t"
+
+
+def _sanitize_session_title(raw: str) -> str:
+    """Trim the noise LLMs love to add to short titles.
+
+    Strips model reasoning tags, surrounding quotes, leading "Title:" labels,
+    trailing punctuation, and Markdown bold/italic markers. Caps length at
+    80 characters so a chatty model can't blow past the sidebar layout.
+    """
+    text = clean_thinking_tags(raw or "").strip()
+    if not text:
+        return ""
+    text = text.splitlines()[0].strip()
+    # Iterate until the text stops shrinking — models often nest the
+    # noise (e.g. ``**Title:** "Hello"``) so a single pass leaves
+    # leftover wrappers.
+    for _ in range(8):
+        prev = text
+        text = text.lstrip("*_#- \t").rstrip("*_ \t")
+        for prefix in _TITLE_PREFIXES:
+            if text.startswith(prefix):
+                text = text[len(prefix) :].strip()
+                break
+        for opener, closer in _TITLE_QUOTE_PAIRS:
+            if len(text) >= 2 and text.startswith(opener) and text.endswith(closer):
+                text = text[len(opener) : len(text) - len(closer)].strip()
+                break
+        text = text.rstrip(_TITLE_TRAILING_PUNCT)
+        if text == prev:
+            break
+    return text[:80]
+
+
 def _extract_memory_references(payload: dict[str, Any]) -> list[MemoryReference]:
-    """Return the explicit public memory files requested for this turn."""
+    """Return the L3 slot names the client opted in for this turn.
+
+    Any non-empty list triggers ``read_l3_concat`` injection in v2 — the
+    individual names are kept for forward-compat with workbench UI hints
+    (e.g. "I want preferences in this turn") even though the read tool
+    returns the full concat.
+    """
     refs = payload.get("memory_references", []) or []
     if not isinstance(refs, list):
         return []
-
+    allowed = {"recent", "profile", "scope", "preferences", "summary"}
     out: list[MemoryReference] = []
     for item in refs:
-        if item in {"summary", "profile"} and item not in out:
+        if item in allowed and item not in out:
             out.append(item)
     return out
 
@@ -222,6 +282,33 @@ async def _build_question_bank_context(
     return "\n\n---\n\n".join(blocks)
 
 
+def _normalize_filename_list(raw: dict[str, Any]) -> list[str]:
+    """Coalesce legacy single-filename and modern multi-filename inputs.
+
+    Returns the cleaned list (possibly empty). Empty / whitespace-only
+    entries are dropped, and the singular ``user_answer_image_filename``
+    is honoured as a fallback so older clients still surface their
+    filename in the system prompt.
+    """
+    candidates: list[Any] = []
+    plural = raw.get("user_answer_image_filenames")
+    if isinstance(plural, list):
+        candidates.extend(plural)
+    elif isinstance(plural, str):
+        candidates.append(plural)
+    legacy = raw.get("user_answer_image_filename")
+    if isinstance(legacy, str) and legacy.strip():
+        candidates.append(legacy)
+    cleaned: list[str] = []
+    for item in candidates:
+        if not isinstance(item, str):
+            continue
+        name = item.strip()
+        if name:
+            cleaned.append(name)
+    return cleaned
+
+
 def _extract_followup_question_context(
     config: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
@@ -258,6 +345,17 @@ def _extract_followup_question_context(
         "knowledge_context": _clip_text(str(raw.get("knowledge_context", "") or "").strip()),
         "user_answer": str(raw.get("user_answer", "") or "").strip(),
         "is_correct": raw.get("is_correct"),
+        # Filenames of the learner's image answers, when any were attached.
+        # The bytes are sent as regular WS attachments on the first
+        # follow-up turn — we just record the filenames here so the system
+        # prompt can tell the LLM *what* those attached images actually
+        # are. Accept both the legacy single ``user_answer_image_filename``
+        # string and the new ``user_answer_image_filenames`` list.
+        "user_answer_image_filenames": _normalize_filename_list(raw),
+        # Most recent AI-judge output the learner saw, if they ran the
+        # judge. Forwarded so the follow-up tutor can build on the same
+        # assessment rather than starting fresh.
+        "ai_judgment": _clip_text(str(raw.get("ai_judgment", "") or "").strip()),
     }
 
 
@@ -324,6 +422,28 @@ def _format_followup_question_context(context: dict[str, Any], language: str = "
                 context.get("explanation") or "(none)",
             ]
         )
+        image_filenames = context.get("user_answer_image_filenames") or []
+        if isinstance(image_filenames, list) and image_filenames:
+            filename_text = "、".join(image_filenames)
+            count_text = f"{len(image_filenames)} 张" if len(image_filenames) > 1 else "一张"
+            lines.extend(
+                [
+                    "",
+                    "学习者作答附图：",
+                    f"该作答共附了{count_text}图片（文件名：{filename_text}），"
+                    f"随首条追问消息一起发送，是用户提交的作答内容的一部分，不是无关上下文。"
+                    f"请结合图片中的文字/公式/草图进行解读，并将其视为对上面 “User answer” 文本的补充。",
+                ]
+            )
+        ai_judgment = context.get("ai_judgment")
+        if ai_judgment:
+            lines.extend(
+                [
+                    "",
+                    "AI 评判（之前已对学习者作答给出的评判，请基于此继续，不要重复完整重写）：",
+                    ai_judgment,
+                ]
+            )
         if context.get("knowledge_context"):
             lines.extend(
                 [
@@ -362,6 +482,32 @@ def _format_followup_question_context(context: dict[str, Any], language: str = "
             context.get("explanation") or "(none)",
         ]
     )
+    image_filenames = context.get("user_answer_image_filenames") or []
+    if isinstance(image_filenames, list) and image_filenames:
+        joined = ", ".join(image_filenames)
+        plural = "images were" if len(image_filenames) > 1 else "image was"
+        plural_noun = (
+            "Learner answer images" if len(image_filenames) > 1 else "Learner answer image"
+        )
+        lines.extend(
+            [
+                "",
+                f"{plural_noun}:",
+                f"{len(image_filenames)} {plural} attached to the first follow-up message "
+                f"(filenames: {joined}). They are part of the learner's answer — read their "
+                "text/formulas/sketches and treat them as a supplement to the typed `User answer` "
+                "above, not unrelated context.",
+            ]
+        )
+    ai_judgment = context.get("ai_judgment")
+    if ai_judgment:
+        lines.extend(
+            [
+                "",
+                "Prior AI judgment (already shown to the learner — build on it instead of restating it in full):",
+                ai_judgment,
+            ]
+        )
     if context.get("knowledge_context"):
         lines.extend(
             [
@@ -400,6 +546,17 @@ class TurnRuntimeManager:
         self.store = store or get_session_store()
         self._lock = asyncio.Lock()
         self._executions: dict[str, _TurnExecution] = {}
+        # Per-turn reply queues used by tools that pause the agentic
+        # loop (e.g. ``ask_user``). Queue is created in ``_run_turn``
+        # before the orchestrator is invoked and cleaned up in the
+        # ``finally`` block, so callers of ``submit_user_reply`` see
+        # ``False`` for any turn that is no longer awaiting input.
+        # Each entry is a dict of shape:
+        #   {"text": str, "answers": list[{"questionId": str, "text": str}] | None}
+        # ``text`` is always present (flat fallback for legacy callers);
+        # ``answers`` carries the structured per-question replies when the
+        # frontend sends the v2 ``ask_user`` shape.
+        self._reply_queues: dict[str, asyncio.Queue[dict[str, Any] | None]] = {}
 
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         capability = str(payload.get("capability") or "chat")
@@ -426,15 +583,7 @@ class TurnRuntimeManager:
             "capability": capability,
             "config": {**validated_public_config, **runtime_only_config},
         }
-        # ``kind`` tags the surface that originated this turn so /chat and
-        # /co-learn never list each other's sessions. Existing sessions
-        # preserve their original kind (ensure_session is a no-op if it
-        # already exists).
-        session_kind = str(payload.get("kind") or "chat").strip() or "chat"
-        session = await self.store.ensure_session(
-            payload.get("session_id"),
-            kind=session_kind,
-        )
+        session = await self.store.ensure_session(payload.get("session_id"))
         preferences = session.get("preferences") or {}
         raw_llm_selection = payload.get("llm_selection")
         if raw_llm_selection is None:
@@ -487,6 +636,19 @@ class TurnRuntimeManager:
                 )
             except ValueError as exc:
                 raise RuntimeError(str(exc)) from exc
+        # If the caller didn't pin a per-turn tool list (e.g. non-web
+        # channels or the new web UI which sources tools from
+        # /settings/tools), back-fill from the user's saved toggleable-tool
+        # preference so the chat pipeline sees the same set the user picked
+        # in Settings. Callers that explicitly pass ``tools`` (including
+        # an empty list) keep their value untouched.
+        if payload.get("tools") is None:
+            try:
+                from deeptutor.api.routers.settings import get_enabled_optional_tools
+
+                payload = {**payload, "tools": list(get_enabled_optional_tools())}
+            except Exception:
+                payload = {**payload, "tools": []}
         payload = {**payload, "llm_selection": llm_selection}
         preference_update: dict[str, Any] = {
             "capability": capability,
@@ -651,6 +813,35 @@ class TurnRuntimeManager:
         execution.task.cancel()
         return True
 
+    async def submit_user_reply(
+        self,
+        turn_id: str,
+        text: str | None = None,
+        *,
+        answers: list[dict[str, Any]] | None = None,
+    ) -> bool:
+        """Deliver a user reply to a turn that's paused on ``ask_user``.
+
+        Returns ``True`` if the turn was waiting and the reply was
+        accepted; ``False`` if no waiter is registered (turn finished,
+        was cancelled, or the model never asked).
+
+        Accepts either ``text`` (single free-form reply, legacy single-
+        question shape) or ``answers`` (list of ``{questionId, text}``
+        pairs, v2 multi-question shape). Both may be passed; the
+        consumer prefers structured ``answers`` when present and falls
+        back to ``text`` for the legacy case. The payload is enqueued —
+        the pipeline's ``await waiter()`` call unblocks on the next
+        event-loop tick and substitutes the reply into the matching
+        ``role=tool`` message.
+        """
+        queue = self._reply_queues.get(turn_id)
+        if queue is None:
+            return False
+        payload: dict[str, Any] = {"text": text or "", "answers": answers}
+        await queue.put(payload)
+        return True
+
     async def subscribe_turn(
         self,
         turn_id: str,
@@ -658,9 +849,22 @@ class TurnRuntimeManager:
     ) -> AsyncIterator[dict[str, Any]]:
         backlog = await self.store.get_turn_events(turn_id, after_seq=after_seq)
         last_seq = after_seq
+        # Track whether we ever yielded a terminal event (DONE) — if the live
+        # queue ends WITHOUT one (e.g. a transient send-side stall on
+        # ``safe_send`` swallowed it), we synthesise one before returning so
+        # the frontend's ``isStreaming`` state clears immediately rather than
+        # waiting on the 45s heartbeat-timeout + reconnect catchup path.
+        done_yielded = False
+
+        def _track(item: dict[str, Any]) -> dict[str, Any]:
+            nonlocal done_yielded
+            if str(item.get("type") or "") == "done":
+                done_yielded = True
+            return item
+
         for item in backlog:
             last_seq = max(last_seq, int(item.get("seq") or 0))
-            yield item
+            yield _track(item)
 
         queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         subscriber = _LiveSubscriber(queue=queue)
@@ -671,9 +875,7 @@ class TurnRuntimeManager:
             if execution is not None:
                 execution.subscribers.append(subscriber)
                 live_backlog = [
-                    item
-                    for item in execution.events
-                    if int(item.get("seq") or 0) > last_seq
+                    item for item in execution.events if int(item.get("seq") or 0) > last_seq
                 ]
 
         for item in live_backlog:
@@ -681,7 +883,7 @@ class TurnRuntimeManager:
             if seq <= last_seq:
                 continue
             last_seq = seq
-            yield item
+            yield _track(item)
 
         catchup = []
         if execution is None:
@@ -691,11 +893,16 @@ class TurnRuntimeManager:
             if seq <= last_seq:
                 continue
             last_seq = seq
-            yield item
+            yield _track(item)
 
         turn = await self.store.get_turn(turn_id)
         if execution is None:
             if turn is None or turn.get("status") != "running":
+                # Turn already finished and we didn't see a DONE in any of the
+                # persisted history above — synthesise one so the caller can
+                # still close out its streaming state cleanly.
+                if not done_yielded:
+                    yield self._synthesize_done_event(turn_id, turn)
                 return
         try:
             while True:
@@ -706,7 +913,7 @@ class TurnRuntimeManager:
                 if seq <= last_seq:
                     continue
                 last_seq = seq
-                yield item
+                yield _track(item)
         finally:
             async with self._lock:
                 execution = self._executions.get(turn_id)
@@ -714,6 +921,53 @@ class TurnRuntimeManager:
                     execution.subscribers = [
                         sub for sub in execution.subscribers if sub is not subscriber
                     ]
+            # Safety net: if we drained the live queue (None sentinel arrived)
+            # without ever yielding a DONE, the turn is over server-side but
+            # the frontend wouldn't know. Read the persisted turn status one
+            # more time and synthesise a terminal DONE only for genuinely
+            # terminal turns so ``isStreaming`` clears without waiting on
+            # the heartbeat-reconnect fallback. A running turn may be paused
+            # on ``ask_user`` or may have had this subscription replaced; in
+            # that case a synthetic DONE would falsely mark the turn
+            # completed while the backend is still awaiting input.
+            if not done_yielded:
+                final_turn = await self.store.get_turn(turn_id)
+                final_status = str((final_turn or {}).get("status") or "").strip()
+                if final_turn is None or final_status in {"failed", "cancelled", "completed"}:
+                    yield self._synthesize_done_event(turn_id, final_turn)
+
+    @staticmethod
+    def _synthesize_done_event(turn_id: str, turn: dict[str, Any] | None) -> dict[str, Any]:
+        """Build a DONE event payload from the persisted turn status.
+
+        Used as a recovery path when ``subscribe_turn`` finishes without
+        ever observing a live or persisted DONE event for a turn that has
+        nonetheless terminated server-side. Mirrors the shape of the
+        events the runtime would normally publish so the frontend doesn't
+        need a special code path to consume it.
+        """
+        status = "completed"
+        error: str | None = None
+        if turn is not None:
+            raw_status = str(turn.get("status") or "").strip()
+            if raw_status in {"failed", "cancelled", "completed"}:
+                status = raw_status
+            error_text = str(turn.get("error") or "").strip()
+            if error_text:
+                error = error_text
+        metadata: dict[str, Any] = {"status": status, "synthesized": True}
+        if error:
+            metadata["error"] = error
+        return {
+            "type": "done",
+            "source": "turn_runtime",
+            "stage": "",
+            "content": "",
+            "metadata": metadata,
+            "session_id": "",
+            "turn_id": turn_id,
+            "seq": 0,
+        }
 
     async def subscribe_session(
         self,
@@ -738,13 +992,22 @@ class TurnRuntimeManager:
         stream_done_sent = False
         llm_scope_token: Token[LLMConfig | None] | None = None
         reset_active_llm_selection: Callable[[Token[LLMConfig | None] | None], None] | None = None
+        # One queue per turn for ``ask_user`` style pause-resume.
+        # Created here (BEFORE the orchestrator runs) so the pipeline can
+        # await on the awaitable we publish into ``context.metadata``.
+        # Cleaned up unconditionally in the outer ``finally``.
+        reply_queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+        self._reply_queues[turn_id] = reply_queue
+
+        async def _wait_for_user_reply() -> dict[str, Any] | None:
+            return await reply_queue.get()
 
         try:
             from deeptutor.agents.notebook import NotebookAnalysisAgent
             from deeptutor.book.context import build_book_context
             from deeptutor.core.context import Attachment, UnifiedContext
             from deeptutor.runtime.orchestrator import ChatOrchestrator
-            from deeptutor.services.memory import get_memory_service
+            from deeptutor.services.memory import get_memory_store
             from deeptutor.services.model_selection.runtime import (
                 activate_llm_selection,
             )
@@ -901,8 +1164,8 @@ class TurnRuntimeManager:
                 on_event=_emit_context_event,
                 leaf_message_id=branch_parent_id,
             )
-            memory_service = get_memory_service()
-            memory_context = memory_service.build_memory_context(memory_references)
+            memory_store = get_memory_store()
+            memory_context = memory_store.read_l3_concat() if memory_references else ""
 
             # Skill resolution differs for admin vs non-admin users:
             # - Admin: use the user-scope SkillService (which is the admin
@@ -981,9 +1244,9 @@ class TurnRuntimeManager:
                 # ancestor chain) + 1. ``_count_branch_user_turns`` walks
                 # the same lineage the inventory builder uses, so we agree
                 # on what "turn N" means for the historical labels.
-                current_turn_ordinal = await _count_branch_user_turns(
-                    self.store, session_id, branch_parent_id
-                ) + 1
+                current_turn_ordinal = (
+                    await _count_branch_user_turns(self.store, session_id, branch_parent_id) + 1
+                )
                 inventory = await build_inventory(
                     self.store,
                     session_id=session_id,
@@ -1024,7 +1287,9 @@ class TurnRuntimeManager:
                         if not history_session:
                             continue
 
-                        history_messages = await self.store.get_messages_for_context(history_session_id)
+                        history_messages = await self.store.get_messages_for_context(
+                            history_session_id
+                        )
                         transcript_lines = [
                             f"## {str(message.get('role', '')).title()}\n{message.get('content', '')}"
                             for message in history_messages
@@ -1053,7 +1318,9 @@ class TurnRuntimeManager:
                                 "id": history_session_id,
                                 "notebook_id": "__history__",
                                 "notebook_name": "History",
-                                "title": str(history_session.get("title", "") or "Untitled session"),
+                                "title": str(
+                                    history_session.get("title", "") or "Untitled session"
+                                ),
                                 "summary": history_summary,
                                 "output": "\n\n".join(transcript_lines),
                                 "metadata": {
@@ -1120,9 +1387,7 @@ class TurnRuntimeManager:
                 # both branched edits with a positive id and root edits
                 # with explicit null). Otherwise let the store auto-append.
                 parent_kwargs: dict[str, Any] = (
-                    {"parent_message_id": branch_parent_id}
-                    if branch_parent_explicit
-                    else {}
+                    {"parent_message_id": branch_parent_id} if branch_parent_explicit else {}
                 )
                 new_user_message_id = await self.store.add_message(
                     session_id=session_id,
@@ -1185,6 +1450,12 @@ class TurnRuntimeManager:
                     # turns with no attached sources). Consumed by the chat
                     # pipeline's tool kwargs injector.
                     "source_index": source_index,
+                    # Pause-resume hook: the agentic chat pipeline awaits
+                    # this callable when ``ask_user`` (or any other
+                    # ``pause_for_user``-emitting tool) pauses the loop.
+                    # The callable resolves when the frontend POSTs a
+                    # reply via the ``submit_user_reply`` WS message.
+                    "wait_for_user_reply": _wait_for_user_reply,
                 },
             )
 
@@ -1234,16 +1505,21 @@ class TurnRuntimeManager:
             await self._flush_buffered_events(execution)
             await self.store.update_turn_status(turn_id, "completed")
             if not is_regenerate:
+                # The frontend disconnects from this turn's WS subscription
+                # shortly after ``done`` (with a small grace window), so we
+                # generate the title here — inside the try block, before
+                # finally sends the ``None`` sentinel to subscribers — so
+                # the ``session_meta`` event still reaches them. The LLM
+                # scope set up at turn start is still active in this
+                # context, meaning the user's selected model is used.
                 try:
-                    await memory_service.refresh_from_turn(
-                        user_message=raw_user_content,
-                        assistant_message=assistant_content,
+                    await self._maybe_generate_session_title(
+                        execution=execution,
                         session_id=session_id,
-                        capability=capability_name or "chat",
-                        language=str(payload.get("language", "en") or "en"),
+                        ui_language=str(payload.get("language", "en") or "en"),
                     )
                 except Exception:
-                    logger.debug("Failed to refresh lightweight memory", exc_info=True)
+                    logger.debug("Failed to generate session title", exc_info=True)
         except asyncio.CancelledError:
             if not stream_done_sent:
                 await self._publish_live_event(
@@ -1301,6 +1577,10 @@ class TurnRuntimeManager:
         finally:
             if llm_scope_token is not None and reset_active_llm_selection is not None:
                 reset_active_llm_selection(llm_scope_token)
+            # Drop the reply queue first — any in-flight ``submit_user_reply``
+            # that finds the queue gone will return ``False`` rather than
+            # accumulating on a dead turn.
+            self._reply_queues.pop(turn_id, None)
             async with self._lock:
                 current = self._executions.get(turn_id)
                 if current is not None:
@@ -1339,6 +1619,121 @@ class TurnRuntimeManager:
             with contextlib.suppress(asyncio.QueueFull):
                 subscriber.queue.put_nowait(payload)
         return payload
+
+    async def _maybe_generate_session_title(
+        self,
+        *,
+        execution: _TurnExecution,
+        session_id: str,
+        ui_language: str,
+    ) -> None:
+        """Generate a short LLM-written title for a freshly-named session.
+
+        Runs only when the session still carries the ``New conversation``
+        sentinel — once a user manually renames the chat (or this method
+        has already filled in a title), it short-circuits. Uses the LLM
+        scope already active on the calling task, which is the user's
+        currently selected model.
+        """
+        if not session_id:
+            return
+        session = await self.store.get_session(session_id)
+        if not session:
+            return
+        current_title = str(session.get("title") or "").strip()
+        if current_title and current_title != "New conversation":
+            return
+
+        messages = await self.store.get_messages(session_id)
+        first_user = ""
+        first_assistant = ""
+        for m in messages:
+            role = str(m.get("role") or "")
+            content = str(m.get("content") or "").strip()
+            if not content:
+                continue
+            if role == "user" and not first_user:
+                first_user = content
+            elif role == "assistant" and not first_assistant:
+                first_assistant = content
+            if first_user and first_assistant:
+                break
+        if not first_user or not first_assistant:
+            return
+
+        title = ""
+        try:
+            from deeptutor.services.llm import stream as llm_stream
+
+            zh = str(ui_language or "").lower().startswith("zh")
+            if zh:
+                sys_prompt = (
+                    "你需要为一段对话生成一个简洁的标题。"
+                    "直接输出标题文本，不要引号、不要 Markdown 格式、"
+                    '不要末尾标点、不要 "标题：" 这类前缀。'
+                    "标题控制在 4-10 个汉字以内。"
+                )
+                user_prompt = (
+                    "请基于以下对话生成标题：\n\n"
+                    f"[用户]\n{_clip_text(first_user, 800)}\n\n"
+                    f"[助手]\n{_clip_text(first_assistant, 1500)}"
+                )
+            else:
+                sys_prompt = (
+                    "You generate a concise, descriptive title for a "
+                    "conversation. Output only the title as plain text "
+                    "— no quotes, no markdown, no trailing punctuation, "
+                    'no "Title:" prefix. Keep it 4-8 words.'
+                )
+                user_prompt = (
+                    "Generate a title for this conversation:\n\n"
+                    f"[User]\n{_clip_text(first_user, 800)}\n\n"
+                    f"[Assistant]\n{_clip_text(first_assistant, 1500)}"
+                )
+
+            async def _collect_title() -> str:
+                buf: list[str] = []
+                async for c in llm_stream(
+                    prompt=user_prompt,
+                    system_prompt=sys_prompt,
+                    temperature=0.3,
+                    max_tokens=80,
+                ):
+                    buf.append(c)
+                return "".join(buf)
+
+            raw_title = await asyncio.wait_for(_collect_title(), timeout=20.0)
+            title = _sanitize_session_title(raw_title)
+        except asyncio.TimeoutError:
+            logger.debug("Title LLM call timed out — falling back")
+        except Exception:
+            logger.debug("Title LLM call failed", exc_info=True)
+
+        if not title:
+            # Fallback: truncate the first user message so the sidebar
+            # doesn't sit on "New conversation" indefinitely when the
+            # title model errors out.
+            title = first_user[:50] + ("..." if len(first_user) > 50 else "")
+
+        if not title:
+            return
+
+        try:
+            await self.store.update_session_title(session_id, title)
+        except Exception:
+            logger.debug("update_session_title failed", exc_info=True)
+            return
+
+        await self._publish_live_event(
+            execution,
+            StreamEvent(
+                type=StreamEventType.SESSION_META,
+                source="turn_runtime",
+                stage="title",
+                content=title,
+                metadata={"title": title, "session_id": session_id},
+            ),
+        )
 
     async def _flush_buffered_events(self, execution: _TurnExecution) -> None:
         """Persist buffered turn events after the live stream has already drained."""

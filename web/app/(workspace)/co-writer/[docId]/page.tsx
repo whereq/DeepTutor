@@ -972,11 +972,11 @@ export default function CoWriterPage() {
       );
       if (!response.ok) {
         throw new Error(
-          (await response.text()) || "Failed to edit selected text.",
+          (await response.text()) || t("Failed to edit selected text."),
         );
       }
       if (!response.body) {
-        throw new Error("Streaming response body is missing.");
+        throw new Error(t("Streaming response body is missing."));
       }
 
       const reader = response.body.getReader();
@@ -1007,7 +1007,7 @@ export default function CoWriterPage() {
         }
         if (eventName === "error") {
           throw new Error(
-            String(payload?.detail || "Failed to edit selected text."),
+            String(payload?.detail || t("Failed to edit selected text.")),
           );
         }
       };
@@ -1029,13 +1029,15 @@ export default function CoWriterPage() {
         processSseChunk(buffer.trim());
       }
       if (finalResult === undefined) {
-        throw new Error("Did not receive a final edit result.");
+        throw new Error(t("Did not receive a final edit result."));
       }
       const editedText = finalResult.edited_text ?? "";
 
       if (markdown !== selectedRange.snapshot) {
         throw new Error(
-          "The draft changed before AI edit finished. Please reselect the text and try again.",
+          t(
+            "The draft changed before AI edit finished. Please reselect the text and try again.",
+          ),
         );
       }
 
@@ -1046,7 +1048,7 @@ export default function CoWriterPage() {
         return;
       }
       setError(
-        err instanceof Error ? err.message : "Failed to edit selected text.",
+        err instanceof Error ? err.message : t("Failed to edit selected text."),
       );
     } finally {
       selectionRequestAbortRef.current = null;
@@ -1086,7 +1088,7 @@ export default function CoWriterPage() {
       });
       const data = await response.json();
       if (!response.ok)
-        throw new Error(data?.detail || "Failed to edit document.");
+        throw new Error(data?.detail || t("Failed to edit document."));
       pushUndo(markdown);
       setMarkdown(data.edited_text || "");
       setStatus(
@@ -1096,7 +1098,9 @@ export default function CoWriterPage() {
       );
       setIsEditModalOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to edit document.");
+      setError(
+        err instanceof Error ? err.message : t("Failed to edit document."),
+      );
     } finally {
       setIsEditing(false);
     }
@@ -1114,13 +1118,13 @@ export default function CoWriterPage() {
       });
       const data = await response.json();
       if (!response.ok)
-        throw new Error(data?.detail || "Failed to auto-mark document.");
+        throw new Error(data?.detail || t("Failed to auto-mark document."));
       pushUndo(markdown);
       setMarkdown(data.marked_text || "");
       setStatus(t("Applied auto-mark annotations."));
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to auto-mark document.",
+        err instanceof Error ? err.message : t("Failed to auto-mark document."),
       );
     } finally {
       setIsAutoMarking(false);
@@ -2233,7 +2237,7 @@ export default function CoWriterPage() {
       {/* ── AI Edit modal ── */}
       {isEditModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsEditModalOpen(false);
           }}
@@ -2344,7 +2348,7 @@ export default function CoWriterPage() {
 
       {confirmActionCopy && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4 backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget) setPendingConfirmAction(null);
           }}

@@ -2,10 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
-import {
-  subscribeNotifications,
-  type Notification,
-} from "@/lib/notifications";
+import { subscribeNotifications, type Notification } from "@/lib/notifications";
 
 /**
  * Renders the toast stack in the bottom-right. Mounted once at the

@@ -1,14 +1,21 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import {
   BarChart3,
   BrainCircuit,
-  Clapperboard,
   Code2,
+  Compass,
   Database,
   FileSearch,
   Globe,
@@ -35,6 +42,14 @@ import SessionActivityPanel, {
 import SessionViewerPanel, {
   type SessionViewerPanelHandle,
 } from "@/components/chat/home/SessionViewerPanel";
+import {
+  QuizFollowupProvider,
+  useQuizFollowupController,
+} from "@/context/QuizFollowupContext";
+import {
+  GeogebraTabProvider,
+  useGeogebraTabOpener,
+} from "@/context/GeogebraTabContext";
 import {
   BookmarkPlus,
   BookOpen,
@@ -73,11 +88,6 @@ import {
   type DeepQuestionFormConfig,
 } from "@/lib/quiz-types";
 import {
-  DEFAULT_MATH_ANIMATOR_CONFIG,
-  buildMathAnimatorWSConfig,
-  type MathAnimatorFormConfig,
-} from "@/lib/math-animator-types";
-import {
   DEFAULT_VISUALIZE_CONFIG,
   buildVisualizeWSConfig,
   type VisualizeFormConfig,
@@ -88,10 +98,13 @@ import {
   validateResearchConfig,
   type DeepResearchFormConfig,
   type OutlineItem,
-  type ResearchSource,
 } from "@/lib/research-types";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
 import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
+import {
+  getEnabledOptionalTools,
+  invalidateEnabledOptionalToolsCache,
+} from "@/lib/tools-settings";
 import { downloadChatMarkdown } from "@/lib/chat-export";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import {
@@ -146,10 +159,6 @@ const QuizConfigPanel = dynamic(
   () => import("@/components/quiz/QuizConfigPanel"),
   { ssr: false },
 );
-const MathAnimatorConfigPanel = dynamic(
-  () => import("@/components/math-animator/MathAnimatorConfigPanel"),
-  { ssr: false },
-);
 const VisualizeConfigPanel = dynamic(
   () => import("@/components/visualize/VisualizeConfigPanel"),
   { ssr: false },
@@ -165,6 +174,7 @@ const ResearchConfigPanel = dynamic(
 
 type ToolName =
   | "brainstorm"
+  | "geogebra_analysis"
   | "web_search"
   | "code_execution"
   | "reason"
@@ -176,24 +186,13 @@ interface ToolDef {
   icon: LucideIcon;
 }
 
-interface ResearchSourceDef {
-  name: ResearchSource;
-  label: string;
-  icon: LucideIcon;
-}
-
 const ALL_TOOLS: ToolDef[] = [
   { name: "brainstorm", label: "Brainstorm", icon: Lightbulb },
+  { name: "geogebra_analysis", label: "GeoGebra", icon: Compass },
   { name: "web_search", label: "Web Search", icon: Globe },
   { name: "code_execution", label: "Code", icon: Code2 },
   { name: "reason", label: "Reason", icon: Sparkles },
   { name: "paper_search", label: "Arxiv Search", icon: FileSearch },
-];
-
-const RESEARCH_SOURCES: ResearchSourceDef[] = [
-  { name: "kb", label: "Knowledge Base", icon: Database },
-  { name: "web", label: "Web", icon: Globe },
-  { name: "papers", label: "Papers", icon: FileSearch },
 ];
 
 interface CapabilityDef {
@@ -213,6 +212,7 @@ const CAPABILITIES: CapabilityDef[] = [
     icon: MessageSquare,
     allowedTools: [
       "brainstorm",
+      "geogebra_analysis",
       "web_search",
       "code_execution",
       "reason",
@@ -241,21 +241,14 @@ const CAPABILITIES: CapabilityDef[] = [
     label: "Research",
     description: "Comprehensive multi-agent research",
     icon: Microscope,
-    allowedTools: [],
-    defaultTools: [],
-  },
-  {
-    value: "math_animator",
-    label: "Animator",
-    description: "Generate math videos or storyboard images",
-    icon: Clapperboard,
-    allowedTools: [],
-    defaultTools: [],
+    allowedTools: ["web_search", "paper_search", "code_execution"],
+    defaultTools: ["web_search", "paper_search", "code_execution"],
   },
   {
     value: "visualize",
     label: "Visualize",
-    description: "Generate SVG, Chart.js, or Mermaid visualizations",
+    description:
+      "Generate charts, diagrams, interactive pages, or math animations",
     icon: BarChart3,
     allowedTools: [],
     defaultTools: [],
@@ -280,12 +273,6 @@ interface PendingAttachment {
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
 
-// ChatComposer still accepts isAutoMode/autoEnabledCaps/onToggleAutoCap so that
-// the same component can also be reused by the /co-learn page. Manual chat
-// always passes these dummies — the auto multi-select popover is never shown.
-const EMPTY_SET = new Set<string>();
-const noopToggleAutoCap = (_cap: string) => undefined;
-
 function getCapability(value: string | null): CapabilityDef {
   return CAPABILITIES.find((c) => c.value === (value || "")) ?? CAPABILITIES[0];
 }
@@ -309,12 +296,14 @@ export default function ChatPage() {
     setLLMSelection,
     sendMessage,
     cancelStreamingTurn,
+    submitUserReply,
     regenerateLastMessage,
     deleteTurn,
     editMessage,
     switchBranch,
     newSession,
     loadSession,
+    renameSessionTitle,
   } = useUnifiedChat();
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
@@ -326,6 +315,12 @@ export default function ChatPage() {
   const [llmOptionsError, setLLMOptionsError] = useState(false);
   const [capabilityConfigs, setCapabilityConfigs] =
     useState<CapabilityPlaygroundConfigMap>({});
+  // User-toggleable tools the user has enabled in /settings/tools. This is
+  // the single source of truth for which optional tools the chat agent may
+  // use; the chat composer no longer exposes a picker.
+  const [userEnabledTools, setUserEnabledTools] = useState<string[] | null>(
+    null,
+  );
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [dragging, setDragging] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -351,9 +346,7 @@ export default function ChatPage() {
       // entry.contentRect drops padding; the visual collision happens at
       // border-box width, so read it directly off the element.
       if (headerRef.current) {
-        setHeaderMeasuredWidth(
-          headerRef.current.getBoundingClientRect().width,
-        );
+        setHeaderMeasuredWidth(headerRef.current.getBoundingClientRect().width);
       }
     });
     observer.observe(el);
@@ -381,10 +374,7 @@ export default function ChatPage() {
     setActivityPanelOpen((prev) => {
       const next = !prev;
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(
-          "dt:chat:activity-panel",
-          next ? "1" : "0",
-        );
+        window.localStorage.setItem("dt:chat:activity-panel", next ? "1" : "0");
       }
       return next;
     });
@@ -415,10 +405,7 @@ export default function ChatPage() {
     setViewerPanelOpen((prev) => {
       const next = !prev;
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(
-          "dt:chat:viewer-panel",
-          next ? "1" : "0",
-        );
+        window.localStorage.setItem("dt:chat:viewer-panel", next ? "1" : "0");
       }
       return next;
     });
@@ -438,10 +425,6 @@ export default function ChatPage() {
     ...DEFAULT_QUIZ_CONFIG,
   });
   const [quizPdf, setQuizPdf] = useState<File | null>(null);
-  const [mathAnimatorConfig, setMathAnimatorConfig] =
-    useState<MathAnimatorFormConfig>({
-      ...DEFAULT_MATH_ANIMATOR_CONFIG,
-    });
   const [visualizeConfig, setVisualizeConfig] = useState<VisualizeFormConfig>({
     ...DEFAULT_VISUALIZE_CONFIG,
   });
@@ -450,13 +433,71 @@ export default function ChatPage() {
   );
   // Capability-config confirmation gate.
   //
-  // For capabilities that need explicit configuration (Quiz, Animator,
-  // Visualize, Research), the user must click *Confirm* in the right-side
-  // Activity panel before sending. Any subsequent edit to the underlying
-  // config invalidates the confirmation, so the user re-confirms once
-  // they've adjusted settings. Capability switches also reset this flag.
+  // For capabilities that need explicit configuration (Quiz, Visualize,
+  // Research), the user must click *Confirm* in the right-side Activity
+  // panel before sending. Any subsequent edit to the underlying config
+  // invalidates the confirmation, so the user re-confirms once they've
+  // adjusted settings. Capability switches also reset this flag.
   const [capabilityConfigConfirmed, setCapabilityConfigConfirmed] =
     useState(false);
+  // Per-session persistence of the capability-config form. The form lives
+  // in local React state, so anything that remounts the page (browser
+  // back/forward to /chat/<id>, URL-driven session swap, etc.) would
+  // otherwise wipe a confirmed-and-already-sent setup back to defaults.
+  // Storing the form by sessionId in localStorage keeps the selections —
+  // and the Confirmed badge — stable for the rest of the session.
+  const capabilityConfigStorageKey = useMemo(() => {
+    const sid = state.sessionId || sessionIdParam || "";
+    return sid ? `dt:chat:capability-config:${sid}` : null;
+  }, [state.sessionId, sessionIdParam]);
+  const lastHydratedConfigKeyRef = useRef<string | null>(null);
+  // Hydrate the form configs on first encounter of each session id, so
+  // the user's prior selections come back when they return to a session.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!capabilityConfigStorageKey) return;
+    if (lastHydratedConfigKeyRef.current === capabilityConfigStorageKey) return;
+    lastHydratedConfigKeyRef.current = capabilityConfigStorageKey;
+    const raw = window.localStorage.getItem(capabilityConfigStorageKey);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as {
+        quizConfig?: DeepQuestionFormConfig;
+        visualizeConfig?: VisualizeFormConfig;
+        researchConfig?: DeepResearchFormConfig;
+        capabilityConfigConfirmed?: boolean;
+      };
+      if (parsed.quizConfig) setQuizConfig(parsed.quizConfig);
+      if (parsed.visualizeConfig) setVisualizeConfig(parsed.visualizeConfig);
+      if (parsed.researchConfig) setResearchConfig(parsed.researchConfig);
+      if (typeof parsed.capabilityConfigConfirmed === "boolean") {
+        setCapabilityConfigConfirmed(parsed.capabilityConfigConfirmed);
+      }
+    } catch {
+      /* corrupted entry — ignore */
+    }
+  }, [capabilityConfigStorageKey]);
+  // Persist on every change. Write is synchronous and small, and
+  // localStorage already de-dupes identical writes at the browser level.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!capabilityConfigStorageKey) return;
+    window.localStorage.setItem(
+      capabilityConfigStorageKey,
+      JSON.stringify({
+        quizConfig,
+        visualizeConfig,
+        researchConfig,
+        capabilityConfigConfirmed,
+      }),
+    );
+  }, [
+    capabilityConfigStorageKey,
+    quizConfig,
+    visualizeConfig,
+    researchConfig,
+    capabilityConfigConfirmed,
+  ]);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showNotebookPicker, setShowNotebookPicker] = useState(false);
   const [showBookPicker, setShowBookPicker] = useState(false);
@@ -464,7 +505,6 @@ export default function ChatPage() {
   const [showQuestionBankPicker, setShowQuestionBankPicker] = useState(false);
   const [showSkillsPicker, setShowSkillsPicker] = useState(false);
   const [showMemoryPicker, setShowMemoryPicker] = useState(false);
-  const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [kbMenuOpen, setKbMenuOpen] = useState(false);
   const [selectedNotebookRecords, setSelectedNotebookRecords] = useState<
@@ -487,47 +527,40 @@ export default function ChatPage() {
   const dragCounter = useRef(0);
   const capMenuRef = useRef<HTMLDivElement>(null);
   const capBtnRef = useRef<HTMLButtonElement>(null);
-  const toolMenuRef = useRef<HTMLDivElement>(null);
-  const toolBtnRef = useRef<HTMLButtonElement>(null);
   const spaceMenuRef = useRef<HTMLDivElement>(null);
   const spaceBtnRef = useRef<HTMLButtonElement>(null);
   const kbMenuRef = useRef<HTMLDivElement>(null);
   const kbBtnRef = useRef<HTMLButtonElement>(null);
   const initialLoadRef = useRef(false);
+  // Bridge ref: ``ChatComposer`` writes a prefill function into this on
+  // mount; ``ChatMessageList`` reads it via ``handlePrefillComposer`` so an
+  // ``AskUserOptions`` chip click can drop text into the composer textarea.
+  const prefillInputRef = useRef<((text: string) => void) | null>(null);
+  const handlePrefillComposer = useCallback((text: string) => {
+    prefillInputRef.current?.(text);
+  }, []);
 
   const activeCap = useMemo(
     () => getCapability(state.activeCapability),
     [state.activeCapability],
   );
   const isQuizMode = activeCap.value === "deep_question";
-  const isMathAnimatorMode = activeCap.value === "math_animator";
   const isVisualizeMode = activeCap.value === "visualize";
   const isResearchMode = activeCap.value === "deep_research";
-  const capabilityNeedsConfig =
-    isQuizMode || isMathAnimatorMode || isVisualizeMode || isResearchMode;
+  const capabilityNeedsConfig = isQuizMode || isVisualizeMode || isResearchMode;
 
   // Edit-invalidates-confirm wrappers — flipping any field after the user
   // hit *Confirm* should restore the gate so they re-confirm intentionally.
   // `useCallback` keeps identities stable so the memoized ChatComposer /
   // CapabilityConfigCard don't churn on every keystroke.
-  const handleChangeQuizConfig = useCallback(
-    (next: DeepQuestionFormConfig) => {
-      setQuizConfig(next);
-      setCapabilityConfigConfirmed(false);
-    },
-    [],
-  );
+  const handleChangeQuizConfig = useCallback((next: DeepQuestionFormConfig) => {
+    setQuizConfig(next);
+    setCapabilityConfigConfirmed(false);
+  }, []);
   const handleUploadQuizPdf = useCallback((file: File | null) => {
     setQuizPdf(file);
     setCapabilityConfigConfirmed(false);
   }, []);
-  const handleChangeMathAnimatorConfig = useCallback(
-    (next: MathAnimatorFormConfig) => {
-      setMathAnimatorConfig(next);
-      setCapabilityConfigConfirmed(false);
-    },
-    [],
-  );
   const handleChangeVisualizeConfig = useCallback(
     (next: VisualizeFormConfig) => {
       setVisualizeConfig(next);
@@ -565,17 +598,103 @@ export default function ChatPage() {
       ensureActivityPanelOpen();
     }
   }, [capabilityNeedsConfig, ensureActivityPanelOpen]);
-  const selectedTools = useMemo(
-    () => new Set(state.enabledTools),
-    [state.enabledTools],
-  );
   const hasMessages = state.messages.length > 0;
+  const firstUserTitle = useMemo(
+    () =>
+      state.messages
+        .find((msg) => msg.role === "user")
+        ?.content.trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 80) || "",
+    [state.messages],
+  );
+  const persistedSessionTitle = state.sessionTitle.trim();
+  const displaySessionTitle =
+    persistedSessionTitle || firstUserTitle || t("New chat");
+  const canRenameSession = Boolean(state.sessionId);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const skipTitleCommitRef = useRef(false);
+  const [sessionTitleDraft, setSessionTitleDraft] =
+    useState(displaySessionTitle);
+  const [sessionTitleEditing, setSessionTitleEditing] = useState(false);
+  const [sessionTitleSaving, setSessionTitleSaving] = useState(false);
+  const [sessionTitleError, setSessionTitleError] = useState<string | null>(
+    null,
+  );
+  useEffect(() => {
+    if (sessionTitleEditing) return;
+    setSessionTitleDraft(displaySessionTitle);
+  }, [displaySessionTitle, sessionTitleEditing]);
+  useEffect(() => {
+    if (!sessionTitleEditing) return;
+    window.requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    });
+  }, [sessionTitleEditing]);
+  const startSessionTitleEdit = useCallback(() => {
+    if (!canRenameSession) return;
+    skipTitleCommitRef.current = false;
+    setSessionTitleError(null);
+    setSessionTitleDraft(displaySessionTitle);
+    setSessionTitleEditing(true);
+  }, [canRenameSession, displaySessionTitle]);
+  const cancelSessionTitleEdit = useCallback(() => {
+    skipTitleCommitRef.current = true;
+    setSessionTitleDraft(displaySessionTitle);
+    setSessionTitleError(null);
+    setSessionTitleEditing(false);
+  }, [displaySessionTitle]);
+  const commitSessionTitleEdit = useCallback(async () => {
+    if (skipTitleCommitRef.current) {
+      skipTitleCommitRef.current = false;
+      return;
+    }
+    const next = sessionTitleDraft.trim();
+    if (!next) {
+      setSessionTitleDraft(displaySessionTitle);
+      setSessionTitleEditing(false);
+      return;
+    }
+    if (!canRenameSession || next === persistedSessionTitle) {
+      setSessionTitleDraft(next || displaySessionTitle);
+      setSessionTitleEditing(false);
+      return;
+    }
+    setSessionTitleSaving(true);
+    setSessionTitleError(null);
+    try {
+      await renameSessionTitle(next);
+      setSessionTitleEditing(false);
+    } catch (error) {
+      console.error("Failed to rename session:", error);
+      setSessionTitleError(t("Rename failed"));
+      titleInputRef.current?.focus();
+    } finally {
+      setSessionTitleSaving(false);
+    }
+  }, [
+    canRenameSession,
+    displaySessionTitle,
+    persistedSessionTitle,
+    renameSessionTitle,
+    sessionTitleDraft,
+    t,
+  ]);
+  const handleSessionTitleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void commitSessionTitleEdit();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        cancelSessionTitleEdit();
+      }
+    },
+    [cancelSessionTitleEdit, commitSessionTitleEdit],
+  );
   const { ref: composerRef, height: composerHeight } =
     useMeasuredHeight<HTMLDivElement>();
-  const visibleTools = useMemo(
-    () => ALL_TOOLS.filter((t) => activeCap.allowedTools.includes(t.name)),
-    [activeCap.allowedTools],
-  );
   const researchValidation = useMemo(
     () => validateResearchConfig(researchConfig),
     [researchConfig],
@@ -694,11 +813,11 @@ export default function ChatPage() {
         metadata: event.metadata ?? {},
       }));
       cancelStreamingTurn();
-      // Preserve the original capability — each capability now owns its
-      // own answer-now fast-path (deep_solve jumps to writing,
-      // deep_question to direct quiz synthesis, math_animator to
-      // code-gen + render, etc.). The backend orchestrator only falls
-      // back to ``chat`` if the requested capability is missing.
+      // Preserve the original capability — chat / visualize / math_animator
+      // each own an answer-now fast-path. The backend orchestrator only
+      // falls back to ``chat`` if the requested capability is missing.
+      // Solve / Quiz / Research no longer expose Answer Now (their UI
+      // gate filters the button out), so we never reach here for them.
       const answerNowSnapshot: MessageRequestSnapshot = {
         ...snapshot,
         language: appLanguage,
@@ -796,6 +915,23 @@ export default function ChatPage() {
     void refreshKnowledgeBases({ force: true });
   }, [refreshKnowledgeBases]);
 
+  const refreshUserEnabledTools = useCallback(
+    async (options?: { force?: boolean }) => {
+      try {
+        const list = await getEnabledOptionalTools({ force: options?.force });
+        setUserEnabledTools(list);
+      } catch {
+        setUserEnabledTools([]);
+      }
+    },
+    [],
+  );
+
+  /* Load user tool prefs */
+  useEffect(() => {
+    void refreshUserEnabledTools({ force: true });
+  }, [refreshUserEnabledTools]);
+
   const refreshLLMOptions = useCallback(async () => {
     setLLMOptionsLoading(true);
     try {
@@ -826,6 +962,9 @@ export default function ChatPage() {
     const refresh = () => {
       void refreshKnowledgeBases({ force: true });
       void refreshLLMOptions();
+      // Picks up toggles the user changed in another tab (/settings/tools).
+      invalidateEnabledOptionalToolsCache();
+      void refreshUserEnabledTools({ force: true });
     };
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -838,7 +977,7 @@ export default function ChatPage() {
       window.removeEventListener("pageshow", refresh);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [refreshKnowledgeBases, refreshLLMOptions]);
+  }, [refreshKnowledgeBases, refreshLLMOptions, refreshUserEnabledTools]);
 
   useEffect(() => {
     setCapabilityConfigs(loadCapabilityPlaygroundConfigs());
@@ -871,13 +1010,6 @@ export default function ChatPage() {
       )
         setCapMenuOpen(false);
       if (
-        toolMenuRef.current &&
-        !toolMenuRef.current.contains(t) &&
-        toolBtnRef.current &&
-        !toolBtnRef.current.contains(t)
-      )
-        setToolMenuOpen(false);
-      if (
         spaceMenuRef.current &&
         !spaceMenuRef.current.contains(t) &&
         spaceBtnRef.current &&
@@ -896,13 +1028,22 @@ export default function ChatPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Keep state.enabledTools = (user's toggleable set) ∩ (capability's allowed
+  // set). Re-runs when the user flips a toggle in /settings/tools or when
+  // the active capability changes. The composer no longer owns this — the
+  // /settings/tools page is the single switchboard.
   useEffect(() => {
-    const allowed = new Set(visibleTools.map((tool) => tool.name));
-    const nextTools = state.enabledTools.filter((tool) =>
+    if (userEnabledTools === null) return;
+    const allowed = new Set(activeCap.allowedTools);
+    const next = userEnabledTools.filter((tool) =>
       allowed.has(tool as ToolName),
     );
-    if (nextTools.length !== state.enabledTools.length) setTools(nextTools);
-  }, [setTools, state.enabledTools, visibleTools]);
+    const current = state.enabledTools;
+    const same =
+      current.length === next.length &&
+      current.every((tool, idx) => tool === next[idx]);
+    if (!same) setTools(next);
+  }, [activeCap.allowedTools, setTools, state.enabledTools, userEnabledTools]);
 
   /* ---- handlers ---- */
 
@@ -917,43 +1058,26 @@ export default function ChatPage() {
         cap.allowedTools,
       );
       setCapability(cap.value || null);
-      setTools(
-        config.enabledTools.length > 0 || capabilityConfigs[storageKey]
-          ? [...config.enabledTools]
-          : [...cap.defaultTools],
-      );
+      // Per-capability tool selection now derives from the user's saved
+      // settings (/settings/tools) intersected with the capability's
+      // allow-list. Playground-saved configs still override when the user
+      // explicitly pinned tools in the playground for this capability.
+      const baseline =
+        userEnabledTools === null ? cap.allowedTools : userEnabledTools;
+      const enabledToolsForCap = capabilityConfigs[storageKey]
+        ? [...config.enabledTools]
+        : baseline.filter((tool) =>
+            cap.allowedTools.includes(tool as ToolName),
+          );
+      setTools(enabledToolsForCap);
       if (config.knowledgeBase) setKBs([config.knowledgeBase]);
       // Switching capability invalidates any prior config confirmation —
       // the new capability has its own form that needs explicit confirm.
       setCapabilityConfigConfirmed(false);
       setCapMenuOpen(false);
     },
-    [capabilityConfigs, setCapability, setKBs, setTools],
+    [capabilityConfigs, setCapability, setKBs, setTools, userEnabledTools],
   );
-
-  const toggleTool = useCallback(
-    (tool: string) => {
-      if (!activeCap.allowedTools.includes(tool as ToolName)) return;
-      if (selectedTools.has(tool)) {
-        setTools(state.enabledTools.filter((t) => t !== tool));
-      } else {
-        setTools([...state.enabledTools, tool]);
-      }
-    },
-    [activeCap.allowedTools, selectedTools, setTools, state.enabledTools],
-  );
-
-  const toggleResearchSource = useCallback((source: ResearchSource) => {
-    setResearchConfig((current) => ({
-      ...current,
-      sources: current.sources.includes(source)
-        ? current.sources.filter((item) => item !== source)
-        : [...current.sources, source],
-    }));
-    // Toggling sources is part of the Research config — invalidate the
-    // confirm so the user can re-verify before sending.
-    setCapabilityConfigConfirmed(false);
-  }, []);
 
   const fileToAttachment = useCallback(
     (f: File): Promise<PendingAttachment> =>
@@ -1106,21 +1230,6 @@ export default function ChatPage() {
         </CapabilityConfigCard>
       );
     }
-    if (isMathAnimatorMode) {
-      return (
-        <CapabilityConfigCard
-          capability="math_animator"
-          confirmed={capabilityConfigConfirmed}
-          canConfirm
-          onConfirm={handleConfirmCapabilityConfig}
-        >
-          <MathAnimatorConfigPanel
-            value={mathAnimatorConfig}
-            onChange={handleChangeMathAnimatorConfig}
-          />
-        </CapabilityConfigCard>
-      );
-    }
     if (isVisualizeMode) {
       return (
         <CapabilityConfigCard
@@ -1158,7 +1267,6 @@ export default function ChatPage() {
   }, [
     capabilityNeedsConfig,
     isQuizMode,
-    isMathAnimatorMode,
     isVisualizeMode,
     capabilityConfigConfirmed,
     handleConfirmCapabilityConfig,
@@ -1166,8 +1274,6 @@ export default function ChatPage() {
     quizPdf,
     handleChangeQuizConfig,
     handleUploadQuizPdf,
-    mathAnimatorConfig,
-    handleChangeMathAnimatorConfig,
     visualizeConfig,
     handleChangeVisualizeConfig,
     researchConfig,
@@ -1179,12 +1285,9 @@ export default function ChatPage() {
   // Clicking an attachment (from the Activity panel or from a chat message)
   // routes into the Viewer panel as a new file tab. The viewer auto-opens
   // and the preference is persisted so a follow-up click feels instant.
-  const handlePreviewMessageAttachment = useCallback(
-    (a: MessageAttachment) => {
-      viewerPanelRef.current?.openFileTab(a);
-    },
-    [],
-  );
+  const handlePreviewMessageAttachment = useCallback((a: MessageAttachment) => {
+    viewerPanelRef.current?.openFileTab(a);
+  }, []);
 
   // Event-delegated link interception inside the messages container. When
   // the user clicks an http(s) link in an assistant message, we open it as
@@ -1294,8 +1397,6 @@ export default function ChatPage() {
           ];
         }
       }
-      if (isMathAnimatorMode)
-        config = buildMathAnimatorWSConfig(mathAnimatorConfig);
       if (isVisualizeMode) config = buildVisualizeWSConfig(visualizeConfig);
       if (isResearchMode) config = buildResearchWSConfig(researchConfig);
 
@@ -1311,15 +1412,9 @@ export default function ChatPage() {
         memoryPayload.length
           ? t("Please use the selected context to help with this request.")
           : "") ||
-        (isMathAnimatorMode
-          ? attachments.some((a) => a.type === "image")
-            ? t(
-                "Generate a math animation from the attached reference image(s).",
-              )
-            : ""
-          : attachments.some((a) => a.type === "image")
-            ? t("Please analyze the attached image(s).")
-            : "");
+        (attachments.some((a) => a.type === "image")
+          ? t("Please analyze the attached image(s).")
+          : "");
       sendMessage(
         messageContent,
         extraAttachments,
@@ -1345,11 +1440,9 @@ export default function ChatPage() {
       attachments,
       bookReferencesPayload,
       historyReferencesPayload,
-      isMathAnimatorMode,
       isQuizMode,
       isResearchMode,
       isVisualizeMode,
-      mathAnimatorConfig,
       memoryReferencesPayload,
       notebookReferencesPayload,
       questionNotebookReferencesPayload,
@@ -1376,19 +1469,40 @@ export default function ChatPage() {
       outline: OutlineItem[],
       _topic: string,
       originalConfig?: Record<string, unknown> | null,
+      originalSnapshot?: MessageRequestSnapshot | null,
     ) => {
       const config: Record<string, unknown> = {
         ...(originalConfig ?? {
           mode: researchConfig.mode,
           depth: researchConfig.depth,
-          sources: [...researchConfig.sources],
         }),
         confirmed_outline: outline,
       };
-      sendMessage(_topic, [], config, undefined, undefined, {
-        displayUserMessage: false,
-        persistUserMessage: false,
-      });
+      const requestSnapshotOverride: MessageRequestSnapshot | undefined =
+        originalSnapshot
+          ? {
+              ...originalSnapshot,
+              content: _topic,
+              capability: "deep_research",
+              config,
+            }
+          : undefined;
+      sendMessage(
+        _topic,
+        originalSnapshot?.attachments ?? [],
+        config,
+        originalSnapshot?.notebookReferences,
+        originalSnapshot?.historyReferences,
+        {
+          displayUserMessage: false,
+          persistUserMessage: false,
+          requestSnapshotOverride,
+          bookReferences: originalSnapshot?.bookReferences,
+        },
+        originalSnapshot?.questionNotebookReferences,
+        originalSnapshot?.skills,
+        originalSnapshot?.memoryReferences,
+      );
       shouldAutoScrollRef.current = true;
     },
     [researchConfig, sendMessage, shouldAutoScrollRef],
@@ -1538,269 +1652,353 @@ export default function ChatPage() {
   }, [state.messages]);
 
   return (
-    <div
-      // When the preview drawer is open AND the viewport is wide enough,
-      // push the chat content to the left by the drawer's width so the two
-      // panels live side-by-side (matches Claude desktop). On smaller
-      // screens the drawer overlays — squeezing a phone-width chat into
-      // the remaining ~30 px would be useless. The actual padding +
-      // transition lives in `chat-preview-shell` (globals.css) so we can
-      // hand-tune it without fighting Tailwind's arbitrary-value parser.
-      data-preview-open={previewSource ? "true" : "false"}
-      data-activity-open={activityPanelOpen ? "true" : "false"}
-      data-viewer-open={viewerPanelOpen ? "true" : "false"}
-      className="chat-preview-shell flex h-full flex-col overflow-hidden bg-[var(--background)]"
-    >
-      <div
-        ref={headerRef}
-        className="mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-6 pt-3 pb-0"
-      >
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
-          {t(activeCap.label)}
-        </span>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-          <HeaderActionButton
-            compact={headerCompact}
-            onClick={() => setShowSaveModal(true)}
-            disabled={!chatSavePayload}
-            icon={BookmarkPlus}
-            label={t("Save to Notebook")}
-          />
-          <HeaderActionButton
-            compact={headerCompact}
-            onClick={handleDownloadMarkdown}
-            disabled={!state.messages.length}
-            icon={Download}
-            label={t("Download Markdown")}
-            title={t("Download chat history as Markdown")}
-          />
-          <HeaderActionButton
-            compact={headerCompact}
-            onClick={handleNewChat}
-            icon={SquarePen}
-            label={t("New chat")}
-          />
-          <HeaderActionButton
-            compact={headerCompact}
-            onClick={toggleActivityPanel}
-            active={activityPanelOpen}
-            icon={PanelRight}
-            label={t("Activity")}
-            title={t("Session activity")}
-          />
-          <HeaderActionButton
-            compact={headerCompact}
-            onClick={toggleViewerPanel}
-            active={viewerPanelOpen}
-            icon={BookOpen}
-            label={t("Viewer")}
-            title={t("Open viewer")}
-          />
-        </div>
-      </div>
-      <div className="mx-auto flex w-full max-w-[960px] flex-1 min-h-0 flex-col overflow-hidden px-6">
-        {!hasMessages ? (
-          <div className="flex flex-1 min-h-0 flex-col items-center justify-center animate-fade-in">
-            <div className="text-center">
-              <h1 className="font-serif text-[36px] font-medium tracking-[-0.01em] text-[var(--foreground)]">
-                {t("What would you like to learn?")}
-              </h1>
-              <p className="mt-4 text-[15px] text-[var(--muted-foreground)]">
-                {t("Ask anything — I'm here to help you understand.")}
-              </p>
+    <QuizFollowupProvider>
+      <GeogebraTabProvider>
+        <QuizFollowupBridge viewerPanelRef={viewerPanelRef} />
+        <GeogebraTabBridge viewerPanelRef={viewerPanelRef} />
+        <div
+          // When the preview drawer is open AND the viewport is wide enough,
+          // push the chat content to the left by the drawer's width so the two
+          // panels live side-by-side (matches Claude desktop). On smaller
+          // screens the drawer overlays — squeezing a phone-width chat into
+          // the remaining ~30 px would be useless. The actual padding +
+          // transition lives in `chat-preview-shell` (globals.css) so we can
+          // hand-tune it without fighting Tailwind's arbitrary-value parser.
+          data-preview-open={previewSource ? "true" : "false"}
+          data-activity-open={activityPanelOpen ? "true" : "false"}
+          data-viewer-open={viewerPanelOpen ? "true" : "false"}
+          className="chat-preview-shell flex h-full flex-col overflow-hidden bg-[var(--background)]"
+        >
+          <div
+            ref={headerRef}
+            className="mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-6 pt-3 pb-0"
+          >
+            <div className="group/title min-w-0 flex flex-1 items-center gap-2">
+              {sessionTitleEditing ? (
+                <input
+                  ref={titleInputRef}
+                  value={sessionTitleDraft}
+                  onChange={(event) => setSessionTitleDraft(event.target.value)}
+                  onBlur={() => void commitSessionTitleEdit()}
+                  onKeyDown={handleSessionTitleKeyDown}
+                  disabled={sessionTitleSaving}
+                  aria-label={t("Session title")}
+                  className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-[15px] font-semibold tracking-[-0.01em] text-[var(--foreground)] shadow-sm outline-none transition focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20 disabled:opacity-60"
+                  maxLength={100}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={startSessionTitleEdit}
+                  disabled={!canRenameSession}
+                  title={
+                    canRenameSession
+                      ? t("Click to rename session")
+                      : t("Start a conversation to rename")
+                  }
+                  className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-xl px-2 py-1 text-left text-[15px] font-semibold tracking-[-0.01em] text-[var(--foreground)] transition hover:bg-[var(--muted)]/55 disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <span className="truncate">{displaySessionTitle}</span>
+                  {canRenameSession ? (
+                    <PenLine className="h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)] opacity-0 transition-opacity group-hover/title:opacity-100" />
+                  ) : null}
+                </button>
+              )}
+              {sessionTitleSaving ? (
+                <span className="shrink-0 text-xs text-[var(--muted-foreground)]">
+                  {t("Saving...")}
+                </span>
+              ) : null}
+              {sessionTitleError ? (
+                <span className="shrink-0 text-xs text-[var(--destructive)]">
+                  {sessionTitleError}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              <HeaderActionButton
+                compact={headerCompact}
+                onClick={() => setShowSaveModal(true)}
+                disabled={!chatSavePayload}
+                icon={BookmarkPlus}
+                label={t("Save to Notebook")}
+              />
+              <HeaderActionButton
+                compact={headerCompact}
+                onClick={handleDownloadMarkdown}
+                disabled={!state.messages.length}
+                icon={Download}
+                label={t("Download Markdown")}
+                title={t("Download chat history as Markdown")}
+              />
+              <HeaderActionButton
+                compact={headerCompact}
+                onClick={handleNewChat}
+                icon={SquarePen}
+                label={t("New chat")}
+              />
+              <HeaderActionButton
+                compact={headerCompact}
+                onClick={toggleActivityPanel}
+                active={activityPanelOpen}
+                icon={PanelRight}
+                label={t("Activity")}
+                title={t("Session activity")}
+              />
+              <HeaderActionButton
+                compact={headerCompact}
+                onClick={toggleViewerPanel}
+                active={viewerPanelOpen}
+                icon={BookOpen}
+                label={t("Viewer")}
+                title={t("Open viewer")}
+              />
             </div>
           </div>
-        ) : (
-          <div
-            ref={messagesContainerRef}
-            data-chat-scroll-root="true"
-            onScroll={handleMessagesScroll}
-            onClick={handleMessagesClick}
-            className={`mx-auto w-full flex-1 min-h-0 space-y-7 overflow-y-auto pr-4 [scrollbar-gutter:stable] ${hasMessages ? "pt-6" : "pt-2 pb-6"}`}
-            style={
-              hasMessages
-                ? (() => {
-                    // The bottom 40 px of the messages area fades to
-                    // transparent so content "dissolves" into the composer
-                    // gutter. Without enough bottom padding, the fade
-                    // overlaps the last assistant paragraph and looks like
-                    // a stuck scroll — the user reaches scrollHeight but
-                    // can still see only a faded sliver of text. paddingBottom
-                    // is sized so the fade falls over empty space.
-                    const maskImage =
-                      "linear-gradient(to bottom, transparent 0px, #000 32px, #000 calc(100% - 40px), transparent 100%)";
-                    return {
-                      paddingBottom: "48px",
-                      WebkitMaskImage: maskImage,
-                      maskImage,
-                    };
-                  })()
-                : undefined
-            }
-          >
-            <ChatMessageList
-              messages={state.messages}
-              isStreaming={state.isStreaming}
-              sessionId={state.sessionId}
-              language={state.language}
-              onAnswerNow={handleAnswerNow}
-              onCopyAssistantMessage={copyAssistantMessage}
-              onRegenerateMessage={handleRegenerateMessage}
-              onConfirmOutline={handleConfirmOutline}
-              onPreviewAttachment={handlePreviewMessageAttachment}
-              onDeleteTurn={deleteTurn}
-              selectedBranches={state.selectedBranches}
-              onEditMessage={editMessage}
-              onSwitchBranch={switchBranch}
-            />
-            <div ref={messagesEndRef} className="h-px w-full shrink-0" />
-          </div>
-        )}
+          <div className="mx-auto flex w-full max-w-[960px] flex-1 min-h-0 flex-col overflow-hidden px-6">
+            {!hasMessages ? (
+              <div className="flex flex-1 min-h-0 flex-col items-center justify-end pb-14 animate-fade-in">
+                <div className="text-center">
+                  <h1 className="font-serif text-[44px] font-medium leading-[1.1] tracking-[-0.015em] text-[var(--foreground)]">
+                    {t("What would you like to learn?")}
+                  </h1>
+                  <p className="mt-5 text-[15px] text-[var(--muted-foreground)]">
+                    {t("Ask anything — I'm here to help you understand.")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div
+                ref={messagesContainerRef}
+                data-chat-scroll-root="true"
+                onScroll={handleMessagesScroll}
+                onClick={handleMessagesClick}
+                className={`mx-auto w-full flex-1 min-h-0 space-y-7 overflow-y-auto pr-4 [scrollbar-gutter:stable] ${hasMessages ? "pt-6" : "pt-2 pb-6"}`}
+                style={
+                  hasMessages
+                    ? (() => {
+                        // The bottom 40 px of the messages area fades to
+                        // transparent so content "dissolves" into the composer
+                        // gutter. Without enough bottom padding, the fade
+                        // overlaps the last assistant paragraph and looks like
+                        // a stuck scroll — the user reaches scrollHeight but
+                        // can still see only a faded sliver of text. paddingBottom
+                        // is sized so the fade falls over empty space.
+                        const maskImage =
+                          "linear-gradient(to bottom, transparent 0px, #000 32px, #000 calc(100% - 40px), transparent 100%)";
+                        return {
+                          paddingBottom: "48px",
+                          WebkitMaskImage: maskImage,
+                          maskImage,
+                        };
+                      })()
+                    : undefined
+                }
+              >
+                <ChatMessageList
+                  messages={state.messages}
+                  isStreaming={state.isStreaming}
+                  sessionId={state.sessionId}
+                  language={state.language}
+                  onAnswerNow={handleAnswerNow}
+                  onCopyAssistantMessage={copyAssistantMessage}
+                  onRegenerateMessage={handleRegenerateMessage}
+                  onConfirmOutline={handleConfirmOutline}
+                  onPreviewAttachment={handlePreviewMessageAttachment}
+                  onDeleteTurn={deleteTurn}
+                  selectedBranches={state.selectedBranches}
+                  onEditMessage={editMessage}
+                  onSwitchBranch={switchBranch}
+                  onSubmitUserReply={submitUserReply}
+                />
+                <div ref={messagesEndRef} className="h-px w-full shrink-0" />
+              </div>
+            )}
 
-        <ChatComposer
-          composerRef={composerRef}
-          capMenuRef={capMenuRef}
-          capBtnRef={capBtnRef}
-          toolMenuRef={toolMenuRef}
-          toolBtnRef={toolBtnRef}
-          spaceMenuRef={spaceMenuRef}
-          spaceBtnRef={spaceBtnRef}
-          kbMenuRef={kbMenuRef}
-          kbBtnRef={kbBtnRef}
-          dragCounter={dragCounter}
-          dragging={dragging}
-          capMenuOpen={capMenuOpen}
-          toolMenuOpen={toolMenuOpen}
-          spaceMenuOpen={spaceMenuOpen}
-          kbMenuOpen={kbMenuOpen}
-          hasMessages={hasMessages}
-          attachments={attachments}
-          attachmentError={attachmentError}
-          activeCap={activeCap}
-          visibleTools={visibleTools}
-          selectedTools={selectedTools}
-          knowledgeBases={knowledgeBases}
-          llmOptions={llmOptions}
-          activeLLMDefault={activeLLMDefault}
-          llmSelection={state.llmSelection}
-          llmOptionsLoading={llmOptionsLoading}
-          llmOptionsError={llmOptionsError}
-          selectedBookReferences={selectedBookReferences}
-          selectedNotebookRecords={selectedNotebookRecords}
-          selectedHistorySessions={selectedHistorySessions}
-          selectedQuestionEntries={selectedQuestionEntries}
-          notebookReferenceGroups={notebookReferenceGroups}
-          selectedSkills={selectedSkills}
-          skillsAutoMode={skillsAutoMode}
-          selectedMemoryFiles={selectedMemoryFiles}
-          selectedKnowledgeBases={state.knowledgeBases}
-          isStreaming={state.isStreaming}
-          isResearchMode={isResearchMode}
-          isMathAnimatorMode={isMathAnimatorMode}
-          isVisualizeMode={isVisualizeMode}
-          isAutoMode={false}
-          autoEnabledCaps={EMPTY_SET}
-          researchConfigSources={researchConfig.sources}
-          capabilityNeedsConfig={capabilityNeedsConfig}
-          capabilityConfigConfirmed={capabilityConfigConfirmed}
-          onRequestConfigConfirm={ensureActivityPanelOpen}
-          capabilities={CAPABILITIES}
-          researchSources={RESEARCH_SOURCES}
-          onSetCapMenuOpen={setCapMenuOpen}
-          onSetToolMenuOpen={setToolMenuOpen}
-          onSetSpaceMenuOpen={setSpaceMenuOpen}
-          onSetKbMenuOpen={setKbMenuOpen}
-          onToggleAutoCap={noopToggleAutoCap}
-          onToggleKB={handleToggleKB}
-          onSelectLLM={setLLMSelection}
-          onSelectNotebookPicker={handleSelectNotebookPicker}
-          onSelectBookPicker={handleSelectBookPicker}
-          onSelectHistoryPicker={handleSelectHistoryPicker}
-          onSelectQuestionBankPicker={handleSelectQuestionBankPicker}
-          onSelectSkillsPicker={handleSelectSkillsPicker}
-          onSelectMemoryPicker={handleSelectMemoryPicker}
-          onToggleTool={toggleTool}
-          onToggleSkill={handleToggleSkill}
-          onSetSkillsAuto={handleSetSkillsAuto}
-          onToggleMemoryFile={handleToggleMemoryFile}
-          onToggleResearchSource={toggleResearchSource}
-          onSend={handleSend}
-          onRemoveAttachment={removeAttachment}
-          onPreviewAttachment={handlePreviewPendingAttachment}
-          onRemoveHistory={handleRemoveHistory}
-          onRemoveBookReference={handleRemoveBookReference}
-          onRemoveNotebook={handleRemoveNotebook}
-          onRemoveQuestion={handleRemoveQuestion}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onPaste={handlePaste}
-          onAddFiles={handleAddFiles}
-          onSelectCapability={handleSelectCapability}
-          onCancelStreaming={cancelStreamingTurn}
-        />
-      </div>
-      <NotebookRecordPicker
-        open={showNotebookPicker}
-        onClose={handleCloseNotebookPicker}
-        onApply={handleApplyNotebookRecords}
-      />
-      <BookReferencePicker
-        open={showBookPicker}
-        initialReferences={selectedBookReferences}
-        onClose={handleCloseBookPicker}
-        onApply={handleApplyBookReferences}
-      />
-      <HistorySessionPicker
-        open={showHistoryPicker}
-        onClose={handleCloseHistoryPicker}
-        onApply={handleApplyHistorySessions}
-      />
-      <QuestionBankPicker
-        open={showQuestionBankPicker}
-        onClose={handleCloseQuestionBankPicker}
-        onApply={handleApplyQuestionEntries}
-      />
-      <SkillsPicker
-        open={showSkillsPicker}
-        initialAuto={skillsAutoMode}
-        initialSkills={selectedSkills}
-        onClose={handleCloseSkillsPicker}
-        onApply={handleApplySkillsSelection}
-      />
-      <MemoryPicker
-        open={showMemoryPicker}
-        initialFiles={selectedMemoryFiles}
-        onClose={handleCloseMemoryPicker}
-        onApply={handleApplyMemoryFiles}
-      />
-      <SaveToNotebookModal
-        open={showSaveModal}
-        payload={chatSavePayload}
-        messages={chatSaveMessages}
-        onClose={handleCloseSaveModal}
-      />
-      <FilePreviewDrawer
-        open={previewSource !== null}
-        source={previewSource}
-        onClose={handleClosePreview}
-      />
-      <SessionActivityPanel
-        open={activityPanelOpen && previewSource === null && !viewerPanelOpen}
-        activity={sessionActivity}
-        onOpenAttachment={handlePreviewMessageAttachment}
-        configSection={capabilityConfigSection}
-      />
-      <SessionViewerPanel
-        ref={viewerPanelRef}
-        open={viewerPanelOpen && previewSource === null}
-        sessionId={state.sessionId}
-        onClose={() => setViewerOpen(false)}
-        onAutoOpen={() => setViewerOpen(true)}
-      />
-    </div>
+            <ChatComposer
+              composerRef={composerRef}
+              capMenuRef={capMenuRef}
+              capBtnRef={capBtnRef}
+              spaceMenuRef={spaceMenuRef}
+              spaceBtnRef={spaceBtnRef}
+              kbMenuRef={kbMenuRef}
+              kbBtnRef={kbBtnRef}
+              dragCounter={dragCounter}
+              dragging={dragging}
+              capMenuOpen={capMenuOpen}
+              spaceMenuOpen={spaceMenuOpen}
+              kbMenuOpen={kbMenuOpen}
+              hasMessages={hasMessages}
+              attachments={attachments}
+              attachmentError={attachmentError}
+              activeCap={activeCap}
+              knowledgeBases={knowledgeBases}
+              llmOptions={llmOptions}
+              activeLLMDefault={activeLLMDefault}
+              llmSelection={state.llmSelection}
+              llmOptionsLoading={llmOptionsLoading}
+              llmOptionsError={llmOptionsError}
+              selectedBookReferences={selectedBookReferences}
+              selectedNotebookRecords={selectedNotebookRecords}
+              selectedHistorySessions={selectedHistorySessions}
+              selectedQuestionEntries={selectedQuestionEntries}
+              notebookReferenceGroups={notebookReferenceGroups}
+              selectedSkills={selectedSkills}
+              skillsAutoMode={skillsAutoMode}
+              selectedMemoryFiles={selectedMemoryFiles}
+              selectedKnowledgeBases={state.knowledgeBases}
+              isStreaming={state.isStreaming}
+              isVisualizeMode={isVisualizeMode}
+              capabilityNeedsConfig={capabilityNeedsConfig}
+              capabilityConfigConfirmed={capabilityConfigConfirmed}
+              onRequestConfigConfirm={ensureActivityPanelOpen}
+              capabilities={CAPABILITIES}
+              onSetCapMenuOpen={setCapMenuOpen}
+              onSetSpaceMenuOpen={setSpaceMenuOpen}
+              onSetKbMenuOpen={setKbMenuOpen}
+              onToggleKB={handleToggleKB}
+              onSelectLLM={setLLMSelection}
+              onSelectNotebookPicker={handleSelectNotebookPicker}
+              onSelectBookPicker={handleSelectBookPicker}
+              onSelectHistoryPicker={handleSelectHistoryPicker}
+              onSelectQuestionBankPicker={handleSelectQuestionBankPicker}
+              onSelectSkillsPicker={handleSelectSkillsPicker}
+              onSelectMemoryPicker={handleSelectMemoryPicker}
+              onToggleSkill={handleToggleSkill}
+              onSetSkillsAuto={handleSetSkillsAuto}
+              onToggleMemoryFile={handleToggleMemoryFile}
+              onSend={handleSend}
+              onRemoveAttachment={removeAttachment}
+              onPreviewAttachment={handlePreviewPendingAttachment}
+              onRemoveHistory={handleRemoveHistory}
+              onRemoveBookReference={handleRemoveBookReference}
+              onRemoveNotebook={handleRemoveNotebook}
+              onRemoveQuestion={handleRemoveQuestion}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onPaste={handlePaste}
+              onAddFiles={handleAddFiles}
+              onSelectCapability={handleSelectCapability}
+              onCancelStreaming={cancelStreamingTurn}
+              prefillInputRef={prefillInputRef}
+            />
+            <div
+              aria-hidden="true"
+              className="shrink-0"
+              style={{
+                flexGrow: hasMessages ? 0 : 1.4,
+                transition: "flex-grow 650ms cubic-bezier(0.16, 1, 0.3, 1)",
+              }}
+            />
+          </div>
+          <NotebookRecordPicker
+            open={showNotebookPicker}
+            onClose={handleCloseNotebookPicker}
+            onApply={handleApplyNotebookRecords}
+          />
+          <BookReferencePicker
+            open={showBookPicker}
+            initialReferences={selectedBookReferences}
+            onClose={handleCloseBookPicker}
+            onApply={handleApplyBookReferences}
+          />
+          <HistorySessionPicker
+            open={showHistoryPicker}
+            onClose={handleCloseHistoryPicker}
+            onApply={handleApplyHistorySessions}
+          />
+          <QuestionBankPicker
+            open={showQuestionBankPicker}
+            onClose={handleCloseQuestionBankPicker}
+            onApply={handleApplyQuestionEntries}
+          />
+          <SkillsPicker
+            open={showSkillsPicker}
+            initialAuto={skillsAutoMode}
+            initialSkills={selectedSkills}
+            onClose={handleCloseSkillsPicker}
+            onApply={handleApplySkillsSelection}
+          />
+          <MemoryPicker
+            open={showMemoryPicker}
+            initialFiles={selectedMemoryFiles}
+            onClose={handleCloseMemoryPicker}
+            onApply={handleApplyMemoryFiles}
+          />
+          <SaveToNotebookModal
+            open={showSaveModal}
+            payload={chatSavePayload}
+            messages={chatSaveMessages}
+            onClose={handleCloseSaveModal}
+          />
+          <FilePreviewDrawer
+            open={previewSource !== null}
+            source={previewSource}
+            onClose={handleClosePreview}
+          />
+          <SessionActivityPanel
+            open={
+              activityPanelOpen && previewSource === null && !viewerPanelOpen
+            }
+            activity={sessionActivity}
+            onOpenAttachment={handlePreviewMessageAttachment}
+            configSection={capabilityConfigSection}
+          />
+          <SessionViewerPanel
+            ref={viewerPanelRef}
+            open={viewerPanelOpen && previewSource === null}
+            sessionId={state.sessionId}
+            onClose={() => setViewerOpen(false)}
+            onAutoOpen={() => setViewerOpen(true)}
+          />
+        </div>
+      </GeogebraTabProvider>
+    </QuizFollowupProvider>
   );
+}
+
+/**
+ * Bridges the SessionViewerPanel's imperative ``openQuizFollowupTab`` into
+ * the QuizFollowupController so descendants (QuizViewer) can call
+ * ``controller.openFollowupTab(...)`` without prop-drilling the panel ref
+ * through several layers of components.
+ */
+function QuizFollowupBridge({
+  viewerPanelRef,
+}: {
+  viewerPanelRef: React.MutableRefObject<SessionViewerPanelHandle | null>;
+}) {
+  const controller = useQuizFollowupController();
+  useEffect(() => {
+    controller.setOpenTabHandler((ctx) => {
+      viewerPanelRef.current?.openQuizFollowupTab(ctx);
+    });
+    return () => controller.setOpenTabHandler(null);
+  }, [controller, viewerPanelRef]);
+  return null;
+}
+
+/**
+ * Same shape as QuizFollowupBridge, for the GeoGebra-tab opener exposed
+ * to in-message CTAs (the ``ggbscript`` markdown fence becomes a card
+ * that calls ``controller.openTab(...)`` here).
+ */
+function GeogebraTabBridge({
+  viewerPanelRef,
+}: {
+  viewerPanelRef: React.MutableRefObject<SessionViewerPanelHandle | null>;
+}) {
+  const controller = useGeogebraTabOpener();
+  useEffect(() => {
+    if (!controller) return;
+    controller.setOpenHandler((payload) => {
+      viewerPanelRef.current?.openGeogebraTab(payload);
+    });
+    return () => controller.setOpenHandler(null);
+  }, [controller, viewerPanelRef]);
+  return null;
 }
 
 /**

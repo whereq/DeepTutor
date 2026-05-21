@@ -109,7 +109,7 @@ function CapabilityConfigCardInner({
           className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-[background-color,box-shadow,opacity] disabled:cursor-not-allowed ${
             confirmed
               ? "bg-transparent text-[var(--muted-foreground)]/45"
-              : "bg-[var(--primary)] text-white shadow-[0_2px_6px_rgba(195,90,44,0.18)] hover:shadow-[0_4px_10px_rgba(195,90,44,0.28)] disabled:bg-[var(--muted-foreground)]/15 disabled:text-[var(--muted-foreground)]/40 disabled:shadow-none"
+              : "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[0_2px_6px_color-mix(in_srgb,var(--primary)_28%,transparent)] hover:shadow-[0_4px_10px_color-mix(in_srgb,var(--primary)_40%,transparent)] disabled:bg-[var(--muted-foreground)]/15 disabled:text-[var(--muted-foreground)]/40 disabled:shadow-none"
           }`}
         >
           {confirmed ? t("Confirmed") : t("Confirm")}

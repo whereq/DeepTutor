@@ -321,7 +321,7 @@ export default function SaveToNotebookModal({
       );
 
       if (!response.ok || !response.body) {
-        throw new Error("Failed to save to notebook.");
+        throw new Error(t("Failed to save to notebook."));
       }
 
       const reader = response.body.getReader();
@@ -347,7 +347,7 @@ export default function SaveToNotebookModal({
             setSummaryPreview(finalSummary);
           } else if (type === "error") {
             throw new Error(
-              String(event.payload.detail || "Failed to save to notebook."),
+              String(event.payload.detail || t("Failed to save to notebook.")),
             );
           } else if (type === "result") {
             const summary = String(event.payload.summary || finalSummary);
@@ -360,11 +360,11 @@ export default function SaveToNotebookModal({
         }
       }
 
-      throw new Error("Notebook save stream ended unexpectedly.");
+      throw new Error(t("Notebook save stream ended unexpectedly."));
     } catch (err) {
       if (controller.signal.aborted) return;
       setError(
-        err instanceof Error ? err.message : "Failed to save to notebook.",
+        err instanceof Error ? err.message : t("Failed to save to notebook."),
       );
       setIsLoading(false);
     }

@@ -143,6 +143,7 @@ export function useKnowledgeProgress(options?: UseKnowledgeProgressOptions) {
 
       const source = new EventSource(
         apiUrl(`/api/v1/knowledge/tasks/${encodeURIComponent(taskId)}/stream`),
+        { withCredentials: true },
       );
       sourcesRef.current[kbName] = source;
 

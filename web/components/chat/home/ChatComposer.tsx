@@ -15,11 +15,8 @@ import {
   AtSign,
   ChevronDown,
   Database,
-  Layers,
   Paperclip,
-  Sparkles,
   Square,
-  Wrench,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -35,7 +32,6 @@ import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { LLMSelection } from "@/lib/unified-ws";
 import type { LLMOption } from "@/lib/llm-options";
-import type { ResearchSource } from "@/lib/research-types";
 import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import type { SelectedBookReference } from "@/lib/book-references";
@@ -73,24 +69,10 @@ interface CapabilityDef {
   allowedTools: string[];
 }
 
-interface ToolDef {
-  name: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-interface ResearchSourceDef {
-  name: ResearchSource;
-  label: string;
-  icon: LucideIcon;
-}
-
 export default memo(function ChatComposer({
   composerRef,
   capMenuRef,
   capBtnRef,
-  toolMenuRef,
-  toolBtnRef,
   spaceMenuRef,
   spaceBtnRef,
   kbMenuRef,
@@ -98,15 +80,12 @@ export default memo(function ChatComposer({
   dragCounter,
   dragging,
   capMenuOpen,
-  toolMenuOpen,
   spaceMenuOpen,
   kbMenuOpen,
   hasMessages,
   attachments,
   attachmentError,
   activeCap,
-  visibleTools,
-  selectedTools,
   knowledgeBases,
   llmOptions,
   activeLLMDefault,
@@ -123,22 +102,14 @@ export default memo(function ChatComposer({
   selectedMemoryFiles,
   selectedKnowledgeBases,
   isStreaming,
-  isResearchMode,
-  isMathAnimatorMode,
   isVisualizeMode,
-  isAutoMode,
-  autoEnabledCaps,
-  researchConfigSources,
   capabilityNeedsConfig,
   capabilityConfigConfirmed,
   onRequestConfigConfirm,
   capabilities,
-  researchSources,
   onSetCapMenuOpen,
-  onSetToolMenuOpen,
   onSetSpaceMenuOpen,
   onSetKbMenuOpen,
-  onToggleAutoCap,
   onToggleKB,
   onSelectLLM,
   onSelectNotebookPicker,
@@ -147,11 +118,9 @@ export default memo(function ChatComposer({
   onSelectQuestionBankPicker,
   onSelectSkillsPicker,
   onSelectMemoryPicker,
-  onToggleTool,
   onToggleSkill,
   onSetSkillsAuto,
   onToggleMemoryFile,
-  onToggleResearchSource,
   onSend,
   onRemoveAttachment,
   onPreviewAttachment,
@@ -167,12 +136,12 @@ export default memo(function ChatComposer({
   onAddFiles,
   onSelectCapability,
   onCancelStreaming,
+  prefillInputRef,
+  inputPlaceholder,
 }: {
   composerRef: RefObject<HTMLDivElement | null>;
   capMenuRef: RefObject<HTMLDivElement | null>;
   capBtnRef: RefObject<HTMLButtonElement | null>;
-  toolMenuRef: RefObject<HTMLDivElement | null>;
-  toolBtnRef: RefObject<HTMLButtonElement | null>;
   spaceMenuRef: RefObject<HTMLDivElement | null>;
   spaceBtnRef: RefObject<HTMLButtonElement | null>;
   kbMenuRef: RefObject<HTMLDivElement | null>;
@@ -180,15 +149,12 @@ export default memo(function ChatComposer({
   dragCounter: RefObject<number>;
   dragging: boolean;
   capMenuOpen: boolean;
-  toolMenuOpen: boolean;
   spaceMenuOpen: boolean;
   kbMenuOpen: boolean;
   hasMessages: boolean;
   attachments: PendingAttachment[];
   attachmentError: string | null;
   activeCap: CapabilityDef;
-  visibleTools: ToolDef[];
-  selectedTools: Set<string>;
   knowledgeBases: KnowledgeBase[];
   llmOptions: LLMOption[];
   activeLLMDefault: LLMSelection | null;
@@ -209,20 +175,11 @@ export default memo(function ChatComposer({
   selectedMemoryFiles: SpaceMemoryFile[];
   selectedKnowledgeBases: string[];
   isStreaming: boolean;
-  isResearchMode: boolean;
-  isMathAnimatorMode: boolean;
   isVisualizeMode: boolean;
-  isAutoMode: boolean;
-  autoEnabledCaps: Set<string>;
-  /** Sources currently selected for Research mode — rendered as inline
-   * chips next to the composer's Sources toggle. The full Research form
-   * (mode / depth / manual params) now lives in the Activity-panel config
-   * card and is not surfaced here. */
-  researchConfigSources: ResearchSource[];
   /**
-   * True when the active capability (e.g. Quiz / Animator / Visualize /
-   * Research) requires explicit configuration before sending. When true,
-   * `canSend` is gated on `capabilityConfigConfirmed`.
+   * True when the active capability (e.g. Quiz / Visualize / Research)
+   * requires explicit configuration before sending. When true, `canSend`
+   * is gated on `capabilityConfigConfirmed`.
    */
   capabilityNeedsConfig: boolean;
   capabilityConfigConfirmed: boolean;
@@ -233,12 +190,9 @@ export default memo(function ChatComposer({
    */
   onRequestConfigConfirm: () => void;
   capabilities: CapabilityDef[];
-  researchSources: ResearchSourceDef[];
   onSetCapMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
-  onSetToolMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetSpaceMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetKbMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
-  onToggleAutoCap: (cap: string) => void;
   onToggleKB: (name: string) => void;
   onSelectLLM: (selection: LLMSelection | null) => void;
   onSelectNotebookPicker: () => void;
@@ -247,11 +201,9 @@ export default memo(function ChatComposer({
   onSelectQuestionBankPicker: () => void;
   onSelectSkillsPicker: () => void;
   onSelectMemoryPicker: () => void;
-  onToggleTool: (tool: ToolDef["name"]) => void;
   onToggleSkill: (skill: string) => void;
   onSetSkillsAuto: (auto: boolean) => void;
   onToggleMemoryFile: (file: SpaceMemoryFile) => void;
-  onToggleResearchSource: (source: ResearchSource) => void;
   onSend: (content: string) => void;
   onRemoveAttachment: (index: number) => void;
   onPreviewAttachment?: (index: number) => void;
@@ -267,6 +219,15 @@ export default memo(function ChatComposer({
   onAddFiles: (files: File[]) => void;
   onSelectCapability: (value: string) => void;
   onCancelStreaming: () => void;
+  /**
+   * Optional ref the composer writes its ``prefillInput`` function into
+   * once mounted, so the message-list side (specifically
+   * ``AskUserOptions`` chips) can drop a string into the textarea
+   * without owning the composer's imperative handle directly.
+   */
+  prefillInputRef?: React.MutableRefObject<((text: string) => void) | null>;
+  /** Override the composer placeholder (e.g. quiz follow-up). */
+  inputPlaceholder?: string;
 }) {
   const { t } = useTranslation();
   const CapIcon = activeCap.icon;
@@ -275,6 +236,16 @@ export default memo(function ChatComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHandleRef = useRef<ComposerInputHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!prefillInputRef) return;
+    prefillInputRef.current = (text: string) => {
+      inputHandleRef.current?.setValue(text);
+    };
+    return () => {
+      if (prefillInputRef) prefillInputRef.current = null;
+    };
+  }, [prefillInputRef]);
 
   // Composer-row compaction: when the available width drops below ~620 px
   // (e.g. the Viewer panel is open or the user is on a narrow viewport),
@@ -347,8 +318,7 @@ export default memo(function ChatComposer({
   // user has to click *Confirm* in the right-side Activity panel first.
   // Clicking the send button while in this state surfaces the config card
   // (via `onRequestConfigConfirm`) instead of silently doing nothing.
-  const isConfigBlocked =
-    capabilityNeedsConfig && !capabilityConfigConfirmed;
+  const isConfigBlocked = capabilityNeedsConfig && !capabilityConfigConfirmed;
   const canSend =
     (hasContent || hasReferences) && !isStreaming && !isConfigBlocked;
 
@@ -387,7 +357,10 @@ export default memo(function ChatComposer({
   return (
     <div
       ref={composerRef}
-      className={`relative z-20 mx-auto w-full shrink-0 pb-5 ${hasMessages ? "pt-1" : ""}`}
+      className={`relative z-20 mx-auto w-full shrink-0 pb-5 ${hasMessages ? "pt-1 max-w-[960px]" : "max-w-[720px]"}`}
+      style={{
+        transition: "max-width 650ms cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
     >
       {hasMessages && (
         <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-transparent to-[var(--background)]/72" />
@@ -395,10 +368,10 @@ export default memo(function ChatComposer({
 
       <div className="relative">
         <div
-          className={`relative rounded-2xl border bg-[var(--card)] shadow-[0_1px_8px_rgba(0,0,0,0.03)] transition-colors ${
+          className={`relative rounded-[26px] border bg-[var(--card)] shadow-[0_1px_2px_rgba(0,0,0,0.025),0_10px_28px_-10px_rgba(0,0,0,0.08)] transition-colors ${
             dragging
               ? "border-[var(--primary)] bg-[var(--primary)]/[0.03]"
-              : "border-[var(--border)]"
+              : "border-[var(--border)]/55"
           }`}
           onDragEnter={onDragEnter}
           onDragLeave={onDragLeave}
@@ -407,7 +380,7 @@ export default memo(function ChatComposer({
           data-drag-counter={dragCounter.current}
         >
           {dragging && (
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-[var(--primary)]/50 bg-[var(--primary)]/[0.04]">
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[26px] border-2 border-dashed border-[var(--primary)]/50 bg-[var(--primary)]/[0.04]">
               <div className="flex flex-col items-center gap-1 text-[var(--primary)]">
                 <Paperclip size={22} strokeWidth={1.6} />
                 <span className="text-[13px] font-medium">
@@ -454,7 +427,6 @@ export default memo(function ChatComposer({
           <ComposerInput
             ref={inputHandleRef}
             textareaRef={textareaRef}
-            isMathAnimatorMode={isMathAnimatorMode}
             isVisualizeMode={isVisualizeMode}
             canSendEmpty={hasReferences}
             onSend={doSend}
@@ -467,6 +439,8 @@ export default memo(function ChatComposer({
             onSelectQuestionBankPicker={onSelectQuestionBankPicker}
             onSelectSkillsPicker={onSelectSkillsPicker}
             onSelectMemoryPicker={onSelectMemoryPicker}
+            placeholder={inputPlaceholder}
+            minHeight={hasMessages ? 28 : 88}
           />
 
           {!!attachments.length && (
@@ -612,22 +586,9 @@ export default memo(function ChatComposer({
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
-                    {isAutoMode ? (
-                      <>
-                        <Sparkles size={15} strokeWidth={1.7} className="shrink-0" />
-                        {composerCompact ? null : (
-                          <span className="truncate">
-                            {t("Auto Capabilities")} ({autoEnabledCaps.size})
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <CapIcon size={15} strokeWidth={1.7} className="shrink-0" />
-                        {composerCompact ? null : (
-                          <span className="truncate">{t(activeCap.label)}</span>
-                        )}
-                      </>
+                    <CapIcon size={15} strokeWidth={1.7} className="shrink-0" />
+                    {composerCompact ? null : (
+                      <span className="truncate">{t(activeCap.label)}</span>
                     )}
                   </span>
                   <ChevronDown
@@ -642,216 +603,43 @@ export default memo(function ChatComposer({
                     ref={capMenuRef}
                     className="dt-popup-up absolute bottom-full left-0 z-50 mb-2 w-[280px] rounded-2xl border border-[var(--border)]/70 bg-[var(--popover)] py-1.5 shadow-[0_8px_30px_color-mix(in_srgb,var(--foreground)_18%,transparent)] backdrop-blur-md"
                   >
-                    {isAutoMode ? (
-                      <div className="px-3.5 py-1.5 text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">
-                        {t("Capabilities Auto May Use")}
-                      </div>
-                    ) : null}
-                    {capabilities
-                      .filter((cap) => (isAutoMode ? cap.value !== "" : true))
-                      .map((cap) => {
-                        const Icon = cap.icon;
-                        const selected = isAutoMode
-                          ? autoEnabledCaps.has(cap.value)
-                          : activeCap.value === cap.value;
-                        return (
-                          <button
-                            key={cap.value}
-                            onClick={() =>
-                              isAutoMode
-                                ? onToggleAutoCap(cap.value)
-                                : onSelectCapability(cap.value)
-                            }
-                            className={`flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors ${
-                              selected && !isAutoMode
-                                ? "bg-[var(--muted)]"
-                                : "hover:bg-[var(--muted)]/50"
-                            }`}
-                          >
-                            <Icon
-                              size={16}
-                              strokeWidth={1.6}
-                              className={`shrink-0 ${selected ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[13px] font-medium text-[var(--foreground)]">
-                                {t(cap.label)}
-                              </div>
-                              <div className="truncate text-[11px] text-[var(--muted-foreground)]">
-                                {t(cap.description)}
-                              </div>
+                    {capabilities.map((cap) => {
+                      const Icon = cap.icon;
+                      const selected = activeCap.value === cap.value;
+                      return (
+                        <button
+                          key={cap.value}
+                          onClick={() => onSelectCapability(cap.value)}
+                          className={`flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors ${
+                            selected
+                              ? "bg-[var(--muted)]"
+                              : "hover:bg-[var(--muted)]/50"
+                          }`}
+                        >
+                          <Icon
+                            size={16}
+                            strokeWidth={1.6}
+                            className={`shrink-0 ${selected ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] font-medium text-[var(--foreground)]">
+                              {t(cap.label)}
                             </div>
-                            {isAutoMode ? (
-                              <div
-                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                                  selected
-                                    ? "border-[var(--primary)] bg-[var(--primary)]"
-                                    : "border-[var(--border)]"
-                                }`}
-                              >
-                                {selected ? (
-                                  <svg
-                                    width="10"
-                                    height="10"
-                                    viewBox="0 0 10 10"
-                                    fill="none"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                  >
-                                    <path
-                                      d="M1.5 5L4 7.5L8.5 2.5"
-                                      stroke="white"
-                                      strokeWidth="1.5"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    />
-                                  </svg>
-                                ) : null}
-                              </div>
-                            ) : selected ? (
-                              <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--primary)]" />
-                            ) : null}
-                          </button>
-                        );
-                      })}
+                            <div className="truncate text-[11px] text-[var(--muted-foreground)]">
+                              {t(cap.description)}
+                            </div>
+                          </div>
+                          {selected ? (
+                            <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--primary)]" />
+                          ) : null}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
               <div className="flex min-w-0 flex-1 items-center gap-1">
-                {isResearchMode ? (
-                  <div className="relative flex items-center gap-0.5">
-                    <button
-                      ref={toolBtnRef}
-                      onClick={() => onSetToolMenuOpen((v) => !v)}
-                      title={t("Sources")}
-                      aria-label={t("Sources")}
-                      className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                    >
-                      <Layers size={12} strokeWidth={1.7} />
-                      {composerCompact ? null : t("Sources")}
-                      <ChevronDown
-                        size={10}
-                        className={`transition-transform ${toolMenuOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                    {researchConfigSources.length > 0 && (
-                      <div className="flex items-center gap-[3px] overflow-hidden">
-                        {researchSources
-                          .filter((rs) =>
-                            researchConfigSources.includes(rs.name),
-                          )
-                          .map((rs, i) => (
-                            <span
-                              key={rs.name}
-                              className="shrink-0 text-[10px] text-[var(--muted-foreground)]/35"
-                            >
-                              {i > 0 && (
-                                <span className="text-[12px] leading-none">
-                                  ·
-                                </span>
-                              )}
-                              {t(rs.label)}
-                            </span>
-                          ))}
-                      </div>
-                    )}
-                    {toolMenuOpen && (
-                      <div
-                        ref={toolMenuRef}
-                        className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
-                      >
-                        {researchSources.map((source) => {
-                          const active = researchConfigSources.includes(
-                            source.name,
-                          );
-                          const Icon = source.icon;
-                          return (
-                            <button
-                              key={source.name}
-                              onClick={() =>
-                                onToggleResearchSource(source.name)
-                              }
-                              className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] transition-colors ${
-                                active
-                                  ? "text-[var(--primary)]"
-                                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                              } hover:bg-[var(--muted)]/40`}
-                            >
-                              <Icon size={13} strokeWidth={1.7} />
-                              <span className="flex-1 font-medium">
-                                {t(source.label)}
-                              </span>
-                              {active && (
-                                <div className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : visibleTools.length > 0 ? (
-                  <div className="relative flex items-center gap-0.5">
-                    <button
-                      ref={toolBtnRef}
-                      onClick={() => onSetToolMenuOpen((v) => !v)}
-                      title={t("Tools")}
-                      aria-label={t("Tools")}
-                      className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                    >
-                      <Wrench size={12} strokeWidth={1.7} />
-                      <span className="inline-flex items-baseline">
-                        {composerCompact ? null : t("Tools")}
-                        {selectedTools.size > 0 && (
-                          // Active-count badge attached to the bottom-right of
-                          // the "Tools" label. Inline-flow + a small downward
-                          // translate sits the pill at the label's baseline
-                          // rather than centred on it, so the characters of
-                          // "Tools" stay fully visible while the badge still
-                          // reads as "anchored to the word".
-                          <span className="ml-1 flex h-[13px] min-w-[13px] translate-y-[3px] items-center justify-center rounded-full bg-[var(--primary)] px-[3px] text-[8px] font-semibold leading-none text-white shadow-[0_1px_3px_color-mix(in_srgb,var(--primary)_35%,transparent)] ring-[1.5px] ring-[var(--card)]">
-                            {selectedTools.size}
-                          </span>
-                        )}
-                      </span>
-                      <ChevronDown
-                        size={10}
-                        className={`transition-transform ${toolMenuOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                    {toolMenuOpen && (
-                      <div
-                        ref={toolMenuRef}
-                        className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
-                      >
-                        {visibleTools.map((tool) => {
-                          const active = selectedTools.has(tool.name);
-                          const Icon = tool.icon;
-                          return (
-                            <button
-                              key={tool.name}
-                              onClick={() => onToggleTool(tool.name)}
-                              className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] transition-colors ${
-                                active
-                                  ? "text-[var(--primary)]"
-                                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                              } hover:bg-[var(--muted)]/40`}
-                            >
-                              <Icon size={13} strokeWidth={1.7} />
-                              <span className="flex-1 font-medium">
-                                {t(tool.label)}
-                              </span>
-                              {active && (
-                                <div className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-
                 <button
                   type="button"
                   onClick={handlePickFiles}
@@ -863,7 +651,7 @@ export default memo(function ChatComposer({
                   <span className="inline-flex items-baseline">
                     {composerCompact ? null : t("Attach")}
                     {attachments.length > 0 && (
-                      <span className="ml-1 flex h-[13px] min-w-[13px] translate-y-[3px] items-center justify-center rounded-full bg-[var(--primary)] px-[3px] text-[8px] font-semibold leading-none text-white shadow-[0_1px_3px_color-mix(in_srgb,var(--primary)_35%,transparent)] ring-[1.5px] ring-[var(--card)]">
+                      <span className="ml-1 flex h-[13px] min-w-[13px] translate-y-[3px] items-center justify-center rounded-full bg-[var(--primary)] px-[3px] text-[8px] font-semibold leading-none text-[var(--primary-foreground)] shadow-[0_1px_3px_color-mix(in_srgb,var(--primary)_35%,transparent)] ring-[1.5px] ring-[var(--card)]">
                         {attachments.length}
                       </span>
                     )}
@@ -891,7 +679,7 @@ export default memo(function ChatComposer({
                     <span className="inline-flex items-baseline">
                       {composerCompact ? null : t("Knowledge")}
                       {selectedKnowledgeBases.length > 0 && (
-                        <span className="ml-1 flex h-[13px] min-w-[13px] translate-y-[3px] items-center justify-center rounded-full bg-[var(--primary)] px-[3px] text-[8px] font-semibold leading-none text-white shadow-[0_1px_3px_color-mix(in_srgb,var(--primary)_35%,transparent)] ring-[1.5px] ring-[var(--card)]">
+                        <span className="ml-1 flex h-[13px] min-w-[13px] translate-y-[3px] items-center justify-center rounded-full bg-[var(--primary)] px-[3px] text-[8px] font-semibold leading-none text-[var(--primary-foreground)] shadow-[0_1px_3px_color-mix(in_srgb,var(--primary)_35%,transparent)] ring-[1.5px] ring-[var(--card)]">
                           {selectedKnowledgeBases.length}
                         </span>
                       )}
@@ -946,7 +734,7 @@ export default memo(function ChatComposer({
                     <span className="inline-flex items-baseline">
                       {composerCompact ? null : t("Space")}
                       {spaceSelectionCount > 0 && (
-                        <span className="ml-1 flex h-[13px] min-w-[13px] translate-y-[3px] items-center justify-center rounded-full bg-[var(--primary)] px-[3px] text-[8px] font-semibold leading-none text-white shadow-[0_1px_3px_color-mix(in_srgb,var(--primary)_35%,transparent)] ring-[1.5px] ring-[var(--card)]">
+                        <span className="ml-1 flex h-[13px] min-w-[13px] translate-y-[3px] items-center justify-center rounded-full bg-[var(--primary)] px-[3px] text-[8px] font-semibold leading-none text-[var(--primary-foreground)] shadow-[0_1px_3px_color-mix(in_srgb,var(--primary)_35%,transparent)] ring-[1.5px] ring-[var(--card)]">
                           {spaceSelectionCount}
                         </span>
                       )}
@@ -995,7 +783,7 @@ export default memo(function ChatComposer({
                   <button
                     type="button"
                     onClick={onCancelStreaming}
-                    className="group relative inline-flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-[0_4px_12px_color-mix(in_srgb,var(--primary)_18%,transparent)] transition-[background-color,box-shadow] hover:bg-[var(--primary)]/90 hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--primary)_28%,transparent)]"
+                    className="group relative inline-flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[0_4px_12px_color-mix(in_srgb,var(--primary)_18%,transparent)] transition-[background-color,box-shadow] hover:bg-[var(--primary)]/90 hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--primary)_28%,transparent)]"
                     aria-label={t("Stop generating")}
                     title={t("Stop generating")}
                   >
@@ -1021,9 +809,7 @@ export default memo(function ChatComposer({
                   <button
                     type="button"
                     onClick={handleManualSend}
-                    disabled={
-                      !(hasContent || hasReferences) || isStreaming
-                    }
+                    disabled={!(hasContent || hasReferences) || isStreaming}
                     title={
                       isConfigBlocked
                         ? t("Confirm settings on the right to send.")
@@ -1032,8 +818,8 @@ export default memo(function ChatComposer({
                     aria-disabled={!canSend}
                     className={`rounded-full p-[7px] shadow-[0_4px_12px_color-mix(in_srgb,var(--primary)_15%,transparent)] transition-[transform,opacity,box-shadow] disabled:opacity-25 disabled:shadow-none ${
                       isConfigBlocked
-                        ? "bg-[var(--muted-foreground)]/30 text-white hover:bg-[var(--muted-foreground)]/45"
-                        : "bg-[var(--primary)] text-white hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
+                        ? "bg-[var(--muted-foreground)]/30 text-[var(--primary-foreground)] hover:bg-[var(--muted-foreground)]/45"
+                        : "bg-[var(--primary)] text-[var(--primary-foreground)] hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
                     }`}
                     aria-label={t("Send")}
                   >

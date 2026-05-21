@@ -34,15 +34,6 @@ DEFAULT_MAIN_SETTINGS = {
         "save_to_file": True,
         "console_output": True,
     },
-    "personalization": {
-        "auto_update": True,
-        "max_react_rounds": 6,
-        "agents": {
-            "reflection": True,
-            "summary": True,
-            "weakness": True,
-        },
-    },
     "tools": {
         "run_code": {
             "allowed_roots": ["./data/user"],
@@ -52,19 +43,9 @@ DEFAULT_MAIN_SETTINGS = {
         },
     },
     "capabilities": {
-        "question": {
-            "max_parallel_questions": 1,
-            "idea_loop": {"max_rounds": 3, "ideas_per_round": 5},
-            "generation": {"max_retries": 2},
-        },
         "solve": {
-            "max_react_iterations": 10,
-            "max_plan_steps": 10,
+            "max_iterations_per_step": 7,
             "max_replans": 2,
-            "observation_max_tokens": 2000,
-            "enable_citations": True,
-            "save_intermediate_results": True,
-            "detailed_answer": True,
         },
         "research": {
             "researching": {
@@ -72,6 +53,15 @@ DEFAULT_MAIN_SETTINGS = {
                 "tool_timeout": 60,
                 "tool_max_retries": 2,
                 "paper_search_years_limit": 3,
+            },
+        },
+        "question": {
+            "exploring": {
+                "max_iterations": 8,
+                "tool_summarizer": {
+                    "enabled": True,
+                    "max_tokens": 800,
+                },
             },
         },
     },
@@ -87,10 +77,6 @@ DEFAULT_AGENTS_SETTINGS = {
             "temperature": 0.2,
             "responding": {"max_tokens": 8000},
             "answer_now": {"max_tokens": 8000},
-            "thinking": {"max_tokens": 2000},
-            "observing": {"max_tokens": 2000},
-            "acting": {"max_tokens": 2000},
-            "react_fallback": {"max_tokens": 1500},
         },
     },
     "tools": {

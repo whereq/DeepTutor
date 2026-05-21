@@ -122,6 +122,25 @@ class RAGService:
                 },
             )
 
+            # L1 memory trace — best-effort, never blocks the search path.
+            try:
+                from deeptutor.services.memory import get_memory_store
+                from deeptutor.services.memory.trace import TraceEvent
+
+                await get_memory_store().emit(
+                    TraceEvent.new(
+                        "kb",
+                        "query",
+                        {
+                            "query": query,
+                            "kb_name": kb_name,
+                            "answer_chars": len(answer),
+                        },
+                    )
+                )
+            except Exception:
+                pass
+
             return result
 
     async def _emit_tool_event(

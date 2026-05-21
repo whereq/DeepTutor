@@ -29,8 +29,8 @@ The output is decoupled from the rest of ``turn_runtime``:
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
+import logging
 from typing import Any, Sequence
 
 from deeptutor.services.session.protocol import SessionStoreProtocol
@@ -150,9 +150,7 @@ async def build_inventory(
         question_entry_ids=fresh_question_entry_ids,
         current_turn_ordinal=current_turn_ordinal,
     )
-    await _add_historical(
-        inv, store=store, session_id=session_id, leaf_message_id=leaf_message_id
-    )
+    await _add_historical(inv, store=store, session_id=session_id, leaf_message_id=leaf_message_id)
     return inv
 
 
@@ -216,10 +214,7 @@ def _format_size(char_count: int) -> str:
 def _render_row(entry: SourceEntry) -> str:
     if entry.fresh:
         preview = _clip_preview(entry.full_text)
-        return (
-            f"- id={entry.sid}  type={entry.kind}  name={entry.name!r}\n"
-            f"  preview: {preview!r}"
-        )
+        return f"- id={entry.sid}  type={entry.kind}  name={entry.name!r}\n  preview: {preview!r}"
     return (
         f"- id={entry.sid}  type={entry.kind}  name={entry.name!r}"
         f"  size={_format_size(entry.char_count)}  "
@@ -374,9 +369,7 @@ async def _add_historical(
         if msg.get("role") != "user":
             continue
         user_turn_ordinal += 1
-        await _collect_from_user_message(
-            inv, store=store, msg=msg, turn_ordinal=user_turn_ordinal
-        )
+        await _collect_from_user_message(inv, store=store, msg=msg, turn_ordinal=user_turn_ordinal)
 
 
 async def _collect_from_user_message(
@@ -580,7 +573,7 @@ def _extract_book_title(section: str, *, fallback: str) -> str:
     first_line = section.lstrip().split("\n", 1)[0]
     prefix = "# Book: "
     if first_line.startswith(prefix):
-        return first_line[len(prefix):].strip() or fallback
+        return first_line[len(prefix) :].strip() or fallback
     return fallback
 
 
@@ -601,9 +594,7 @@ def _resolve_book_section(book_reference: dict[str, Any]) -> tuple[str, str]:
     text = (result.text or "").strip()
     if not text:
         return "", ""
-    name = _extract_book_title(
-        text, fallback=f"Book {book_reference.get('book_id', '?')}"
-    )
+    name = _extract_book_title(text, fallback=f"Book {book_reference.get('book_id', '?')}")
     return text, name
 
 
@@ -634,9 +625,7 @@ async def _load_history_session(
     return "\n\n".join(transcript_lines), name
 
 
-async def _load_question_entry(
-    store: SessionStoreProtocol, entry_id: int
-) -> tuple[str, str]:
+async def _load_question_entry(store: SessionStoreProtocol, entry_id: int) -> tuple[str, str]:
     """Fetch and render one question-bank entry into a markdown block +
     short stem (used as the manifest name). Returns ``("", "")`` on
     missing entry. Imports the renderer lazily to avoid pulling

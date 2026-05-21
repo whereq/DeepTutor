@@ -270,8 +270,8 @@ class TestRegenerateLastTurn:
 
         - The original user message is preserved (no duplicate row).
         - The previous assistant message is replaced.
-        - ``memory_service.refresh_from_turn`` is **not** invoked for the
-          regenerate turn (it would have been invoked for the original).
+        - ``memory_store.emit`` is **not** invoked for the regenerate turn
+          (it would have been invoked for the original).
         - The new SESSION event carries ``regenerate``/``regenerated_from_message_id``.
         """
         store = SQLiteSessionStore(tmp_path / "regen_e2e.db")
@@ -303,10 +303,10 @@ class TestRegenerateLastTurn:
                 )
                 yield StreamEvent(type=StreamEventType.DONE, source="chat")
 
-        refresh_calls: list[dict[str, Any]] = []
+        refresh_calls: list[Any] = []
 
-        async def tracking_refresh(**kwargs):
-            refresh_calls.append(kwargs)
+        async def tracking_emit(event):
+            refresh_calls.append(event)
 
         monkeypatch.setattr(
             "deeptutor.services.llm.config.get_llm_config", lambda: SimpleNamespace()
@@ -317,10 +317,10 @@ class TestRegenerateLastTurn:
         )
         monkeypatch.setattr("deeptutor.runtime.orchestrator.ChatOrchestrator", FakeOrchestrator)
         monkeypatch.setattr(
-            "deeptutor.services.memory.get_memory_service",
+            "deeptutor.services.memory.get_memory_store",
             lambda: SimpleNamespace(
-                build_memory_context=lambda *_args, **_kwargs: "",
-                refresh_from_turn=tracking_refresh,
+                read_l3_concat=lambda: "",
+                emit=tracking_emit,
             ),
         )
 

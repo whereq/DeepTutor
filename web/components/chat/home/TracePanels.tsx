@@ -20,10 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
-import {
-  formatTurnDuration,
-  getTurnDurationSeconds,
-} from "@/lib/trace-timing";
+import { formatTurnDuration, getTurnDurationSeconds } from "@/lib/trace-timing";
 import type { StreamEvent } from "@/lib/unified-ws";
 
 type TraceMetadata = {
@@ -44,10 +41,25 @@ type TraceMetadata = {
   round?: number;
   query?: string;
   tool_name?: string;
+  block_id?: string;
   trace_layer?: string;
   output_mode?: string;
   quality?: string;
   sources?: Array<Record<string, unknown>>;
+  // Set by deep_question's QuestionPipeline on per-question content events
+  // (call_kind="quiz_question_emitted"). 0-based; display as 1-based.
+  question_index?: number;
+  total_questions?: number;
+  qa_pair?: Record<string, unknown>;
+  // Set by deep_research so the top-level trace row can show the active
+  // research/reporting sub-state instead of generic reasoning/tool labels.
+  research_status_key?: string;
+  topic_index?: number | string;
+  topic_title?: string;
+  report_part?: string;
+  section_index?: number | string;
+  section_count?: number | string;
+  section_title?: string;
 };
 
 type ResearchStageId = "understand" | "decompose" | "evidence" | "result";
@@ -200,8 +212,21 @@ function getTraceHeader(
     title = t("Plan");
   } else if (role === "observe" || kind === "llm_observation") {
     title = t("Observe");
+  } else if (role === "quiz_question" || kind === "quiz_question_emitted") {
+    // Each quiz question gets its own sub-trace card; index is 0-based in
+    // metadata, so display as 1-based for the user.
+    const idx = Number(meta.question_index);
+    title = Number.isFinite(idx)
+      ? t("Question {{n}}", { n: idx + 1 })
+      : t("Question");
   } else if (role === "response" || kind === "llm_final_response") {
     title = t("Response");
+  } else if (role === "reflection" || kind === "tool_result_reflection") {
+    // Tool Summarizer sub-trace (Phase 1 of the question pipeline). The
+    // top-level status row carries the verbose "DeepTutor Reflecting…"
+    // wording; the sub-trace just labels itself "Reflecting" so the card
+    // header stays short.
+    title = t("Reflecting");
   } else if (role === "thought" || kind === "llm_reasoning") {
     title = t("Thought");
   } else if (kind === "llm_generation") {
@@ -239,13 +264,79 @@ function getTraceText(
   return textEvents.map((event) => event.content).join("");
 }
 
+// Long string values in tool args are almost always base64 payloads
+// (image bytes, file blobs) the LLM never typed itself — they were
+// server-injected by the chat pipeline. Pretty-printing the raw value
+// fills the trace with megabytes of noise, so we elide anything past
+// this many characters down to a short summary.
+const TRACE_ARGS_MAX_STRING_CHARS = 200;
+
+function elideLongStrings(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (value.length > TRACE_ARGS_MAX_STRING_CHARS) {
+      const head = value.slice(0, 40);
+      return `${head}… <${value.length.toLocaleString()} chars elided>`;
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(elideLongStrings);
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = elideLongStrings(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 function formatTraceArgs(args: unknown) {
   if (args == null) return "";
   try {
-    return JSON.stringify(args, null, 2);
+    return JSON.stringify(elideLongStrings(args), null, 2);
   } catch {
     return String(args);
   }
+}
+
+/**
+ * Per-tool nice rendering for ``tool_call`` args. Some tools (notably
+ * ``ask_user``) have args that are large structured payloads which the
+ * UI also renders as a dedicated card below the trace — dumping the raw
+ * JSON twice is just noise. Returning ``null`` falls back to the
+ * generic JSON ``<pre>`` block.
+ */
+function renderNiceToolArgs(
+  toolName: string | undefined,
+  rawArgs: unknown,
+): ReactNode | null {
+  if (toolName !== "ask_user" || !rawArgs || typeof rawArgs !== "object") {
+    return null;
+  }
+  const obj = rawArgs as Record<string, unknown>;
+  const questions = Array.isArray(obj.questions)
+    ? (obj.questions as Array<Record<string, unknown>>)
+    : [];
+  if (questions.length === 0) return null;
+  return (
+    <ul className="ml-3 mt-0.5 space-y-0.5 text-[10.5px] leading-[1.5] not-italic">
+      {questions.map((q, idx) => {
+        const prompt = String(q.prompt ?? q.question ?? "").trim();
+        if (!prompt) return null;
+        return (
+          <li
+            key={idx}
+            className="flex items-start gap-1.5 text-[var(--muted-foreground)]"
+          >
+            <span className="shrink-0 tabular-nums opacity-50">{idx + 1}.</span>
+            <span className="min-w-0 flex-1">{prompt}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -472,11 +563,20 @@ function TraceRowBody({
               <div className="space-y-0.5">
                 {toolEvents.map((event, idx) => {
                   if (event.type === "tool_call") {
-                    const formattedArgs = formatTraceArgs(event.metadata?.args);
+                    const toolName =
+                      (event.metadata?.tool as string | undefined) ?? undefined;
+                    const niceArgs = renderNiceToolArgs(
+                      toolName,
+                      event.metadata?.args,
+                    );
+                    const formattedArgs = niceArgs
+                      ? ""
+                      : formatTraceArgs(event.metadata?.args);
                     return (
                       <div key={`${callId}-tool-call-${idx}`}>
                         <span className="opacity-50">→ </span>
                         <span>{event.content}</span>
+                        {niceArgs ?? null}
                         {formattedArgs && (
                           <pre className="ml-3 mt-0.5 whitespace-pre-wrap break-words rounded-md bg-[var(--muted)] px-2 py-1 font-mono text-[10px] not-italic leading-[1.5] text-[var(--muted-foreground)]">
                             {formattedArgs}
@@ -544,11 +644,20 @@ function TraceRowBody({
             <div className="space-y-0.5">
               {toolEvents.map((event, idx) => {
                 if (event.type === "tool_call") {
-                  const formattedArgs = formatTraceArgs(event.metadata?.args);
+                  const toolName =
+                    (event.metadata?.tool as string | undefined) ?? undefined;
+                  const niceArgs = renderNiceToolArgs(
+                    toolName,
+                    event.metadata?.args,
+                  );
+                  const formattedArgs = niceArgs
+                    ? ""
+                    : formatTraceArgs(event.metadata?.args);
                   return (
                     <div key={`${callId}-tool-call-${idx}`}>
                       <span className="opacity-50">→ </span>
                       <span>{event.content}</span>
+                      {niceArgs ?? null}
                       {formattedArgs && (
                         <pre className="ml-3 mt-0.5 whitespace-pre-wrap break-words rounded-md bg-[var(--muted)] px-2 py-1 font-mono text-[10px] not-italic leading-[1.5] text-[var(--muted-foreground)]">
                           {formattedArgs}
@@ -668,7 +777,7 @@ export function CallTracePanel({
   events: StreamEvent[];
   isStreaming?: boolean;
   // When the panel is rendered inside another shell that already supplies its
-  // own framing (e.g. the auto-mode DelegationCard), pass ``nested`` to skip
+  // own framing, pass ``nested`` to skip
   // the card wrapper so we don't end up with card-in-card visuals.
   nested?: boolean;
 }) {
@@ -1184,13 +1293,32 @@ function RespondedMark(props: MarkProps) {
   );
 }
 
-type StreamingMode = "reasoning" | "tool_using" | "responding" | "responded";
+type StreamingMode =
+  | "reasoning"
+  | "tool_using"
+  | "responding"
+  | "responded"
+  | "planning"
+  | "drafting"
+  | "exploring"
+  | "quizzing"
+  | "reflecting";
 
 /**
- * Picks the status label shown above the trace card. We scan in reverse so a
- * tool finishing mid-turn cleanly flips the label back to reasoning for the
- * next LLM round. Final-answer streaming is detected by user-visible content
- * arriving on the assistant message itself — ``content`` is non-empty.
+ * Picks the status label shown above the trace card.
+ *
+ * We scan in reverse so each round's latest signal wins — a tool result
+ * mid-iteration flips the label back to reasoning, a planning chunk
+ * arriving after a tool flips it to planning, etc. Per-mode mapping:
+ *
+ *   ``llm_planning`` chunks  → planning   (solve plan / replan / pre-retrieve)
+ *   ``tool_call`` event      → tool_using (any explicit tool call)
+ *   ``llm_final_response``
+ *     stage=``writing``      → responding (solve synthesize, also chat default)
+ *     stage=``reasoning``    → drafting   (solve per-step FINISH)
+ *   ``llm_reasoning`` chunks → reasoning  (THINK / chat default)
+ *
+ * Falls back to ``reasoning`` while events are still warming up.
  */
 function detectStreamingMode(
   events: StreamEvent[],
@@ -1198,13 +1326,130 @@ function detectStreamingMode(
   isStreaming: boolean,
 ): StreamingMode {
   if (!isStreaming) return "responded";
-  if (hasFinalContent) return "responding";
+
   for (let idx = events.length - 1; idx >= 0; idx -= 1) {
     const event = events[idx];
-    if (event.type === "tool_result") return "reasoning";
-    if (event.type === "tool_call") return "tool_using";
+    const meta = (event.metadata ?? {}) as Record<string, unknown>;
+    const callKind = String(meta.call_kind ?? "");
+
+    if (event.type === "tool_call") {
+      // Tool calls inherit the active stage so the top-level status stays
+      // coherent (e.g., a rag call during explore reads as "Exploring",
+      // not generic "Tool Calling").
+      if (event.stage === "exploring") return "exploring";
+      if (event.stage === "quizzing") return "quizzing";
+      return "tool_using";
+    }
+    if (event.type === "tool_result") {
+      // Tool finished — keep scanning for the iteration's actual mode.
+      continue;
+    }
+    // Quiz pipeline emits one ``quiz_question_emitted`` content event per
+    // question with the structured qa_pair in metadata — that's the signal
+    // the quizzing phase is active.
+    if (callKind === "quiz_question_emitted") return "quizzing";
+    // Question pipeline's Tool Summarizer (Phase 1 reflection over a raw
+    // tool result) streams chunks under ``call_kind="tool_result_reflection"``.
+    // While those chunks are arriving — and until the next reasoning / tool
+    // event flips the mode again — the top-level status row reads
+    // "DeepTutor Reflecting…".
+    if (callKind === "tool_result_reflection") return "reflecting";
+    if (event.type === "content" && callKind === "llm_final_response") {
+      // Explore's FINISH streams into the chat bubble while the
+      // ``exploring`` stage is still open; keep the top-level title on
+      // "DeepTutor Exploring…" until the bus moves on.
+      if (event.stage === "exploring") return "exploring";
+      if (event.stage === "writing") return "responding";
+      if (event.stage === "reasoning") return "drafting";
+      return "responding";
+    }
+    if (callKind === "llm_planning") return "planning";
+    if (event.type === "thinking" && callKind === "llm_reasoning") {
+      if (event.stage === "exploring") return "exploring";
+      if (event.stage === "quizzing") return "quizzing";
+      return "reasoning";
+    }
   }
+  if (hasFinalContent) return "responding";
   return "reasoning";
+}
+
+function parsePositiveInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
+function getResearchTopicIndex(meta: TraceMetadata): number | null {
+  const explicit = parsePositiveInt(meta.topic_index);
+  if (explicit) return explicit;
+
+  const searchable = [meta.block_id, meta.call_id, meta.trace_id]
+    .map((value) => String(value || ""))
+    .join(" ");
+  const match = /\bblock_(\d+)\b/.exec(searchable);
+  return match ? parsePositiveInt(match[1]) : null;
+}
+
+function getDeepResearchStatusLabel(
+  events: StreamEvent[],
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  isStreaming: boolean,
+) {
+  if (!isStreaming) return null;
+
+  for (let idx = events.length - 1; idx >= 0; idx -= 1) {
+    const event = events[idx];
+    if (event.source !== "deep_research") continue;
+
+    const meta = getTraceMeta(event);
+    const key = String(meta.research_status_key || "");
+
+    if (key === "decompose_target" || event.stage === "decomposing") {
+      return t("Decomposing Target");
+    }
+
+    if (key === "research_topic" || event.stage === "researching") {
+      const topicIndex = getResearchTopicIndex(meta);
+      return topicIndex
+        ? t("Researching Topic #{{n}}", { n: topicIndex })
+        : t("Researching Topic");
+    }
+
+    if (key === "report_intro") return t("Reporting Intro");
+    if (key === "report_outline") return t("Reporting Outline");
+    if (key === "report_conclusion") return t("Reporting Conclusion");
+    if (key === "report_section") {
+      const sectionIndex = parsePositiveInt(meta.section_index);
+      return sectionIndex
+        ? t("Reporting Section #{{n}}", { n: sectionIndex })
+        : t("Reporting Section");
+    }
+
+    if (event.stage === "reporting") {
+      const label = String(meta.label || "").toLowerCase();
+      if (label.includes("intro") || label.includes("引言")) {
+        return t("Reporting Intro");
+      }
+      if (label.includes("conclusion") || label.includes("结论")) {
+        return t("Reporting Conclusion");
+      }
+      if (label.includes("section") || label.includes("章节")) {
+        const sectionIndex = parsePositiveInt(meta.section_index);
+        return sectionIndex
+          ? t("Reporting Section #{{n}}", { n: sectionIndex })
+          : t("Reporting Section");
+      }
+      return t("Reporting");
+    }
+  }
+
+  return null;
 }
 
 export function StreamingStatus({
@@ -1247,13 +1492,24 @@ export function StreamingStatus({
   );
 
   const label =
-    mode === "tool_using"
-      ? t("Tool using…")
-      : mode === "responding"
-        ? t("DeepTutor responding…")
-        : mode === "responded"
-          ? t("DeepTutor responded.")
-          : t("DeepTutor reasoning…");
+    getDeepResearchStatusLabel(events, t, Boolean(isStreaming)) ??
+    (mode === "tool_using"
+      ? t("Tool Calling…")
+      : mode === "planning"
+        ? t("DeepTutor Planning…")
+        : mode === "drafting"
+          ? t("DeepTutor Drafting…")
+          : mode === "responding"
+            ? t("DeepTutor Responding…")
+            : mode === "exploring"
+              ? t("DeepTutor Exploring…")
+              : mode === "quizzing"
+                ? t("DeepTutor Quizzing…")
+                : mode === "reflecting"
+                  ? t("DeepTutor Reflecting…")
+                  : mode === "responded"
+                    ? t("DeepTutor responded.")
+                    : t("DeepTutor Reasoning…"));
 
   // Single turn-level clock. Ticks every second while the turn is in
   // flight and freezes on the final elapsed time once the answer ends —
@@ -1279,7 +1535,7 @@ export function StreamingStatus({
   const Mark =
     mode === "tool_using"
       ? ToolMark
-      : mode === "responding"
+      : mode === "responding" || mode === "drafting"
         ? RespondingMark
         : mode === "responded"
           ? RespondedMark
@@ -1310,17 +1566,14 @@ export function StreamingStatus({
     </>
   );
 
-  // role="status" + aria-live="polite" surfaces mode transitions
-  // (reasoning → tool using → responding → responded) to screen readers
-  // without barging in on the user. aria-atomic="false" so only the changed
-  // label is announced rather than the whole row each tick.
+  // aria-live="polite" surfaces mode transitions to screen readers without
+  // barging in on the user.
   if (collapsible && onToggle) {
     return (
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded ? "true" : "false"}
-        role="status"
         aria-live="polite"
         aria-atomic="false"
         className={`mb-3 -ml-1 flex items-center gap-2.5 rounded-md px-1 py-0.5 text-[14px] font-semibold leading-none transition-colors hover:bg-[var(--muted)]/40 ${textColor}`}

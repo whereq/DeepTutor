@@ -54,8 +54,26 @@ class FakeStore:
 
 def test_inventory_dedupe_fresh_wins() -> None:
     inv = SourceInventory()
-    inv.add(SourceEntry(sid="at-foo", kind="attachment", name="old", full_text="old text", fresh=False, first_seen_turn=1))
-    inv.add(SourceEntry(sid="at-foo", kind="attachment", name="fresh", full_text="fresh text", fresh=True, first_seen_turn=2))
+    inv.add(
+        SourceEntry(
+            sid="at-foo",
+            kind="attachment",
+            name="old",
+            full_text="old text",
+            fresh=False,
+            first_seen_turn=1,
+        )
+    )
+    inv.add(
+        SourceEntry(
+            sid="at-foo",
+            kind="attachment",
+            name="fresh",
+            full_text="fresh text",
+            fresh=True,
+            first_seen_turn=2,
+        )
+    )
     assert len(inv.entries) == 1
     assert inv.entries[0].fresh is True
     assert inv.entries[0].name == "fresh"
@@ -63,15 +81,36 @@ def test_inventory_dedupe_fresh_wins() -> None:
 
 def test_inventory_skips_empty_text() -> None:
     inv = SourceInventory()
-    inv.add(SourceEntry(sid="at-foo", kind="attachment", name="empty", full_text="   ", fresh=True, first_seen_turn=1))
+    inv.add(
+        SourceEntry(
+            sid="at-foo",
+            kind="attachment",
+            name="empty",
+            full_text="   ",
+            fresh=True,
+            first_seen_turn=1,
+        )
+    )
     assert inv.is_empty()
 
 
 def test_inventory_preserves_insertion_order() -> None:
     inv = SourceInventory()
-    inv.add(SourceEntry(sid="a", kind="attachment", name="A", full_text="A", fresh=True, first_seen_turn=1))
-    inv.add(SourceEntry(sid="b", kind="attachment", name="B", full_text="B", fresh=False, first_seen_turn=1))
-    inv.add(SourceEntry(sid="c", kind="notebook", name="C", full_text="C", fresh=True, first_seen_turn=1))
+    inv.add(
+        SourceEntry(
+            sid="a", kind="attachment", name="A", full_text="A", fresh=True, first_seen_turn=1
+        )
+    )
+    inv.add(
+        SourceEntry(
+            sid="b", kind="attachment", name="B", full_text="B", fresh=False, first_seen_turn=1
+        )
+    )
+    inv.add(
+        SourceEntry(
+            sid="c", kind="notebook", name="C", full_text="C", fresh=True, first_seen_turn=1
+        )
+    )
     assert [e.sid for e in inv.entries] == ["a", "b", "c"]
 
 
@@ -88,8 +127,26 @@ def test_render_manifest_empty() -> None:
 
 def test_render_manifest_distinguishes_fresh_vs_historical() -> None:
     inv = SourceInventory()
-    inv.add(SourceEntry(sid="at-fresh", kind="attachment", name="new.pdf", full_text="hello world", fresh=True, first_seen_turn=3))
-    inv.add(SourceEntry(sid="at-old", kind="attachment", name="old.pdf", full_text="x" * 5000, fresh=False, first_seen_turn=1))
+    inv.add(
+        SourceEntry(
+            sid="at-fresh",
+            kind="attachment",
+            name="new.pdf",
+            full_text="hello world",
+            fresh=True,
+            first_seen_turn=3,
+        )
+    )
+    inv.add(
+        SourceEntry(
+            sid="at-old",
+            kind="attachment",
+            name="old.pdf",
+            full_text="x" * 5000,
+            fresh=False,
+            first_seen_turn=1,
+        )
+    )
     text, idx = render_manifest(inv)
     # Fresh row carries a preview field
     assert "preview:" in text
@@ -140,7 +197,12 @@ async def test_build_inventory_historical_attachment_visible_to_next_turn() -> N
             "content": "first message",
             "parent_message_id": None,
             "attachments": [
-                {"id": "att-1", "filename": "year1-1.pdf", "extracted_text": "lecture notes", "mime_type": "application/pdf"}
+                {
+                    "id": "att-1",
+                    "filename": "year1-1.pdf",
+                    "extracted_text": "lecture notes",
+                    "mime_type": "application/pdf",
+                }
             ],
             "metadata": {"request_snapshot": {}},
         },
@@ -181,16 +243,52 @@ async def test_build_inventory_branch_isolated() -> None:
     #                                  → 4 (user, branch B, attaches Y.pdf)
     # When we ask for branch B (leaf=4), only 1, 2, 4 are in lineage.
     msgs = [
-        {"id": 1, "role": "user", "content": "q1", "parent_message_id": None,
-         "attachments": [], "metadata": {"request_snapshot": {}}},
-        {"id": 2, "role": "assistant", "content": "a1", "parent_message_id": 1,
-         "attachments": [], "metadata": {}},
-        {"id": 3, "role": "user", "content": "branch A", "parent_message_id": 2,
-         "attachments": [{"id": "X", "filename": "X.pdf", "extracted_text": "branchA only", "mime_type": "application/pdf"}],
-         "metadata": {"request_snapshot": {}}},
-        {"id": 4, "role": "user", "content": "branch B", "parent_message_id": 2,
-         "attachments": [{"id": "Y", "filename": "Y.pdf", "extracted_text": "branchB only", "mime_type": "application/pdf"}],
-         "metadata": {"request_snapshot": {}}},
+        {
+            "id": 1,
+            "role": "user",
+            "content": "q1",
+            "parent_message_id": None,
+            "attachments": [],
+            "metadata": {"request_snapshot": {}},
+        },
+        {
+            "id": 2,
+            "role": "assistant",
+            "content": "a1",
+            "parent_message_id": 1,
+            "attachments": [],
+            "metadata": {},
+        },
+        {
+            "id": 3,
+            "role": "user",
+            "content": "branch A",
+            "parent_message_id": 2,
+            "attachments": [
+                {
+                    "id": "X",
+                    "filename": "X.pdf",
+                    "extracted_text": "branchA only",
+                    "mime_type": "application/pdf",
+                }
+            ],
+            "metadata": {"request_snapshot": {}},
+        },
+        {
+            "id": 4,
+            "role": "user",
+            "content": "branch B",
+            "parent_message_id": 2,
+            "attachments": [
+                {
+                    "id": "Y",
+                    "filename": "Y.pdf",
+                    "extracted_text": "branchB only",
+                    "mime_type": "application/pdf",
+                }
+            ],
+            "metadata": {"request_snapshot": {}},
+        },
     ]
     store = FakeStore(messages=msgs)
     # Render branch B's inventory (leaf=4) — should see Y, not X.
@@ -216,9 +314,14 @@ async def test_build_inventory_fresh_shadows_historical_on_same_sid() -> None:
     """If a notebook record is referenced both in a past turn and this
     turn, the manifest shows it as fresh (with preview), not historical."""
     msgs = [
-        {"id": 1, "role": "user", "content": "earlier",
-         "parent_message_id": None, "attachments": [],
-         "metadata": {"request_snapshot": {}}},
+        {
+            "id": 1,
+            "role": "user",
+            "content": "earlier",
+            "parent_message_id": None,
+            "attachments": [],
+            "metadata": {"request_snapshot": {}},
+        },
     ]
     store = FakeStore(messages=msgs)
     # Fresh record matching what historical *would have* added if it had
@@ -229,7 +332,12 @@ async def test_build_inventory_fresh_shadows_historical_on_same_sid() -> None:
         leaf_message_id=None,
         current_turn_ordinal=2,
         fresh_attachment_records=[
-            {"id": "att-1", "filename": "f.pdf", "extracted_text": "fresh body", "mime_type": "application/pdf"}
+            {
+                "id": "att-1",
+                "filename": "f.pdf",
+                "extracted_text": "fresh body",
+                "mime_type": "application/pdf",
+            }
         ],
         fresh_notebook_records=[],
         fresh_book_context_text="",

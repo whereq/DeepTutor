@@ -44,10 +44,10 @@ class ChatOrchestrator:
             context.session_id = str(uuid.uuid4())
 
         # "Answer now" is a universal escape hatch but the actual fast-path
-        # is *capability-specific* (deep_solve jumps to writing, deep_question
-        # jumps to generation, math_animator skips analysis/design but still
-        # renders, etc.). Each capability inspects ``answer_now_context`` at
-        # the top of its own ``run()``; the orchestrator only adds a defensive
+        # is *capability-specific*: chat / visualize / math_animator each
+        # inspect ``answer_now_context`` at the top of their own ``run()``.
+        # Solve / quiz / research deliberately do NOT expose Answer Now
+        # (the UI hides the button). The orchestrator only adds a defensive
         # fallback here: if the requested capability has been removed from
         # the registry but the user is mid-``answer_now``, route to ``chat``
         # so they still get *some* response instead of a hard error.

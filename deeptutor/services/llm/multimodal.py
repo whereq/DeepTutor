@@ -246,18 +246,29 @@ def _inject_images(
         if not b64 and not url:
             continue
 
-        # If the provider needs base64 and the attachment only carries a URL,
-        # resolve it from the local AttachmentStore. External URLs cannot be
-        # resolved synchronously here and are dropped with a warning.
-        if not b64 and require_base64 and url:
+        # Local AttachmentStore URLs ("/api/attachments/...") are server-
+        # relative paths and are never valid to send to an external LLM
+        # provider — even providers that accept image URLs would receive a
+        # path they can't fetch. Resolve them to base64 unconditionally so
+        # the inline-base64 branch below takes over.
+        is_local_attachment_url = url.startswith(_LOCAL_ATTACHMENT_PREFIX) if url else False
+        if not b64 and url and (require_base64 or is_local_attachment_url):
             resolved = _resolve_local_attachment_url(url)
             if resolved is not None:
                 b64, resolved_mime = resolved
                 mime = mime or resolved_mime
-            else:
+            elif require_base64:
                 logger.warning(
                     "Dropping url-only image %r: provider requires base64 but"
-                    " URL is not a local attachment-store path",
+                    " URL is not a resolvable local attachment-store path",
+                    url,
+                )
+                dropped += 1
+                continue
+            elif is_local_attachment_url:
+                logger.warning(
+                    "Dropping local attachment URL %r that could not be"
+                    " resolved from the AttachmentStore",
                     url,
                 )
                 dropped += 1

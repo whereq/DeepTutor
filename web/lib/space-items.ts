@@ -1,22 +1,18 @@
 "use client";
 
 import {
-  Brain,
   ClipboardList,
   History,
   NotebookPen,
-  Sparkles,
   Wand2,
   type LucideIcon,
 } from "lucide-react";
 
 export type SpaceItemKey =
   | "chat_history"
-  | "co_learn_history"
   | "notebooks"
   | "question_bank"
-  | "skills"
-  | "memory";
+  | "skills";
 
 export type SpaceMemoryFile = "summary" | "profile";
 
@@ -35,13 +31,6 @@ export const SPACE_ITEMS: SpaceItem[] = [
     label: "Chat History",
     description: "Review and reopen previous conversations.",
     icon: History,
-  },
-  {
-    key: "co_learn_history",
-    href: "/space/co-learn-history",
-    label: "Co-Learn History",
-    description: "Browse past auto-routed Co-Learn sessions.",
-    icon: Sparkles,
   },
   {
     key: "notebooks",
@@ -64,12 +53,5 @@ export const SPACE_ITEMS: SpaceItem[] = [
     label: "Skills",
     description: "Behavior playbooks that guide chat responses.",
     icon: Wand2,
-  },
-  {
-    key: "memory",
-    href: "/space/memory",
-    label: "Memory",
-    description: "Long-form memory the assistant carries across sessions.",
-    icon: Brain,
   },
 ];

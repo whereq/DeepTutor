@@ -27,6 +27,7 @@ from deeptutor.services.llm.client import reset_llm_client
 from deeptutor.services.llm.config import clear_llm_config_cache
 from deeptutor.services.model_selection import list_llm_options
 from deeptutor.services.path_service import get_path_service
+from deeptutor.tools.builtin import USER_TOGGLEABLE_TOOL_NAMES
 
 router = APIRouter()
 
@@ -53,6 +54,11 @@ DEFAULT_UI_SETTINGS = {
     "language": "en",
     "sidebar_description": "✨ Data Intelligence Lab @ HKU",
     "sidebar_nav_order": DEFAULT_SIDEBAR_NAV_ORDER,
+    # User-toggleable chat tools. Default = all on; the /settings/tools page
+    # is the single switchboard. Removed names (e.g. tools that ship later
+    # and the user hasn't seen yet) are ignored on read; missing names from a
+    # legacy file fall back to the default (all on).
+    "enabled_optional_tools": list(USER_TOGGLEABLE_TOOL_NAMES),
 }
 
 
@@ -84,6 +90,10 @@ class SidebarNavOrderUpdate(BaseModel):
     nav_order: SidebarNavOrder
 
 
+class EnabledToolsUpdate(BaseModel):
+    enabled_tools: List[str]
+
+
 class CatalogPayload(BaseModel):
     catalog: dict[str, Any]
 
@@ -111,10 +121,39 @@ def load_ui_settings() -> dict[str, Any]:
         try:
             with open(settings_file, encoding="utf-8") as handle:
                 saved = json.load(handle)
-                return {**DEFAULT_UI_SETTINGS, **saved}
+                merged = {**DEFAULT_UI_SETTINGS, **saved}
+                # Filter persisted enabled_optional_tools to current
+                # toggleable set so retired tool names can't leak into
+                # the per-turn payload.
+                merged["enabled_optional_tools"] = _sanitize_enabled_tools(
+                    merged.get("enabled_optional_tools")
+                )
+                return merged
         except Exception:
             pass
     return DEFAULT_UI_SETTINGS.copy()
+
+
+def _sanitize_enabled_tools(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return list(USER_TOGGLEABLE_TOOL_NAMES)
+    allowed = set(USER_TOGGLEABLE_TOOL_NAMES)
+    seen: set[str] = set()
+    out: list[str] = []
+    for name in value:
+        if isinstance(name, str) and name in allowed and name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+def get_enabled_optional_tools() -> list[str]:
+    """Return the user's currently-enabled toggleable tool names.
+
+    Source of truth for the chat pipeline when a turn doesn't ship an
+    explicit ``tools`` list.
+    """
+    return _sanitize_enabled_tools(load_ui_settings().get("enabled_optional_tools"))
 
 
 def save_ui_settings(settings: dict[str, Any]) -> None:
@@ -296,6 +335,15 @@ async def update_sidebar_nav_order(update: SidebarNavOrderUpdate):
     current_ui["sidebar_nav_order"] = update.nav_order.model_dump()
     save_ui_settings(current_ui)
     return {"nav_order": update.nav_order.model_dump()}
+
+
+@router.put("/enabled-tools")
+async def update_enabled_tools(update: EnabledToolsUpdate):
+    sanitized = _sanitize_enabled_tools(update.enabled_tools)
+    current_ui = load_ui_settings()
+    current_ui["enabled_optional_tools"] = sanitized
+    save_ui_settings(current_ui)
+    return {"enabled_optional_tools": sanitized}
 
 
 @router.post("/tests/{service}/start")

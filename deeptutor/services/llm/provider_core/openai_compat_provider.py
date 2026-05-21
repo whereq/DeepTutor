@@ -56,9 +56,7 @@ _THINKING_STYLE_MAP = {
     "enable_thinking": lambda enabled: {"enable_thinking": enabled},
     "reasoning_split": lambda enabled: {"reasoning_split": enabled},
 }
-_THINKING_DISABLED_BY_DEFAULT: tuple[tuple[str, str], ...] = (
-    ("deepseek", "deepseek-v4-flash"),
-)
+_THINKING_DISABLED_BY_DEFAULT: tuple[tuple[str, str], ...] = (("deepseek", "deepseek-v4-flash"),)
 
 
 def _short_tool_id() -> str:
@@ -336,14 +334,8 @@ class OpenAICompatProvider(LLMProvider):
             )
             if extra:
                 kwargs.setdefault("extra_body", {}).update(extra)
-        elif (
-            spec
-            and spec.thinking_style
-            and _disable_thinking_by_default(spec, model_name)
-        ):
-            extra = _THINKING_STYLE_MAP.get(spec.thinking_style, lambda _enabled: None)(
-                False
-            )
+        elif spec and spec.thinking_style and _disable_thinking_by_default(spec, model_name):
+            extra = _THINKING_STYLE_MAP.get(spec.thinking_style, lambda _enabled: None)(False)
             if extra:
                 kwargs.setdefault("extra_body", {}).update(extra)
 

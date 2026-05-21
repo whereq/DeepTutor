@@ -19,7 +19,6 @@ import { useAutoSizedTextarea } from "@/lib/use-auto-sized-textarea";
 
 interface ComposerInputProps {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
-  isMathAnimatorMode: boolean;
   isVisualizeMode: boolean;
   // When true, parent has attachments/references queued and will accept a
   // send even if the text body is empty. Without this, Enter would silently
@@ -35,11 +34,29 @@ interface ComposerInputProps {
   onSelectQuestionBankPicker: () => void;
   onSelectSkillsPicker: () => void;
   onSelectMemoryPicker: () => void;
+  /**
+   * Override the default placeholder. When unset, falls back to the
+   * main chat ("How can I help you today?") / visualize defaults.
+   */
+  placeholder?: string;
+  /**
+   * Minimum textarea height in pixels. The auto-sized hook grows the
+   * textarea past this as the user types. Bumped on the empty-state
+   * composer so the resting box looks inviting rather than crammed.
+   */
+  minHeight?: number;
 }
 
 export interface ComposerInputHandle {
   clear: () => void;
   getValue: () => string;
+  /**
+   * Programmatically replace the textarea contents (used by the
+   * ``AskUserOptions`` chip click handler — picks an option, prefills
+   * the composer, leaves it to the user to edit/send rather than
+   * auto-firing the message).
+   */
+  setValue: (value: string) => void;
 }
 
 export function shouldOpenAtPopup(value: string, cursorPos: number): boolean {
@@ -55,7 +72,6 @@ export const ComposerInput = memo(
   forwardRef<ComposerInputHandle, ComposerInputProps>(function ComposerInput(
     {
       textareaRef,
-      isMathAnimatorMode,
       isVisualizeMode,
       canSendEmpty,
       onSend,
@@ -68,6 +84,8 @@ export const ComposerInput = memo(
       onSelectQuestionBankPicker,
       onSelectSkillsPicker,
       onSelectMemoryPicker,
+      placeholder,
+      minHeight = 28,
     },
     ref,
   ) {
@@ -96,11 +114,25 @@ export const ComposerInput = memo(
           onInputChange("");
         },
         getValue: () => inputRef.current,
+        setValue: (value: string) => {
+          const text = value ?? "";
+          setInputBoth(text);
+          onInputChange(text);
+          // Focus + move caret to the end so the user can immediately
+          // edit or press Enter to send.
+          const el = textareaRef.current;
+          if (el) {
+            requestAnimationFrame(() => {
+              el.focus();
+              el.setSelectionRange(text.length, text.length);
+            });
+          }
+        },
       }),
-      [setInputBoth, onInputChange],
+      [setInputBoth, onInputChange, textareaRef],
     );
 
-    useAutoSizedTextarea(textareaRef, input, { min: 28, max: 200 });
+    useAutoSizedTextarea(textareaRef, input, { min: minHeight, max: 200 });
 
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -248,14 +280,15 @@ export const ComposerInput = memo(
           maxLength={32000}
           suppressHydrationWarning
           placeholder={
-            isMathAnimatorMode
-              ? t("Describe the math animation or storyboard you want...")
-              : isVisualizeMode
-                ? t("Describe the chart or diagram you want to visualize...")
-                : t("How can I help you today?")
+            placeholder ??
+            (isVisualizeMode
+              ? t(
+                  "Describe the chart, diagram, or animation you want to visualize...",
+                )
+              : t("How can I help you today?"))
           }
           className="w-full resize-none overflow-hidden bg-transparent text-[15px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
-          style={{ transition: "height 0.15s ease-out", minHeight: 28 }}
+          style={{ transition: "height 0.15s ease-out" }}
         />
       </div>
     );

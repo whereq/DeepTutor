@@ -2,8 +2,8 @@
  * Helpers for rendering AI-generated HTML inside a sandboxed `<iframe>`:
  * - {@link injectKaTeX} ensures the page can render `$...$` / `$$...$$`
  *   even if the model didn't include KaTeX itself.
- * - {@link sanitizeIframeHtml} strips bare `<script>` blocks (except the
- *   KaTeX init shim) and any inline event handlers / `javascript:` URLs.
+ * - {@link sanitizeIframeHtml} strips navigation escapes while leaving
+ *   interactive scripts isolated by the caller's sandboxed iframe.
  *
  * These were originally written for the (now-deprecated) Guided Learning
  * page; the visualize capability now reuses them for `render_mode=html`.
@@ -17,7 +17,6 @@ const KATEX_RESOURCES = [
     "/script>",
 ].join("\n  ");
 
-// eslint-disable-next-line no-template-curly-in-string
 const KATEX_INIT_SCRIPT =
   "<script data-katex-init>" +
   'document.addEventListener("DOMContentLoaded",function(){var t=0,i=setInterval(function(){if(typeof renderMathInElement==="function"){clearInterval(i);try{renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false},{left:"\\\\(",right:"\\\\)",display:false},{left:"\\\\[",right:"\\\\]",display:true}],throwOnError:false})}catch(e){console.error("[KaTeX] Error:",e)}}else if(++t>50){clearInterval(i);console.warn("[KaTeX] Timeout")}},100)});' +

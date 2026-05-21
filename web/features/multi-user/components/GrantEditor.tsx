@@ -45,9 +45,6 @@ export function GrantEditor({ userId }: { userId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setSaveState("idle");
-    setMessage("");
     Promise.all([fetchAdminResources(), fetchUserGrant(userId)])
       .then(([nextResources, nextGrant]) => {
         if (cancelled) return;

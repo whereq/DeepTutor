@@ -196,7 +196,6 @@ class TutorBotManager:
 
     @property
     def _path_service(self):
-        from deeptutor.services.path_service import get_path_service
         return get_path_service()
 
     # ── Path helpers ──────────────────────────────────────────────
@@ -1119,7 +1118,6 @@ _managers: dict[str, TutorBotManager] = {}
 
 
 def get_tutorbot_manager() -> TutorBotManager:
-    from deeptutor.services.path_service import get_path_service
     key = str(get_path_service().workspace_root.resolve())
     if key not in _managers:
         _managers[key] = TutorBotManager()

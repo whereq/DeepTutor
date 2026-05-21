@@ -40,9 +40,7 @@ _DEFAULT_OPENROUTER_HEADERS = {
     "HTTP-Referer": "https://github.com/HKUDS/DeepTutor",
     "X-OpenRouter-Title": "DeepTutor",
 }
-_THINKING_DISABLED_BY_DEFAULT: tuple[tuple[str, str], ...] = (
-    ("deepseek", "deepseek-v4-flash"),
-)
+_THINKING_DISABLED_BY_DEFAULT: tuple[tuple[str, str], ...] = (("deepseek", "deepseek-v4-flash"),)
 
 
 def _short_tool_id() -> str:
@@ -291,9 +289,7 @@ class OpenAICompatProvider(LLMProvider):
                 kwargs.setdefault("extra_body", {}).update(extra)
         elif spec and _disable_thinking_by_default(spec, model_name):
             if spec.name == "deepseek":
-                kwargs.setdefault("extra_body", {}).update(
-                    {"thinking": {"type": "disabled"}}
-                )
+                kwargs.setdefault("extra_body", {}).update({"thinking": {"type": "disabled"}})
 
         # Providers that handle thinking via extra_body don't need a
         # top-level reasoning_effort when the intent is to disable thinking.

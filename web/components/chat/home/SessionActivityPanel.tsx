@@ -15,12 +15,7 @@
  *   for tools/KBs/Space/attachments that never showed up in this session.
  */
 
-import {
-  memo,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   AtSign,
@@ -334,7 +329,7 @@ const SPACE_CATEGORIES: Record<string, SpaceCategoryDef> = {
   },
   memory: {
     key: "memory",
-    href: "/space/memory",
+    href: "/memory",
     label: "Memory",
     icon: Brain,
   },
@@ -461,11 +456,7 @@ function ActivityBody({
   return (
     <div className="space-y-2.5">
       {tools.length > 0 ? (
-        <SectionCard
-          icon={Wrench}
-          title={t("Tools used")}
-          count={tools.length}
-        >
+        <SectionCard icon={Wrench} title={t("Tools used")} count={tools.length}>
           <ul className="space-y-0.5 p-1.5">
             {tools.map((tool) => (
               <li

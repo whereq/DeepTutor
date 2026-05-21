@@ -137,9 +137,7 @@ class TestPersistence:
         assert on_disk["knowledge_bases"]["new-kb"]["rag_provider"] == "llamaindex"
         assert on_disk["knowledge_bases"]["new-kb"]["description"] == "x"
 
-    def test_set_kb_config_does_not_resurrect_externally_removed_kbs(
-        self, tmp_path: Path
-    ) -> None:
+    def test_set_kb_config_does_not_resurrect_externally_removed_kbs(self, tmp_path: Path) -> None:
         """Regression: the service used to cache ``self._config`` at construction
         and ``_save()`` wrote that snapshot back wholesale. If
         ``KnowledgeBaseManager`` pruned an orphan KB from disk in between, the

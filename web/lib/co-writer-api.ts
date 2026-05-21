@@ -31,7 +31,9 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
 export async function listCoWriterDocuments(): Promise<
   CoWriterDocumentSummary[]
 > {
-  const res = await apiFetch(apiUrl(`${BASE}/documents`), { cache: "no-store" });
+  const res = await apiFetch(apiUrl(`${BASE}/documents`), {
+    cache: "no-store",
+  });
   const data = await jsonOrThrow<{ documents: CoWriterDocumentSummary[] }>(res);
   return Array.isArray(data?.documents) ? data.documents : [];
 }

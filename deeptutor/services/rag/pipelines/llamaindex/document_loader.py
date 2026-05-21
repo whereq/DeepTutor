@@ -166,9 +166,7 @@ class LlamaIndexDocumentLoader:
             self.logger.info(f"Loaded image: {path.name} ({len(embedding)}D vector)")
         return nodes
 
-    async def _describe_image(
-        self, file_path: Path, image_base64: str, mimetype: str
-    ) -> str:
+    async def _describe_image(self, file_path: Path, image_base64: str, mimetype: str) -> str:
         llm_client = get_llm_client()
         response = await llm_client.complete(
             IMAGE_DESCRIPTION_PROMPT,

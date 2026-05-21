@@ -120,6 +120,8 @@ export default function BotChatPage() {
       return;
     }
     let cancelled = false;
+    // Clear stale transcript immediately when navigating between bots.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessages([]);
     setThinking([]);
     thinkingRef.current = [];

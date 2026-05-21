@@ -9,9 +9,6 @@ import time
 from typing import Any
 from uuid import uuid4
 
-from deeptutor.services.llm.client import reset_llm_client
-from deeptutor.services.llm.config import clear_llm_config_cache
-
 from .context_window_detection import detect_context_window
 from .model_catalog import get_model_catalog_service
 from .provider_runtime import (
@@ -131,26 +128,6 @@ class ConfigTestRunner:
         except Exception as exc:
             run.status = "failed"
             run.emit("failed", str(exc))
-
-    def _persist_llm_context_window(
-        self,
-        *,
-        catalog: dict[str, Any],
-        context_window: int,
-        source: str,
-        detected_at: str,
-    ) -> dict[str, Any]:
-        service = get_model_catalog_service()
-        llm_model = service.get_active_model(catalog, "llm")
-        if llm_model is None:
-            return catalog
-        llm_model["context_window"] = str(context_window)
-        llm_model["context_window_source"] = source
-        llm_model["context_window_detected_at"] = detected_at
-        saved = service.save(catalog)
-        clear_llm_config_cache()
-        reset_llm_client()
-        return saved
 
     def _persist_embedding_dimension(
         self,
@@ -283,22 +260,15 @@ class ConfigTestRunner:
         )
         run.emit(
             "context_window",
-            (f"Context window set to {detection.context_window} tokens ({detection.source})."),
+            (f"Detected context window {detection.context_window} tokens ({detection.source})."),
             context_window=detection.context_window,
             source=detection.source,
             detail=detection.detail,
             detected_at=detection.detected_at,
         )
-        saved_catalog = self._persist_llm_context_window(
-            catalog=catalog,
-            context_window=detection.context_window,
-            source=detection.source,
-            detected_at=detection.detected_at,
-        )
         run.emit(
-            "catalog",
-            "Saved updated model metadata to model_catalog.json.",
-            catalog=saved_catalog,
+            "info",
+            "Context window detection is available in Settings and was not written automatically.",
         )
 
     async def _test_embedding(

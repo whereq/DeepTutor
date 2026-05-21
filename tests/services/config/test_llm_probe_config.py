@@ -174,9 +174,7 @@ class TestLlmProbeUsesAgentsYaml:
         )
 
     @pytest.mark.asyncio
-    async def test_probe_passes_runtime_api_version_and_reasoning_effort(
-        self, monkeypatch
-    ):
+    async def test_probe_passes_runtime_api_version_and_reasoning_effort(self, monkeypatch):
         from deeptutor.services import llm as llm_module
         from deeptutor.services.config import test_runner as test_runner_module
         from deeptutor.services.config.test_runner import ConfigTestRunner, TestRun
@@ -212,7 +210,7 @@ class TestLlmProbeUsesAgentsYaml:
         assert captured_kwargs["reasoning_effort"] == "high"
 
     @pytest.mark.asyncio
-    async def test_probe_persists_detected_context_window_when_catalog_present(
+    async def test_probe_reports_detected_context_window_without_persisting_catalog(
         self, tmp_path, monkeypatch
     ):
         from deeptutor.services import llm as llm_module
@@ -274,8 +272,6 @@ class TestLlmProbeUsesAgentsYaml:
             "detect_context_window",
             _stub_metadata_context_window_detection,
         )
-        monkeypatch.setattr(test_runner_module, "clear_llm_config_cache", lambda: None)
-        monkeypatch.setattr(test_runner_module, "reset_llm_client", lambda: None)
         monkeypatch.setattr(llm_module, "get_token_limit_kwargs", _real_get_token_limit_kwargs)
         monkeypatch.setattr(llm_module, "complete", _fake_llm_complete)
         monkeypatch.setattr(llm_module, "clear_llm_config_cache", lambda: None)
@@ -286,10 +282,14 @@ class TestLlmProbeUsesAgentsYaml:
 
         saved = service.load()
         saved_model = saved["services"]["llm"]["profiles"][0]["models"][0]
-        assert saved_model["context_window"] == "128000"
-        assert saved_model["context_window_source"] == "metadata"
-        assert saved_model["context_window_detected_at"] == "2026-04-24T08:00:00+00:00"
-        assert any(event["type"] == "catalog" for event in run.events)
+        assert "context_window" not in saved_model
+        assert "context_window_source" not in saved_model
+        assert "context_window_detected_at" not in saved_model
+        context_event = next(event for event in run.events if event["type"] == "context_window")
+        assert context_event["context_window"] == 128000
+        assert context_event["source"] == "metadata"
+        assert context_event["detected_at"] == "2026-04-24T08:00:00+00:00"
+        assert not any(event["type"] == "catalog" for event in run.events)
 
 
 # ---------------------------------------------------------------------------

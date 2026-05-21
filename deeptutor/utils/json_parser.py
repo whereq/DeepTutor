@@ -97,7 +97,10 @@ def parse_json_response(
         log.info("Successfully repaired malformed JSON")
         return result
     except Exception as repair_error:
-        log.error(f"JSON repair failed: {repair_error}")
+        # Most callers use this helper as best-effort parsing with an explicit
+        # fallback. Non-JSON prose is common in LLM/tool output and should not
+        # look like a backend failure when the caller can safely continue.
+        log.debug(f"JSON repair failed: {repair_error}")
         log.debug(f"Response: {extracted_response[:200]}")
         return fallback
 

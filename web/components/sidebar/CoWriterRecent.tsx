@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   listCoWriterDocuments,
@@ -23,27 +23,33 @@ export function CoWriterRecent({
   const { i18n } = useTranslation();
   const [docs, setDocs] = useState<CoWriterDocumentSummary[]>([]);
   const pathname = usePathname();
-  const limitRef = useRef(limit);
-  limitRef.current = limit;
-
-  const refresh = useCallback(async () => {
-    try {
-      const items = await listCoWriterDocuments();
-      setDocs(items.slice(0, limitRef.current));
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh, pathname]);
+    let active = true;
+    void listCoWriterDocuments()
+      .then((items) => {
+        if (active) setDocs(items.slice(0, limit));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [limit, pathname]);
 
   useEffect(() => {
-    return subscribeCoWriterChanges(() => {
-      void refresh();
+    let active = true;
+    const unsubscribe = subscribeCoWriterChanges(() => {
+      void listCoWriterDocuments()
+        .then((items) => {
+          if (active) setDocs(items.slice(0, limit));
+        })
+        .catch(() => {});
     });
-  }, [refresh]);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [limit]);
 
   if (docs.length === 0) return null;
 
@@ -62,10 +68,7 @@ export function CoWriterRecent({
             {doc.title || "Untitled draft"}
           </span>
           <span className="shrink-0 text-[10px] tabular-nums text-[var(--muted-foreground)]/40">
-            {formatRelativeTime(
-              Number(doc.updated_at) || 0,
-              i18n.language,
-            )}
+            {formatRelativeTime(Number(doc.updated_at) || 0, i18n.language)}
           </span>
         </Link>
       ))}

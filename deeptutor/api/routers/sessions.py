@@ -55,6 +55,7 @@ class QuizResultItem(BaseModel):
 
 class QuizResultsRequest(BaseModel):
     answers: list[QuizResultItem] = Field(default_factory=list)
+    turn_id: str = ""
 
 
 def _format_quiz_results_message(answers: list[QuizResultItem]) -> str:
@@ -79,16 +80,9 @@ def _format_quiz_results_message(answers: list[QuizResultItem]) -> str:
 async def list_sessions(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    kind: str | None = Query(
-        default=None,
-        description=(
-            "Filter by session surface: 'chat' (manual /chat page) or "
-            "'co_learn' (auto routing /co-learn page). Omit to return all."
-        ),
-    ),
 ):
     store = get_session_store()
-    sessions = await store.list_sessions(limit=limit, offset=offset, kind=kind)
+    sessions = await store.list_sessions(limit=limit, offset=offset)
     return {"sessions": sessions}
 
 
@@ -176,7 +170,7 @@ async def record_quiz_results(session_id: str, payload: QuizResultsRequest):
     try:
         notebook_count = await store.upsert_notebook_entries(
             session_id,
-            [item.model_dump() for item in payload.answers],
+            [{**item.model_dump(), "turn_id": payload.turn_id} for item in payload.answers],
         )
     except Exception:
         logger.warning(

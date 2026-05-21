@@ -80,10 +80,7 @@ export function BookRecent({ collapsed = false, limit = 4 }: BookRecentProps) {
               {book.title || "Untitled book"}
             </span>
             <span className="shrink-0 text-[10px] tabular-nums text-[var(--muted-foreground)]/40">
-              {formatRelativeTime(
-                Number(book.updated_at) || 0,
-                i18n.language,
-              )}
+              {formatRelativeTime(Number(book.updated_at) || 0, i18n.language)}
             </span>
           </Link>
         );

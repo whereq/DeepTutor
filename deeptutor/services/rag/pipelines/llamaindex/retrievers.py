@@ -43,8 +43,7 @@ def build_bm25_retriever(index: Any, storage_dir: Path, *, top_k: int) -> Any | 
     bm25_cls = _import_bm25_retriever()
     if bm25_cls is None:
         logger.info(
-            "LlamaIndex BM25 retriever package is not installed; "
-            "falling back to vector retrieval."
+            "LlamaIndex BM25 retriever package is not installed; falling back to vector retrieval."
         )
         return None
 

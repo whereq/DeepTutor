@@ -8,10 +8,10 @@ keep surfacing zombie KBs the user cannot act on.
 
 from __future__ import annotations
 
-import json
-import shutil
 from datetime import datetime
+import json
 from pathlib import Path
+import shutil
 
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 

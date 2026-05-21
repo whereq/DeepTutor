@@ -281,14 +281,18 @@ class TestDownloadAttachments:
             "content": "Check ![img.png](/user_uploads/2/ce/abc/img.png)",
             "content_type": "text/x-markdown",
         }
-        with patch.object(
-            ch,
-            "_extract_upload_links",
-            return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")],
-        ), patch(
-            "deeptutor.tutorbot.channels.zulip.get_media_dir",
-            return_value=tmp_path,
-        ), patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get:
+        with (
+            patch.object(
+                ch,
+                "_extract_upload_links",
+                return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")],
+            ),
+            patch(
+                "deeptutor.tutorbot.channels.zulip.get_media_dir",
+                return_value=tmp_path,
+            ),
+            patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get,
+        ):
             mock_resp = MagicMock()
             mock_resp.raise_for_status = MagicMock()
             mock_resp.content = b"fake-image-data"
@@ -299,10 +303,7 @@ class TestDownloadAttachments:
                     assert len(paths) == 1
                     mock_get.assert_called_once()
                     call_url = mock_get.call_args[0][0]
-                    assert (
-                        call_url
-                        == "https://example.zulipchat.com/user_uploads/2/ce/abc/img.png"
-                    )
+                    assert call_url == "https://example.zulipchat.com/user_uploads/2/ce/abc/img.png"
 
     def test_no_uploads_returns_empty(self):
         ch = _make_channel()
@@ -317,13 +318,16 @@ class TestDownloadAttachments:
             "content": "![img.png](/user_uploads/2/ce/abc/img.png)",
             "content_type": "text/x-markdown",
         }
-        with patch.object(
-            ch,
-            "_extract_upload_links",
-            return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")],
-        ), patch(
-            "deeptutor.tutorbot.channels.zulip.get_media_dir",
-            return_value=tmp_path,
+        with (
+            patch.object(
+                ch,
+                "_extract_upload_links",
+                return_value=[("img.png", "/user_uploads/2/ce/abc/img.png")],
+            ),
+            patch(
+                "deeptutor.tutorbot.channels.zulip.get_media_dir",
+                return_value=tmp_path,
+            ),
         ):
             from pathlib import Path as RealPath
 
@@ -832,9 +836,7 @@ class TestResolveMediaPath:
             "deeptutor.tutorbot.channels.zulip.get_media_dir",
             return_value=tmp_path,
         ):
-            dest = ZulipChannel._attachment_destination(
-                tmp_path, "photo.png", path_id, 0
-            )
+            dest = ZulipChannel._attachment_destination(tmp_path, "photo.png", path_id, 0)
             dest.write_bytes(b"cached-data")
 
             result = ch._resolve_media_path(path_id)
@@ -845,10 +847,13 @@ class TestResolveMediaPath:
         ch = _make_channel()
         path_id = "/user_uploads/2/ce/abc123/photo.png"
 
-        with patch(
-            "deeptutor.tutorbot.channels.zulip.get_media_dir",
-            return_value=tmp_path,
-        ), patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get:
+        with (
+            patch(
+                "deeptutor.tutorbot.channels.zulip.get_media_dir",
+                return_value=tmp_path,
+            ),
+            patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get,
+        ):
             mock_resp = MagicMock()
             mock_resp.raise_for_status = MagicMock()
             mock_resp.content = b"downloaded-data"
@@ -863,10 +868,13 @@ class TestResolveMediaPath:
         ch = _make_channel()
         url = "https://example.zulipchat.com/user_uploads/2/ce/abc/photo.png"
 
-        with patch(
-            "deeptutor.tutorbot.channels.zulip.get_media_dir",
-            return_value=tmp_path,
-        ), patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get:
+        with (
+            patch(
+                "deeptutor.tutorbot.channels.zulip.get_media_dir",
+                return_value=tmp_path,
+            ),
+            patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get,
+        ):
             mock_resp = MagicMock()
             mock_resp.raise_for_status = MagicMock()
             mock_resp.content = b"data"
@@ -874,6 +882,26 @@ class TestResolveMediaPath:
 
             result = ch._resolve_media_path(url)
             assert result is not None
+
+    def test_full_url_resolved_when_config_site_has_trailing_slash(self, tmp_path: Path):
+        ch = _make_channel(site="https://example.zulipchat.com/")
+        url = "https://example.zulipchat.com/user_uploads/2/ce/abc/photo.png"
+
+        with (
+            patch(
+                "deeptutor.tutorbot.channels.zulip.get_media_dir",
+                return_value=tmp_path,
+            ),
+            patch("deeptutor.tutorbot.channels.zulip.requests.get") as mock_get,
+        ):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status = MagicMock()
+            mock_resp.content = b"data"
+            mock_get.return_value = mock_resp
+
+            result = ch._resolve_media_path(url)
+            assert result is not None
+            assert Path(result).read_bytes() == b"data"
 
     def test_non_zulip_nonexistent_path_returns_none(self):
         ch = _make_channel()
@@ -935,11 +963,12 @@ class TestSendMetadataEnrichment:
         assert msg.metadata["stream"] == "general"
 
 
-class TestSendToolHintFilter:
+class TestSendToolHints:
     @pytest.mark.asyncio
-    async def test_tool_hint_message_skipped(self):
+    async def test_tool_hint_message_sent_when_dispatched(self):
         ch = _make_channel()
         mock_client = MagicMock()
+        mock_client.call_endpoint.return_value = {"result": "success"}
         ch._client = mock_client
 
         from deeptutor.tutorbot.bus.events import OutboundMessage
@@ -948,11 +977,16 @@ class TestSendToolHintFilter:
             channel="zulip",
             chat_id="pm:42",
             content='message("Hello")',
-            metadata={"_progress": True, "_tool_hint": True},
+            metadata={
+                "_progress": True,
+                "_tool_hint": True,
+                "msg_type": "private",
+                "recipient_user_id": "42",
+            },
         )
         await ch.send(msg)
 
-        mock_client.call_endpoint.assert_not_called()
+        mock_client.call_endpoint.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_progress_message_without_tool_hint_sent(self):
@@ -1032,6 +1066,20 @@ class TestSubscribeStreams:
         assert "general" in names
         assert "dev" in names
 
+    def test_explicit_stream_names_are_deduplicated_and_sorted(self):
+        ch = _make_channel(subscribe_streams=["general", "dev", "general", " "])
+        mock_client = MagicMock()
+        mock_client.add_subscriptions.return_value = {
+            "result": "success",
+            "already_subscribed": {},
+        }
+        ch._client = mock_client
+
+        ch._subscribe_to_streams()
+
+        streams_arg = mock_client.add_subscriptions.call_args.kwargs["streams"]
+        assert [s["name"] for s in streams_arg] == ["dev", "general"]
+
     def test_wildcard_subscribes_all_public_streams(self):
         ch = _make_channel(subscribe_streams=["*"])
         mock_client = MagicMock()
@@ -1071,8 +1119,31 @@ class TestSubscribeStreams:
             "msg": "some error",
         }
         ch._client = mock_client
-        ch._subscribe_to_streams()
+
+        with patch("deeptutor.tutorbot.channels.zulip.logger.warning") as mock_warning:
+            ch._subscribe_to_streams()
+
         mock_client.add_subscriptions.assert_called_once()
+        mock_warning.assert_called_once()
+
+    def test_subscribe_non_success_all_already_subscribed_is_debug_only(self):
+        ch = _make_channel(subscribe_streams=["general"])
+        mock_client = MagicMock()
+        mock_client.add_subscriptions.return_value = {
+            "result": "error",
+            "msg": "already subscribed",
+            "already_subscribed": {"bot@example.com": ["general"]},
+        }
+        ch._client = mock_client
+
+        with (
+            patch("deeptutor.tutorbot.channels.zulip.logger.warning") as mock_warning,
+            patch("deeptutor.tutorbot.channels.zulip.logger.debug") as mock_debug,
+        ):
+            ch._subscribe_to_streams()
+
+        mock_warning.assert_not_called()
+        mock_debug.assert_called_once()
 
     def test_subscribe_logs_already_subscribed(self):
         ch = _make_channel(subscribe_streams=["general", "dev"])

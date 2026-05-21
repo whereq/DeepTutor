@@ -119,10 +119,18 @@ export async function deleteNotebookRecord(
 
 // ── Question notebook (quiz entries + categories) ─────────────────
 
+export interface NotebookAnswerImage {
+  id: string;
+  url: string;
+  filename: string;
+  mime_type: string;
+}
+
 export interface NotebookEntry {
   id: number;
   session_id: string;
   session_title: string;
+  turn_id: string;
   question_id: string;
   question: string;
   question_type: string;
@@ -131,9 +139,12 @@ export interface NotebookEntry {
   explanation: string;
   difficulty: string;
   user_answer: string;
+  user_answer_images?: NotebookAnswerImage[];
   is_correct: boolean;
   bookmarked: boolean;
   followup_session_id: string;
+  /** Latest AI-judge text for this entry; empty when never run. */
+  ai_judgment?: string;
   created_at: number;
   updated_at: number;
   categories?: NotebookCategory[];
@@ -201,11 +212,13 @@ export async function getNotebookEntry(
 export async function lookupNotebookEntry(
   sessionId: string,
   questionId: string,
+  turnId?: string | null,
 ): Promise<NotebookEntry | null> {
   const params = new URLSearchParams({
     session_id: sessionId,
     question_id: questionId,
   });
+  if (turnId) params.set("turn_id", turnId);
   const response = await apiFetch(
     apiUrl(`/api/v1/question-notebook/entries/lookup/by-question?${params}`),
   );
@@ -215,7 +228,11 @@ export async function lookupNotebookEntry(
 
 export async function updateNotebookEntry(
   entryId: number,
-  updates: { bookmarked?: boolean; followup_session_id?: string },
+  updates: {
+    bookmarked?: boolean;
+    followup_session_id?: string;
+    ai_judgment?: string;
+  },
 ): Promise<void> {
   const response = await apiFetch(
     apiUrl(`/api/v1/question-notebook/entries/${entryId}`),
@@ -228,8 +245,19 @@ export async function updateNotebookEntry(
   await expectJson<{ updated: boolean }>(response);
 }
 
+export interface NotebookAnswerImageUpload {
+  id?: string;
+  /** Base64 (no ``data:`` prefix) for a freshly-picked image. */
+  base64?: string;
+  /** Existing AttachmentStore URL for an already-persisted image. */
+  url?: string;
+  filename: string;
+  mime_type: string;
+}
+
 export async function upsertNotebookEntry(data: {
   session_id: string;
+  turn_id?: string;
   question_id: string;
   question: string;
   question_type?: string;
@@ -238,6 +266,11 @@ export async function upsertNotebookEntry(data: {
   explanation?: string;
   difficulty?: string;
   user_answer?: string;
+  /**
+   * Optional list of images attached to the learner's answer. Omit to
+   * leave any stored images untouched; pass an empty array to clear them.
+   */
+  user_answer_images?: NotebookAnswerImageUpload[];
   is_correct?: boolean;
 }): Promise<NotebookEntry> {
   const response = await apiFetch(
@@ -299,18 +332,24 @@ export async function removeEntryFromCategory(
 // ── Categories ──────────────────────────────────────────────────
 
 export async function listCategories(): Promise<NotebookCategory[]> {
-  const response = await apiFetch(apiUrl("/api/v1/question-notebook/categories"), {
-    cache: "no-store",
-  });
+  const response = await apiFetch(
+    apiUrl("/api/v1/question-notebook/categories"),
+    {
+      cache: "no-store",
+    },
+  );
   return expectJson<NotebookCategory[]>(response);
 }
 
 export async function createCategory(name: string): Promise<NotebookCategory> {
-  const response = await apiFetch(apiUrl("/api/v1/question-notebook/categories"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
+  const response = await apiFetch(
+    apiUrl("/api/v1/question-notebook/categories"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    },
+  );
   return expectJson<NotebookCategory>(response);
 }
 

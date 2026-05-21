@@ -1,10 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   Brain,
+  Check,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -30,17 +31,21 @@ import type {
 import { apiUrl } from "@/lib/api";
 import { docIconFor } from "@/lib/doc-attachments";
 import { extractMathAnimatorResult } from "@/lib/math-animator-types";
-import { extractQuizQuestions } from "@/lib/quiz-types";
+import {
+  extractQuizQuestions,
+  extractStreamingQuizQuestions,
+} from "@/lib/quiz-types";
 import { extractVisualizeResult } from "@/lib/visualize-types";
 import type { StreamEvent } from "@/lib/unified-ws";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
 import type { SelectedBookReference } from "@/lib/book-references";
-import {
-  buildVisiblePath,
-  type SiblingInfo,
-} from "@/lib/message-branches";
+import { buildVisiblePath, type SiblingInfo } from "@/lib/message-branches";
 import type { SpaceMemoryFile } from "@/lib/space-items";
-import AutoModeAssistantMessage from "./AutoModeAssistantMessage";
+import {
+  AskUserOptions,
+  extractAskUserPayload,
+  extractMessageSegments,
+} from "./AskUserOptions";
 import { TraceSurface } from "./TracePanels";
 
 const MathAnimatorViewer = dynamic(
@@ -114,24 +119,39 @@ const AssistantMessage = memo(function AssistantMessage({
   language,
   onConfirmOutline,
   onAnswerNow,
-  onRetry,
-  onSwitchToManual,
+  onSubmitUserReply,
+  researchRequestSnapshot,
 }: {
   msg: { content: string; capability?: string; events?: StreamEvent[] };
   isStreaming?: boolean;
   outlineStatus?: "editing" | "researching" | "done";
   sessionId?: string | null;
   language?: string;
+  researchRequestSnapshot?: MessageRequestSnapshot | null;
   onConfirmOutline?: (
     outline: Array<{ title: string; overview: string }>,
     topic: string,
     researchConfig?: Record<string, unknown> | null,
+    requestSnapshot?: MessageRequestSnapshot | null,
   ) => void;
   onAnswerNow?: () => void;
-  onRetry?: () => void;
-  onSwitchToManual?: () => void;
+  /**
+   * Submit a reply for a turn that is paused on ``ask_user``. Wired
+   * through from the page so the card's option-buttons / free-text
+   * input can deliver the user's selection back to the backend over
+   * the unified WebSocket. Triggers a same-turn resume (no new user
+   * bubble). Accepts either a flat string (legacy single-question) or
+   * a structured object with per-question ``answers`` (v2 path).
+   */
+  onSubmitUserReply?: (
+    reply:
+      | string
+      | {
+          text?: string;
+          answers?: Array<{ questionId: string; text: string }>;
+        },
+  ) => void;
 }) {
-  const isAutoTurn = msg.capability === "auto";
   const events = useMemo(() => msg.events ?? [], [msg.events]);
   const resultEvent = useMemo(
     () => msg.events?.find((event) => event.type === "result") ?? null,
@@ -156,9 +176,14 @@ const AssistantMessage = memo(function AssistantMessage({
   }, [msg.capability, resultEvent]);
 
   const quizQuestions = useMemo(() => {
-    if (msg.capability !== "deep_question" || !resultEvent) return null;
-    return extractQuizQuestions(resultEvent.metadata);
-  }, [msg.capability, resultEvent]);
+    if (msg.capability !== "deep_question") return null;
+    // Once the final result event lands, it's authoritative — it carries
+    // the canonical summary.results[]. Until then, accumulate questions
+    // from the live ``quiz_question_emitted`` content events so the
+    // QuizViewer can render each card the moment it's generated.
+    if (resultEvent) return extractQuizQuestions(resultEvent.metadata);
+    return extractStreamingQuizQuestions(msg.events ?? []);
+  }, [msg.capability, msg.events, resultEvent]);
 
   const mathAnimatorResult = useMemo(() => {
     if (msg.capability !== "math_animator" || !resultEvent) return null;
@@ -170,30 +195,37 @@ const AssistantMessage = memo(function AssistantMessage({
     return extractVisualizeResult(resultEvent.metadata);
   }, [msg.capability, resultEvent]);
 
-  // Auto turns have a fundamentally different layout (interleaved
-  // thinking + collapsed delegation cards + final synthesis). Each sub-
-  // capability's internal trace is rendered INSIDE its delegation card —
-  // we deliberately do NOT show a top-level CallTracePanel here, because
-  // grouping by ``call_id`` would mix auto-level routing trace with each
-  // sub-capability's stages and produce the visual noise this layout was
-  // meant to avoid.
-  if (isAutoTurn) {
-    return (
-      <>
-        {isStreaming && onAnswerNow ? (
-          <AnswerNowRow onAnswerNow={onAnswerNow} />
-        ) : null}
-        <AutoModeAssistantMessage
-          msg={msg}
-          isStreaming={isStreaming}
-          sessionId={sessionId}
-          language={language}
-          onRetry={onRetry}
-          onSwitchToManual={onSwitchToManual}
-        />
-      </>
-    );
-  }
+  // Detect the ``ask_user`` terminator payload: when the assistant turn
+  // ended via the ``ask_user`` tool, this is the question the user is
+  // expected to answer next. Render option chips below the message.
+  const askUserPayload = useMemo(
+    () => extractAskUserPayload(msg.events),
+    [msg.events],
+  );
+
+  // Interleaved segments for the default chat surface — text emitted
+  // before the ask_user call renders above the card; text emitted by
+  // the resumed iteration renders below it. Only walked when this
+  // message will actually render through the default branch (the
+  // research / quiz / animator / visualize branches have their own
+  // layout and pin the card elsewhere).
+  const useInlineAskUserSegments =
+    !outlinePreview &&
+    !mathAnimatorResult &&
+    !visualizeResult &&
+    !(quizQuestions && quizQuestions.length > 0);
+  const messageSegments = useMemo(
+    () => (useInlineAskUserSegments ? extractMessageSegments(msg.events) : []),
+    [useInlineAskUserSegments, msg.events],
+  );
+  const hasInlineAskUser =
+    useInlineAskUserSegments &&
+    messageSegments.some((seg) => seg.kind === "ask_user");
+
+  const researchInProgress =
+    outlineStatus === "researching" || outlineStatus === "done";
+  const showResearchBody =
+    Boolean(outlinePreview) && researchInProgress && Boolean(msg.content);
 
   return (
     <>
@@ -206,31 +238,101 @@ const AssistantMessage = memo(function AssistantMessage({
         <AnswerNowRow onAnswerNow={onAnswerNow} />
       ) : null}
       {outlinePreview && outlinePreview.sub_topics.length > 0 ? (
-        <ResearchOutlineEditor
-          outline={outlinePreview.sub_topics}
-          topic={outlinePreview.topic}
-          onConfirm={(items) =>
-            onConfirmOutline?.(
-              items,
-              outlinePreview.topic,
-              outlinePreview.research_config,
-            )
-          }
-          status={outlineStatus}
-        />
+        <>
+          {/* Layout for the merged research bubble:
+                1. trace cards (above, via TraceSurface)
+                2. ask_user Q&A summary (collapsible once research starts)
+                3. Outline editor (auto-collapses once locked)
+                4. Final report body (only after research is underway)
+              The Q&A intentionally sits ABOVE the outline so the user
+              sees the path that produced the outline before the outline
+              itself. */}
+          {askUserPayload ? (
+            <AskUserOptions
+              data={askUserPayload}
+              onSubmit={(reply) => {
+                if (!onSubmitUserReply) return;
+                onSubmitUserReply(reply);
+              }}
+              collapsible={researchInProgress}
+              defaultCollapsed={researchInProgress}
+            />
+          ) : null}
+          <ResearchOutlineEditor
+            outline={outlinePreview.sub_topics}
+            topic={outlinePreview.topic}
+            onConfirm={(items) =>
+              onConfirmOutline?.(
+                items,
+                outlinePreview.topic,
+                outlinePreview.research_config,
+                researchRequestSnapshot,
+              )
+            }
+            status={outlineStatus}
+          />
+          {showResearchBody ? (
+            <AssistantResponse content={msg.content} />
+          ) : null}
+        </>
       ) : mathAnimatorResult ? (
         <MathAnimatorViewer result={mathAnimatorResult} />
       ) : visualizeResult ? (
         <VisualizationViewer result={visualizeResult} />
       ) : quizQuestions && quizQuestions.length > 0 ? (
-        <QuizViewer
-          questions={quizQuestions}
-          sessionId={sessionId}
-          language={language}
-        />
+        <>
+          {/* Phase 1's FINISH preface (the "I researched X, now let me
+              quiz you on Y" sentence the user watched stream in) rides
+              along ABOVE the quiz card. Without this, the streamed text
+              vanishes from the bubble the moment the first card appears
+              because the branch above is mutually exclusive with
+              <AssistantResponse>. The body is already free of the
+              per-question markdown — the pipeline trims that out of
+              ``msg.content`` since the QuizViewer renders the cards
+              themselves. */}
+          {msg.content ? <AssistantResponse content={msg.content} /> : null}
+          <QuizViewer
+            questions={quizQuestions}
+            sessionId={sessionId}
+            turnId={resultEvent?.turn_id ?? null}
+            language={language}
+          />
+        </>
+      ) : hasInlineAskUser ? (
+        // Default chat surface with one or more ask_user calls: render
+        // text and cards in the exact order they were streamed, so the
+        // pre-ask_user narration sits above the card and the resumed
+        // iteration's text sits below.
+        messageSegments.map((seg) =>
+          seg.kind === "text" ? (
+            <AssistantResponse key={seg.key} content={seg.text} />
+          ) : (
+            <AskUserOptions
+              key={seg.key}
+              data={seg.data}
+              onSubmit={(reply) => {
+                if (!onSubmitUserReply) return;
+                onSubmitUserReply(reply);
+              }}
+            />
+          ),
+        )
       ) : (
         <AssistantResponse content={msg.content} />
       )}
+      {/* Non-default branches (quiz, math animator, visualize) keep
+          ask_user below the body. The default branch inlines the card
+          via ``messageSegments``; the research branch renders its own
+          card above the outline editor — both skip this fallback. */}
+      {!outlinePreview && !hasInlineAskUser && askUserPayload ? (
+        <AskUserOptions
+          data={askUserPayload}
+          onSubmit={(reply) => {
+            if (!onSubmitUserReply) return;
+            onSubmitUserReply(reply);
+          }}
+        />
+      ) : null}
     </>
   );
 });
@@ -338,6 +440,52 @@ function RoughActionButton({
     >
       <Icon size={11} strokeWidth={1.5} />
       <span>{label}</span>
+    </button>
+  );
+}
+
+function CopyActionButton({
+  content,
+  onCopy,
+}: {
+  content: string;
+  onCopy: (content: string) => void | Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handleClick = useCallback(() => {
+    void Promise.resolve(onCopy(content)).then(() => {
+      setCopied(true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1600);
+    });
+  }, [content, onCopy]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-live="polite"
+      className={`inline-flex items-center gap-1 px-0.5 py-0.5 text-[11px] transition-colors ${
+        copied
+          ? "text-[var(--primary)]"
+          : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+      }`}
+    >
+      {copied ? (
+        <Check size={11} strokeWidth={2} />
+      ) : (
+        <Copy size={11} strokeWidth={1.5} />
+      )}
+      <span>{copied ? t("Copied") : t("Copy")}</span>
     </button>
   );
 }
@@ -580,86 +728,86 @@ const UserMessage = memo(function UserMessage({
             </div>
           </div>
         ) : (
-        <div className="rounded-2xl bg-[var(--secondary)] px-4 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] shadow-sm">
-          {(() => {
-            const snap = msg.requestSnapshot;
-            const hasNotebook = Boolean(snap?.notebookReferences?.length);
-            const hasBooks = Boolean(snap?.bookReferences?.length);
-            const hasHistory = Boolean(snap?.historyReferences?.length);
-            const hasQuestions = Boolean(
-              snap?.questionNotebookReferences?.length,
-            );
-            const hasSkills = Boolean(snap?.skills?.length);
-            const hasMemory = Boolean(snap?.memoryReferences?.length);
-            if (
-              !hasNotebook &&
-              !hasBooks &&
-              !hasHistory &&
-              !hasQuestions &&
-              !hasSkills &&
-              !hasMemory
-            )
-              return null;
-            return (
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {snap?.notebookReferences?.map((ref) => (
-                  <span
-                    key={ref.notebook_id}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
-                  >
-                    <BookOpen size={11} strokeWidth={1.8} />
-                    {t("Notebook")} · {ref.record_ids.length} {t("records")}
-                  </span>
-                ))}
-                {snap?.bookReferences?.map((ref) => (
-                  <span
-                    key={ref.book_id}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
-                  >
-                    <BookOpen size={11} strokeWidth={1.8} />
-                    {t("Book")} · {ref.page_ids.length} {t("chapters")}
-                  </span>
-                ))}
-                {snap?.historyReferences?.map((sid) => (
-                  <span
-                    key={sid}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
-                  >
-                    <MessageSquare size={11} strokeWidth={1.8} />
-                    {t("Chat History")}
-                  </span>
-                ))}
-                {hasQuestions && (
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]">
-                    <ClipboardList size={11} strokeWidth={1.8} />
-                    {t("Question Bank")} ·{" "}
-                    {snap?.questionNotebookReferences?.length} {t("items")}
-                  </span>
-                )}
-                {snap?.skills?.map((skill) => (
-                  <span
-                    key={skill}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
-                  >
-                    <Wand2 size={11} strokeWidth={1.8} />
-                    {skill === "auto" ? t("Skills Auto") : skill}
-                  </span>
-                ))}
-                {snap?.memoryReferences?.map((file) => (
-                  <span
-                    key={file}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
-                  >
-                    <Brain size={11} strokeWidth={1.8} />
-                    {t("Memory")} ·{" "}
-                    {file === "summary" ? t("Summary") : t("Profile")}
-                  </span>
-                ))}
-              </div>
-            );
-          })()}
-          <div className="whitespace-pre-wrap">{msg.content}</div>
-        </div>
+          <div className="rounded-2xl bg-[var(--secondary)] px-4 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] shadow-sm">
+            {(() => {
+              const snap = msg.requestSnapshot;
+              const hasNotebook = Boolean(snap?.notebookReferences?.length);
+              const hasBooks = Boolean(snap?.bookReferences?.length);
+              const hasHistory = Boolean(snap?.historyReferences?.length);
+              const hasQuestions = Boolean(
+                snap?.questionNotebookReferences?.length,
+              );
+              const hasSkills = Boolean(snap?.skills?.length);
+              const hasMemory = Boolean(snap?.memoryReferences?.length);
+              if (
+                !hasNotebook &&
+                !hasBooks &&
+                !hasHistory &&
+                !hasQuestions &&
+                !hasSkills &&
+                !hasMemory
+              )
+                return null;
+              return (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {snap?.notebookReferences?.map((ref) => (
+                    <span
+                      key={ref.notebook_id}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                    >
+                      <BookOpen size={11} strokeWidth={1.8} />
+                      {t("Notebook")} · {ref.record_ids.length} {t("records")}
+                    </span>
+                  ))}
+                  {snap?.bookReferences?.map((ref) => (
+                    <span
+                      key={ref.book_id}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                    >
+                      <BookOpen size={11} strokeWidth={1.8} />
+                      {t("Book")} · {ref.page_ids.length} {t("chapters")}
+                    </span>
+                  ))}
+                  {snap?.historyReferences?.map((sid) => (
+                    <span
+                      key={sid}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                    >
+                      <MessageSquare size={11} strokeWidth={1.8} />
+                      {t("Chat History")}
+                    </span>
+                  ))}
+                  {hasQuestions && (
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]">
+                      <ClipboardList size={11} strokeWidth={1.8} />
+                      {t("Question Bank")} ·{" "}
+                      {snap?.questionNotebookReferences?.length} {t("items")}
+                    </span>
+                  )}
+                  {snap?.skills?.map((skill) => (
+                    <span
+                      key={skill}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                    >
+                      <Wand2 size={11} strokeWidth={1.8} />
+                      {skill === "auto" ? t("Skills Auto") : skill}
+                    </span>
+                  ))}
+                  {snap?.memoryReferences?.map((file) => (
+                    <span
+                      key={file}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)]/60 px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                    >
+                      <Brain size={11} strokeWidth={1.8} />
+                      {t("Memory")} ·{" "}
+                      {file === "summary" ? t("Summary") : t("Profile")}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
+            <div className="whitespace-pre-wrap">{msg.content}</div>
+          </div>
         )}
         {!editing && (onCopy || canEdit || siblingInfo) && msg.content && (
           <div className="flex h-5 items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -672,11 +820,7 @@ const UserMessage = memo(function UserMessage({
               />
             )}
             {onCopy && (
-              <RoughActionButton
-                icon={Copy}
-                label={t("Copy")}
-                onClick={() => void onCopy(msg.content)}
-              />
+              <CopyActionButton content={msg.content} onCopy={onCopy} />
             )}
             {canEdit && (
               <RoughActionButton
@@ -880,11 +1024,11 @@ export const ChatMessageList = memo(function ChatMessageList({
   onRegenerateMessage,
   onConfirmOutline,
   onPreviewAttachment,
-  onSwitchToManualMode,
   onDeleteTurn,
   selectedBranches,
   onEditMessage,
   onSwitchBranch,
+  onSubmitUserReply,
 }: {
   messages: ChatMessageItem[];
   isStreaming: boolean;
@@ -900,17 +1044,30 @@ export const ChatMessageList = memo(function ChatMessageList({
     outline: Array<{ title: string; overview: string }>,
     topic: string,
     researchConfig?: Record<string, unknown> | null,
+    requestSnapshot?: MessageRequestSnapshot | null,
   ) => void;
   onPreviewAttachment?: (attachment: MessageAttachment) => void;
-  // Only used by auto-turn ``AutoErrorBlock`` to surface a "back to manual"
-  // button after a terminal failure. Optional so non-auto chat surfaces don't
-  // have to wire it.
-  onSwitchToManualMode?: () => void;
   onDeleteTurn?: (messageId: number) => void;
   /** Edit-branching: selected sibling at each branch point. */
   selectedBranches?: Record<string, number>;
   onEditMessage?: (messageId: number, newContent: string) => void;
   onSwitchBranch?: (parentMessageId: number | null, childId: number) => void;
+  /**
+   * Deliver an ``ask_user`` reply back to the backend so the agentic
+   * loop resumes on the same turn. Forwarded into each
+   * ``AssistantMessage`` so the card UI rendered alongside the paused
+   * assistant bubble can submit selections / free-form text. Accepts
+   * either a string (legacy) or a structured object with per-question
+   * ``answers`` (v2).
+   */
+  onSubmitUserReply?: (
+    reply:
+      | string
+      | {
+          text?: string;
+          answers?: Array<{ questionId: string; text: string }>;
+        },
+  ) => void;
 }) {
   const { t } = useTranslation();
   // Visible path: when no branching has happened the result is identical
@@ -921,6 +1078,58 @@ export const ChatMessageList = memo(function ChatMessageList({
     () => buildVisiblePath(messages, selectedBranches),
     [messages, selectedBranches],
   );
+
+  // Deep-research two-turn merge.
+  //
+  // The capability runs in two BE turns: turn-1 emits rephrase +
+  // decompose + an outline-preview result; turn-2 (after the user
+  // confirms the outline) emits the research blocks + the final
+  // report. The user wants both turns to live in ONE assistant
+  // bubble so the rephrase trace, the Q&A summary, the (collapsed)
+  // outline editor, and the research / reporting traces are all
+  // visually contiguous instead of split across two bubbles.
+  //
+  // For each parent (outline-preview) msg with a followup
+  // deep_research msg, we synthesise a merged msg with:
+  //
+  // * events  — parent.events ++ followup.events (preserving order
+  //   so TraceSurface's call_id grouping keeps working).
+  // * content — followup.content (the report). The parent's
+  //   rephrase-FINISH content is already represented inside the
+  //   rephrase trace card, so concatenating again would duplicate
+  //   the preface above the report.
+  //
+  // The followup is dropped from the visible row list so only the
+  // merged bubble renders.
+  const deepResearchMergeMap = useMemo(() => {
+    const map = new Map<
+      number,
+      { mergedEvents: StreamEvent[]; mergedContent: string }
+    >();
+    const followupIndices = new Set<number>();
+    for (let i = 0; i < visibleMessages.length; i++) {
+      const msg = visibleMessages[i];
+      if (msg.role !== "assistant" || msg.capability !== "deep_research")
+        continue;
+      const resultEv = msg.events?.find((e) => e.type === "result");
+      const meta = resultEv?.metadata as Record<string, unknown> | undefined;
+      if (!meta?.outline_preview) continue;
+      const followupIdx = visibleMessages
+        .slice(i + 1)
+        .findIndex(
+          (m) => m.role === "assistant" && m.capability === "deep_research",
+        );
+      if (followupIdx === -1) continue;
+      const absoluteFollowupIdx = i + 1 + followupIdx;
+      const followup = visibleMessages[absoluteFollowupIdx];
+      const mergedEvents = [...(msg.events ?? []), ...(followup.events ?? [])];
+      const mergedContent = followup.content || msg.content;
+      map.set(i, { mergedEvents, mergedContent });
+      followupIndices.add(absoluteFollowupIdx);
+    }
+    return { mergedByParent: map, followupIndices };
+  }, [visibleMessages]);
+
   const outlineStatusByIndex = useMemo(() => {
     const map = new Map<number, "editing" | "researching" | "done">();
     for (let i = 0; i < visibleMessages.length; i++) {
@@ -930,24 +1139,22 @@ export const ChatMessageList = memo(function ChatMessageList({
       const resultEv = msg.events?.find((e) => e.type === "result");
       const meta = resultEv?.metadata as Record<string, unknown> | undefined;
       if (!meta?.outline_preview) continue;
-      const hasFollowup = visibleMessages
+      const followup = visibleMessages
         .slice(i + 1)
-        .some(
+        .find(
           (m) => m.role === "assistant" && m.capability === "deep_research",
         );
-      if (hasFollowup) {
-        const followup = visibleMessages
-          .slice(i + 1)
-          .find(
-            (m) => m.role === "assistant" && m.capability === "deep_research",
-          );
-        const followupResult = followup?.events?.find(
+      if (followup) {
+        const followupResult = followup.events?.find(
           (e) => e.type === "result",
         );
         map.set(i, followupResult ? "done" : "researching");
-      } else if (isStreaming) {
-        map.set(i, "researching");
       } else {
+        // The first deep_research turn only plans/rephrases/decomposes and
+        // returns an outline preview. While that turn is still flushing
+        // post-result events, the outline must already be editable; only the
+        // hidden follow-up turn created by "Start Research" means research is
+        // actually underway.
         map.set(i, "editing");
       }
     }
@@ -960,11 +1167,28 @@ export const ChatMessageList = memo(function ChatMessageList({
     // addition to the hydration-time filter in UnifiedChatContext.
     return visibleMessages
       .map((msg, index) => ({ msg, originalIndex: index }))
-      .filter(({ msg }) => msg.role !== "system")
+      .filter(({ msg, originalIndex }) => {
+        if (msg.role === "system") return false;
+        // Drop deep_research followup msgs — their events were merged
+        // into the parent (outline-preview) bubble.
+        if (deepResearchMergeMap.followupIndices.has(originalIndex))
+          return false;
+        return true;
+      })
       .map(({ msg, originalIndex }) => {
-        if (msg.role === "user") {
+        // Splice in the merged event stream when this row owns a
+        // deep_research two-turn pair.
+        const merged = deepResearchMergeMap.mergedByParent.get(originalIndex);
+        const effectiveMsg: ChatMessageItem = merged
+          ? {
+              ...msg,
+              events: merged.mergedEvents,
+              content: merged.mergedContent,
+            }
+          : msg;
+        if (effectiveMsg.role === "user") {
           return {
-            msg,
+            msg: effectiveMsg,
             originalIndex,
             pairedUserMessage: null as ChatMessageItem | null,
           };
@@ -973,16 +1197,17 @@ export const ChatMessageList = memo(function ChatMessageList({
           [...visibleMessages.slice(0, originalIndex)]
             .reverse()
             .find((previous) => previous.role === "user") ?? null;
-        return { msg, originalIndex, pairedUserMessage };
+        return { msg: effectiveMsg, originalIndex, pairedUserMessage };
       });
-  }, [visibleMessages]);
+  }, [visibleMessages, deepResearchMergeMap]);
 
-  const lastAssistantIndex = useMemo(() => {
-    for (let idx = visibleMessages.length - 1; idx >= 0; idx -= 1) {
-      if (visibleMessages[idx].role === "assistant") return idx;
+  const lastRenderedAssistantIndex = useMemo(() => {
+    for (let idx = messageRows.length - 1; idx >= 0; idx -= 1) {
+      if (messageRows[idx].msg.role === "assistant")
+        return messageRows[idx].originalIndex;
     }
     return -1;
-  }, [visibleMessages]);
+  }, [messageRows]);
 
   return (
     <>
@@ -1007,10 +1232,10 @@ export const ChatMessageList = memo(function ChatMessageList({
         }
 
         const isActiveAssistant =
-          isStreaming && i === visibleMessages.length - 1;
+          isStreaming && i === lastRenderedAssistantIndex;
         const msgDone = !isActiveAssistant;
         const showActions = msgDone && hasVisibleMarkdownContent(msg.content);
-        const isLastAssistant = i === lastAssistantIndex;
+        const isLastAssistant = i === lastRenderedAssistantIndex;
         const showRegenerate =
           showActions &&
           !isStreaming &&
@@ -1027,8 +1252,18 @@ export const ChatMessageList = memo(function ChatMessageList({
         // The "Answer now" affordance lives inside the trace panel for the
         // currently-streaming assistant turn. We hand the panel a thin
         // closure so it does not need to know about MessageRequestSnapshot.
+        // Only enabled for the bare ``chat`` capability — solve / quiz /
+        // research run structured pipelines whose intermediate trace does
+        // not synthesize cleanly via the chat fast-path.
+        const capability =
+          pairedUserMessage?.requestSnapshot?.capability ??
+          pairedUserMessage?.capability ??
+          "";
+        const answerNowAllowed = !capability || capability === "chat";
         const handleTraceAnswerNow =
-          isActiveAssistant && pairedUserMessage?.requestSnapshot
+          isActiveAssistant &&
+          pairedUserMessage?.requestSnapshot &&
+          answerNowAllowed
             ? () =>
                 onAnswerNow(pairedUserMessage.requestSnapshot, {
                   content: msg.content,
@@ -1064,18 +1299,19 @@ export const ChatMessageList = memo(function ChatMessageList({
               language={language}
               onConfirmOutline={onConfirmOutline}
               onAnswerNow={handleTraceAnswerNow}
-              onRetry={onRegenerateMessage}
-              onSwitchToManual={onSwitchToManualMode}
+              onSubmitUserReply={onSubmitUserReply}
+              researchRequestSnapshot={
+                pairedUserMessage?.requestSnapshot ?? null
+              }
             />
             {(showActions || costSummary || showDelete) && (
               <div className="mt-2 flex items-center">
                 {(showActions || showDelete) && (
                   <div className="flex items-center gap-2">
                     {showActions && (
-                      <RoughActionButton
-                        icon={Copy}
-                        label={t("Copy")}
-                        onClick={() => void onCopyAssistantMessage(msg.content)}
+                      <CopyActionButton
+                        content={msg.content}
+                        onCopy={onCopyAssistantMessage}
                       />
                     )}
                     {showActions && showRegenerate && (

@@ -53,9 +53,9 @@ export interface PickerShellProps {
    */
   className?: string;
   /**
-   * Override the default `bg-black/40` backdrop. Pass any opacity / blur /
-   * tint combo. Useful for pickers that want a frosted-glass look or a
-   * lighter scrim.
+   * Override the default `bg-[var(--overlay)]` backdrop (a theme-aware scrim:
+   * warm/cool tint matches the active palette). Pass any opacity / blur /
+   * tint combo for pickers that want a frosted-glass look or a lighter scrim.
    */
   backdropClass?: string;
 }
@@ -72,7 +72,7 @@ export default function PickerShell({
   zIndex = 85,
   align = "center",
   className,
-  backdropClass = "bg-black/40",
+  backdropClass = "bg-[var(--overlay)]",
 }: PickerShellProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);

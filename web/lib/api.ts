@@ -1,22 +1,36 @@
 // API configuration and utility functions
 
-// Get API base URL injected by the launcher from data/user/settings/system.json.
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE ||
-  (() => {
+// The Docker image and the `deeptutor start` launcher both build the Next.js
+// bundle with this literal placeholder and substitute it at container/process
+// start. If a deployment serves bundles where the substitution silently
+// failed (read-only fs, missing tool, etc.), every API call would target a
+// broken URL and the Settings page would render blank with no clue why.
+// Treating the placeholder as "not configured" surfaces the failure mode
+// instead of letting fetches die quietly.
+const API_BASE_PLACEHOLDER = "__NEXT_PUBLIC_API_BASE_PLACEHOLDER__";
+
+function resolveBuildTimeApiBase(): string {
+  const raw = process.env.NEXT_PUBLIC_API_BASE;
+  if (!raw || raw === API_BASE_PLACEHOLDER) {
     if (typeof window !== "undefined") {
-      console.error("NEXT_PUBLIC_API_BASE is not set.");
       console.error(
-        "Please configure data/user/settings/system.json and restart the application.",
+        raw === API_BASE_PLACEHOLDER
+          ? "NEXT_PUBLIC_API_BASE placeholder was not substituted at startup."
+          : "NEXT_PUBLIC_API_BASE is not set.",
       );
       console.error(
-        "Run python scripts/start_tour.py to rebuild your local setup if needed.",
+        "Please configure data/user/settings/system.json and restart the application.",
       );
     }
     throw new Error(
       "NEXT_PUBLIC_API_BASE is not configured. Please update data/user/settings/system.json and restart.",
     );
-  })();
+  }
+  return raw;
+}
+
+// Get API base URL injected by the launcher from data/user/settings/system.json.
+export const API_BASE_URL = resolveBuildTimeApiBase();
 
 // Hostnames that always refer to the local machine. When the build-time base
 // URL points to one of these, but the page is opened from a non-local origin,
