@@ -240,7 +240,7 @@ export function SidebarShell({
     <aside className="flex w-[220px] h-screen shrink-0 flex-col bg-[var(--secondary)] transition-all duration-200">
       {/* Header: logo + collapse toggle */}
       <div className="flex h-14 items-center justify-between px-4">
-        <Link href="/" className="group flex items-center gap-2">
+        <Link href="/" className="group flex items-center gap-1.5">
           <Image
             src="/logo.png"
             alt="DeepTutor"
@@ -248,9 +248,14 @@ export function SidebarShell({
             height={22}
             className="h-[22px] w-[22px] transition-transform duration-200 group-hover:scale-105"
           />
-          <span className="text-[16px] font-semibold leading-none tracking-[-0.02em] text-[var(--foreground)]">
-            DeepTutor
-          </span>
+          <Image
+            src="/banner.png"
+            alt="DeepTutor"
+            width={897}
+            height={236}
+            priority
+            className="h-[22px] w-auto transition-transform duration-200 group-hover:scale-105"
+          />
         </Link>
         <button
           onClick={() => setCollapsed(true)}
