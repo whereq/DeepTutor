@@ -26,23 +26,23 @@ const PALETTES: Record<Theme, Palette> = {
   // theme id "light" applies no class → :root Cream palette (warm parchment,
   // the default; renamed from generic "Light" to honestly signal its warmth)
   light: {
-    bg: "#faf6ec",
+    bg: "#fdfcf9",
     fg: "#1c1816",
     card: "#ffffff",
     primary: "#b0501e",
-    muted: "#ede5d2",
-    border: "#d9ccb2",
+    muted: "#f1ede2",
+    border: "#e6decc",
   },
   // theme id "snow" applies the .theme-snow class → cool blue-tinted palette
   // with a royal-blue primary (no longer the warm terracotta — Snow now
   // belongs to a cool family rather than mixing cold bg with warm accent)
   snow: {
-    bg: "#eef3fa",
+    bg: "#f9fbfd",
     fg: "#0e1a2e",
     card: "#ffffff",
     primary: "#1d4ed8",
-    muted: "#dce6f2",
-    border: "#c2d0e2",
+    muted: "#e5ebf1",
+    border: "#cdd9e4",
   },
   dark: {
     bg: "#1a1918",

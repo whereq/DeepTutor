@@ -131,7 +131,7 @@ export function SidebarShell({
             className="flex items-center justify-center transition-opacity duration-150 group-hover/sb:opacity-0"
           >
             <Image
-              src="/logo-ver2.png"
+              src="/logo.png"
               alt="DeepTutor"
               width={22}
               height={22}
@@ -242,7 +242,7 @@ export function SidebarShell({
       <div className="flex h-14 items-center justify-between px-4">
         <Link href="/" className="group flex items-center gap-2">
           <Image
-            src="/logo-ver2.png"
+            src="/logo.png"
             alt="DeepTutor"
             width={22}
             height={22}

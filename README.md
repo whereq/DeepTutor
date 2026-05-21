@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo-ver2.png" alt="DeepTutor" width="140" style="border-radius: 15px;">
+<img src="assets/logo.png" alt="DeepTutor" width="140" style="border-radius: 15px;">
 
 # DeepTutor: Agent-Native Personalized Tutoring
 
@@ -42,7 +42,7 @@
 
 ### 📦 Releases
 
-> **[2026.5.21]** [v1.4.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.4.0-beta) — Three-layer Memory workbench (L1/L2/L3), Auto Mode router, every chat capability rebuilt on a single agentic engine, LlamaIndex-only RAG, and a unified Settings + Capabilities surface.
+> **[2026.5.21]** [v1.4.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.4.0-beta) — Three-layer Memory workbench (L1/L2/L3), every chat capability rebuilt on a single agentic engine, LlamaIndex-only RAG, and a unified Settings + Capabilities surface.
 
 > **[2026.5.10]** [v1.3.10](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.10) — Remote Docker CORS recovery, `DISABLE_SSL_VERIFY` across SDK providers, safer code-block citations, and optional Matrix E2EE add-on.
 
@@ -136,7 +136,7 @@
 
 **Work surfaces**
 
-- Chat — Chat, Solve, Quiz, Research, and Visualize share one session, knowledge base, and citation history. Escalate mid-conversation without losing context, or call `deeptutor run auto` to let an Auto router pick the mode for you.
+- Chat — Chat, Solve, Quiz, Research, and Visualize share one session, knowledge base, and citation history, so you can escalate mid-conversation without losing context.
 - Co-Writer — split-view Markdown workspace where any selection can be rewritten, expanded, or shortened, optionally grounded by your KB or the web. Drafts save straight to notebooks.
 - Book Engine — a multi-agent pipeline compiles your materials into interactive "living books" with 13 block types: quizzes, flash cards, timelines, concept graphs, an embedded GeoGebra viewer, animations, and more. Pages are KB-fingerprinted, so drift is detectable.
 
@@ -303,6 +303,8 @@ docker run --rm --name deeptutor \
   ghcr.io/hkuds/deeptutor:latest
 ```
 
+> ⚠️ **Map both `3782` and `8001`.** `3782` serves the web UI; `8001` is the FastAPI backend that your browser calls directly — there is no in-container proxy. If you forget the `8001` mapping, the page still loads but **Settings** shows a "Backend unreachable" banner and stays unusable.
+
 Then open [http://127.0.0.1:3782](http://127.0.0.1:3782). Config, API keys, logs, workspace files, memory, and knowledge bases are stored in the `deeptutor-data` volume under `/app/data`.
 
 The container creates `/app/data/user/settings/*.json` automatically on first boot. You can configure model providers directly in the Web Settings page without preparing local JSON files manually.
@@ -454,8 +456,6 @@ One thread, five modes, any tool. The capability picker lives in the composer; t
 | **Research** | Decomposes a topic into subtopics, dispatches parallel agents across RAG / web / arXiv, and produces a cited report with iterative append-mode revisions. | Rebuilt `pipeline.py` (~45% smaller, citations + iterative reporting preserved) |
 | **Visualize** | Generate SVG diagrams, Chart.js charts, Mermaid graphs, interactive HTML pages, **or** Manim videos / storyboards — the analyzer picks the right `render_type`. | Visualize pipeline (Animator merged in) |
 
-**Auto mode** (CLI / API: `deeptutor run auto …`) is a router capability that analyses intent and delegates to the best-matching mode, then synthesises the final response — useful when you want the system to pick the right tool for you.
-
 **New chat tools** shipped with the refactor: `ask_user` (asks a structured clarifying question mid-turn), `web_fetch` (pulls a specific URL into context), `write_note` / `list_notebook` (saves and lists notebook records from the chat surface), and `github_query` (issue / PR / repo lookups). Tools stay **decoupled from workflows** — every mode lets you opt tools in or out per turn.
 
 A session also carries a **cumulative source inventory** across turns, so citations from earlier RAG / web hits remain reusable later in the same conversation.
@@ -473,7 +473,7 @@ Select any text and choose **Rewrite**, **Expand**, or **Shorten** — every act
 ### 📖 Book Engine — Interactive "Living Books"
 
 <div align="center">
-<img src="assets/figs/dt-book-0.png" alt="Book Library" width="270"><img src="assets/figs/dt-book-1.png" alt="Book Reader" width="270"><img src="assets/figs/dt-book-2.png" alt="Book Animation" width="270">
+<img src="assets/figs/dt-book.png" alt="Book Engine" width="800">
 </div>
 
 Give DeepTutor a topic, point it at your knowledge base, and it produces a structured, interactive book — not a static export, but a living document you can read, quiz yourself on, and discuss in context.

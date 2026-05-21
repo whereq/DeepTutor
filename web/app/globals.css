@@ -17,12 +17,13 @@
                      (replaces hardcoded bg-black/40 in components)
    ──────────────────────────────────────────────────────────────────────── */
 
-  /* Cream — warm parchment default. Honest about its yellow-cream
-     warmth (was previously labelled "Light" but the palette is closer
-     to cream/linen than to neutral white). Terracotta primary. */
+  /* Cream — near-white warm canvas. Reads as off-white at first glance;
+     the warm tint only surfaces on filled blocks (selected nav, panels)
+     and against the terracotta primary. Inspired by Claude's chrome:
+     keep bg essentially white, save the visible warmth for accents. */
   :root {
     color-scheme: light;
-    --background: #faf6ec;
+    --background: #fdfcf9;
     --foreground: #1c1816;
     --card: #ffffff;
     --card-foreground: #1c1816;
@@ -30,16 +31,16 @@
     --popover-foreground: #1c1816;
     --primary: #b0501e;
     --primary-foreground: #ffffff;
-    --secondary: #f1ebdb;
+    --secondary: #f5f2ea;
     --secondary-foreground: #1c1816;
-    --muted: #ede5d2;
+    --muted: #f1ede2;
     --muted-foreground: #6d645a;
-    --accent: #ebe2cd;
+    --accent: #ece7d8;
     --accent-foreground: #1c1816;
     --destructive: #c53a2c;
     --destructive-foreground: #ffffff;
-    --border: #d9ccb2;
-    --input: #d9ccb2;
+    --border: #e6decc;
+    --input: #e6decc;
     --ring: #b0501e;
     --overlay: rgba(28, 24, 22, 0.42);
   }
@@ -69,13 +70,13 @@
     --overlay: rgba(0, 0, 0, 0.6);
   }
 
-  /* Snow — crisp cool blue-tinted light. A royal-blue primary replaces
-     the warm terracotta so the cool background and accent finally
-     agree, and a subtle vertical gradient on <body> breaks the
-     "flat dull paper" feel of a single slate-50 wash. */
+  /* Snow — near-white cool canvas, the cool-family counterpart to Cream.
+     Bg reads as off-white; the blue tint only surfaces on filled blocks
+     and against the royal-blue primary. Saturation kept very low so it
+     doesn't read as "baby blue paper". */
   .theme-snow {
     color-scheme: light;
-    --background: #eef3fa;
+    --background: #f9fbfd;
     --foreground: #0e1a2e;
     --card: #ffffff;
     --card-foreground: #0e1a2e;
@@ -83,24 +84,24 @@
     --popover-foreground: #0e1a2e;
     --primary: #1d4ed8;
     --primary-foreground: #ffffff;
-    --secondary: #dde7f3;
+    --secondary: #ebf0f4;
     --secondary-foreground: #0e1a2e;
-    --muted: #dce6f2;
+    --muted: #e5ebf1;
     --muted-foreground: #4d5d77;
-    --accent: #dde7f3;
+    --accent: #dbe3eb;
     --accent-foreground: #0e1a2e;
     --destructive: #c7281f;
     --destructive-foreground: #ffffff;
-    --border: #c2d0e2;
-    --input: #c2d0e2;
+    --border: #cdd9e4;
+    --input: #cdd9e4;
     --ring: #1d4ed8;
     --overlay: rgba(15, 23, 42, 0.42);
   }
 
   .theme-snow body {
-    /* Gentle top-to-bottom blue shift — barely perceptible but
-       enough to feel "atmospheric" rather than monotone. */
-    background: linear-gradient(180deg, #f2f6fb 0%, #e4ecf6 100%);
+    /* Very gentle top-to-bottom cool shift — almost imperceptible,
+       kept just enough to avoid the "flat paper" feel of a single wash. */
+    background: linear-gradient(180deg, #fbfcfe 0%, #eef3f8 100%);
     background-attachment: fixed;
   }
 

@@ -599,6 +599,42 @@ export default function ChatPage() {
     }
   }, [capabilityNeedsConfig, ensureActivityPanelOpen]);
   const hasMessages = state.messages.length > 0;
+  // Time-of-day greeting: seeded once on mount from the user's local clock so
+  // the heading stays stable while they're on the page. State (not useMemo)
+  // because the random pick would otherwise mismatch SSR ↔ client hydration.
+  const [welcomeGreeting, setWelcomeGreeting] = useState<string>(
+    "What would you like to learn?",
+  );
+  useEffect(() => {
+    const hour = new Date().getHours();
+    let bucket: string[];
+    if (hour >= 5 && hour < 12) {
+      bucket = [
+        "Good morning.",
+        "Morning — let's learn something.",
+        "What would you like to learn?",
+      ];
+    } else if (hour >= 12 && hour < 17) {
+      bucket = [
+        "Good afternoon.",
+        "Afternoon — what's on your mind?",
+        "What would you like to learn?",
+      ];
+    } else if (hour >= 17 && hour < 22) {
+      bucket = [
+        "Good evening.",
+        "Evening — what shall we explore?",
+        "What would you like to learn?",
+      ];
+    } else {
+      bucket = [
+        "It's late today.",
+        "Burning the midnight oil?",
+        "What would you like to learn?",
+      ];
+    }
+    setWelcomeGreeting(bucket[Math.floor(Math.random() * bucket.length)]);
+  }, []);
   const firstUserTitle = useMemo(
     () =>
       state.messages
@@ -1758,13 +1794,18 @@ export default function ChatPage() {
           <div className="mx-auto flex w-full max-w-[960px] flex-1 min-h-0 flex-col overflow-hidden px-6">
             {!hasMessages ? (
               <div className="flex flex-1 min-h-0 flex-col items-center justify-end pb-14 animate-fade-in">
-                <div className="text-center">
+                <div className="flex items-center justify-center gap-4">
+                  <img
+                    src="/logo_black.png"
+                    alt="DeepTutor"
+                    width={40}
+                    height={40}
+                    className="h-10 w-10 select-none"
+                    draggable={false}
+                  />
                   <h1 className="font-serif text-[44px] font-medium leading-[1.1] tracking-[-0.015em] text-[var(--foreground)]">
-                    {t("What would you like to learn?")}
+                    {t(welcomeGreeting)}
                   </h1>
-                  <p className="mt-5 text-[15px] text-[var(--muted-foreground)]">
-                    {t("Ask anything — I'm here to help you understand.")}
-                  </p>
                 </div>
               </div>
             ) : (

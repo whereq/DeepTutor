@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="../../assets/logo-ver2.png" alt="DeepTutor" width="140" style="border-radius: 15px;">
+<img src="../../assets/logo.png" alt="DeepTutor" width="140" style="border-radius: 15px;">
 
 # DeepTutor: एजेंट-नेटिव व्यक्तिगत शिक्षण
 
