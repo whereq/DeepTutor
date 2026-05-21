@@ -94,7 +94,7 @@ def test_run_command_with_config(monkeypatch) -> None:
             "deep_research",
             "compare retrieval stacks",
             "--config-json",
-            '{"mode":"report","depth":"deep","sources":["web","papers"]}',
+            '{"mode":"report","depth":"deep"}',
         ],
     )
 
@@ -104,7 +104,6 @@ def test_run_command_with_config(monkeypatch) -> None:
     assert request.config == {
         "mode": "report",
         "depth": "deep",
-        "sources": ["web", "papers"],
     }
 
 

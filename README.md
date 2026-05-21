@@ -28,6 +28,8 @@
 
 ### 📦 Releases
 
+> **[2026.5.21]** [v1.4.0-beta](https://github.com/HKUDS/DeepTutor/releases/tag/v1.4.0-beta) — Auto Mode agent-router; three-layer Memory v2 (L1/L2/L3) workbench; Deep Research / Deep Solve / Question rebuilt on the agentic engine; chat + LlamaIndex RAG refactor with session-cumulative source inventory; new tools (`ask_user`, `web_fetch`, `write_note`, `list_notebook`, `github_query`); delete-chat-turn, quiz follow-up chat, GeoGebra viewer; Visualize+Animator merge; unified capabilities infra & status i18n; settings split; env/launcher rewrite; multi-user isolation + Zulip fixes.
+
 > **[2026.5.10]** [v1.3.10](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.10) — Remote Docker CORS recovery, `DISABLE_SSL_VERIFY` across SDK providers, safer code-block citations, and optional Matrix E2EE add-on.
 
 > **[2026.5.9]** [v1.3.9](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.9) — TutorBot Zulip and NVIDIA NIM support, safer thinking-model routing, `deeptutor start`, sidebar tooltips, and session-store parity.
@@ -48,10 +50,10 @@
 
 > **[2026.4.28]** [v1.3.1](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.1) — Stability: safer RAG routing & embedding validation, Docker persistence, IME-safe input, Windows/GBK robustness.
 
-> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — Versioned KB indexes with re-index workflow, rebuilt Knowledge workspace, embedding auto-discovery with new adapters, Space hub.
-
 <details>
 <summary><b>Past releases (more than 2 weeks ago)</b></summary>
+
+> **[2026.4.27]** [v1.3.0](https://github.com/HKUDS/DeepTutor/releases/tag/v1.3.0) — Versioned KB indexes with re-index workflow, rebuilt Knowledge workspace, embedding auto-discovery with new adapters, Space hub.
 
 > **[2026.4.25]** [v1.2.5](https://github.com/HKUDS/DeepTutor/releases/tag/v1.2.5) — Persistent chat attachments with file-preview drawer, attachment-aware capability pipelines, TutorBot Markdown export.
 
@@ -174,6 +176,7 @@ Notes:
 ### Option 2 — Install From Source
 
 Use this when you are developing DeepTutor or want to run directly from a checkout.
+Use Python 3.11+ and Node.js 22 LTS for the closest match to CI and Docker.
 
 **1. Clone the repository**
 
@@ -211,11 +214,15 @@ python -m pip install --upgrade pip
 **3. Install the local package and frontend dependencies**
 
 ```bash
-pip install -e .
+python -m pip install -e .
 cd web
-npm install
+npm ci --legacy-peer-deps
 cd ..
 ```
+
+If you intentionally change frontend dependencies, use `npm install --legacy-peer-deps`
+to refresh `web/package-lock.json`, then commit both `web/package.json` and
+`web/package-lock.json`.
 
 **4. Configure and start**
 
@@ -224,7 +231,19 @@ deeptutor init
 deeptutor start
 ```
 
-Source installs use the local `web/` directory for the frontend. They are intentionally developer-friendly and do not write configuration to `.env`; edit `data/user/settings/*.json` or use the Web Settings page.
+Source installs use the local `web/` directory for the frontend and start it with
+Next.js dev mode. Keep the `deeptutor start` terminal open while using the app.
+They are intentionally developer-friendly and do not write configuration to
+`.env`; edit `data/user/settings/*.json` or use the Web Settings page.
+
+If `deeptutor start` reports an existing frontend that is not responding, stop
+the PID printed in the message. If no Next.js process is running, remove the
+stale lock files and start again:
+
+```bash
+rm -f web/.next/dev/lock web/.next/lock
+deeptutor start
+```
 
 Useful developer extras:
 
@@ -245,7 +264,8 @@ Use this when you want the full Web app in one container. Images are published t
 
 ```bash
 docker pull ghcr.io/hkuds/deeptutor:latest
-docker run -p 127.0.0.1:3782:3782 \
+docker run --rm --name deeptutor \
+  -p 127.0.0.1:3782:3782 \
   -p 127.0.0.1:8001:8001 \
   -v deeptutor-data:/app/data \
   ghcr.io/hkuds/deeptutor:latest
@@ -264,7 +284,8 @@ Inside a Docker container, `localhost` refers to the container itself, not your 
 Option A — host gateway, recommended for normal Docker runs:
 
 ```bash
-docker run -p 127.0.0.1:3782:3782 \
+docker run --rm --name deeptutor \
+  -p 127.0.0.1:3782:3782 \
   -p 127.0.0.1:8001:8001 \
   --add-host=host.docker.internal:host-gateway \
   -v deeptutor-data:/app/data \
@@ -290,14 +311,46 @@ docker run --network=host \
 
 No `-p` mapping is needed in host-network mode. The container shares the host network directly, so open [http://127.0.0.1:3782](http://127.0.0.1:3782) by default, or the `frontend_port` configured in `/app/data/user/settings/system.json`. In this mode, host services can usually be reached with normal localhost URLs such as `http://127.0.0.1:11434/v1`. Host networking exposes container ports directly on the host and may conflict with existing services.
 
-To stop a foreground Docker run, press `Ctrl+C`. If you started it detached with `-d`, run `docker stop <container-name-or-id>`.
+To run in the background instead, add `-d` and follow logs by name:
+
+```bash
+docker run -d --name deeptutor \
+  -p 127.0.0.1:3782:3782 \
+  -p 127.0.0.1:8001:8001 \
+  -v deeptutor-data:/app/data \
+  ghcr.io/hkuds/deeptutor:latest
+docker logs -f deeptutor
+```
+
+To stop a foreground Docker run, press `Ctrl+C`. If you used the named detached
+container above, run `docker stop deeptutor`. Before starting another container
+with the same name, remove the stopped one with `docker rm deeptutor`; the
+`deeptutor-data` volume keeps your settings and workspace.
 
 ### Option 4 — CLI Only
 
-Use this when you do not need the Web UI.
+Use this when you do not need the Web UI. The CLI-only package is installed
+from a local source checkout instead of PyPI.
 
 ```bash
-pip install -U deeptutor-cli
+git clone https://github.com/HKUDS/DeepTutor.git
+cd DeepTutor
+
+python3 -m venv .venv-cli
+source .venv-cli/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ./packaging/deeptutor-cli
+deeptutor init --cli
+deeptutor chat
+```
+
+Windows PowerShell:
+
+```powershell
+py -3.11 -m venv .venv-cli
+.\.venv-cli\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ./packaging/deeptutor-cli
 deeptutor init --cli
 deeptutor chat
 ```
@@ -319,9 +372,15 @@ deeptutor run deep_solve "Solve x^2 = 4" --tool rag --kb my-kb
 deeptutor kb create my-kb --doc textbook.pdf
 deeptutor kb list
 deeptutor memory show
+deeptutor config show
 ```
 
-`deeptutor-cli` does not ship Web assets or server dependencies. If you later want the Web app, install the full package with `pip install -U deeptutor`, run `deeptutor init` if you want to add Web ports, and then run `deeptutor start` from the same workspace.
+The local `deeptutor-cli` install does not ship Web assets or server dependencies.
+Keep the source checkout around because the editable install points to it. If you
+later want the Web app, either follow Option 2 in the same checkout, or uninstall
+the local CLI package, install the full PyPI package with `pip install -U
+deeptutor`, run `deeptutor init` if you want to add Web ports, and then run
+`deeptutor start` from the same workspace.
 
 ### Configuration Reference
 

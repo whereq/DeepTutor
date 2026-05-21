@@ -8,8 +8,13 @@ Agent-first 的命令行界面。两条核心路径：
 ## 安装
 
 ```bash
-# 仅 CLI（含 RAG / 文档解析 / 各家 LLM provider SDK）
-pip install deeptutor-cli
+# 仅 CLI（本地源码安装，含 RAG / 文档解析 / 各家 LLM provider SDK）
+git clone https://github.com/HKUDS/DeepTutor.git
+cd DeepTutor
+python3 -m venv .venv-cli
+source .venv-cli/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ./packaging/deeptutor-cli
 deeptutor init --cli
 
 # CLI + Web/API 服务
@@ -27,6 +32,16 @@ pip install -e ".[all]"            # 全部依赖（含开发工具）
 ```
 
 `deeptutor init --cli` 和普通 `deeptutor init` 使用同一套 `data/user/settings/` 配置目录；区别是 `--cli` 不询问 Web 后端/前端端口，仍会创建 `system.json`、`auth.json`、`integrations.json`、`model_catalog.json`、`main.yaml` 和 `agents.yaml`，并继续询问 LLM 配置。Embedding 配置默认跳过；如果要使用 `deeptutor kb ...` 或 RAG，请在向导里选择配置 embedding，或稍后编辑 `data/user/settings/model_catalog.json`。
+
+Windows PowerShell 可使用：
+
+```powershell
+py -3.11 -m venv .venv-cli
+.\.venv-cli\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ./packaging/deeptutor-cli
+deeptutor init --cli
+```
 
 ---
 
@@ -132,7 +147,7 @@ deeptutor chat [options]
 deeptutor serve [--host 0.0.0.0] [--port 8001] [--reload]
 ```
 
-`deeptutor serve` 需要完整 Web/API 依赖；如果你是通过 `pip install deeptutor-cli` 安装的 CLI-only 包，请先切换到 `pip install -U deeptutor`。
+`deeptutor serve` 需要完整 Web/API 依赖；如果你是通过本地 `./packaging/deeptutor-cli` 安装的 CLI-only 包，请先卸载本地 CLI 包并切换到 `pip install -U deeptutor`。
 
 ---
 

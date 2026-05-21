@@ -11,7 +11,14 @@ import typer
 
 from deeptutor.app import DeepTutorApp, TurnRequest
 
-from .common import console, maybe_run, regenerate_and_render, run_turn_and_render
+from .common import (
+    console,
+    maybe_run,
+    regenerate_and_render,
+    render_tool_result_entry,
+    run_turn_and_render,
+    tool_results,
+)
 
 
 @dataclass
@@ -84,6 +91,7 @@ async def _chat_repl(state: ChatState) -> None:
             "  /kb <name>|none\n"
             "  /history add <id> | /history clear\n"
             "  /notebook add <ref> | /notebook clear\n"
+            "  /show last|<n> — expand a truncated tool result\n"
             "  /refs  /config show|set|clear",
             title="deeptutor chat",
         )
@@ -180,6 +188,20 @@ def _apply_command(raw: str, state: ChatState) -> bool:
         elif parts[1] == "add" and len(parts) >= 3:
             state.notebook_references.extend(_parse_notebook_refs([parts[2]]))
         _print_state(state)
+        return True
+    if command == "/show":
+        selector = parts[1] if len(parts) >= 2 else "last"
+        entry = tool_results.get(selector)
+        if entry is None:
+            if selector == "last":
+                console.print("[dim]No tool result captured yet in this session.[/]")
+            else:
+                console.print(
+                    f"[dim]No tool result matches [bold]{selector}[/]. "
+                    f"Available: {[e.index for e in tool_results.entries()] or 'none'}.[/]"
+                )
+        else:
+            render_tool_result_entry(entry)
         return True
     if command == "/config" and len(parts) >= 2:
         subcommand = parts[1]
