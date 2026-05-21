@@ -206,7 +206,7 @@ def _resolve_call_config(
         return config, provider_spec
 
     current = get_llm_config()
-    merged_headers = dict(current.extra_headers or {})
+    merged_headers = dict(getattr(current, "extra_headers", None) or {})
     if extra_headers:
         merged_headers.update(extra_headers)
 

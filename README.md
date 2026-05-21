@@ -434,10 +434,6 @@ Minimal model setup can be done in the browser: open **Settings → Models**, ad
 
 ## 📖 Explore DeepTutor
 
-<div align="center">
-<img src="assets/figs/deeptutor-architecture.png" alt="DeepTutor Architecture" width="800">
-</div>
-
 The v1.4.0-beta refactor reorganises DeepTutor around **five core surfaces** — Chat, Co-Writer, Book, Knowledge, Space — plus a **three-layer Memory** that sits underneath all of them and a unified **Settings** workbench that exposes every knob. Capabilities (Solve / Quiz / Research / Visualize) and tools (RAG, web, code, reason, brainstorm, paper search, `ask_user`, `web_fetch`, `write_note`, `list_notebook`, `github_query`) compose freely on top.
 
 ### 💬 Chat — Unified Intelligent Workspace
