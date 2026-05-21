@@ -1,11 +1,8 @@
 <div align="center">
 
-<p align="center">
-  <img src="assets/logo.png" alt="DeepTutor logo" height="84" style="vertical-align: middle;">
-  <img src="assets/banner.png" alt="DeepTutor" height="68" style="vertical-align: middle; margin-left: 10px;">
-</p>
+<p align="center"><img src="assets/logo.png" alt="DeepTutor logo" height="56" style="vertical-align: middle;">&nbsp;<img src="assets/banner.png" alt="DeepTutor" height="48" style="vertical-align: middle;"></p>
 
-### Agent-Native Personalized Tutoring
+# DeepTutor: Agent-Native Personalized Tutoring
 
 <a href="https://trendshift.io/repositories/17099" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17099" alt="HKUDS%2FDeepTutor | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
