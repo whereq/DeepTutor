@@ -1,12 +1,21 @@
-"""
-Solve Agent — Plan -> ReAct -> Write architecture.
+"""Solve agent — agentic-engine-based pipeline.
+
+Public surface: :class:`SolvePipeline`. The legacy ``MainSolver`` +
+``SolverSessionManager`` + three-agent (planner / solver / writer) stack
+has been replaced by a single label-driven pipeline that runs on top of
+:mod:`deeptutor.core.agentic`.
 """
 
-from .main_solver import MainSolver
-from .session_manager import SolverSessionManager, get_solver_session_manager
+from .pipeline import (
+    Plan,
+    PlanStep,
+    SolvePipeline,
+    StepFinish,
+)
 
 __all__ = [
-    "MainSolver",
-    "SolverSessionManager",
-    "get_solver_session_manager",
+    "Plan",
+    "PlanStep",
+    "SolvePipeline",
+    "StepFinish",
 ]

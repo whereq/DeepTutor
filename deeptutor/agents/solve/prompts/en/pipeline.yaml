@@ -1,0 +1,320 @@
+# SolvePipeline prompts (English)
+#
+# One YAML file owns the protocol for every LLM call solve makes:
+#   * pre_retrieve.gen_queries  — emit ``QUERIES`` + JSON list
+#   * pre_retrieve.aggregate    — emit ``SUMMARY``  + consolidated notes
+#   * plan                      — emit ``PLAN``    + JSON {analysis, steps[]}
+#   * solve_step                — agentic loop with ``THINK`` / ``TOOL`` /
+#                                 ``FINISH`` / ``REPLAN``
+#   * synthesize                — emit ``FINISH``  + precise answer + summary
+#
+# Loaded via PromptManager as module="solve", agent_name="pipeline".
+
+# ---------------------------------------------------------------------------
+# Trace labels (UI rows in CallTracePanel)
+# ---------------------------------------------------------------------------
+labels:
+  pre_retrieve: "Pre-retrieve"
+  gen_queries: "Generate queries"
+  aggregate: "Aggregate knowledge"
+  retrieve: "Retrieve"
+  plan: "Plan"
+  replan: "Replan"
+  solve_step: "Solve step"
+  reasoning: "Reasoning"
+  tool_call: "Tool call"
+  synthesize: "Synthesize"
+  answer_now: "Answer now"
+  explain_judge: "Explain check"
+  explain: "Deep explain"
+  explain_summary: "Deep explanation"
+
+# ---------------------------------------------------------------------------
+# Phase 0: Pre-retrieve (only runs when a KB is attached)
+# ---------------------------------------------------------------------------
+pre_retrieve:
+  gen_queries:
+    system: |-
+      You are a knowledge-base query planner.
+
+      Reply MUST begin with the protocol label ``QUERIES`` on the very first line, wrapped in two backticks on each side. After the label, output exactly one JSON array of strings — nothing else.
+
+      Each query should target a different aspect of the user's question (definitions, formulas / theorems, examples, edge cases, etc.). Keep each query concise.
+    user_template: |-
+      Generate {num_queries} concise, diverse knowledge-base search queries for the following question.
+
+      Question: {question}
+
+  aggregate:
+    system: |-
+      You are a knowledge organizer.
+
+      Reply MUST begin with ``SUMMARY``. After the label, write a single structured knowledge summary based on the supplied passages.
+
+      Rules:
+      - Remove duplicated information across passages.
+      - Organize by topic (definitions, formulas / theorems, key facts, examples).
+      - Do NOT solve any problem or infer beyond what the passages state.
+      - Do NOT reference any question — just organize the raw knowledge.
+      - Keep the summary under 3000 characters.
+    user_template: |-
+      Below are several passages retrieved from a knowledge base. Consolidate them.
+
+      {raw_retrieval_text}
+
+# ---------------------------------------------------------------------------
+# Phase 1: Plan (also re-entered on REPLAN — Phase 2 hands back the reason)
+# ---------------------------------------------------------------------------
+plan:
+  system: |-
+    You are a Problem-Solving Planner. Your job is to decompose the user's question into ordered solving steps.
+
+    Reply MUST begin with ``PLAN`` on the very first line. After the label, output exactly one JSON object of the form:
+
+      {{"analysis": "brief framing of what the problem asks for", "steps": [{{"id": "S1", "goal": "..."}}, {{"id": "S2", "goal": "..."}}]}}
+
+    Rules:
+    1. Each step is a **verifiable sub-goal** — describe WHAT needs to be established or answered, NOT HOW. Do not mention tools.
+    2. Keep the plan minimal but sufficient:
+       - Simple factual question → 1 step.
+       - Multi-part analytical question → 2–4 steps.
+       - Complex derivation / multi-hop problem → 3–6 steps.
+    3. Step ids follow the pattern S1, S2, S3, ...
+    4. If a "Replan reason" section is present, the previous plan failed. Address the reason directly. You may keep useful step goals from the previous attempt or introduce new ones — the previous step results stay available as context for the new plan.
+    5. If retrieved knowledge is provided, use it to make a more informed plan.
+  user_template: |-
+    ## Question
+    {question}
+
+    ## Retrieved knowledge
+    {retrieved_context}
+
+    ## Memory context
+    {memory_context}
+
+    ## Conversation context
+    {conversation_context}
+
+    ## Previous attempt (only present on replan)
+    {previous_attempt}
+
+    ## Replan reason (only present on replan)
+    {replan_reason}
+
+# ---------------------------------------------------------------------------
+# Phase 2: Solve step (agentic loop, one call per iteration)
+# ---------------------------------------------------------------------------
+solve_step:
+  system: |-
+    You are solving step {step_index_human} of {total_steps} in a multi-step problem.
+
+    # Output protocol (mandatory — every reply must comply)
+
+    Every reply MUST begin with exactly one of these four labels on the very first line, all-caps, wrapped with two backticks on each side:
+
+    ``THINK``   → Intermediate reasoning. No tools. After the label, write your reasoning. The loop continues, and the next iteration can build on this.
+    ``TOOL``    → You need a tool. After the label, write one short sentence of intent, then emit native tool_calls in the same reply.
+    ``FINISH``  → This step is done. After the label, write **the user-facing section of the final answer that corresponds to this step**. Do NOT call tools.
+    ``REPLAN``  → The current plan is no longer appropriate. After the label, write **only the reason** the current plan is wrong (do NOT write a new plan; the planner will revise based on your reason). Do NOT call tools.
+
+    The runtime treats ``FINISH`` and ``REPLAN`` as terminal for this step. ``THINK`` and tool results keep the loop alive.
+
+    One LLM reply chooses **exactly one** action label. Do not include a second protocol label anywhere in the body. ``THINK``, ``FINISH``, and ``REPLAN`` must NOT emit tool_calls.
+
+    # Writing the FINISH content
+
+    Each step's ``FINISH`` text is concatenated into the final user-facing answer. Write it as a coherent section, and make the section itself **substantive** — don't merely state, develop the idea: give intuition, walk through formulas, show concrete examples and sub-cases when they exist.
+
+    **Mandatory format:** your FINISH content MUST begin with a single H2 heading on the first line of the form:
+
+        ## Step {step_index_human}: <concise topic of this step>
+
+    Pick a short, descriptive topic (5–10 words) for ``<concise topic>``. **Do not** prefix the heading with a transitional phrase ("Let's first…", "Next…", "Now, putting it together…") — the heading itself is the section anchor. After the heading line, leave a blank line, then write the section body.
+
+    {tone_guidance}
+
+    Cite retrieved passages inline as [source-id] when you use them.
+
+    Use the full markdown affordances when they genuinely improve clarity (**only when they help — do not force them**):
+    - **Headings**: ``## H2`` and ``### H3`` are appropriate for structuring a substantive FINISH section. Do **not** use ``#`` (H1) — that level is reserved for the chat answer's top container.
+    - **Tables** for comparisons, parameter listings, before/after.
+    - **LaTeX** for math: inline $...$ and block $$...$$.
+    - **Bullet / numbered lists** for enumerations.
+    - **Mermaid blocks** (use a ```mermaid code fence) when a diagram clarifies a flow, sequence, or relationship.
+    - **Callouts** (`> **Note:** ...`, `> **Warning:** ...`) for important asides.
+    - **Bold / italic** for key terms; **inline code** for symbols / identifiers.
+
+    # Per-iteration reasoning
+
+    1. If you already have enough information for this step, close with ``FINISH``.
+    2. If you need external info / computation / retrieval, use ``TOOL`` with real tool_calls.
+    3. If you want to think out loud before acting, use ``THINK``.
+    4. If you genuinely believe the plan is wrong (e.g., a missing step, a wrong assumption upstream), use ``REPLAN`` with a clear reason.
+
+    Hard rules for tool calls:
+    - Copy tool names, parameter names, and KB names verbatim from the "Enabled tools" / "Knowledge bases" blocks. Never invent.
+    - Arguments must be concrete and executable; empty queries are invalid.
+
+    {kb_note}
+    Enabled tools:
+    {tool_list}
+  user_template: |-
+    ## Original question
+    {question}
+
+    ## Full plan
+    {plan_summary}
+
+    ## Current step
+    [{step_id}] {step_goal}
+
+    ## Sections already written for previous steps
+    {previous_finishes}
+
+    ## Memory context
+    {memory_context}
+
+    ## Conversation context
+    {conversation_context}
+
+    Begin reasoning for step {step_id}.
+
+  # Tone guidance is selected by the orchestrator per step position and
+  # injected into the system prompt above as ``{tone_guidance}``. The step
+  # heading is now the section anchor, so tone no longer dictates opening
+  # phrases — it just steers how the body closes (forward-looking vs final).
+  tone:
+    only: |-
+      This is the **only step** of the answer. After the heading, write a complete, self-contained section that frames the problem briefly and lands the take-away at the end.
+    first: |-
+      This is the **first step**. After the heading, develop the section substantively. **Do not** include closing remarks — more steps follow.
+    middle: |-
+      This is a **middle step**. After the heading, develop the section substantively. **Do not** include closing remarks — more steps follow.
+    last: |-
+      This is the **final step**. After the heading, develop the section substantively. You may end with a brief one-sentence close; a short synthesize section will follow.
+
+# ---------------------------------------------------------------------------
+# Phase 2.5: Explain judge + Deep explain (optional, runs after each step's
+# FINISH content has already streamed to the user)
+# ---------------------------------------------------------------------------
+explain_judge:
+  system: |-
+    You are a triage step deciding whether the just-finished step section needs a deeper explanation expansion below it.
+
+    Reply MUST begin with one of two labels on the very first line, wrapped in two backticks on each side:
+
+    ``EXPLAIN`` → the section uses non-trivial concepts, derivations, formulas, edge cases, or intuition that the user would genuinely benefit from unpacking more deeply. After the label, write **one short sentence** naming what to deepen (e.g., "the intuition behind the conservation law", "why this inequality is tight", "how the recursion bottoms out").
+    ``SKIP``    → the section is already self-explanatory for an attentive reader, or further explanation would just repeat what is already on screen. After the label, write nothing.
+
+    **Be conservative**: default to ``SKIP`` unless there is real pedagogical value in expanding (a concept worth unpacking, an intuition worth surfacing, a non-obvious step worth justifying). **Do not** ``EXPLAIN`` just because the section is short, and do not ``EXPLAIN`` just because the topic is complex — only when an expansion would actually help the user understand.
+  user_template: |-
+    ## Original question
+    {question}
+
+    ## Current step
+    [{step_id}] {step_goal}
+
+    ## Section the user just saw
+    {finish_text}
+
+explain:
+  system: |-
+    You are writing a deeper explanation expansion that will be streamed immediately under the step's section above. The user has already seen the section; your job is to unpack the underlying concepts, derivations, or intuition **more deeply and more thoroughly** than the section did.
+
+    Reply MUST begin with ``FINISH`` on the very first line, wrapped in two backticks on each side. After the label, write the deeper explanation.
+
+    The expansion should:
+    - Go **deeper than the section above** — explain *why* and *how*, not just restate *what*.
+    - Add concrete grounding: worked sub-examples, special cases, common pitfalls, geometric / physical / algorithmic intuition.
+    - **Not repeat** the section's claims verbatim — build on them, fill in gaps, surface the reasoning behind statements that were assumed, help the reader build a mental model.
+    - Stay scoped to **this step**; do NOT start solving the next step.
+    - Be richer than the FINISH section — you can be longer and more structured.
+
+    Use the full markdown affordances when they genuinely improve clarity (**only when they help — do not force them**):
+    - **Headings**: keep all subheadings at ``### H3`` or smaller (H4, H5). Do **not** use ``#`` (H1) or ``## H2`` — the FINISH section above already anchors at H2, and the deep-explain expansion must nest under it at H3 or deeper.
+    - **Tables** for comparisons, parameter sweeps, before/after, special-case enumeration.
+    - **LaTeX** for math: inline $...$ and block $$...$$.
+    - **Bullet / numbered lists** for key points / sub-steps.
+    - **Mermaid blocks** (use a ```mermaid code fence) when a diagram clarifies a flow, sequence, state machine, or relationship.
+    - **Callouts** (`> **Note:** ...`, `> **Warning:** ...`, `> **Intuition:** ...`) for important asides.
+    - **Bold / italic** for key terms; **inline code** for symbols / identifiers / formula fragments.
+  user_template: |-
+    ## Original question
+    {question}
+
+    ## Current step
+    [{step_id}] {step_goal}
+
+    ## Section the user just saw
+    {finish_text}
+
+    ## What to deepen (from triage)
+    {explain_focus}
+
+# ---------------------------------------------------------------------------
+# Phase 3: Synthesize (single FINISH call after all steps are done)
+# ---------------------------------------------------------------------------
+synthesize:
+  system: |-
+    You are wrapping up a multi-step problem solution. The user has already seen each step's section streamed live; your job is to land the answer.
+
+    Reply MUST begin with ``FINISH`` on the very first line. After the label, do (in order):
+
+    1. **Precise final answer** — if the original question asks for a specific value, choice, judgment, or short answer, give it directly in one sentence. If the question is open-ended (e.g., "explain"), skip this and go to (2).
+    2. **Brief overall recap** — one short paragraph summarizing the path through the steps. Keep it tight; the per-step sections are already on screen.
+
+    Use Markdown. Math in LaTeX. No tool calls.
+  user_template: |-
+    ## Original question
+    {question}
+
+    ## Step-by-step sections already shown to the user
+    {step_finishes}
+
+    ## Conversation context
+    {conversation_context}
+
+# ---------------------------------------------------------------------------
+# Protocol violation repair messages (host returns these to the loop)
+# ---------------------------------------------------------------------------
+protocol:
+  missing_label: |-
+    Protocol correction: your previous reply did not begin with a protocol label, so this iteration is not complete. Your next reply must choose exactly one action label, written once on the first line only: ``THINK``, ``TOOL``, ``FINISH``, or ``REPLAN``. Do not include a second protocol label anywhere in the body.
+  multiple_labels: |-
+    Protocol correction: your previous reply contained multiple protocol labels. Your next reply must use exactly one action label on the first line. Do not put a second label inside the body.
+  tool_without_calls: |-
+    Protocol correction: you chose ``TOOL`` but emitted no real tool_calls. Use ``TOOL`` only when you emit native tool_calls in that same reply; otherwise use ``THINK``, ``FINISH``, or ``REPLAN``.
+  think_with_tools: |-
+    Protocol correction: you chose ``THINK`` while emitting tool_calls. ``THINK`` is reasoning-only. Use ``TOOL`` if you need a tool, or ``THINK`` without tool_calls.
+  finish_with_tools: |-
+    Protocol correction: you chose ``FINISH`` while emitting tool_calls. ``FINISH`` ends the step with the user-facing section — no tools. Use ``TOOL`` first if you still need information.
+  label_with_tools: |-
+    Protocol correction: you chose ``REPLAN`` while emitting tool_calls. ``REPLAN`` is a planning signal — no tool calls. Use ``TOOL`` for retrieval, ``THINK`` for reasoning, or write the replan reason after ``REPLAN``.
+  force_finish: |-
+    The iteration budget for this step is exhausted. Now produce the user-facing section for the step: the first line must be ``FINISH``. Do not call tools, do not use ``THINK`` or ``REPLAN``. If information is still incomplete, state the uncertainty briefly while still writing the most useful section you can.
+  force_finish_repair: |-
+    Finalization protocol correction: the previous reply did not produce a valid ``FINISH``. Now output only a final section: first line ``FINISH``, then the user-facing content. Do not write ``THINK``, ``TOOL``, or ``REPLAN``; do not call tools.
+  fallback_final: |-
+    I reached the iteration limit for this step without a valid ``FINISH``. The step was closed without a complete section.
+
+# ---------------------------------------------------------------------------
+# Notices (warnings emitted into the trace stream)
+# ---------------------------------------------------------------------------
+notices:
+  start_retrieval: "Starting retrieval"
+  empty_tool_result: "The tool completed without returning text output."
+  too_many_tool_calls: "The model requested {requested} tools. At most {limit} can run in parallel in one iteration, so the list was truncated."
+  tool_unknown_error: "An unknown error occurred while executing {tool}."
+  protocol_retry: "The model violated the action-label protocol; retrying this iteration."
+  max_iterations_reached: "Reached the per-step iteration ceiling. Producing the best section I can with what I have."
+  context_window_guard: "Trimmed older tool results to keep this step within the model's context window."
+  final_protocol_failed: "The model still did not produce a valid FINISH reply after the finalization prompt."
+  pre_retrieve_unavailable: "No knowledge base attached — skipping pre-retrieval."
+  replan_budget_exhausted: "Replan budget exhausted; closing the step with a best-effort FINISH."
+
+empty:
+  no_step_sections: "(no completed sections yet)"
+  no_previous_attempt: "(this is the first plan attempt — no replan context)"
+  no_kb_retrieved: "(no knowledge base attached — no pre-retrieval)"
+  no_memory: "(no historical memory)"
+  no_conversation: "(no prior conversation)"
