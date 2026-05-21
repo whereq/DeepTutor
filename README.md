@@ -156,6 +156,13 @@ deeptutor init
 deeptutor start
 ```
 
+> 🧪 **Trying the v1.4.0 beta?** PyPI normalizes `1.4.0-beta` to `1.4.0b0`, so `pip install -U deeptutor` will stay on the latest stable. Opt in to the pre-release with either of:
+>
+> ```bash
+> pip install --pre -U deeptutor      # latest pre-release
+> pip install -U deeptutor==1.4.0b0   # pin to v1.4.0-beta exactly
+> ```
+
 `deeptutor init` writes configuration under `data/user/settings/` in the directory where you run it. It prompts for:
 
 - Backend port, default `8001`
