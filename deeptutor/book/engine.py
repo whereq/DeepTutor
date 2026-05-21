@@ -1223,6 +1223,7 @@ _engines: dict[str, BookEngine] = {}
 
 def get_book_engine() -> BookEngine:
     from deeptutor.services.path_service import get_path_service
+
     key = str(get_path_service().workspace_root.resolve())
     if key not in _engines:
         _engines[key] = BookEngine()

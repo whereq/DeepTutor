@@ -319,10 +319,10 @@ export default function PageReader({
       {/* Floating outline lives outside the scroll container so it stays
           pinned to the viewport regardless of page scrolling. */}
       <PageOutlineNav
+        key={page.id}
         blocks={page.blocks}
         scrollContainer={scrollContainer}
         language={bookLanguage}
-        resetKey={page.id}
       />
     </div>
   );

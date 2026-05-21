@@ -84,7 +84,6 @@ class BookStorage:
 
     @property
     def path_service(self):
-        from deeptutor.services.path_service import get_path_service
         return get_path_service()
 
     # ── Path helpers ─────────────────────────────────────────────────────
@@ -270,7 +269,6 @@ _storages: dict[str, BookStorage] = {}
 
 
 def get_book_storage() -> BookStorage:
-    from deeptutor.services.path_service import get_path_service
     key = str(get_path_service().workspace_root.resolve())
     if key not in _storages:
         _storages[key] = BookStorage()
