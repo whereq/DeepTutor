@@ -158,84 +158,50 @@
 
 ## 🚀 Get Started
 
-DeepTutor now has four parallel installation paths. All of them use the same runtime configuration layout:
+DeepTutor ships four installation paths. They all share one workspace layout: settings live in `data/user/settings/` under the directory you launch from (or under `DEEPTUTOR_HOME` / `deeptutor start --home` if you set one explicitly). For the full app, the recommended flow is **pick a workspace directory → install → `deeptutor init` → `deeptutor start`**.
 
-- Settings live in `data/user/settings/` under your current workspace, or under `DEEPTUTOR_HOME` / `deeptutor start --home` when you choose one explicitly.
-- `model_catalog.json` stores model provider profiles, base URLs, API keys, active models, embedding settings, and search settings.
-- `system.json` stores launch ports, public API base, CORS, TLS, and attachment options.
-- `auth.json` stores the optional auth toggle and bootstrap credential hash.
-- `integrations.json` stores optional sidecars such as PocketBase.
-- Project-root `.env` is no longer used as an application configuration file.
+> 🧪 **Trying the v1.4.0 beta?** PyPI normalizes `1.4.0-beta` to `1.4.0b0`, so plain `pip install -U deeptutor` stays on stable. Opt in with `pip install --pre -U deeptutor`, or pin exactly with `pip install -U deeptutor==1.4.0b0`.
 
-For the full local app, the recommended order is **choose a workspace → install → `deeptutor init` → `deeptutor start`**. `deeptutor start` can backfill missing default files as a safety net, but normal first-run setup should go through `deeptutor init` so ports and model settings are explicit before the Web app starts.
+### Option 1 — Install From PyPI
 
-### Option 1 — Install DeepTutor
-
-Use this when you want the full local Web app and CLI without cloning the repository.
+Full local Web app + CLI, no clone required. Needs **Python 3.11+** and a **Node.js 20+** runtime on PATH (the packaged Next.js standalone server is spawned by `deeptutor start`).
 
 ```bash
-mkdir -p my-deeptutor
-cd my-deeptutor
+mkdir -p my-deeptutor && cd my-deeptutor
 pip install -U deeptutor
-deeptutor init
-deeptutor start
+deeptutor init     # prompts for ports + LLM provider + optional embedding
+deeptutor start    # starts backend + frontend; keep the terminal open
 ```
 
-> 🧪 **Trying the v1.4.0 beta?** PyPI normalizes `1.4.0-beta` to `1.4.0b0`, so `pip install -U deeptutor` will stay on the latest stable. Opt in to the pre-release with either of:
->
-> ```bash
-> pip install --pre -U deeptutor      # latest pre-release
-> pip install -U deeptutor==1.4.0b0   # pin to v1.4.0-beta exactly
-> ```
+`deeptutor init` prompts for backend port (default `8001`), frontend port (default `3782`), LLM provider / base URL / API key / model, and an optional embedding provider for Knowledge Base / RAG.
 
-`deeptutor init` writes configuration under `data/user/settings/` in the directory where you run it. It prompts for:
-
-- Backend port, default `8001`
-- Frontend port, default `3782`
-- LLM provider binding, base URL, API key, and model name
-- Optional embedding provider for Knowledge Base / RAG
-
-After `deeptutor start`, open the frontend URL printed in the terminal. With default ports, that URL is [http://127.0.0.1:3782](http://127.0.0.1:3782). If you changed `frontend_port` during `deeptutor init` or later edited `data/user/settings/system.json`, use that configured port instead.
-
-Keep the `deeptutor start` terminal open. Press `Ctrl+C` in that terminal to stop both backend and frontend.
-
-Notes:
-
-- `deeptutor start` starts the FastAPI backend and the packaged Next.js frontend together.
-- The packaged Web app does not require `git clone` or `npm install`, but it still needs a local Node.js 20+ runtime to execute the bundled Next.js standalone server.
-- If you deliberately skip `deeptutor init` for a quick trial, the app starts with safe default ports and empty model settings; configure models afterward in **Settings → Models**.
+After `deeptutor start`, open the frontend URL printed in the terminal — by default [http://127.0.0.1:3782](http://127.0.0.1:3782). Press `Ctrl+C` in that terminal to stop both backend and frontend. Skipping `deeptutor init` is fine for a quick trial; the app boots with default ports and empty model settings, configure them later in **Settings → Models**.
 
 ### Option 2 — Install From Source
 
-Use this when you are developing DeepTutor or want to run directly from a checkout.
-Use Python 3.11+ and Node.js 22 LTS for the closest match to CI and Docker.
-
-**1. Clone the repository**
+For development against a checkout. Use **Python 3.11+** and **Node.js 22 LTS** to match CI and Docker.
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
-```
 
-**2. Create a Python environment**
-
-macOS / Linux with `venv`:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
+# Create a venv (macOS/Linux). Windows PowerShell:
+#   py -3.11 -m venv .venv ; .\.venv\Scripts\Activate.ps1
+python3 -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
+
+# Install backend + frontend deps
+python -m pip install -e .
+( cd web && npm ci --legacy-peer-deps )
+
+deeptutor init
+deeptutor start
 ```
 
-Windows PowerShell with `venv`:
+Source installs run Next.js in dev mode against the local `web/` directory; everything else (config layout, ports, stop with `Ctrl+C`) matches Option 1.
 
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-```
-
-Conda / Miniconda:
+<details>
+<summary><b>Conda environment</b> (instead of <code>venv</code>)</summary>
 
 ```bash
 conda create -n deeptutor python=3.11
@@ -243,41 +209,10 @@ conda activate deeptutor
 python -m pip install --upgrade pip
 ```
 
-**3. Install the local package and frontend dependencies**
+</details>
 
-```bash
-python -m pip install -e .
-cd web
-npm ci --legacy-peer-deps
-cd ..
-```
-
-If you intentionally change frontend dependencies, use `npm install --legacy-peer-deps`
-to refresh `web/package-lock.json`, then commit both `web/package.json` and
-`web/package-lock.json`.
-
-**4. Configure and start**
-
-```bash
-deeptutor init
-deeptutor start
-```
-
-Source installs use the local `web/` directory for the frontend and start it with
-Next.js dev mode. Keep the `deeptutor start` terminal open while using the app.
-They are intentionally developer-friendly and do not write configuration to
-`.env`; edit `data/user/settings/*.json` or use the Web Settings page.
-
-If `deeptutor start` reports an existing frontend that is not responding, stop
-the PID printed in the message. If no Next.js process is running, remove the
-stale lock files and start again:
-
-```bash
-rm -f web/.next/dev/lock web/.next/lock
-deeptutor start
-```
-
-Useful developer extras:
+<details>
+<summary><b>Optional install extras</b> — dev / tutorbot / matrix / math-animator</summary>
 
 ```bash
 pip install -e ".[dev]"             # tests/lint tools
@@ -287,15 +222,30 @@ pip install -e ".[matrix-e2e]"      # Matrix E2EE; requires libolm
 pip install -e ".[math-animator]"   # Manim addon; requires LaTeX/ffmpeg/system libs
 ```
 
+</details>
+
+<details>
+<summary><b>Frontend dependency tweaks & dev-server troubleshooting</b></summary>
+
+**Changing frontend dependencies:** run `npm install --legacy-peer-deps` to refresh `web/package-lock.json`, then commit both `web/package.json` and `web/package-lock.json`.
+
+**Stuck dev server:** if `deeptutor start` reports an existing frontend that isn't responding, stop the PID it prints. If no Next.js process is actually running, the lock files are stale — remove them and retry:
+
+```bash
+rm -f web/.next/dev/lock web/.next/lock
+deeptutor start
+```
+
+</details>
+
 ### Option 3 — Docker
 
-Use this when you want the full Web app in one container. Images are published to GitHub Container Registry:
+One container for the full Web app. Images on GitHub Container Registry:
 
 - `ghcr.io/hkuds/deeptutor:latest` — stable release
 - `ghcr.io/hkuds/deeptutor:pre` — pre-release, when available
 
 ```bash
-docker pull ghcr.io/hkuds/deeptutor:latest
 docker run --rm --name deeptutor \
   -p 127.0.0.1:3782:3782 \
   -p 127.0.0.1:8001:8001 \
@@ -303,134 +253,96 @@ docker run --rm --name deeptutor \
   ghcr.io/hkuds/deeptutor:latest
 ```
 
-> ⚠️ **Map both `3782` and `8001`.** `3782` serves the web UI; `8001` is the FastAPI backend that your browser calls directly — there is no in-container proxy. If you forget the `8001` mapping, the page still loads but **Settings** shows a "Backend unreachable" banner and stays unusable.
+> ⚠️ **Map both `3782` and `8001`.** `3782` serves the web UI; `8001` is the FastAPI backend that your browser calls directly — there is no in-container proxy. Skip the `8001` mapping and the page still loads, but **Settings** shows "Backend unreachable" and stays unusable.
 
-Then open [http://127.0.0.1:3782](http://127.0.0.1:3782). Config, API keys, logs, workspace files, memory, and knowledge bases are stored in the `deeptutor-data` volume under `/app/data`.
+Open [http://127.0.0.1:3782](http://127.0.0.1:3782). The container creates `/app/data/user/settings/*.json` on first boot; configure model providers from the Web Settings page. Config, API keys, logs, workspace files, memory, and knowledge bases persist in the `deeptutor-data` volume.
 
-The container creates `/app/data/user/settings/*.json` automatically on first boot. You can configure model providers directly in the Web Settings page without preparing local JSON files manually.
+- **Different host ports:** change the left side of each `-p host:container` mapping (e.g. `-p 127.0.0.1:8088:3782`). If you change container-side ports in `/app/data/user/settings/system.json`, restart and update the right side of each mapping to match.
+- **Detached:** add `-d`, then `docker logs -f deeptutor` to follow, `docker stop deeptutor` to stop, `docker rm deeptutor` before reusing the name. The `deeptutor-data` volume keeps your settings and workspace across restarts.
 
-To use different host ports, change the left side of the `-p` mappings. For example, `-p 127.0.0.1:8088:3782` makes the Web UI available at `http://127.0.0.1:8088` while the container still listens on `3782`. If you change the container-side ports in `/app/data/user/settings/system.json`, restart the container and make the right side of each `-p host:container` mapping match the configured container port.
+<details>
+<summary><b>Connecting to Ollama / LM Studio / llama.cpp / vLLM on the host</b></summary>
 
-#### Connecting To Ollama Or Other Host Services
-
-Inside a Docker container, `localhost` refers to the container itself, not your host machine. If you run Ollama, LM Studio, llama.cpp, vLLM, or another model service on the host, use one of these approaches.
-
-Option A — host gateway, recommended for normal Docker runs:
+Inside Docker, `localhost` is the container itself, not your host machine. To reach a model service running on the host, use the host gateway (recommended):
 
 ```bash
 docker run --rm --name deeptutor \
-  -p 127.0.0.1:3782:3782 \
-  -p 127.0.0.1:8001:8001 \
+  -p 127.0.0.1:3782:3782 -p 127.0.0.1:8001:8001 \
   --add-host=host.docker.internal:host-gateway \
   -v deeptutor-data:/app/data \
   ghcr.io/hkuds/deeptutor:latest
 ```
 
-Then in **DeepTutor Settings → Models**, set the provider Base URL to `host.docker.internal`:
+Then in **Settings → Models**, point the provider Base URL at `host.docker.internal`:
 
-- Ollama LLM endpoint: `http://host.docker.internal:11434/v1`
-- Ollama embedding endpoint: `http://host.docker.internal:11434/api/embed`
+- Ollama LLM: `http://host.docker.internal:11434/v1`
+- Ollama embedding: `http://host.docker.internal:11434/api/embed`
 - LM Studio: `http://host.docker.internal:1234/v1`
 - llama.cpp: `http://host.docker.internal:8080/v1`
 
-On Docker Desktop for macOS/Windows, `host.docker.internal` is usually available even without `--add-host`. On Linux, the `--add-host=host.docker.internal:host-gateway` flag is the portable way to create that hostname on modern Docker Engine.
+Docker Desktop (macOS/Windows) usually resolves `host.docker.internal` without `--add-host`. On Linux, the flag is the portable way to create that hostname on modern Docker Engine.
 
-Option B — host networking, Linux only:
+**Linux alternative — host networking:** add `--network=host` and drop the `-p` flags. The container shares the host network directly, so open [http://127.0.0.1:3782](http://127.0.0.1:3782) (or the `frontend_port` in `system.json`), and host services can be reached with normal localhost URLs like `http://127.0.0.1:11434/v1`. Note that host networking exposes container ports directly on the host and may conflict with existing services.
 
-```bash
-docker run --network=host \
-  -v deeptutor-data:/app/data \
-  ghcr.io/hkuds/deeptutor:latest
-```
-
-No `-p` mapping is needed in host-network mode. The container shares the host network directly, so open [http://127.0.0.1:3782](http://127.0.0.1:3782) by default, or the `frontend_port` configured in `/app/data/user/settings/system.json`. In this mode, host services can usually be reached with normal localhost URLs such as `http://127.0.0.1:11434/v1`. Host networking exposes container ports directly on the host and may conflict with existing services.
-
-To run in the background instead, add `-d` and follow logs by name:
-
-```bash
-docker run -d --name deeptutor \
-  -p 127.0.0.1:3782:3782 \
-  -p 127.0.0.1:8001:8001 \
-  -v deeptutor-data:/app/data \
-  ghcr.io/hkuds/deeptutor:latest
-docker logs -f deeptutor
-```
-
-To stop a foreground Docker run, press `Ctrl+C`. If you used the named detached
-container above, run `docker stop deeptutor`. Before starting another container
-with the same name, remove the stopped one with `docker rm deeptutor`; the
-`deeptutor-data` volume keeps your settings and workspace.
+</details>
 
 ### Option 4 — CLI Only
 
-Use this when you do not need the Web UI. The CLI-only package is installed
-from a local source checkout instead of PyPI.
+When you don't need the Web UI. The CLI-only package is installed from a source checkout, not from PyPI.
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
 cd DeepTutor
 
-python3 -m venv .venv-cli
-source .venv-cli/bin/activate
+# Create a venv (macOS/Linux). Windows PowerShell:
+#   py -3.11 -m venv .venv-cli ; .\.venv-cli\Scripts\Activate.ps1
+python3 -m venv .venv-cli && source .venv-cli/bin/activate
 python -m pip install --upgrade pip
+
 python -m pip install -e ./packaging/deeptutor-cli
 deeptutor init --cli
 deeptutor chat
 ```
 
-Windows PowerShell:
+`deeptutor init --cli` shares the same `data/user/settings/` layout as the full app but skips the backend/frontend port prompts and defaults embeddings to **off** (choose `Yes` if you plan to use `deeptutor kb …` or RAG tools). It still writes a complete runtime layout (`system.json`, `auth.json`, `integrations.json`, `model_catalog.json`, `main.yaml`, `agents.yaml`) and still prompts for the active LLM provider and model.
 
-```powershell
-py -3.11 -m venv .venv-cli
-.\.venv-cli\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ./packaging/deeptutor-cli
-deeptutor init --cli
-deeptutor chat
-```
-
-`deeptutor init --cli` uses the same `data/user/settings/` layout as the full app, but changes the wizard behavior:
-
-- It skips backend/frontend port prompts because CLI-only usage does not start the Web app.
-- It still writes default `system.json`, `auth.json`, `integrations.json`, `model_catalog.json`, `main.yaml`, and `agents.yaml` so the runtime layout is complete.
-- It still prompts for the active LLM provider and model.
-- It asks whether to configure embeddings, but the default answer is `No`; choose `Yes` if you plan to use `deeptutor kb ...` or RAG tools.
-
-Common CLI commands:
+<details>
+<summary><b>Common commands</b></summary>
 
 ```bash
-deeptutor chat
+deeptutor chat                                          # interactive REPL
 deeptutor chat --capability deep_solve --tool rag --kb my-kb
 deeptutor run chat "Explain Fourier transform"
 deeptutor run deep_solve "Solve x^2 = 4" --tool rag --kb my-kb
 deeptutor kb create my-kb --doc textbook.pdf
-deeptutor kb list
 deeptutor memory show
 deeptutor config show
 ```
 
-The local `deeptutor-cli` install does not ship Web assets or server dependencies.
-Keep the source checkout around because the editable install points to it. If you
-later want the Web app, either follow Option 2 in the same checkout, or uninstall
-the local CLI package, install the full PyPI package with `pip install -U
-deeptutor`, run `deeptutor init` if you want to add Web ports, and then run
-`deeptutor start` from the same workspace.
+</details>
+
+The local `deeptutor-cli` install ships no Web assets or server dependencies. Keep the source checkout around — the editable install points to it. To add the Web app later, install the PyPI package (Option 1) and run `deeptutor init` + `deeptutor start` from the same workspace.
 
 ### Configuration Reference
 
-The Web Settings page is the recommended editor, but the files are plain JSON/YAML and can be managed directly:
+<details>
+<summary><b>Config files under <code>data/user/settings/</code></b> — JSON/YAML reference</summary>
+
+Everything under `data/user/settings/` is plain JSON/YAML. The **Settings** page in the browser is the recommended editor.
 
 | File | Purpose |
 |:---|:---|
-| `data/user/settings/model_catalog.json` | LLM, embedding, and search provider profiles; API keys; active models |
-| `data/user/settings/system.json` | Backend/frontend ports, public API base, CORS, SSL verification, attachment directory |
-| `data/user/settings/auth.json` | Optional auth toggle, username, password hash, token/cookie settings |
-| `data/user/settings/integrations.json` | Optional PocketBase and sidecar integration settings |
-| `data/user/settings/interface.json` | UI language/theme/sidebar preferences |
-| `data/user/settings/main.yaml` | Runtime behavior defaults and path injection |
-| `data/user/settings/agents.yaml` | Capability/tool temperature and token settings |
+| `model_catalog.json` | LLM, embedding, and search provider profiles; API keys; active models |
+| `system.json` | Backend/frontend ports, public API base, CORS, SSL verification, attachment directory |
+| `auth.json` | Optional auth toggle, username, password hash, token/cookie settings |
+| `integrations.json` | Optional PocketBase and sidecar integration settings |
+| `interface.json` | UI language / theme / sidebar preferences |
+| `main.yaml` | Runtime behavior defaults and path injection |
+| `agents.yaml` | Capability/tool temperature and token settings |
 
-Minimal model setup can be done in the browser: open **Settings → Models**, add an LLM profile, set Base URL / API key / model name, and save. Add an embedding profile only if you plan to use Knowledge Base / RAG features.
+Project-root `.env` is **not** read as an application config file. For a minimal model setup, open **Settings → Models**, add an LLM profile (Base URL / API key / model name), and save. Add an embedding profile only if you plan to use Knowledge Base / RAG features.
+
+</details>
 
 ## 📖 Explore DeepTutor
 
@@ -444,6 +356,9 @@ The v1.4.0-beta refactor reorganises DeepTutor around **five core surfaces** —
 
 One thread, five modes, any tool. The capability picker lives in the composer; the same session, knowledge base, attachments, and references travel with you across modes — switch from a casual question into multi-agent solving, into a quiz, into a full research report, without losing context.
 
+<details>
+<summary><b>What each mode does & what it's built on</b></summary>
+
 | Mode | What it does | Built on |
 |:---|:---|:---|
 | **Chat** | Flexible conversation with any tool; pick from RAG, web search, code execution, deep reasoning, brainstorming, paper search, GeoGebra analysis. | LlamaIndex-backed RAG + tool registry |
@@ -451,6 +366,8 @@ One thread, five modes, any tool. The capability picker lives in the composer; t
 | **Quiz** | Auto-validated question generation grounded in your KB; spawns a follow-up chat composer per question. | Agentic engine (`deep_question`) |
 | **Research** | Decomposes a topic into subtopics, dispatches parallel agents across RAG / web / arXiv, and produces a cited report with iterative append-mode revisions. | Rebuilt `pipeline.py` (~45% smaller, citations + iterative reporting preserved) |
 | **Visualize** | Generate SVG diagrams, Chart.js charts, Mermaid graphs, interactive HTML pages, **or** Manim videos / storyboards — the analyzer picks the right `render_type`. | Visualize pipeline (Animator merged in) |
+
+</details>
 
 **New chat tools** shipped with the refactor: `ask_user` (asks a structured clarifying question mid-turn), `web_fetch` (pulls a specific URL into context), `write_note` / `list_notebook` (saves and lists notebook records from the chat surface), and `github_query` (issue / PR / repo lookups). Tools stay **decoupled from workflows** — every mode lets you opt tools in or out per turn.
 
@@ -514,11 +431,16 @@ Space is the **read / review** counterpart to the active surfaces. Where Chat / 
 
 DeepTutor's memory is now a **three-layer pipeline** with an inspectable workbench at `/memory`. The two-file v1 `SUMMARY.md` / `PROFILE.md` model is gone; everything is migrated into the new layout on first boot.
 
+<details>
+<summary><b>L1 / L2 / L3 — role and on-disk layout</b></summary>
+
 | Layer | Role | Storage |
 |:---|:---|:---|
 | **L1 · Workspace mirror** (LIVE) | Append-only trace of every interaction, per surface, per day. The lossless record of what actually happened. | `trace/<surface>/<YYYY-MM-DD>.jsonl` |
 | **L2 · Per-surface summaries** (CURATED) | Surface-specific facts extracted by the consolidator. Each fact carries footnote citations back to L1 traces. Supports per-doc **Update / Audit / Dedup** runs. | `L2/<surface>.md` |
 | **L3 · Cross-surface knowledge** (SYNTHESIS) | Cross-surface synthesis: your `profile`, `recent` timeline, `scope` of knowledge, and `preferences`. Hedged claims, each backed by L2 evidence. | `L3/<recent\|profile\|scope\|preferences>.md` |
+
+</details>
 
 Seven surfaces feed the pipeline: **chat, notebook, quiz, kb, book, tutorbot, cowriter**. The consolidator is LLM-driven and runs asynchronously (`POST /memory/runs/start`) — you can fire it from the workbench, watch L1 → L2 → L3 propagate, and edit any layer by hand.
 
@@ -586,6 +508,9 @@ DeepTutor is fully CLI-native. Every capability, knowledge base, session, memory
 
 Hand the [`SKILL.md`](SKILL.md) at the project root to any tool-using agent ([nanobot](https://github.com/HKUDS/nanobot), or any LLM with tool access), and it can configure and operate DeepTutor autonomously.
 
+<details>
+<summary><b>Example commands</b> — one-shot run, REPL, KB lifecycle, JSON output, session resume</summary>
+
 **One-shot execution** — Run any capability directly from the terminal:
 
 ```bash
@@ -625,6 +550,8 @@ deeptutor run chat "Summarize chapter 3" -f json    # Line-delimited JSON events
 deeptutor session list                              # List all sessions
 deeptutor session open <id>                         # Resume in REPL
 ```
+
+</details>
 
 <details>
 <summary><b>Full CLI command reference</b></summary>
