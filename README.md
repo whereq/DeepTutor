@@ -7,16 +7,16 @@
 <a href="https://trendshift.io/repositories/17099" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17099" alt="HKUDS%2FDeepTutor | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 <p align="center">
-  <a href="README.md"><img alt="English" height="28" src="https://img.shields.io/badge/English-BCDCF7"></a>
-  <a href="assets/README/README_CN.md"><img alt="简体中文" height="28" src="https://img.shields.io/badge/简体中文-CDCFD4"></a>
-  <a href="assets/README/README_JA.md"><img alt="日本語" height="28" src="https://img.shields.io/badge/日本語-CDCFD4"></a>
-  <a href="assets/README/README_ES.md"><img alt="Español" height="28" src="https://img.shields.io/badge/Español-CDCFD4"></a>
-  <a href="assets/README/README_FR.md"><img alt="Français" height="28" src="https://img.shields.io/badge/Français-CDCFD4"></a>
-  <a href="assets/README/README_AR.md"><img alt="Arabic" height="28" src="https://img.shields.io/badge/Arabic-CDCFD4"></a>
-  <a href="assets/README/README_RU.md"><img alt="Русский" height="28" src="https://img.shields.io/badge/Русский-CDCFD4"></a>
-  <a href="assets/README/README_HI.md"><img alt="Hindi" height="28" src="https://img.shields.io/badge/Hindi-CDCFD4"></a>
-  <a href="assets/README/README_PT.md"><img alt="Português" height="28" src="https://img.shields.io/badge/Português-CDCFD4"></a>
-  <a href="assets/README/README_TH.md"><img alt="Thai" height="28" src="https://img.shields.io/badge/Thai-CDCFD4"></a>
+  <a href="README.md"><img alt="English" height="28" src="https://img.shields.io/badge/English-BCDCF7"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_CN.md"><img alt="简体中文" height="28" src="https://img.shields.io/badge/简体中文-CDCFD4"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_JA.md"><img alt="日本語" height="28" src="https://img.shields.io/badge/日本語-CDCFD4"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_ES.md"><img alt="Español" height="28" src="https://img.shields.io/badge/Español-CDCFD4"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_FR.md"><img alt="Français" height="28" src="https://img.shields.io/badge/Français-CDCFD4"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_AR.md"><img alt="Arabic" height="28" src="https://img.shields.io/badge/Arabic-CDCFD4"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_RU.md"><img alt="Русский" height="28" src="https://img.shields.io/badge/Русский-CDCFD4"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_HI.md"><img alt="Hindi" height="28" src="https://img.shields.io/badge/Hindi-CDCFD4"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_PT.md"><img alt="Português" height="28" src="https://img.shields.io/badge/Português-CDCFD4"></a>&nbsp;&nbsp;
+  <a href="assets/README/README_TH.md"><img alt="Thai" height="28" src="https://img.shields.io/badge/Thai-CDCFD4"></a>&nbsp;&nbsp;
   <a href="assets/README/README_PL.md"><img alt="Polski" height="28" src="https://img.shields.io/badge/Polski-CDCFD4"></a>
 </p>
 
