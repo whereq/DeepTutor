@@ -7,17 +7,17 @@
 <a href="https://trendshift.io/repositories/17099" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17099" alt="HKUDS%2FDeepTutor | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 <p align="center">
-  <a href="README.md"><img alt="English" src="https://img.shields.io/badge/English-DBEDFA"></a>
-  <a href="assets/README/README_CN.md"><img alt="简体中文" src="https://img.shields.io/badge/简体中文-DFE0E5"></a>
-  <a href="assets/README/README_JA.md"><img alt="日本語" src="https://img.shields.io/badge/日本語-DFE0E5"></a>
-  <a href="assets/README/README_ES.md"><img alt="Español" src="https://img.shields.io/badge/Español-DFE0E5"></a>
-  <a href="assets/README/README_FR.md"><img alt="Français" src="https://img.shields.io/badge/Français-DFE0E5"></a>
-  <a href="assets/README/README_AR.md"><img alt="العربية" src="https://img.shields.io/badge/العربية-DFE0E5"></a>
-  <a href="assets/README/README_RU.md"><img alt="Русский" src="https://img.shields.io/badge/Русский-DFE0E5"></a>
-  <a href="assets/README/README_HI.md"><img alt="हिन्दी" src="https://img.shields.io/badge/हिन्दी-DFE0E5"></a>
-  <a href="assets/README/README_PT.md"><img alt="Português" src="https://img.shields.io/badge/Português-DFE0E5"></a>
-  <a href="assets/README/README_TH.md"><img alt="ภาษาไทย" src="https://img.shields.io/badge/ภาษาไทย-DFE0E5"></a>
-  <a href="assets/README/README_PL.md"><img alt="Polski" src="https://img.shields.io/badge/Polski-DFE0E5"></a>
+  <a href="README.md"><img alt="English" src="https://img.shields.io/badge/English-BCDCF7"></a>
+  <a href="assets/README/README_CN.md"><img alt="简体中文" src="https://img.shields.io/badge/简体中文-CDCFD4"></a>
+  <a href="assets/README/README_JA.md"><img alt="日本語" src="https://img.shields.io/badge/日本語-CDCFD4"></a>
+  <a href="assets/README/README_ES.md"><img alt="Español" src="https://img.shields.io/badge/Español-CDCFD4"></a>
+  <a href="assets/README/README_FR.md"><img alt="Français" src="https://img.shields.io/badge/Français-CDCFD4"></a>
+  <a href="assets/README/README_AR.md"><img alt="Arabic" src="https://img.shields.io/badge/Arabic-CDCFD4"></a>
+  <a href="assets/README/README_RU.md"><img alt="Русский" src="https://img.shields.io/badge/Русский-CDCFD4"></a>
+  <a href="assets/README/README_HI.md"><img alt="Hindi" src="https://img.shields.io/badge/Hindi-CDCFD4"></a>
+  <a href="assets/README/README_PT.md"><img alt="Português" src="https://img.shields.io/badge/Português-CDCFD4"></a>
+  <a href="assets/README/README_TH.md"><img alt="Thai" src="https://img.shields.io/badge/Thai-CDCFD4"></a>
+  <a href="assets/README/README_PL.md"><img alt="Polski" src="https://img.shields.io/badge/Polski-CDCFD4"></a>
 </p>
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
@@ -134,12 +134,15 @@
 
 ## ✨ Key Features
 
-- **Unified Chat Workspace** — Six modes, one thread. Chat, Deep Solve, Quiz Generation, Deep Research, Math Animator, and Visualize share the same context — start a conversation, escalate to multi-agent problem solving, generate quizzes, visualize concepts, then deep-dive into research, all without losing a single message.
-- **AI Co-Writer** — A multi-document Markdown workspace where AI is a first-class collaborator. Select text, rewrite, expand, or summarize — drawing from your knowledge base and the web. Every piece feeds back into your learning ecosystem.
-- **Book Engine** — Turn your materials into structured, interactive "living books". A multi-agent pipeline designs outlines, retrieves relevant sources, and compiles rich pages with 13 block types — quizzes, flash cards, timelines, concept graphs, interactive demos, and more.
-- **Knowledge Hub** — Upload PDFs, Markdown, and text files to build RAG-ready knowledge bases. Organize insights in color-coded notebooks, revisit quiz questions in the Question Bank, and create custom Skills that shape how DeepTutor teaches you. Your documents don't just sit there — they actively power every conversation.
-- **Persistent Memory** — DeepTutor builds a living profile of you: what you've studied, how you learn, and where you're heading. Shared across all features and TutorBots, it gets sharper with every interaction.
+- **Unified Chat Workspace** — Five modes, one thread. **Chat**, **Solve**, **Quiz**, **Research**, and **Visualize** share the same session, knowledge base, attachments, and citations — escalate from a casual question into multi-agent solving, into a quiz, into a full research report, without losing a message. An **Auto** router capability picks the right mode for you when invoked from the CLI / API.
+- **Composable Tools** — Tools are decoupled from modes. Built-ins include RAG retrieval, web search, code execution, deep reasoning, brainstorming, paper search, GeoGebra analysis, plus the new `ask_user`, `web_fetch`, `write_note`, `list_notebook`, and `github_query`. MCP servers plug in alongside built-ins.
+- **AI Co-Writer** — A split-view multi-document Markdown workspace where AI is a first-class collaborator. Select text and **Rewrite**, **Expand**, or **Shorten** — optionally grounded by your knowledge base or the web. Every draft can be saved straight to a notebook.
+- **Book Engine** — Turn your materials into structured, interactive "living books". A multi-agent pipeline designs outlines, retrieves sources from your KB, and compiles rich pages with 13 block types — quizzes, flash cards, timelines, concept graphs, interactive demos (including a **GeoGebra viewer**), and more. Pages are KB-fingerprinted so drift is detectable.
+- **Knowledge Bases** — Upload PDFs, Office files (DOCX/XLSX/PPTX), Markdown, and a wide range of text / code files into RAG-ready collections, fully on **LlamaIndex**. Every (re-)index is a tracked version you can roll back, compare, or inspect.
+- **Space — Personal Learning Library** — A unified review surface for everything you produce: **Chat History**, **Notebooks**, **Question Bank**, and user-authored **Skills** (teaching personas defined in `SKILL.md`).
+- **Three-Layer Memory** — DeepTutor's memory is a pipeline, not a digest. **L1** is an append-only trace of every interaction; **L2** is per-surface curated facts with citations back to L1; **L3** is cross-surface synthesis (profile / recent / scope / preferences). An inspectable workbench at `/memory` plus a **Memory Graph** let you audit *why* DeepTutor knows what it knows.
 - **Personal TutorBots** — Not chatbots — autonomous tutors. Each TutorBot lives in its own workspace with its own memory, personality, and skill set. They set reminders, learn new abilities, and evolve as you grow. Powered by [nanobot](https://github.com/HKUDS/nanobot).
+- **Unified Settings** — Appearance, Status, LLM, Embedding, Search, Capabilities, Memory, MCP servers, and Tools all live behind a single draft / **Apply** workbench. A shared `UsageTracker` surfaces per-call cost across every capability.
 - **Agent-Native CLI** — Every capability, knowledge base, session, and TutorBot is one command away. Rich terminal output for humans, structured JSON for AI agents and pipelines. Hand DeepTutor a [`SKILL.md`](SKILL.md) and your agents can operate it autonomously.
 - **Optional Authentication** — Disabled by default for local use. Set `data/user/settings/auth.json` to require login when hosting publicly. Multi-user support with bcrypt-hashed passwords, JWT sessions, a self-service registration page, and a built-in admin dashboard for managing accounts and roles. Optionally back auth and storage with **PocketBase** for OAuth-ready authentication and improved multi-user concurrency — drops in as an optional sidecar with no code changes required.
 
