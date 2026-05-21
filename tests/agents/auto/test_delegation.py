@@ -173,9 +173,7 @@ async def test_delegate_happy_path_forwards_events_with_metadata():
             _evt(StreamEventType.RESULT, metadata={"response": "ok"}),
         ],
     )
-    with patch(
-        "deeptutor.agents.auto.delegation.get_capability_registry"
-    ) as mock_get_reg:
+    with patch("deeptutor.agents.auto.delegation.get_capability_registry") as mock_get_reg:
         mock_get_reg.return_value.get.return_value = fake
 
         result = await delegate_to_capability(
@@ -217,9 +215,7 @@ async def test_delegate_injects_call_id_into_content_without_one():
             ),
         ],
     )
-    with patch(
-        "deeptutor.agents.auto.delegation.get_capability_registry"
-    ) as mock_get_reg:
+    with patch("deeptutor.agents.auto.delegation.get_capability_registry") as mock_get_reg:
         mock_get_reg.return_value.get.return_value = fake
         result = await delegate_to_capability(
             cap_name="deep_solve",
@@ -242,9 +238,7 @@ async def test_delegate_injects_call_id_into_content_without_one():
 async def test_delegate_captures_raise_as_failure():
     parent_bus = StreamBus()
     fake = _FakeCapability(name="boom", raise_exc=RuntimeError("kaboom"))
-    with patch(
-        "deeptutor.agents.auto.delegation.get_capability_registry"
-    ) as mock_get_reg:
+    with patch("deeptutor.agents.auto.delegation.get_capability_registry") as mock_get_reg:
         mock_get_reg.return_value.get.return_value = fake
         result = await delegate_to_capability(
             cap_name="boom",
@@ -265,9 +259,7 @@ async def test_delegate_marks_failure_on_error_event():
         name="errorful",
         events=[_evt(StreamEventType.ERROR, content="problem")],
     )
-    with patch(
-        "deeptutor.agents.auto.delegation.get_capability_registry"
-    ) as mock_get_reg:
+    with patch("deeptutor.agents.auto.delegation.get_capability_registry") as mock_get_reg:
         mock_get_reg.return_value.get.return_value = fake
         result = await delegate_to_capability(
             cap_name="errorful",
@@ -283,9 +275,7 @@ async def test_delegate_marks_failure_on_error_event():
 @pytest.mark.asyncio
 async def test_delegate_unknown_capability_returns_failure():
     parent_bus = StreamBus()
-    with patch(
-        "deeptutor.agents.auto.delegation.get_capability_registry"
-    ) as mock_get_reg:
+    with patch("deeptutor.agents.auto.delegation.get_capability_registry") as mock_get_reg:
         mock_get_reg.return_value.get.return_value = None
         result = await delegate_to_capability(
             cap_name="nonexistent",

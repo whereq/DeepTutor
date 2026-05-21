@@ -35,16 +35,21 @@ system: |-
 
   # Output protocol (mandatory — every reply must comply)
 
-  Every reply MUST begin with exactly one of these three labels on the very first line, all-caps, wrapped with two backticks on each side:
+  Every reply MUST begin with exactly one of these four labels on the very first line, all-caps, wrapped with two backticks on each side:
 
-  ``FINISH``  → This reply IS the final user-facing answer. No tools. Whatever follows the label is the answer.
+  ``FINISH``  → This reply IS the final user-facing answer. No tools. Whatever follows the label is the answer; the turn ends here.
   ``TOOL``    → This reply will use tools. After the label you may write one short sentence of intent, then emit native tool_calls.
-  ``THINK``   → This reply is intermediate reasoning — **no tools, and not the final answer either**. You're writing your thoughts to push toward the next iteration. The next iteration will continue from here and eventually finish with ``FINISH``.
+  ``THINK``   → This reply is intermediate reasoning — **no tools, and not the final answer either**. The text is your private scratchpad; the user does NOT see it. The next iteration will continue from here and eventually finish with ``FINISH``.
+  ``PAUSE``   → Same as ``THINK`` (intermediate reasoning, no tools, not the final answer), except the user sees this text. Pick ``PAUSE`` over ``THINK`` only when you'd otherwise reach for ``THINK`` AND the reasoning itself is worth showing to the user — the thought process is part of the value, not just the conclusion.
+
+  The runtime treats **only** ``FINISH`` as terminal. ``THINK``, ``TOOL``, ``PAUSE``, tool results, user replies gathered through tools, and unlabeled text are never the end of the turn.
+  One LLM reply may choose **exactly one** action label. After the first line, do not write any other protocol label anywhere in the body. ``THINK``, ``FINISH``, and ``PAUSE`` must not emit tool_calls. ``TOOL`` must emit real native tool_calls in the same reply.
 
   Pick one per reply based on current context:
   - Simple question / enough info → ``FINISH``.
   - Need external info / computation / retrieval → ``TOOL``.
   - Complex problem that benefits from multi-step reasoning before acting → ``THINK`` (loop a few rounds; always close with ``FINISH``).
+  - You'd otherwise pick ``THINK`` AND showing this reasoning step would actually help the user follow along → ``PAUSE``.
 
   Examples:
     ``FINISH``
@@ -57,16 +62,20 @@ system: |-
     ``THINK``
     This problem has three steps: X, then Y, then Z. Next iteration I'll tackle X first…
 
+    ``PAUSE``
+    The data is in two different units (miles vs. kilometers) — I'll convert everything to kilometers first so the comparison is apples-to-apples.
+
   Never:
   - Put anything before the label (no leading prose, quotes, or stray characters).
   - Use single backticks, brackets, or any alternate wrapper.
-  - Emit more than one label in a single reply.
+  - Emit more than one label in a single reply, such as thinking first and then writing ``TOOL`` or ``FINISH`` in the same message.
+  - Use ``PAUSE`` for every reasoning step. Default to ``THINK``; only switch to ``PAUSE`` when the user genuinely benefits from seeing that specific piece of reasoning.
 
   # Per-turn reasoning
 
   1. Read the user's request. If you already have enough information for a reliable answer, answer directly with ``FINISH``. When unsure, lean on enabled tools rather than guessing — never fabricate precise values, external facts, or citations.
-  2. In a ``TOOL`` reply, multiple complementary tools may run in the same iteration. In a ``THINK`` reply, write your reasoning only — no tools. In a ``FINISH`` reply, deliver the answer and stop.
-  3. Once enough material is gathered, close with ``FINISH``.
+  2. In a ``TOOL`` reply, multiple complementary tools may run in the same iteration. In a ``THINK`` or ``PAUSE`` reply, write reasoning only — no tools. In a ``FINISH`` reply, deliver the answer and stop.
+  3. After any tool result (including a tool result that starts with "User answered:"), continue working on the user's original request. Once enough material is gathered, close with a substantive ``FINISH``.
 
   Hard rules for tool calls:
   - Tool names, parameter names, source ids, and KB names must be copied verbatim from the "Enabled tools" and "Knowledge bases / sources" blocks below. Never invent.
@@ -97,6 +106,34 @@ answer_now:
   user: |-
     Stop using tools and produce the user-facing answer now based on what you have already produced and any tool evidence you've gathered. Do not mention internal stages or planning. If something is still uncertain, say so briefly while giving the most useful answer you can.
 
+protocol:
+  missing_label: |-
+    Protocol correction: your previous reply did not begin with a protocol label, so the turn is not complete. Your next reply must choose exactly one action label, written once on the first line only: ``FINISH``, ``TOOL``, ``THINK``, or ``PAUSE``. Do not include a second protocol label anywhere in the body. If the draft was the final answer, use ``FINISH``. If tools are needed, use ``TOOL`` and emit real tool_calls in that same reply. If this is private intermediate reasoning the user doesn't need to see, use ``THINK`` and do not call tools. If your reasoning is worth showing to the user, use ``PAUSE`` (same as ``THINK`` plus visibility) and do not call tools.
+  multiple_labels: |-
+    Protocol correction: your previous reply contained multiple protocol labels, so the turn is not complete. Your next reply must choose exactly one action label, written once on the first line only: ``FINISH``, ``TOOL``, ``THINK``, or ``PAUSE``. Do not include a second protocol label anywhere in the body.
+  tool_without_calls: |-
+    Protocol correction: you chose ``TOOL`` but emitted no real tool_calls. Your next reply must choose exactly one action label. Use ``TOOL`` only if you emit native tool_calls in that same reply; otherwise use ``THINK``, ``PAUSE``, or ``FINISH``.
+  think_with_tools: |-
+    Protocol correction: you chose ``THINK`` while also emitting tool_calls. Your next reply must choose exactly one action label. Use ``THINK`` with no tools, or use ``TOOL`` with native tool_calls.
+  finish_with_tools: |-
+    Protocol correction: you chose ``FINISH`` while also emitting tool_calls. Your next reply must choose exactly one action label. Use ``FINISH`` with no tools, or use ``TOOL`` with native tool_calls.
+  pause_with_tools: |-
+    Protocol correction: you chose ``PAUSE`` while also emitting tool_calls. ``PAUSE`` is just ``THINK`` made visible to the user — reasoning only, no tools. Your next reply must choose exactly one action label. Use ``PAUSE`` with no tools (call tools in the following iteration if needed), or switch to ``TOOL`` and emit native tool_calls now.
+  force_finish: |-
+    The iteration budget is exhausted. You must now produce the user-facing final answer: the first line must be ``FINISH``. Do not call tools and do not use ``THINK`` or ``PAUSE``. If information is still incomplete, state the uncertainty briefly while giving the most useful answer possible.
+  force_finish_repair: |-
+    Finalization protocol correction: the previous reply did not produce a valid ``FINISH``. Now output only a final answer: first line ``FINISH``, then the user-facing answer. Do not write ``THINK``, ``PAUSE``, or ``TOOL``, do not call tools, and do not include another protocol label in the body.
+  fallback_final: |-
+    I reached the iteration limit, but the model did not produce a valid ``FINISH`` response. Please retry or narrow the request; I can continue from the existing context.
+
+# ---------------------------------------------------------------------------
+# Per-iteration system reminder
+# ---------------------------------------------------------------------------
+# Injected as a ``role=user`` message right before each LLM call so the
+# model can pace itself across the turn. ``{current}`` is 1-indexed.
+iteration_marker: |-
+  [System note] You are at iteration {current}/{max} of this turn. Once {max} is reached, the next reply is forced to be ``FINISH``.
+
 # ---------------------------------------------------------------------------
 # Progress notices and short copy
 # ---------------------------------------------------------------------------
@@ -109,6 +146,8 @@ notices:
   empty_tool_result: "The tool completed without returning text output."
   images_stripped: "The current model `{model}` does not support image input, so image attachments were ignored."
   max_iterations_reached: "Reached the maximum number of tool iterations for this turn. Producing the best answer I can with what I have."
+  protocol_retry: "The model violated the action-label protocol; retrying this iteration."
+  final_protocol_failed: "The model still did not produce a valid FINISH reply after the finalization prompt."
   context_window_guard: "Trimmed older tool results to keep this turn within the model's context window."
 
 # ---------------------------------------------------------------------------

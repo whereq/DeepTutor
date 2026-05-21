@@ -107,9 +107,11 @@ def build_atomic_tool_schemas(
     (minus ``EXCLUDED_ATOMIC_TOOLS``) are. The RAG schema has ``kb_name``
     stripped because that's a server-side / trusted UI value, not an LLM arg.
     """
-    candidate_names: list[str] = list(enabled_tools) if enabled_tools else [
-        name for name in tool_registry.list_tools() if name not in EXCLUDED_ATOMIC_TOOLS
-    ]
+    candidate_names: list[str] = (
+        list(enabled_tools)
+        if enabled_tools
+        else [name for name in tool_registry.list_tools() if name not in EXCLUDED_ATOMIC_TOOLS]
+    )
     candidate_names = [n for n in candidate_names if n not in EXCLUDED_ATOMIC_TOOLS]
     schemas = tool_registry.build_openai_schemas(candidate_names)
     for schema in schemas:
@@ -145,7 +147,7 @@ def build_all_tool_schemas(
 def extract_capability_name(tool_name: str) -> str | None:
     """Reverse of ``_capability_tool_name``; returns None if not a delegate tool."""
     if tool_name.startswith(_DELEGATE_PREFIX):
-        return tool_name[len(_DELEGATE_PREFIX):] or None
+        return tool_name[len(_DELEGATE_PREFIX) :] or None
     return None
 
 

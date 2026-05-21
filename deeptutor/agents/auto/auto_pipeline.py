@@ -72,11 +72,13 @@ from deeptutor.agents.auto.schemas import (
     is_delegate_tool,
 )
 from deeptutor.capabilities._answer_now import extract_answer_now_context
+from deeptutor.capabilities._shared import emit_capability_result
 from deeptutor.capabilities.request_contracts import (
     AutoRequestConfig,
     validate_auto_request_config,
     validate_capability_config,
 )
+from deeptutor.core.agentic.usage import UsageTracker
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
 from deeptutor.core.trace import build_trace_metadata, new_call_id
@@ -141,6 +143,7 @@ class AutoPipeline:
         self.extra_headers = getattr(self.llm_config, "extra_headers", None) or {}
         self.cap_registry = get_capability_registry()
         self.tool_registry = get_tool_registry()
+        self.usage = UsageTracker(model=self.model)
 
     # ====================================================================== #
     # Entry point                                                              #
@@ -472,6 +475,7 @@ class AutoPipeline:
             tools=tool_schemas or None,
             tool_choice="auto" if tool_schemas else None,
             stream=True,
+            stream_options={"include_usage": True},
             **self._completion_kwargs(ROUTER_MAX_TOKENS),
         )
 
@@ -479,6 +483,12 @@ class AutoPipeline:
         tool_calls_accum: dict[int, dict[str, str]] = {}
 
         async for chunk in api_stream:
+            usage_frame = getattr(chunk, "usage", None)
+            if usage_frame:
+                try:
+                    self.usage.add_from_response(usage_frame)
+                except Exception:
+                    logger.debug("auto router usage recording failed", exc_info=True)
             choices = getattr(chunk, "choices", None)
             if not choices:
                 continue
@@ -499,9 +509,7 @@ class AutoPipeline:
             delta_tool_calls = getattr(delta, "tool_calls", None) or []
             for tc in delta_tool_calls:
                 idx = getattr(tc, "index", 0) or 0
-                bucket = tool_calls_accum.setdefault(
-                    idx, {"id": "", "name": "", "arguments": ""}
-                )
+                bucket = tool_calls_accum.setdefault(idx, {"id": "", "name": "", "arguments": ""})
                 if getattr(tc, "id", None):
                     bucket["id"] = tc.id
                 func = getattr(tc, "function", None)
@@ -608,7 +616,9 @@ class AutoPipeline:
 
         # Args validation: NOT counted against per_delegation_retries; the
         # router sees the error and self-corrects.
-        config_payload = call.args.get("config") if isinstance(call.args.get("config"), dict) else {}
+        config_payload = (
+            call.args.get("config") if isinstance(call.args.get("config"), dict) else {}
+        )
         try:
             validated_config = validate_capability_config(cap_name, config_payload)
         except ValueError as exc:
@@ -622,8 +632,7 @@ class AutoPipeline:
                 },
             )
             payload = (
-                f"Invalid args for {cap_name}: {exc}. "
-                "Re-issue the call with corrected arguments."
+                f"Invalid args for {cap_name}: {exc}. Re-issue the call with corrected arguments."
             )
             return {"role": "tool", "tool_call_id": call.id, "name": call.name, "content": payload}
 
@@ -687,12 +696,14 @@ class AutoPipeline:
                     stage="synthesizing",
                     metadata={"call_kind": "llm_final_response"},
                 )
-                await stream.result(
+                await emit_capability_result(
+                    stream,
                     {
                         "response": fail_text,
                         "auto_summary": _build_auto_summary(state),
                     },
                     source="auto",
+                    usage=self.usage,
                 )
                 return
 
@@ -724,23 +735,26 @@ class AutoPipeline:
                 stage="synthesizing",
                 metadata={"call_kind": "llm_final_response"},
             )
-            await stream.result(
+            await emit_capability_result(
+                stream,
                 {
                     "response": text,
                     "auto_summary": _build_auto_summary(state),
                 },
                 source="auto",
+                usage=self.usage,
             )
 
     def _terminal_failure_text(self, reason: str) -> str:
-        if self.language == "zh":
-            return (
+        return self._t(
+            en=(
+                "Auto routing failed after exhausting retries. "
+                "Switch to Manual mode and pick a capability, or try the message again."
+            ),
+            zh=(
                 "Auto 路由失败，已经多次重试仍未恢复。"
                 "建议切到 Manual 模式手动选择 capability，或重试当前消息。"
-            )
-        return (
-            "Auto routing failed after exhausting retries. "
-            "Switch to Manual mode and pick a capability, or try the message again."
+            ),
         )
 
     def _fallback_text(self, state: _LoopState) -> str:
@@ -794,7 +808,8 @@ class AutoPipeline:
                 stage="synthesizing",
                 metadata={"call_kind": "llm_final_response", "answer_now": True},
             )
-            await stream.result(
+            await emit_capability_result(
+                stream,
                 {
                     "response": text,
                     "metadata": {"answer_now": True},
@@ -807,6 +822,7 @@ class AutoPipeline:
                     },
                 },
                 source="auto",
+                usage=self.usage,
             )
 
     def _answer_now_text(self, *, original: str, partial: str) -> str:
@@ -818,14 +834,15 @@ class AutoPipeline:
                 ),
                 zh=f"已根据当前进度生成回答：{partial}",
             )
-        if self.language == "zh":
-            return (
+        return self._t(
+            en=(
+                "Auto routing was interrupted before any result was produced. Switch to Manual "
+                "and pick a capability, or resend the message for a fresh attempt."
+            ),
+            zh=(
                 "已停止 Auto 路由。请切到 Manual 模式直接选择 capability "
                 "或重新发送消息以获得更完整的结果。"
-            )
-        return (
-            "Auto routing was interrupted before any result was produced. Switch to Manual "
-            "and pick a capability, or resend the message for a fresh attempt."
+            ),
         )
 
     # ====================================================================== #
@@ -847,10 +864,17 @@ class AutoPipeline:
             model=self.model,
             messages=messages,
             stream=True,
+            stream_options={"include_usage": True},
             **self._completion_kwargs(max_tokens),
         )
         chunks: list[str] = []
         async for chunk in api_stream:
+            usage_frame = getattr(chunk, "usage", None)
+            if usage_frame:
+                try:
+                    self.usage.add_from_response(usage_frame)
+                except Exception:
+                    logger.debug("auto _call_llm_text usage recording failed", exc_info=True)
             choices = getattr(chunk, "choices", None)
             if not choices:
                 continue

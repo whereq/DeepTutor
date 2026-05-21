@@ -414,14 +414,6 @@ class GeoGebraAnalysisTool(_PromptHintsMixin, BaseTool):
                     required=False,
                     default="",
                 ),
-                ToolParameter(
-                    name="language",
-                    type="string",
-                    description="Output language: 'zh' or 'en'.",
-                    required=False,
-                    default="zh",
-                    enum=["zh", "en"],
-                ),
             ],
         )
 
@@ -431,13 +423,22 @@ class GeoGebraAnalysisTool(_PromptHintsMixin, BaseTool):
 
         question = kwargs.get("question", "")
         image_base64 = kwargs.get("image_base64", "")
-        language = kwargs.get("language", "zh")
+        # language is server-injected from the user's session setting by the
+        # chat pipeline; never accept an LLM-provided override.
+        language = kwargs.get("language") or "zh"
 
         if not image_base64:
             return ToolResult(
                 content="No image provided. This tool requires an image attachment.",
                 success=False,
             )
+
+        # VisionSolverAgent expects a fully-qualified ``data:image/<fmt>;base64,…``
+        # URI for the OpenAI image_url shape. The chat pipeline injects this
+        # form already, but defensively normalize for any other caller (or a
+        # hallucinated kwarg) so we don't silently fall through 4 empty stages.
+        if not image_base64.startswith("data:"):
+            image_base64 = f"data:image/png;base64,{image_base64}"
 
         llm_config = get_llm_config()
         agent = VisionSolverAgent(
@@ -547,9 +548,7 @@ class ReadSourceTool(_PromptHintsMixin, BaseTool):
         source_index = kwargs.get("source_index")
         if not isinstance(source_index, dict) or not source_index:
             return ToolResult(
-                content=(
-                    "Error: no attached sources are available for this turn."
-                ),
+                content=("Error: no attached sources are available for this turn."),
                 success=False,
             )
         full_text = source_index.get(source_id)
@@ -568,6 +567,545 @@ class ReadSourceTool(_PromptHintsMixin, BaseTool):
         )
 
 
+class ReadMemoryTool(_PromptHintsMixin, BaseTool):
+    """Read the current user's L3 cross-surface Memory.
+
+    Returns the concatenation of the four L3 markdown documents
+    (recent / profile / scope / preferences). Multi-user-safe: paths
+    resolve to the active user via the runtime's ContextVars.
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="read_memory",
+            description=(
+                "Read the user's persistent memory: recent learning summary, "
+                "user profile, knowledge scope, and explicit preferences. "
+                "Use to personalise tone, depth, and examples — not on "
+                "every turn, not for purely factual questions."
+            ),
+            parameters=[],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.services.memory import get_memory_store
+
+        text = get_memory_store().read_l3_concat()
+        return ToolResult(
+            content=text,
+            metadata={"char_count": len(text)},
+        )
+
+
+class WriteMemoryTool(_PromptHintsMixin, BaseTool):
+    """Persist an explicit user preference into the L3 ``preferences.md``.
+
+    The only chat-mode write into memory. Other memory docs are updated
+    through the Memory workbench by the user manually. This tool is for
+    moments when the user *explicitly* states a preference — speak it
+    back to them only if natural, then call this with the substance.
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="write_memory",
+            description=(
+                "Save an explicit user preference (writing style, language "
+                "choice, depth, format) to long-term memory. Call ONLY when "
+                "the user clearly states a preference — never speculate."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="op",
+                    type="string",
+                    description="`add` for a new preference, `edit` to revise an existing one.",
+                    enum=["add", "edit"],
+                    required=True,
+                ),
+                ToolParameter(
+                    name="text",
+                    type="string",
+                    description="The preference, in the user's own words where possible. ≤ 240 chars.",
+                    required=True,
+                ),
+                ToolParameter(
+                    name="target_id",
+                    type="string",
+                    description="Existing entry id (form `m_xxx`). Required for `edit`.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="reason",
+                    type="string",
+                    description="Optional one-line note shown in the Memory workbench.",
+                    required=False,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.services.memory import get_memory_store
+        from deeptutor.services.memory.trace import TraceEvent
+
+        op = str(kwargs.get("op") or "").strip().lower()
+        text = str(kwargs.get("text") or "").strip()
+        target_id = kwargs.get("target_id")
+        reason = kwargs.get("reason")
+
+        if op not in {"add", "edit"}:
+            return ToolResult(
+                content=f"Error: op must be 'add' or 'edit', got {op!r}.", success=False
+            )
+        if not text:
+            return ToolResult(
+                content="Error: text is required and must be non-empty.", success=False
+            )
+
+        store = get_memory_store()
+        # Emit an L1 trace so the preference's footnote points at a real event.
+        event = TraceEvent.new(
+            "chat",
+            "preference_stated",
+            {"op": op, "text": text, "target_id": target_id, "reason": reason},
+        )
+        await store.emit(event)
+
+        report = await store.write_preference(
+            op=op,  # type: ignore[arg-type]
+            text=text,
+            target_id=str(target_id).strip() if target_id else None,
+            reason=str(reason).strip() if reason else None,
+            trace_id=event.id,
+        )
+        if not report.accepted:
+            return ToolResult(
+                content=f"write_memory rejected: {report.reason}",
+                success=False,
+                metadata={"op": op},
+            )
+        entry_id = report.results[0].entry_id if report.results else None
+        return ToolResult(
+            content=f"preference {op}ed (entry={entry_id or target_id}).",
+            metadata={"op": op, "entry_id": entry_id or target_id},
+        )
+
+
+class WebFetchTool(_PromptHintsMixin, BaseTool):
+    """Fetch a specific URL and return readable markdown.
+
+    The actual fetch / extract / safety logic lives in
+    ``deeptutor.tools.web_fetch`` so this wrapper stays free of network
+    code — easier to unit-test the BaseTool boilerplate without spinning
+    up an httpx mock.
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="web_fetch",
+            description=(
+                "Fetch a specific URL and extract readable content as "
+                "markdown. Use this when the user shares a specific link; "
+                "use `web_search` for general topic searches."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="url",
+                    type="string",
+                    description="Full http:// or https:// URL.",
+                ),
+                ToolParameter(
+                    name="max_chars",
+                    type="integer",
+                    description="Cap on the extracted text length; defaults to 50000.",
+                    required=False,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.tools.web_fetch import (
+            DEFAULT_MAX_CHARS,
+            fetch_url_as_markdown,
+        )
+
+        url = str(kwargs.get("url") or "").strip()
+        if not url:
+            return ToolResult(content="Error: url is required.", success=False)
+        try:
+            max_chars = int(kwargs.get("max_chars") or DEFAULT_MAX_CHARS)
+        except (TypeError, ValueError):
+            max_chars = DEFAULT_MAX_CHARS
+        outcome = await fetch_url_as_markdown(url, max_chars=max_chars)
+        if not outcome.ok:
+            return ToolResult(
+                content=outcome.error or "Fetch failed.",
+                success=False,
+                metadata={"url": url},
+            )
+        return ToolResult(
+            content=outcome.markdown,
+            sources=[{"type": "web", "url": outcome.url, "title": outcome.title}],
+            metadata={
+                "url": outcome.url,
+                "title": outcome.title,
+                "char_count": len(outcome.markdown),
+                "truncated": outcome.truncated,
+            },
+        )
+
+
+class ListNotebookTool(_PromptHintsMixin, BaseTool):
+    """List the user's notebooks, or list the records inside one notebook.
+
+    Two-mode discovery tool. Auto-mounted by the chat pipeline iff the
+    user has at least one notebook. The tool itself is stateless; the
+    chat pipeline supplies no extra context — list calls go straight
+    against the per-user notebook manager.
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_notebook",
+            description=(
+                "Discover the user's notebooks and the records inside "
+                "them. Call with no arguments to list every notebook "
+                "the user owns (id + name + record count). Call with a "
+                "specific `notebook_id` to drill in and list its "
+                "records (record_id + title + summary + timestamp). "
+                "Use this BEFORE `write_note` in edit mode so you have "
+                "valid record ids."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="notebook_id",
+                    type="string",
+                    description=(
+                        "Optional. When omitted, returns the notebook "
+                        "index. When supplied, returns the records in "
+                        "that notebook. Must be a valid id from the "
+                        "notebook index — do not invent ids."
+                    ),
+                    required=False,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.tools.list_notebook import list_notebooks_or_records
+
+        outcome = list_notebooks_or_records(
+            notebook_id=str(kwargs.get("notebook_id") or ""),
+        )
+        if not outcome.ok:
+            return ToolResult(content=outcome.error, success=False)
+        return ToolResult(
+            content=outcome.text,
+            metadata=outcome.summary or {},
+        )
+
+
+class WriteNoteTool(_PromptHintsMixin, BaseTool):
+    """Create OR edit a notebook record from the chat agent.
+
+    Two modes mirror what a human sees in the notebook UI:
+
+    * ``append`` — create a new record in a notebook (the model picks
+      a title; the body defaults to the actual chat transcript built
+      from injected conversation history, or to an agent-authored
+      markdown body if ``content`` is explicitly provided).
+    * ``edit`` — patch an existing record's title / body / summary.
+      Requires a known ``record_id`` (obtained via ``list_notebook``).
+
+    Auto-mounted only when the user has at least one notebook. The
+    pipeline injects ``conversation_history`` + ``current_user_message``
+    so the model never has to fabricate the saved chat.
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="write_note",
+            description=(
+                "Save or edit a notebook record. mode='append' creates "
+                "a NEW record (default body = the actual recent chat "
+                "transcript built by the tool; pass `content` instead "
+                "to save an agent-authored markdown body). "
+                "mode='edit' patches an existing record's title / body "
+                "/ summary — `record_id` is required (call `list_notebook` "
+                "first to discover valid ids)."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="mode",
+                    type="string",
+                    description="'append' (new record) or 'edit' (patch existing).",
+                    enum=["append", "edit"],
+                ),
+                ToolParameter(
+                    name="notebook_id",
+                    type="string",
+                    description=(
+                        "Id of the target notebook from the schema enum (do not invent ids)."
+                    ),
+                ),
+                ToolParameter(
+                    name="record_id",
+                    type="string",
+                    description=("Required for mode='edit'. Discover with `list_notebook` first."),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="title",
+                    type="string",
+                    description=(
+                        "For append: required, short descriptive title. "
+                        "For edit: optional new title (leave empty to "
+                        "keep the existing one)."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="content",
+                    type="string",
+                    description=(
+                        "For append: optional agent-authored markdown body "
+                        "(when omitted the tool inserts the real Q&A "
+                        "transcript itself, the recommended default). "
+                        "For edit: replacement body (leave empty to keep "
+                        "the existing body)."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="turns_to_include",
+                    type="string",
+                    description=(
+                        "Append mode only. Number of recent user+assistant "
+                        "turns to render into the transcript body. Pass an "
+                        "integer as a string (e.g. '3') or 'all' to include "
+                        "every turn currently in scope. Ignored when "
+                        "`content` is provided. Default '3'."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="note",
+                    type="string",
+                    description=(
+                        "Optional one-paragraph commentary. In append "
+                        "mode it's prepended above the transcript; in "
+                        "edit mode it replaces the record's summary."
+                    ),
+                    required=False,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.tools.write_note import write_note
+
+        outcome = write_note(
+            mode=str(kwargs.get("mode") or ""),
+            notebook_id=str(kwargs.get("notebook_id") or ""),
+            record_id=str(kwargs.get("record_id") or ""),
+            title=str(kwargs.get("title") or ""),
+            content=str(kwargs.get("content") or ""),
+            turns_to_include=kwargs.get("turns_to_include") or 3,
+            note=str(kwargs.get("note") or ""),
+            conversation_history=kwargs.get("conversation_history") or [],
+            current_user_message=str(kwargs.get("current_user_message") or ""),
+        )
+        if not outcome.ok:
+            return ToolResult(content=outcome.error, success=False)
+        action = "Saved new record" if outcome.mode == "append" else "Updated record"
+        return ToolResult(
+            content=(
+                f"{action} in notebook {outcome.notebook_name!r} (record id: {outcome.record_id})."
+            ),
+            metadata={
+                "mode": outcome.mode,
+                "record_id": outcome.record_id,
+                "notebook_id": outcome.notebook_id,
+                "notebook_name": outcome.notebook_name,
+            },
+        )
+
+
+class GithubTool(_PromptHintsMixin, BaseTool):
+    """Read-only GitHub queries via `gh`. Always auto-mounted; the
+    underlying call gracefully reports "gh unavailable" when the CLI
+    isn't installed on the server."""
+
+    _ALLOWED_QUERY_TYPES = ("pr", "issue", "run", "repo", "api")
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="github",
+            description=(
+                "Read-only queries against GitHub PRs / issues / repos / "
+                "CI runs via the gh CLI. This tool cannot write — no "
+                "comments, no closes, no merges."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="query_type",
+                    type="string",
+                    description=("One of 'pr', 'issue', 'run', 'repo', 'api'."),
+                    enum=list(_ALLOWED_QUERY_TYPES := ("pr", "issue", "run", "repo", "api")),
+                ),
+                ToolParameter(
+                    name="target",
+                    type="string",
+                    description=(
+                        "owner/repo[#number] or full URL for pr/issue; "
+                        "owner/repo for run/repo; gh-api relative path "
+                        "for api."
+                    ),
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.tools.github_query import run_github_query
+
+        outcome = await run_github_query(
+            query_type=str(kwargs.get("query_type") or ""),
+            target=str(kwargs.get("target") or ""),
+        )
+        if not outcome.ok:
+            return ToolResult(
+                content=outcome.error,
+                success=False,
+                metadata={"query_type": outcome.query_type, "target": outcome.target},
+            )
+        return ToolResult(
+            content=outcome.output,
+            sources=[
+                {
+                    "type": "github",
+                    "query_type": outcome.query_type,
+                    "target": outcome.target,
+                }
+            ],
+            metadata={
+                "query_type": outcome.query_type,
+                "target": outcome.target,
+            },
+        )
+
+
+class AskUserTool(_PromptHintsMixin, BaseTool):
+    """Pause the turn mid-loop to ask the user a clarifying question.
+
+    Returns ``pause_for_user`` carrying the structured question payload.
+    The chat pipeline halts the agentic loop after this call, surfaces
+    the question + options as a card in the chat UI, and **waits for
+    the user's reply on the same turn**. When the reply arrives the
+    loop resumes with the user's answer substituted into this tool's
+    result body — so subsequent iterations see "User answered: <text>"
+    as the matching ``role=tool`` content and can act on it. The user
+    can also abort the wait at any time via the composer's stop button
+    (which cancels the whole turn).
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="ask_user",
+            description=(
+                "Pause the conversation to ask the user 1-3 clarifying "
+                "questions in one batch. The frontend renders all "
+                "questions on a single card with tabs the user can "
+                "switch between; the user answers each, then submits "
+                "once. The turn does NOT end — when the answers arrive "
+                "the agentic loop resumes with them as this tool's "
+                "result. Use sparingly: only when intent is genuinely "
+                "ambiguous and progress without clarification is unsafe."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="questions",
+                    type="array",
+                    description=(
+                        "1-3 questions to ask in one card. Each item: "
+                        "{prompt: 'question text', options?: ['A','B'], "
+                        "id?: 'stable-id', allow_free_text?: true, "
+                        "placeholder?: 'hint for free input'}. Each "
+                        "question may have its own option chips; the "
+                        "user can also type freely."
+                    ),
+                    required=False,
+                    items={
+                        "type": "object",
+                        "properties": {
+                            "prompt": {"type": "string"},
+                            "options": {"type": "array", "items": {"type": "string"}},
+                            "id": {"type": "string"},
+                            "allow_free_text": {"type": "boolean"},
+                            "placeholder": {"type": "string"},
+                        },
+                    },
+                ),
+                ToolParameter(
+                    name="intro",
+                    type="string",
+                    description=(
+                        "Optional one-line lead-in shown above the "
+                        "questions (e.g. 'To tailor the research, please "
+                        "answer:')."
+                    ),
+                    required=False,
+                ),
+                # Legacy single-question shape — still accepted; the tool
+                # auto-wraps it into a one-element ``questions`` list so
+                # older prompts keep working unchanged.
+                ToolParameter(
+                    name="question",
+                    type="string",
+                    description=(
+                        "Legacy single-question shorthand. Prefer "
+                        "``questions``. If supplied alone, wrapped into "
+                        "one question with ``options``."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="options",
+                    type="array",
+                    description=(
+                        "Legacy option list paired with ``question``. "
+                        "Ignored when ``questions`` is provided."
+                    ),
+                    required=False,
+                    items={"type": "string"},
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.tools.ask_user import build_ask_user_payload
+
+        payload, err = build_ask_user_payload(
+            questions=kwargs.get("questions"),
+            intro=kwargs.get("intro"),
+            question=kwargs.get("question"),
+            options=kwargs.get("options"),
+        )
+        if payload is None:
+            return ToolResult(content=err or "Invalid ask_user arguments.", success=False)
+
+        payload_dict = payload.to_dict()
+        prompts = ", ".join(q.prompt for q in payload.questions)
+        return ToolResult(
+            # The placeholder content is overwritten by the pipeline
+            # once the user's reply arrives; the model never sees this
+            # literal string on a normal flow. It only surfaces if the
+            # runtime crashes mid-pause (in which case the LLM at least
+            # gets a coherent log entry).
+            content=f"[awaiting user reply to: {prompts}]",
+            metadata={"ask_user": payload_dict},
+            pause_for_user=payload_dict,
+        )
+
+
 BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     BrainstormTool,
     RAGTool,
@@ -575,11 +1113,41 @@ BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     CodeExecutionTool,
     ReasonTool,
     PaperSearchToolWrapper,
-    GeoGebraAnalysisTool,
     ReadSourceTool,
+    ReadMemoryTool,
+    WriteMemoryTool,
+    WebFetchTool,
+    ListNotebookTool,
+    WriteNoteTool,
+    GithubTool,
+    AskUserTool,
 )
 
+# Tools whose implementation is parked while we redesign them. NOT loaded
+# into the runtime registry — the chat agent cannot invoke these — but the
+# settings page surfaces them with a "Coming soon" badge so users see the
+# capability is on the roadmap. Re-add to ``BUILTIN_TOOL_TYPES`` when ready
+# to ship.
+COMING_SOON_TOOL_TYPES: tuple[type[BaseTool], ...] = (GeoGebraAnalysisTool,)
+
 BUILTIN_TOOL_NAMES: tuple[str, ...] = tuple(tool_type().name for tool_type in BUILTIN_TOOL_TYPES)
+
+COMING_SOON_TOOL_NAMES: tuple[str, ...] = tuple(
+    tool_type().name for tool_type in COMING_SOON_TOOL_TYPES
+)
+
+# Tools the user can switch on/off from /settings/tools ("体验增强" /
+# Experience Enhancement). Everything else in BUILTIN_TOOL_NAMES is mounted
+# automatically by the chat pipeline under per-tool context gates and is
+# locked-on from the user's perspective. Ordering here is the canonical
+# display order for the settings page.
+USER_TOGGLEABLE_TOOL_NAMES: tuple[str, ...] = (
+    "brainstorm",
+    "web_search",
+    "paper_search",
+    "code_execution",
+    "reason",
+)
 
 TOOL_ALIASES: dict[str, tuple[str, dict[str, Any]]] = {
     "rag_hybrid": ("rag", {"mode": "hybrid"}),
@@ -592,13 +1160,23 @@ TOOL_ALIASES: dict[str, tuple[str, dict[str, Any]]] = {
 __all__ = [
     "BUILTIN_TOOL_NAMES",
     "BUILTIN_TOOL_TYPES",
+    "COMING_SOON_TOOL_NAMES",
+    "COMING_SOON_TOOL_TYPES",
     "TOOL_ALIASES",
+    "USER_TOGGLEABLE_TOOL_NAMES",
+    "AskUserTool",
     "BrainstormTool",
     "CodeExecutionTool",
     "GeoGebraAnalysisTool",
+    "GithubTool",
+    "ListNotebookTool",
     "PaperSearchToolWrapper",
     "RAGTool",
+    "ReadMemoryTool",
     "ReadSourceTool",
     "ReasonTool",
+    "WebFetchTool",
     "WebSearchTool",
+    "WriteMemoryTool",
+    "WriteNoteTool",
 ]

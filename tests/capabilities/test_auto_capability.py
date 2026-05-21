@@ -68,9 +68,7 @@ def _chunk(
         ]
     else:
         delta_fields["tool_calls"] = None
-    return SimpleNamespace(
-        choices=[SimpleNamespace(delta=SimpleNamespace(**delta_fields))]
-    )
+    return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(**delta_fields))])
 
 
 async def _async_iter(chunks: list[SimpleNamespace]):
@@ -185,7 +183,9 @@ class _StubSubCapability(BaseCapability):
         if self.run_count in self._raise_on:
             raise RuntimeError(f"{self.name} fail attempt {self.run_count}")
         await stream.thinking("sub-thinking", source=self.name, stage="go")
-        await stream.content(f"{self.response_text} (run {self.run_count})", source=self.name, stage="go")
+        await stream.content(
+            f"{self.response_text} (run {self.run_count})", source=self.name, stage="go"
+        )
         await stream.result(
             {"response": f"{self.response_text} (run {self.run_count})"},
             source=self.name,
@@ -360,7 +360,9 @@ async def test_single_delegation_happy_path(fake_registry, mock_llm):
     assert len(final_events) == 1
     assert final_events[0].content == "Generated your quiz."
 
-    result_events = [ev for ev in events if ev.type == StreamEventType.RESULT and ev.source == "auto"]
+    result_events = [
+        ev for ev in events if ev.type == StreamEventType.RESULT and ev.source == "auto"
+    ]
     summary = result_events[0].metadata.get("auto_summary")
     assert summary["delegations"][0]["capability"] == "deep_question"
     assert summary["delegations"][0]["succeeded"] is True
@@ -400,7 +402,9 @@ async def test_router_text_response_no_delegation(fake_registry, mock_llm):
     sub_events = [ev for ev in events if ev.metadata.get("delegated_from") == "auto"]
     assert sub_events == []
 
-    result_events = [ev for ev in events if ev.type == StreamEventType.RESULT and ev.source == "auto"]
+    result_events = [
+        ev for ev in events if ev.type == StreamEventType.RESULT and ev.source == "auto"
+    ]
     assert result_events[0].metadata["auto_summary"]["final_path"] == "text_response"
 
 
@@ -433,7 +437,9 @@ async def test_enabled_capabilities_filter_visible_to_router(fake_registry, mock
     # The scripted client recorded last_kwargs of the LAST call (synthesizer is
     # not invoked because router gave text). The last call IS the router.
     tools = client.last_kwargs["tools"]
-    cap_tools = [t["function"]["name"] for t in tools if t["function"]["name"].startswith("delegate_to_")]
+    cap_tools = [
+        t["function"]["name"] for t in tools if t["function"]["name"].startswith("delegate_to_")
+    ]
     assert cap_tools == ["delegate_to_visualize"]
 
 
@@ -455,7 +461,7 @@ async def test_router_api_error_retry_then_success(fake_registry, mock_llm):
     client = _ScriptedClient(
         [
             _stream_for_text("ack"),  # analyzer
-            transient,                  # router iter 1 fails
+            transient,  # router iter 1 fails
             _stream_for_text("Hi!"),  # router iter 1 retry succeeds (text)
         ]
     )
@@ -495,9 +501,9 @@ async def test_router_api_error_max_retries_terminates(fake_registry, mock_llm):
     client = _ScriptedClient(
         [
             _stream_for_text("ack"),  # analyzer
-            _transient_error(),         # router fail 1
-            _transient_error(),         # router fail 2
-            _transient_error(),         # router fail 3 -> terminal
+            _transient_error(),  # router fail 1
+            _transient_error(),  # router fail 2
+            _transient_error(),  # router fail 3 -> terminal
         ]
     )
     with (
@@ -561,8 +567,7 @@ async def test_subcap_raises_then_succeeds_on_retry(fake_registry, mock_llm):
     retry_events = [
         ev
         for ev in events
-        if ev.type == StreamEventType.ERROR
-        and ev.metadata.get("trace_kind") == "delegation_retry"
+        if ev.type == StreamEventType.ERROR and ev.metadata.get("trace_kind") == "delegation_retry"
     ]
     assert len(retry_events) >= 1
 
