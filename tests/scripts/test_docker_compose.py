@@ -80,3 +80,10 @@ def test_dockerfile_uses_runtime_auth_placeholder() -> None:
     assert "__NEXT_PUBLIC_AUTH_ENABLED_PLACEHOLDER__" in content
     assert "DEEPTUTOR_IGNORE_PROCESS_ENV_OVERRIDES=1" in content
     assert 'unset "$key"' in content
+
+
+def test_frontend_placeholder_validation_is_safe_for_runtime_replacement() -> None:
+    root = Path(__file__).resolve().parents[2]
+    content = (root / "web" / "lib" / "api.ts").read_text(encoding="utf-8")
+    assert 'const API_BASE_PLACEHOLDER = "__NEXT_PUBLIC_API_BASE_PLACEHOLDER__"' not in content
+    assert "NEXT_PUBLIC_API_BASE_PLACEHOLDER" in content

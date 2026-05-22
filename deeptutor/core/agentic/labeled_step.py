@@ -32,9 +32,9 @@ Returns the resolved label, the accumulated post-label text (with provider
 from __future__ import annotations
 
 import asyncio
-import re
 from contextlib import suppress
 from dataclasses import dataclass, field
+import re
 from typing import Any
 
 from deeptutor.core.agentic.labels import (
@@ -139,6 +139,32 @@ def _is_stream_options_unsupported(exc: Exception) -> bool:
             "unsupported parameter",
             "extra inputs are not permitted",
             "unexpected keyword",
+        )
+    )
+
+
+def _is_tool_schema_unsupported(exc: Exception) -> bool:
+    """Detect providers that reject native tool/function-calling schemas."""
+    response = getattr(exc, "response", None)
+    body = (
+        getattr(exc, "body", None)
+        or getattr(exc, "doc", None)
+        or getattr(response, "text", None)
+        or getattr(exc, "message", None)
+        or str(exc)
+    )
+    text = str(body).lower()
+    return any(
+        marker in text
+        for marker in (
+            "tool",
+            "function_declaration",
+            "function declaration",
+            "function_declarations",
+            "tool_choice",
+            "parameters.properties",
+            "404_not_found",
+            "404 not_found",
         )
     )
 
@@ -443,6 +469,20 @@ async def run_labeled_step(
             if auto_stream_options_added and _is_stream_options_unsupported(exc):
                 retry_kwargs = dict(kwargs)
                 retry_kwargs.pop("stream_options", None)
+                return await client.chat.completions.create(**retry_kwargs)
+            if tool_schemas and _is_tool_schema_unsupported(exc):
+                await stream.progress(
+                    "Provider rejected native tool schemas; retrying without tools.",
+                    source=source,
+                    stage=stage,
+                    metadata=merge_trace_metadata(
+                        iter_meta,
+                        {"trace_kind": "warning", "tool_schema_fallback": True},
+                    ),
+                )
+                retry_kwargs = dict(kwargs)
+                retry_kwargs.pop("tools", None)
+                retry_kwargs.pop("tool_choice", None)
                 return await client.chat.completions.create(**retry_kwargs)
             raise
 

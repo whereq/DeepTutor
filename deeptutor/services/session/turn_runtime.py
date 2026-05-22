@@ -63,6 +63,7 @@ _TITLE_PREFIXES: tuple[str, ...] = (
     "对话标题:",
 )
 _TITLE_TRAILING_PUNCT = ".。!！?？,，;；、 \t"
+_INTERRUPTED_TURN_ERROR = "Turn interrupted by server restart. Please retry your message."
 
 
 def _sanitize_session_title(raw: str) -> str:
@@ -558,6 +559,40 @@ class TurnRuntimeManager:
         # frontend sends the v2 ``ask_user`` shape.
         self._reply_queues: dict[str, asyncio.Queue[dict[str, Any] | None]] = {}
 
+    async def _has_live_execution(self, turn_id: str) -> bool:
+        """Whether this process still owns the turn's in-memory runner."""
+        async with self._lock:
+            execution = self._executions.get(turn_id)
+            if execution is None:
+                return False
+            # Some tests and pause/resubscribe paths create an execution
+            # placeholder without a task. Treat its presence as live so we do
+            # not falsely fail a turn that is still owned by this process.
+            return execution.task is None or not execution.task.done()
+
+    async def _fail_orphan_running_turn(
+        self, turn: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        """Finalize a persisted running turn that has no local execution.
+
+        Running turns are process-local: after a server/container restart the
+        database row may still say ``running`` while the task and subscriber
+        queues are gone. The runtime owns that liveness check, not the store,
+        so recovery stays backend-agnostic.
+        """
+        if turn is None or str(turn.get("status") or "") != "running":
+            return turn
+        turn_id = str(turn.get("id") or turn.get("turn_id") or "").strip()
+        if not turn_id or await self._has_live_execution(turn_id):
+            return turn
+        await self.store.update_turn_status(turn_id, "failed", _INTERRUPTED_TURN_ERROR)
+        return await self.store.get_turn(turn_id)
+
+    async def _recover_orphan_running_turns_for_session(self, session_id: str) -> None:
+        """Clear stale active turns before creating a fresh turn."""
+        for turn in await self.store.list_active_turns(session_id):
+            await self._fail_orphan_running_turn(turn)
+
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         capability = str(payload.get("capability") or "chat")
         raw_config = dict(payload.get("config", {}) or {})
@@ -650,6 +685,7 @@ class TurnRuntimeManager:
             except Exception:
                 payload = {**payload, "tools": []}
         payload = {**payload, "llm_selection": llm_selection}
+        await self._recover_orphan_running_turns_for_session(session["id"])
         preference_update: dict[str, Any] = {
             "capability": capability,
             "tools": list(payload.get("tools") or []),
@@ -897,11 +933,16 @@ class TurnRuntimeManager:
 
         turn = await self.store.get_turn(turn_id)
         if execution is None:
+            turn = await self._fail_orphan_running_turn(turn)
             if turn is None or turn.get("status") != "running":
                 # Turn already finished and we didn't see a DONE in any of the
                 # persisted history above — synthesise one so the caller can
                 # still close out its streaming state cleanly.
                 if not done_yielded:
+                    if turn is not None and str(turn.get("status") or "") == "failed":
+                        error_event = self._synthesize_error_event(turn_id, turn)
+                        if error_event is not None:
+                            yield error_event
                     yield self._synthesize_done_event(turn_id, turn)
                 return
         try:
@@ -965,6 +1006,25 @@ class TurnRuntimeManager:
             "content": "",
             "metadata": metadata,
             "session_id": "",
+            "turn_id": turn_id,
+            "seq": 0,
+        }
+
+    @staticmethod
+    def _synthesize_error_event(
+        turn_id: str, turn: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        """Build a terminal ERROR event from a failed persisted turn."""
+        error = str((turn or {}).get("error") or "").strip()
+        if not error:
+            return None
+        return {
+            "type": "error",
+            "source": "turn_runtime",
+            "stage": "",
+            "content": error,
+            "metadata": {"status": "failed", "synthesized": True},
+            "session_id": str((turn or {}).get("session_id") or ""),
             "turn_id": turn_id,
             "seq": 0,
         }

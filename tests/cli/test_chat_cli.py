@@ -107,6 +107,56 @@ def test_run_command_with_config(monkeypatch) -> None:
     }
 
 
+def test_chat_repl_config_commands_match_docs_syntax(monkeypatch) -> None:
+    captured_requests: list[TurnRequest] = []
+    _install_fake_runtime(monkeypatch, captured_requests)
+
+    result = runner.invoke(
+        app,
+        ["chat", "--config", "initial=true"],
+        input=(
+            "/config set num_questions 5\n"
+            "/config set question_types '[\"short_answer\",\"mcq\"]'\n"
+            "/refs\n"
+            "Generate questions\n"
+            "/quit\n"
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    assert '"num_questions": 5' in result.output
+    assert '"question_types"' in result.output
+    assert captured_requests[0].config == {
+        "initial": True,
+        "num_questions": 5,
+        "question_types": ["short_answer", "mcq"],
+    }
+
+
+def test_chat_repl_backslash_continuation_sends_single_message(monkeypatch) -> None:
+    captured_requests: list[TurnRequest] = []
+    _install_fake_runtime(monkeypatch, captured_requests)
+
+    result = runner.invoke(
+        app,
+        ["chat"],
+        input="Please review this code:\\\ndef fib(n): return n\n/quit\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured_requests[0].content == "Please review this code:\ndef fib(n): return n"
+
+
+def test_plugin_info_includes_capability_aliases_and_availability() -> None:
+    result = runner.invoke(app, ["plugin", "info", "deep_solve"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["name"] == "deep_solve"
+    assert payload["cli_aliases"] == ["solve"]
+    assert payload["availability"]["available"] is True
+
+
 def test_session_list_command_uses_shared_store(monkeypatch) -> None:
     async def _list_sessions(self, limit: int = 50, offset: int = 0):  # noqa: ANN001
         return [

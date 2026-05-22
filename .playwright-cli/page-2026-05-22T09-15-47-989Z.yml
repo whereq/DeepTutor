@@ -1,0 +1,205 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "DeepTutor" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: DeepTutor
+      - navigation [ref=e6]:
+        - link "Docs" [ref=e7] [cursor=pointer]:
+          - /url: /docs/
+        - link "GitHub" [ref=e8] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/DeepTutor
+      - generic "Preferences" [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]: Language
+          - combobox "Language" [ref=e12] [cursor=pointer]:
+            - option "English" [selected]
+            - option "简体中文"
+        - generic [ref=e13]:
+          - generic [ref=e14]: Theme
+          - combobox "Theme" [ref=e15] [cursor=pointer]:
+            - option "Auto" [selected]
+            - option "Light"
+            - option "Dark"
+      - link "Get Started →" [ref=e16] [cursor=pointer]:
+        - /url: /docs/get-started/
+  - main [ref=e17]:
+    - generic [ref=e18]:
+      - generic [ref=e19]: Open-source · v1.4.0-beta now available
+      - img "DeepTutor" [ref=e21]
+      - heading "Personal tutoring, reimagined." [level=1] [ref=e22]:
+        - text: Personal tutoring,
+        - emphasis [ref=e23]: reimagined.
+      - paragraph [ref=e24]: An agent-native learning companion — five modes in one workspace, autonomous TutorBots, and a knowledge hub that grows with you.
+      - generic [ref=e25]:
+        - link "Get Started" [ref=e26] [cursor=pointer]:
+          - /url: /docs/get-started/
+        - link "View on GitHub" [ref=e27] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/DeepTutor
+          - text: View on GitHub
+          - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - strong [ref=e32]: Apache 2.0
+          - text: · MIT-style permissive
+        - generic [ref=e33]: ·
+        - generic [ref=e34]:
+          - text: Built at
+          - strong [ref=e35]: HKU Data Intelligence Lab
+        - generic [ref=e36]: ·
+        - generic [ref=e37]: Python 3.11 · Next.js 16
+    - generic [ref=e39]:
+      - generic [ref=e44]: DeepTutor — Chat Workspace
+      - img "DeepTutor chat workspace — Chat / TutorBot / Co-Writer / Book / Knowledge / Space / Memory in the sidebar; greeting and composer in the main area." [ref=e45]
+    - generic [ref=e46]:
+      - generic [ref=e47]: § I
+      - generic [ref=e48]:
+        - generic [ref=e49]: What's inside
+        - heading "Six pillars, one running context." [level=2] [ref=e50]:
+          - text: Six pillars,
+          - emphasis [ref=e51]: one
+          - text: running context.
+        - paragraph [ref=e52]: Every surface reads from — and writes back to — the same memory, knowledge base, and tutor. Switching contexts no longer means losing your place.
+      - generic [ref=e53]:
+        - link "I Chat Workspace Five modes — Chat, Solve, Quiz, Research, Visualize — share one session, knowledge base, and citation history. Escalate mid-thread without losing context." [ref=e54] [cursor=pointer]:
+          - /url: /docs/explore/chat-workspace/
+          - generic [ref=e55]: I
+          - heading "Chat Workspace" [level=3] [ref=e56]
+          - paragraph [ref=e57]: Five modes — Chat, Solve, Quiz, Research, Visualize — share one session, knowledge base, and citation history. Escalate mid-thread without losing context.
+          - img [ref=e59]
+        - link "II Co-Writer A split-view Markdown workbench where AI is a first-class collaborator. Select, rewrite, expand — grounded in your knowledge base." [ref=e61] [cursor=pointer]:
+          - /url: /docs/explore/co-writer/
+          - generic [ref=e62]: II
+          - heading "Co-Writer" [level=3] [ref=e63]
+          - paragraph [ref=e64]: A split-view Markdown workbench where AI is a first-class collaborator. Select, rewrite, expand — grounded in your knowledge base.
+          - img [ref=e66]
+        - link "III Book Engine A multi-agent pipeline compiles your materials into interactive living books — 13 block types, including a GeoGebra viewer and animations." [ref=e68] [cursor=pointer]:
+          - /url: /docs/explore/book/
+          - generic [ref=e69]: III
+          - heading "Book Engine" [level=3] [ref=e70]
+          - paragraph [ref=e71]: A multi-agent pipeline compiles your materials into interactive living books — 13 block types, including a GeoGebra viewer and animations.
+          - img [ref=e73]
+        - link "IV Knowledge Versioned RAG-ready document libraries on LlamaIndex end-to-end. Every (re-)index is tracked, comparable, and rollback-able." [ref=e75] [cursor=pointer]:
+          - /url: /docs/explore/knowledge/
+          - generic [ref=e76]: IV
+          - heading "Knowledge" [level=3] [ref=e77]
+          - paragraph [ref=e78]: Versioned RAG-ready document libraries on LlamaIndex end-to-end. Every (re-)index is tracked, comparable, and rollback-able.
+          - img [ref=e80]
+        - link "V Space Your personal library — chat history, notebooks, question bank, and authored skills. The read-and-review counterpart to every active surface." [ref=e82] [cursor=pointer]:
+          - /url: /docs/explore/space/
+          - generic [ref=e83]: V
+          - heading "Space" [level=3] [ref=e84]
+          - paragraph [ref=e85]: Your personal library — chat history, notebooks, question bank, and authored skills. The read-and-review counterpart to every active surface.
+          - img [ref=e87]
+        - link "VI Memory Append-only L1 traces, L2 curated facts with citations, L3 cross-surface synthesis. A Memory Graph lets you audit why DeepTutor knows what it knows." [ref=e89] [cursor=pointer]:
+          - /url: /docs/explore/memory/
+          - generic [ref=e90]: VI
+          - heading "Memory" [level=3] [ref=e91]
+          - paragraph [ref=e92]: Append-only L1 traces, L2 curated facts with citations, L3 cross-surface synthesis. A Memory Graph lets you audit why DeepTutor knows what it knows.
+          - img [ref=e94]
+    - generic [ref=e96]:
+      - generic [ref=e97]: § II
+      - generic [ref=e98]:
+        - generic [ref=e99]: Install
+        - heading "Up and running in minutes." [level=2] [ref=e100]:
+          - text: Up and running in
+          - emphasis [ref=e101]: minutes
+          - text: .
+        - paragraph [ref=e102]: Four ways to install — pick the one that fits. Every path lands at the same configured workspace.
+      - generic [ref=e103]:
+        - tablist [ref=e104]:
+          - tab "$ pip install -U deeptutor PyPI" [selected] [ref=e105] [cursor=pointer]:
+            - generic [ref=e106]: $
+            - generic [ref=e107]: pip install -U deeptutor
+            - generic [ref=e108]: PyPI
+          - tab "$ docker run … ghcr.io/hkuds/deeptutor Docker" [ref=e109] [cursor=pointer]:
+            - generic [ref=e110]: $
+            - generic [ref=e111]: docker run … ghcr.io/hkuds/deeptutor
+            - generic [ref=e112]: Docker
+          - tab "$ git clone … && pip install -e . Source" [ref=e113] [cursor=pointer]:
+            - generic [ref=e114]: $
+            - generic [ref=e115]: git clone … && pip install -e .
+            - generic [ref=e116]: Source
+          - tab "$ pip install -e ./packaging/deeptutor-cli CLI" [ref=e117] [cursor=pointer]:
+            - generic [ref=e118]: $
+            - generic [ref=e119]: pip install -e ./packaging/deeptutor-cli
+            - generic [ref=e120]: CLI
+        - tabpanel [ref=e122]:
+          - paragraph [ref=e123]: Smoothest path. Full local Web app + CLI, no clone required.
+          - code [ref=e125]: "# 1. Create a workspace directory mkdir -p my-deeptutor && cd my-deeptutor # 2. Install, configure, launch pip install -U deeptutor deeptutor init deeptutor start"
+          - generic [ref=e126]:
+            - generic [ref=e127]: Then open 127.0.0.1:3782
+            - link "Full guide" [ref=e128] [cursor=pointer]:
+              - /url: /docs/get-started/pypi/
+              - text: Full guide
+              - img [ref=e129]
+    - generic [ref=e131]:
+      - generic [ref=e132]: § III
+      - generic [ref=e133]:
+        - generic [ref=e134]: Ecosystem
+        - heading "Built alongside." [level=2] [ref=e135]:
+          - text: Built
+          - emphasis [ref=e136]: alongside
+          - text: .
+        - paragraph [ref=e137]: DeepTutor stands on a small family of open-source primitives from the HKU Data Intelligence Lab.
+      - generic [ref=e138]:
+        - link "nanobot Ultra-lightweight AI agent runtime" [ref=e139] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/nanobot
+          - generic [ref=e140]: nanobot
+          - generic [ref=e141]: Ultra-lightweight AI agent runtime
+          - img [ref=e143]
+        - link "LightRAG Simple, fast retrieval-augmented generation" [ref=e145] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/LightRAG
+          - generic [ref=e146]: LightRAG
+          - generic [ref=e147]: Simple, fast retrieval-augmented generation
+          - img [ref=e149]
+        - link "AutoAgent Zero-code agent framework" [ref=e151] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/AutoAgent
+          - generic [ref=e152]: AutoAgent
+          - generic [ref=e153]: Zero-code agent framework
+          - img [ref=e155]
+        - link "AI-Researcher Automated research workflows" [ref=e157] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/AI-Researcher
+          - generic [ref=e158]: AI-Researcher
+          - generic [ref=e159]: Automated research workflows
+          - img [ref=e161]
+    - generic [ref=e163]:
+      - generic [ref=e164]:
+        - link "DeepTutor" [ref=e165] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e166]: DeepTutor
+        - generic [ref=e167]:
+          - generic [ref=e168]:
+            - heading "Docs" [level=4] [ref=e169]
+            - link "Get Started" [ref=e170] [cursor=pointer]:
+              - /url: /docs/get-started/
+            - link "Explore DeepTutor" [ref=e171] [cursor=pointer]:
+              - /url: /docs/explore/
+            - link "Explore TutorBot" [ref=e172] [cursor=pointer]:
+              - /url: /docs/tutorbot/
+            - link "CLI" [ref=e173] [cursor=pointer]:
+              - /url: /docs/cli/
+          - generic [ref=e174]:
+            - heading "Community" [level=4] [ref=e175]
+            - link "Discord" [ref=e176] [cursor=pointer]:
+              - /url: https://discord.gg/eRsjPgMU4t
+            - link "WeChat" [ref=e177] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/issues/78
+            - link "Discussions" [ref=e178] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/discussions
+            - link "Issues" [ref=e179] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/issues
+          - generic [ref=e180]:
+            - heading "Project" [level=4] [ref=e181]
+            - link "GitHub" [ref=e182] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor
+            - link "License" [ref=e183] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/blob/main/LICENSE
+            - link "arXiv" [ref=e184] [cursor=pointer]:
+              - /url: https://arxiv.org/abs/2604.26962
+      - generic [ref=e186]:
+        - generic [ref=e187]:
+          - text: © 2026
+          - link "Data Intelligence Lab @ HKU" [ref=e188] [cursor=pointer]:
+            - /url: https://github.com/HKUDS
+        - generic [ref=e189]: Released under the Apache 2.0 License

@@ -133,6 +133,10 @@ class TestLlmProbeUsesAgentsYaml:
             captured_kwargs.get("max_tokens") == 768
             or captured_kwargs.get("max_completion_tokens") == 768
         )
+        assert any(
+            "Basic LLM completion succeeded" in str(event.get("message", ""))
+            for event in run.events
+        )
 
     @pytest.mark.asyncio
     async def test_probe_defaults_when_no_diagnostics_section(self, tmp_path, monkeypatch):

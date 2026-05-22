@@ -24,16 +24,17 @@ primitives.
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
+import logging
 from typing import Any
 
+from deeptutor.capabilities._shared import emit_capability_result
 from deeptutor.core.agentic import (
     DispatchOutcome,
-    LLMClientConfig,
     LabeledStepResult,
     LabelProtocol,
+    LLMClientConfig,
     LoopOutcome,
     UsageTracker,
     build_completion_kwargs,
@@ -43,7 +44,6 @@ from deeptutor.core.agentic import (
     run_agentic_loop,
     run_labeled_step,
 )
-from deeptutor.capabilities._shared import emit_capability_result
 from deeptutor.core.agentic.labels import find_inline_labels
 from deeptutor.core.agentic.tool_dispatch import (
     MAX_PARALLEL_TOOL_CALLS,
@@ -243,6 +243,7 @@ class SolvePipeline:
         self.base_url = getattr(self.llm_config, "base_url", None)
         self.api_version = getattr(self.llm_config, "api_version", None)
         self.extra_headers = getattr(self.llm_config, "extra_headers", None) or {}
+        self.reasoning_effort = getattr(self.llm_config, "reasoning_effort", None)
         self.client_config = LLMClientConfig(
             binding=self.binding,
             model=self.model,
@@ -250,6 +251,7 @@ class SolvePipeline:
             base_url=self.base_url,
             api_version=self.api_version,
             extra_headers=self.extra_headers or None,
+            reasoning_effort=self.reasoning_effort,
         )
 
         self.registry = get_tool_registry()
@@ -1349,6 +1351,8 @@ class SolvePipeline:
             temperature=self._temperature,
             model=self.model,
             max_tokens=max_tokens,
+            binding=self.binding,
+            reasoning_effort=self.reasoning_effort,
         )
 
     async def _run_labeled_step(

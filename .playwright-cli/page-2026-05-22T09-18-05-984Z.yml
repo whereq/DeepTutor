@@ -1,0 +1,286 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#_top"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "DeepTutor" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e8]: DeepTutor
+        - button "Search" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+          - generic [ref=e14]: Search
+          - generic [ref=e15]:
+            - generic [ref=e16]: ⌘
+            - generic [ref=e17]: K
+        - generic [ref=e18]:
+          - generic [ref=e20]:
+            - link "Report issue" [ref=e21] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/issues/new?template=docs.yml&page=https%3A%2F%2Fdeeptutor.info%2Fdocs%2F
+              - img [ref=e22]
+              - generic [ref=e24]: Report issue
+            - link "GitHub" [ref=e25] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor
+              - generic [ref=e26]: GitHub
+              - img [ref=e27]
+            - link "Discord" [ref=e29] [cursor=pointer]:
+              - /url: https://discord.gg/eRsjPgMU4t
+              - generic [ref=e30]: Discord
+              - img [ref=e31]
+            - link "WeChat community" [ref=e33] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/issues/78
+              - img [ref=e34]
+          - generic [ref=e37]:
+            - generic [ref=e38]: Select theme
+            - img
+            - combobox "Select theme" [ref=e39] [cursor=pointer]:
+              - option "Dark" [selected]
+              - option "Light"
+              - option "Auto"
+            - img
+          - generic [ref=e41]:
+            - generic [ref=e42]: Select language
+            - img
+            - combobox "Select language" [ref=e43] [cursor=pointer]:
+              - option "English" [selected]
+              - option "简体中文"
+            - img
+    - navigation "Main":
+      - list [ref=e47]:
+        - listitem [ref=e48]:
+          - group [ref=e49]:
+            - generic "Overview" [ref=e50] [cursor=pointer]:
+              - generic [ref=e51]: Overview
+              - img [ref=e52]
+            - list [ref=e54]:
+              - listitem [ref=e55]:
+                - link "Documentation home" [ref=e56] [cursor=pointer]:
+                  - /url: /docs/
+              - listitem [ref=e57]:
+                - link "Contributing" [ref=e58] [cursor=pointer]:
+                  - /url: /docs/contributing/
+        - listitem [ref=e59]:
+          - group [ref=e60]:
+            - generic "Get Started" [ref=e61] [cursor=pointer]:
+              - generic [ref=e62]: Get Started
+              - img [ref=e63]
+            - list [ref=e65]:
+              - listitem [ref=e66]:
+                - link "Overview" [ref=e67] [cursor=pointer]:
+                  - /url: /docs/get-started/
+              - listitem [ref=e68]:
+                - link "1 · Install from PyPI" [ref=e69] [cursor=pointer]:
+                  - /url: /docs/get-started/pypi/
+              - listitem [ref=e70]:
+                - link "2 · Install from Source" [ref=e71] [cursor=pointer]:
+                  - /url: /docs/get-started/from-source/
+              - listitem [ref=e72]:
+                - link "3 · Docker" [ref=e73] [cursor=pointer]:
+                  - /url: /docs/get-started/docker/
+              - listitem [ref=e74]:
+                - link "4 · CLI-Only Install" [ref=e75] [cursor=pointer]:
+                  - /url: /docs/get-started/cli-only/
+              - listitem [ref=e76]:
+                - link "Multi-User Deployment" [ref=e77] [cursor=pointer]:
+                  - /url: /docs/get-started/multi-user/
+              - listitem [ref=e78]:
+                - link "Providers" [ref=e79] [cursor=pointer]:
+                  - /url: /docs/get-started/providers/
+              - listitem [ref=e80]:
+                - link "Troubleshooting" [ref=e81] [cursor=pointer]:
+                  - /url: /docs/get-started/troubleshooting/
+        - listitem [ref=e82]:
+          - group [ref=e83]:
+            - generic "Explore DeepTutor" [ref=e84] [cursor=pointer]:
+              - generic [ref=e85]: Explore DeepTutor
+              - img [ref=e86]
+            - list [ref=e88]:
+              - listitem [ref=e89]:
+                - link "Overview" [ref=e90] [cursor=pointer]:
+                  - /url: /docs/explore/
+              - listitem [ref=e91]:
+                - link "Chat Workspace" [ref=e92] [cursor=pointer]:
+                  - /url: /docs/explore/chat-workspace/
+              - listitem [ref=e93]:
+                - link "Co-Writer" [ref=e94] [cursor=pointer]:
+                  - /url: /docs/explore/co-writer/
+              - listitem [ref=e95]:
+                - link "Book Engine" [ref=e96] [cursor=pointer]:
+                  - /url: /docs/explore/book/
+              - listitem [ref=e97]:
+                - link "Knowledge" [ref=e98] [cursor=pointer]:
+                  - /url: /docs/explore/knowledge/
+              - listitem [ref=e99]:
+                - link "Space" [ref=e100] [cursor=pointer]:
+                  - /url: /docs/explore/space/
+              - listitem [ref=e101]:
+                - link "Memory" [ref=e102] [cursor=pointer]:
+                  - /url: /docs/explore/memory/
+              - listitem [ref=e103]:
+                - link "Settings" [ref=e104] [cursor=pointer]:
+                  - /url: /docs/explore/settings/
+        - listitem [ref=e105]:
+          - group [ref=e106]:
+            - generic "Explore TutorBot" [ref=e107] [cursor=pointer]:
+              - generic [ref=e108]: Explore TutorBot
+              - img [ref=e109]
+            - list [ref=e111]:
+              - listitem [ref=e112]:
+                - link "Overview" [ref=e113] [cursor=pointer]:
+                  - /url: /docs/tutorbot/
+              - listitem [ref=e114]:
+                - link "Telegram" [ref=e115] [cursor=pointer]:
+                  - /url: /docs/tutorbot/telegram/
+              - listitem [ref=e116]:
+                - link "Discord" [ref=e117] [cursor=pointer]:
+                  - /url: /docs/tutorbot/discord/
+              - listitem [ref=e118]:
+                - link "Slack" [ref=e119] [cursor=pointer]:
+                  - /url: /docs/tutorbot/slack/
+              - listitem [ref=e120]:
+                - link "Matrix" [ref=e121] [cursor=pointer]:
+                  - /url: /docs/tutorbot/matrix/
+              - listitem [ref=e122]:
+                - link "Zulip" [ref=e123] [cursor=pointer]:
+                  - /url: /docs/tutorbot/zulip/
+              - listitem [ref=e124]:
+                - link "Feishu / Lark" [ref=e125] [cursor=pointer]:
+                  - /url: /docs/tutorbot/feishu/
+              - listitem [ref=e126]:
+                - link "WeCom" [ref=e127] [cursor=pointer]:
+                  - /url: /docs/tutorbot/wecom/
+              - listitem [ref=e128]:
+                - link "DingTalk" [ref=e129] [cursor=pointer]:
+                  - /url: /docs/tutorbot/dingtalk/
+              - listitem [ref=e130]:
+                - link "QQ" [ref=e131] [cursor=pointer]:
+                  - /url: /docs/tutorbot/qq/
+              - listitem [ref=e132]:
+                - link "WhatsApp" [ref=e133] [cursor=pointer]:
+                  - /url: /docs/tutorbot/whatsapp/
+              - listitem [ref=e134]:
+                - link "Email" [ref=e135] [cursor=pointer]:
+                  - /url: /docs/tutorbot/email/
+              - listitem [ref=e136]:
+                - link "Mochat" [ref=e137] [cursor=pointer]:
+                  - /url: /docs/tutorbot/mochat/
+        - listitem [ref=e138]:
+          - group [ref=e139]:
+            - generic "DeepTutor CLI" [ref=e140] [cursor=pointer]:
+              - generic [ref=e141]: DeepTutor CLI
+              - img [ref=e142]
+            - list [ref=e144]:
+              - listitem [ref=e145]:
+                - link "Overview" [ref=e146] [cursor=pointer]:
+                  - /url: /docs/cli/
+              - listitem [ref=e147]:
+                - link "Command Reference" [ref=e148] [cursor=pointer]:
+                  - /url: /docs/cli/commands/
+              - listitem [ref=e149]:
+                - link "Interactive REPL" [ref=e150] [cursor=pointer]:
+                  - /url: /docs/cli/chat-repl/
+              - listitem [ref=e151]:
+                - link "Agent Handoff" [ref=e152] [cursor=pointer]:
+                  - /url: /docs/cli/agent-handoff/
+              - listitem [ref=e153]:
+                - link "Server API" [ref=e154] [cursor=pointer]:
+                  - /url: /docs/cli/server-api/
+    - generic [ref=e156]:
+      - complementary [ref=e157]:
+        - navigation "On this page" [ref=e162]:
+          - heading "On this page" [level=2] [ref=e163]
+          - list [ref=e164]:
+            - listitem [ref=e165]:
+              - link "Overview" [ref=e166] [cursor=pointer]:
+                - /url: "#_top"
+            - listitem [ref=e167]:
+              - link "Where to start" [ref=e168] [cursor=pointer]:
+                - /url: "#where-to-start"
+            - listitem [ref=e169]:
+              - link "What is DeepTutor" [ref=e170] [cursor=pointer]:
+                - /url: "#what-is-deeptutor"
+            - listitem [ref=e171]:
+              - link "Help & community" [ref=e172] [cursor=pointer]:
+                - /url: "#help--community"
+      - main [ref=e174]:
+        - heading "Documentation" [level=1] [ref=e177]
+        - generic [ref=e179]:
+          - generic [ref=e180]:
+            - paragraph [ref=e181]: Welcome to the DeepTutor documentation. Pick a path below, or use the left sidebar.
+            - generic [ref=e182]:
+              - heading "Where to start" [level=2] [ref=e183]
+              - link "Section titled “Where to start”" [ref=e184] [cursor=pointer]:
+                - /url: "#where-to-start"
+                - img [ref=e186]
+                - generic [ref=e188]: Section titled “Where to start”
+            - list [ref=e189]:
+              - listitem [ref=e190]:
+                - strong [ref=e191]:
+                  - link "Get Started" [ref=e192] [cursor=pointer]:
+                    - /url: /docs/get-started/
+                - text: "— Four install paths: PyPI, From Source, Docker, CLI-Only."
+              - listitem [ref=e193]:
+                - strong [ref=e194]:
+                  - link "Explore DeepTutor" [ref=e195] [cursor=pointer]:
+                    - /url: /docs/explore/
+                - text: — Tour the five core surfaces (Chat, Co-Writer, Book, Knowledge, Space) plus Memory and Settings.
+              - listitem [ref=e196]:
+                - strong [ref=e197]:
+                  - link "Explore TutorBot" [ref=e198] [cursor=pointer]:
+                    - /url: /docs/tutorbot/
+                - text: — Connect persistent AI tutors to Telegram, Slack, Feishu, Matrix, and more.
+              - listitem [ref=e199]:
+                - strong [ref=e200]:
+                  - link "DeepTutor CLI" [ref=e201] [cursor=pointer]:
+                    - /url: /docs/cli/
+                - text: — Drive every capability from the terminal, or hand it to an AI agent.
+              - listitem [ref=e202]:
+                - strong [ref=e203]:
+                  - link "Providers" [ref=e204] [cursor=pointer]:
+                    - /url: /docs/get-started/providers/
+                - text: — Set up LLM, embedding, and search providers.
+            - generic [ref=e205]:
+              - heading "What is DeepTutor" [level=2] [ref=e206]
+              - link "Section titled “What is DeepTutor”" [ref=e207] [cursor=pointer]:
+                - /url: "#what-is-deeptutor"
+                - img [ref=e209]
+                - generic [ref=e211]: Section titled “What is DeepTutor”
+            - paragraph [ref=e212]:
+              - text: An open-source, agent-native learning companion.
+              - strong [ref=e213]: Five modes
+              - text: (Chat, Solve, Quiz, Research, Visualize) share one session, knowledge base, and citation history.
+              - strong [ref=e214]: TutorBots
+              - text: carry your context out to Telegram, Slack, Feishu, and other channels. A
+              - strong [ref=e215]: three-layer Memory
+              - text: with an inspectable workbench and a Memory Graph lets you audit
+              - emphasis [ref=e216]: why
+              - text: the system knows what it knows.
+            - paragraph [ref=e217]: Built at HKU Data Intelligence Lab. Apache 2.0 license.
+            - generic [ref=e218]:
+              - heading "Help & community" [level=2] [ref=e219]
+              - link "Section titled “Help & community”" [ref=e220] [cursor=pointer]:
+                - /url: "#help--community"
+                - img [ref=e222]
+                - generic [ref=e224]: Section titled “Help & community”
+            - list [ref=e225]:
+              - listitem [ref=e226]:
+                - link "Discord" [ref=e227] [cursor=pointer]:
+                  - /url: https://discord.gg/eRsjPgMU4t
+                - text: — fastest place to ask questions
+              - listitem [ref=e228]:
+                - link "GitHub Discussions" [ref=e229] [cursor=pointer]:
+                  - /url: https://github.com/HKUDS/DeepTutor/discussions
+                - text: — long-form Q&A and design proposals
+              - listitem [ref=e230]:
+                - link "Issue tracker" [ref=e231] [cursor=pointer]:
+                  - /url: https://github.com/HKUDS/DeepTutor/issues
+                - text: — bug reports and feature requests
+              - listitem [ref=e232]:
+                - link "SKILL.md" [ref=e233] [cursor=pointer]:
+                  - /url: https://github.com/HKUDS/DeepTutor/blob/main/SKILL.md
+                - text: — the canonical handover document for AI agents driving DeepTutor
+          - link "Next Contributing →" [ref=e236] [cursor=pointer]:
+            - /url: /docs/contributing/
+            - generic [ref=e237]:
+              - text: Next
+              - generic [ref=e238]: Contributing →

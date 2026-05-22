@@ -1,0 +1,51 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#_top"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "DeepTutor" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e8]: DeepTutor
+        - button "Search" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+          - generic [ref=e14]: Search
+          - generic [ref=e15]:
+            - generic [ref=e16]: ⌘
+            - generic [ref=e17]: K
+        - generic [ref=e18]:
+          - generic [ref=e20]:
+            - link "Report issue" [ref=e21] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/issues/new?template=docs.yml&page=https%3A%2F%2Fdeeptutor.info%2F404%2F
+              - img [ref=e22]
+              - generic [ref=e24]: Report issue
+            - link "GitHub" [ref=e25] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor
+              - generic [ref=e26]: GitHub
+              - img [ref=e27]
+            - link "Discord" [ref=e29] [cursor=pointer]:
+              - /url: https://discord.gg/eRsjPgMU4t
+              - generic [ref=e30]: Discord
+              - img [ref=e31]
+            - link "WeChat community" [ref=e33] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/issues/78
+              - img [ref=e34]
+          - generic [ref=e37]:
+            - generic [ref=e38]: Select theme
+            - img
+            - combobox "Select theme" [ref=e39] [cursor=pointer]:
+              - option "Dark" [selected]
+              - option "Light"
+              - option "Auto"
+            - img
+          - generic [ref=e41]:
+            - generic [ref=e42]: Select language
+            - img
+            - combobox "Select language" [ref=e43] [cursor=pointer]:
+              - option "English"
+              - option "简体中文" [selected]
+            - img
+    - main [ref=e47]:
+      - generic [ref=e52]:
+        - heading "404" [level=1] [ref=e53]
+        - generic [ref=e54]: Page not found. Check the URL or try using the search bar.

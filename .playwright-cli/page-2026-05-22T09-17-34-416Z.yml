@@ -1,0 +1,205 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "DeepTutor" [ref=e4] [cursor=pointer]:
+        - /url: /zh-cn/
+        - generic [ref=e5]: DeepTutor
+      - navigation [ref=e6]:
+        - link "文档" [ref=e7] [cursor=pointer]:
+          - /url: /zh-cn/docs/
+        - link "GitHub" [ref=e8] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/DeepTutor
+      - generic "偏好设置" [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]: 语言
+          - combobox "语言" [ref=e12] [cursor=pointer]:
+            - option "English"
+            - option "简体中文" [selected]
+        - generic [ref=e13]:
+          - generic [ref=e14]: 主题
+          - combobox "主题" [ref=e15] [cursor=pointer]:
+            - option "自动" [selected]
+            - option "浅色"
+            - option "深色"
+      - link "开始使用 →" [ref=e16] [cursor=pointer]:
+        - /url: /zh-cn/docs/get-started/
+  - main [ref=e17]:
+    - generic [ref=e18]:
+      - generic [ref=e19]: 开源 · v1.4.0-beta 已发布
+      - img "DeepTutor" [ref=e21]
+      - heading "个性化学习， 重新想象。" [level=1] [ref=e22]:
+        - text: 个性化学习，
+        - emphasis [ref=e23]: 重新想象。
+      - paragraph [ref=e24]: 一个 agent-native 的学习伴侣 —— 五种模式共享一个工作区，自主 TutorBot， 以及和你一起成长的知识中枢。
+      - generic [ref=e25]:
+        - link "开始使用" [ref=e26] [cursor=pointer]:
+          - /url: /zh-cn/docs/get-started/
+        - link "在 GitHub 上查看" [ref=e27] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/DeepTutor
+          - text: 在 GitHub 上查看
+          - img [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - strong [ref=e32]: Apache 2.0
+          - text: · 类 MIT 宽松协议
+        - generic [ref=e33]: ·
+        - generic [ref=e34]:
+          - text: 由
+          - strong [ref=e35]: 香港大学数据智能实验室
+          - text: 构建
+        - generic [ref=e36]: ·
+        - generic [ref=e37]: Python 3.11 · Next.js 16
+    - generic [ref=e39]:
+      - generic [ref=e44]: DeepTutor —— 聊天工作台
+      - img "DeepTutor 聊天工作台 —— 侧栏 Chat / TutorBot / Co-Writer / Book / 知识库 / Space / 记忆；主区域显示问候语和输入框。" [ref=e45]
+    - generic [ref=e46]:
+      - generic [ref=e47]: § I
+      - generic [ref=e48]:
+        - generic [ref=e49]: 里面是什么
+        - heading "六根支柱，同一份运行时上下文。" [level=2] [ref=e50]:
+          - text: 六根支柱，
+          - emphasis [ref=e51]: 同一份
+          - text: 运行时上下文。
+        - paragraph [ref=e52]: 每个界面都从同一份记忆、知识库、导师那里读写。 切换上下文不再意味着丢失当前位置。
+      - generic [ref=e53]:
+        - link "I 聊天工作台 五种模式 —— Chat / Solve / Quiz / Research / Visualize —— 共享同一个 session、知识库和引用历史，对话中段切换不丢上下文。" [ref=e54] [cursor=pointer]:
+          - /url: /zh-cn/docs/explore/chat-workspace/
+          - generic [ref=e55]: I
+          - heading "聊天工作台" [level=3] [ref=e56]
+          - paragraph [ref=e57]: 五种模式 —— Chat / Solve / Quiz / Research / Visualize —— 共享同一个 session、知识库和引用历史，对话中段切换不丢上下文。
+          - img [ref=e59]
+        - link "II Co-Writer 双栏 Markdown 工作台，AI 是一等公民协作者。选中、改写、扩展，全部基于你的知识库。" [ref=e61] [cursor=pointer]:
+          - /url: /zh-cn/docs/explore/co-writer/
+          - generic [ref=e62]: II
+          - heading "Co-Writer" [level=3] [ref=e63]
+          - paragraph [ref=e64]: 双栏 Markdown 工作台，AI 是一等公民协作者。选中、改写、扩展，全部基于你的知识库。
+          - img [ref=e66]
+        - link "III Book Engine 多 agent 流水线把你的材料编成可交互的「活书」—— 13 种 block，含 GeoGebra viewer 和动画。" [ref=e68] [cursor=pointer]:
+          - /url: /zh-cn/docs/explore/book/
+          - generic [ref=e69]: III
+          - heading "Book Engine" [level=3] [ref=e70]
+          - paragraph [ref=e71]: 多 agent 流水线把你的材料编成可交互的「活书」—— 13 种 block，含 GeoGebra viewer 和动画。
+          - img [ref=e73]
+        - link "IV 知识库 端到端 LlamaIndex 的带版本管理 RAG 文档库。每一次（重新）索引都可追溯、可对比、可回滚。" [ref=e75] [cursor=pointer]:
+          - /url: /zh-cn/docs/explore/knowledge/
+          - generic [ref=e76]: IV
+          - heading "知识库" [level=3] [ref=e77]
+          - paragraph [ref=e78]: 端到端 LlamaIndex 的带版本管理 RAG 文档库。每一次（重新）索引都可追溯、可对比、可回滚。
+          - img [ref=e80]
+        - link "V Space 你的个人图书馆 —— chat history、notebook、question bank、自定义 skill。每个活跃界面的「阅读 / 回顾」对偶面。" [ref=e82] [cursor=pointer]:
+          - /url: /zh-cn/docs/explore/space/
+          - generic [ref=e83]: V
+          - heading "Space" [level=3] [ref=e84]
+          - paragraph [ref=e85]: 你的个人图书馆 —— chat history、notebook、question bank、自定义 skill。每个活跃界面的「阅读 / 回顾」对偶面。
+          - img [ref=e87]
+        - link "VI 记忆系统 Append-only 的 L1 trace、带引用的 L2 精炼事实、跨界面综合的 L3。Memory Graph 让你随时审计 DeepTutor 为什么知道某件事。" [ref=e89] [cursor=pointer]:
+          - /url: /zh-cn/docs/explore/memory/
+          - generic [ref=e90]: VI
+          - heading "记忆系统" [level=3] [ref=e91]
+          - paragraph [ref=e92]: Append-only 的 L1 trace、带引用的 L2 精炼事实、跨界面综合的 L3。Memory Graph 让你随时审计 DeepTutor 为什么知道某件事。
+          - img [ref=e94]
+    - generic [ref=e96]:
+      - generic [ref=e97]: § II
+      - generic [ref=e98]:
+        - generic [ref=e99]: 安装
+        - heading "几分钟就能跑起来。" [level=2] [ref=e100]:
+          - text: 几
+          - emphasis [ref=e101]: 分钟
+          - text: 就能跑起来。
+        - paragraph [ref=e102]: 四种安装方式 —— 挑一个适合你的。 最终都落到同一个配置好的工作区。
+      - generic [ref=e103]:
+        - tablist [ref=e104]:
+          - tab "$ pip install -U deeptutor PyPI" [selected] [ref=e105] [cursor=pointer]:
+            - generic [ref=e106]: $
+            - generic [ref=e107]: pip install -U deeptutor
+            - generic [ref=e108]: PyPI
+          - tab "$ docker run … ghcr.io/hkuds/deeptutor Docker" [ref=e109] [cursor=pointer]:
+            - generic [ref=e110]: $
+            - generic [ref=e111]: docker run … ghcr.io/hkuds/deeptutor
+            - generic [ref=e112]: Docker
+          - tab "$ git clone … && pip install -e . 源码" [ref=e113] [cursor=pointer]:
+            - generic [ref=e114]: $
+            - generic [ref=e115]: git clone … && pip install -e .
+            - generic [ref=e116]: 源码
+          - tab "$ pip install -e ./packaging/deeptutor-cli CLI" [ref=e117] [cursor=pointer]:
+            - generic [ref=e118]: $
+            - generic [ref=e119]: pip install -e ./packaging/deeptutor-cli
+            - generic [ref=e120]: CLI
+        - tabpanel [ref=e122]:
+          - paragraph [ref=e123]: 最顺滑的路径：完整本地 Web 应用 + CLI，无需 clone。
+          - code [ref=e125]: "# 1. 准备一个工作区目录 mkdir -p my-deeptutor && cd my-deeptutor # 2. 安装、配置、启动 pip install -U deeptutor deeptutor init deeptutor start"
+          - generic [ref=e126]:
+            - generic [ref=e127]: 然后打开 127.0.0.1:3782
+            - link "完整指南" [ref=e128] [cursor=pointer]:
+              - /url: /zh-cn/docs/get-started/pypi/
+              - text: 完整指南
+              - img [ref=e129]
+    - generic [ref=e131]:
+      - generic [ref=e132]: § III
+      - generic [ref=e133]:
+        - generic [ref=e134]: 生态
+        - heading "共同构建。" [level=2] [ref=e135]:
+          - emphasis [ref=e136]: 共同构建
+          - text: 。
+        - paragraph [ref=e137]: DeepTutor 站在港大数据智能实验室 (HKU Data Intelligence Lab) 的一小组开源原语之上。
+      - generic [ref=e138]:
+        - link "nanobot 极简 AI agent 运行时" [ref=e139] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/nanobot
+          - generic [ref=e140]: nanobot
+          - generic [ref=e141]: 极简 AI agent 运行时
+          - img [ref=e143]
+        - link "LightRAG 简单、快速的检索增强生成" [ref=e145] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/LightRAG
+          - generic [ref=e146]: LightRAG
+          - generic [ref=e147]: 简单、快速的检索增强生成
+          - img [ref=e149]
+        - link "AutoAgent 零代码 agent 框架" [ref=e151] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/AutoAgent
+          - generic [ref=e152]: AutoAgent
+          - generic [ref=e153]: 零代码 agent 框架
+          - img [ref=e155]
+        - link "AI-Researcher 自动化研究工作流" [ref=e157] [cursor=pointer]:
+          - /url: https://github.com/HKUDS/AI-Researcher
+          - generic [ref=e158]: AI-Researcher
+          - generic [ref=e159]: 自动化研究工作流
+          - img [ref=e161]
+    - generic [ref=e163]:
+      - generic [ref=e164]:
+        - link "DeepTutor" [ref=e165] [cursor=pointer]:
+          - /url: /zh-cn/
+          - generic [ref=e166]: DeepTutor
+        - generic [ref=e167]:
+          - generic [ref=e168]:
+            - heading "文档" [level=4] [ref=e169]
+            - link "快速上手" [ref=e170] [cursor=pointer]:
+              - /url: /zh-cn/docs/get-started/
+            - link "探索 DeepTutor" [ref=e171] [cursor=pointer]:
+              - /url: /zh-cn/docs/explore/
+            - link "TutorBot 渠道" [ref=e172] [cursor=pointer]:
+              - /url: /zh-cn/docs/tutorbot/
+            - link "CLI" [ref=e173] [cursor=pointer]:
+              - /url: /zh-cn/docs/cli/
+          - generic [ref=e174]:
+            - heading "社区" [level=4] [ref=e175]
+            - link "Discord" [ref=e176] [cursor=pointer]:
+              - /url: https://discord.gg/eRsjPgMU4t
+            - link "微信社区" [ref=e177] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/issues/78
+            - link "讨论区" [ref=e178] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/discussions
+            - link "Issues" [ref=e179] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/issues
+          - generic [ref=e180]:
+            - heading "项目" [level=4] [ref=e181]
+            - link "GitHub" [ref=e182] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor
+            - link "协议" [ref=e183] [cursor=pointer]:
+              - /url: https://github.com/HKUDS/DeepTutor/blob/main/LICENSE
+            - link "arXiv" [ref=e184] [cursor=pointer]:
+              - /url: https://arxiv.org/abs/2604.26962
+      - generic [ref=e186]:
+        - generic [ref=e187]:
+          - text: © 2026
+          - link "港大数据智能实验室" [ref=e188] [cursor=pointer]:
+            - /url: https://github.com/HKUDS
+        - generic [ref=e189]: 基于 Apache 2.0 协议发布

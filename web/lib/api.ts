@@ -7,7 +7,7 @@
 // broken URL and the Settings page would render blank with no clue why.
 // Treating the placeholder as "not configured" surfaces the failure mode
 // instead of letting fetches die quietly.
-const API_BASE_PLACEHOLDER = "__NEXT_PUBLIC_API_BASE_PLACEHOLDER__";
+const API_BASE_PLACEHOLDER_TOKEN = "NEXT_PUBLIC_API_BASE_PLACEHOLDER";
 
 // Get API base URL injected by the launcher from data/user/settings/system.json.
 // We deliberately do NOT throw at module-load time: the Docker build embeds the
@@ -16,11 +16,16 @@ const API_BASE_PLACEHOLDER = "__NEXT_PUBLIC_API_BASE_PLACEHOLDER__";
 // still surfaces missing/placeholder values on the first actual call.
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
+export function isApiBasePlaceholder(value: string): boolean {
+  return value.includes(API_BASE_PLACEHOLDER_TOKEN);
+}
+
 function assertApiBaseConfigured(value: string): string {
-  if (!value || value === API_BASE_PLACEHOLDER) {
+  const isPlaceholder = isApiBasePlaceholder(value);
+  if (!value || isPlaceholder) {
     if (typeof window !== "undefined") {
       console.error(
-        value === API_BASE_PLACEHOLDER
+        isPlaceholder
           ? "NEXT_PUBLIC_API_BASE placeholder was not substituted at startup."
           : "NEXT_PUBLIC_API_BASE is not set.",
       );

@@ -32,27 +32,33 @@ deep research distinct — are preserved.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable
+from dataclasses import dataclass
 import html
 import logging
 import re
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 from typing import Any
 
+from deeptutor.agents._shared.tool_composition import (
+    ToolMountFlags,
+    compose_enabled_tools,
+    default_optional_tools,
+    user_has_memory,
+    user_has_notebooks,
+)
 from deeptutor.agents.research.data_structures import (
     DynamicTopicQueue,
+    ToolTrace,
     TopicBlock,
     TopicStatus,
-    ToolTrace,
 )
 from deeptutor.agents.research.utils.citation_manager import CitationManager
 from deeptutor.capabilities._shared import emit_capability_result
 from deeptutor.core.agentic import (
     DispatchOutcome,
-    LLMClientConfig,
     LabeledStepResult,
     LabelProtocol,
-    LoopOutcome,
+    LLMClientConfig,
     UsageTracker,
     build_completion_kwargs,
     build_openai_client,
@@ -64,7 +70,6 @@ from deeptutor.core.agentic import (
 )
 from deeptutor.core.agentic.tool_dispatch import (
     MAX_PARALLEL_TOOL_CALLS,
-    execute_tool_call,
 )
 from deeptutor.core.context import Attachment, UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
@@ -73,13 +78,6 @@ from deeptutor.core.trace import (
     derive_trace_metadata,
     merge_trace_metadata,
     new_call_id,
-)
-from deeptutor.agents._shared.tool_composition import (
-    ToolMountFlags,
-    compose_enabled_tools,
-    default_optional_tools,
-    user_has_memory,
-    user_has_notebooks,
 )
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
 from deeptutor.services.config import parse_language
@@ -366,6 +364,7 @@ class ResearchPipeline:
         self.base_url = getattr(self.llm_config, "base_url", None)
         self.api_version = getattr(self.llm_config, "api_version", None)
         self.extra_headers = getattr(self.llm_config, "extra_headers", None) or {}
+        self.reasoning_effort = getattr(self.llm_config, "reasoning_effort", None)
         self.client_config = LLMClientConfig(
             binding=self.binding,
             model=self.model,
@@ -373,6 +372,7 @@ class ResearchPipeline:
             base_url=self.base_url,
             api_version=self.api_version,
             extra_headers=self.extra_headers or None,
+            reasoning_effort=self.reasoning_effort,
         )
 
         self.registry = get_tool_registry()
@@ -1873,6 +1873,8 @@ class ResearchPipeline:
             temperature=self._temperature,
             model=self.model,
             max_tokens=max_tokens,
+            binding=self.binding,
+            reasoning_effort=self.reasoning_effort,
         )
 
     async def _run_labeled_step(

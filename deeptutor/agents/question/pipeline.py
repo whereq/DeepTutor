@@ -25,15 +25,14 @@ to :mod:`deeptutor.core.agentic` and the shared tool-composition policy.
 
 from __future__ import annotations
 
-import json
-import logging
-import re
 from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from enum import StrEnum
+import json
+import logging
+import re
 from typing import Any
 
-from deeptutor.capabilities._shared import emit_capability_result
 from deeptutor.agents._shared.tool_composition import (
     ToolMountFlags,
     compose_enabled_tools,
@@ -41,12 +40,12 @@ from deeptutor.agents._shared.tool_composition import (
     user_has_memory,
     user_has_notebooks,
 )
+from deeptutor.capabilities._shared import emit_capability_result
 from deeptutor.core.agentic import (
     DispatchOutcome,
-    LLMClientConfig,
     LabeledStepResult,
     LabelProtocol,
-    LoopOutcome,
+    LLMClientConfig,
     UsageTracker,
     build_completion_kwargs,
     build_openai_client,
@@ -405,6 +404,7 @@ class QuestionPipeline:
         self.llm_config = get_llm_config()
         self.binding = getattr(self.llm_config, "binding", None) or "openai"
         self.model = getattr(self.llm_config, "model", None)
+        self.reasoning_effort = getattr(self.llm_config, "reasoning_effort", None)
         self.client_config = LLMClientConfig(
             binding=self.binding,
             model=self.model,
@@ -412,6 +412,7 @@ class QuestionPipeline:
             base_url=getattr(self.llm_config, "base_url", None),
             api_version=getattr(self.llm_config, "api_version", None),
             extra_headers=getattr(self.llm_config, "extra_headers", None) or None,
+            reasoning_effort=self.reasoning_effort,
         )
 
         self.registry = get_tool_registry()
@@ -1019,8 +1020,8 @@ class QuestionPipeline:
             ),
         )
 
-        # ``build_completion_kwargs`` only returns temperature + token-limit
-        # kwargs; ``model``/``messages``/``stream`` must be added explicitly
+        # ``build_completion_kwargs`` returns generation/provider kwargs;
+        # ``model``/``messages``/``stream`` must be added explicitly
         # (mirrors how ``run_labeled_step`` composes its create call).
         kwargs: dict[str, Any] = {
             "model": self.model,
@@ -1030,6 +1031,8 @@ class QuestionPipeline:
                 temperature=TOOL_SUMMARIZER_TEMPERATURE,
                 model=self.model,
                 max_tokens=self.tool_summarizer_max_tokens,
+                binding=self.binding,
+                reasoning_effort=self.reasoning_effort,
             ),
         }
         try:
@@ -1634,6 +1637,8 @@ class QuestionPipeline:
             temperature=self._temperature,
             model=self.model,
             max_tokens=max_tokens,
+            binding=self.binding,
+            reasoning_effort=self.reasoning_effort,
         )
 
     async def _run_labeled_step(

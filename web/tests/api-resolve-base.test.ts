@@ -28,6 +28,19 @@ test("resolveBase returns the build-time base in SSR (no window)", async () => {
   assert.equal(resolveBase(), "http://localhost:8001/api");
 });
 
+test("isApiBasePlaceholder detects the unsubstituted Docker placeholder", async () => {
+  const { isApiBasePlaceholder } = await loadApiModule();
+  assert.equal(
+    isApiBasePlaceholder("__NEXT_PUBLIC_API_BASE_PLACEHOLDER__"),
+    true,
+  );
+});
+
+test("isApiBasePlaceholder accepts a substituted API URL", async () => {
+  const { isApiBasePlaceholder } = await loadApiModule();
+  assert.equal(isApiBasePlaceholder("http://localhost:3781"), false);
+});
+
 test("resolveBase returns base unchanged when client is also on localhost", async () => {
   const { resolveBase } = await loadApiModule();
   setWindow("localhost");

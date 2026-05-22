@@ -4,6 +4,10 @@
 
 # DeepTutor: Agent-Native Personalized Tutoring
 
+<p align="center">
+  <a href="https://deeptutor.info" target="_blank"><img alt="Live at deeptutor.info" src="https://img.shields.io/badge/%E2%9C%A8%20Live%20at-deeptutor.info-6366F1?style=for-the-badge&labelColor=0F172A" height="40"></a>
+</p>
+
 <a href="https://trendshift.io/repositories/17099" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17099" alt="HKUDS%2FDeepTutor | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 <p align="center">
@@ -36,9 +40,7 @@
 
 ---
 
-> 🤝 **We welcome any kinds of contributing!** See our [Contributing Guide](CONTRIBUTING.md) for branching strategy, coding standards, and how to get started.
->
-> 🗺️ **Roadmap** is tracked in the open at [`HKUDS/DeepTutor#498`](https://github.com/HKUDS/DeepTutor/issues/498) — comment there to vote on items or propose new ones.
+> 🤝 **We welcome any kinds of contributing!** Vote on roadmap items or propose new ones at [`Roadmap`](https://github.com/HKUDS/DeepTutor/issues/498), and see our [Contributing Guide](CONTRIBUTING.md) for branching strategy, coding standards, and how to get started.
 
 ### 📦 Releases
 
@@ -118,6 +120,8 @@
 </details>
 
 ### 📰 News
+
+> **[2026.5.22]** 🌐 Our official docs site is live at [**deeptutor.info**](https://deeptutor.info/) — guides, references, and capability tours all in one place.
 
 > **[2026.4.19]** 🎉 We've reached 20k stars after 111 days! Thank you for the incredible support — we're committed to continuous iteration toward truly personalized, intelligent tutoring for everyone.
 

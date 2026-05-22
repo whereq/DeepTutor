@@ -318,6 +318,7 @@ class AgenticChatPipeline:
         self.base_url = getattr(self.llm_config, "base_url", None)
         self.api_version = getattr(self.llm_config, "api_version", None)
         self.extra_headers = getattr(self.llm_config, "extra_headers", None) or {}
+        self.reasoning_effort = getattr(self.llm_config, "reasoning_effort", None)
         self.registry = get_tool_registry()
         self._usage = UsageTracker(model=self.model)
 
@@ -363,6 +364,7 @@ class AgenticChatPipeline:
             base_url=self.base_url,
             api_version=self.api_version,
             extra_headers=self.extra_headers or None,
+            reasoning_effort=self.reasoning_effort,
         )
 
     # ------------------------------------------------------------------
@@ -1619,6 +1621,8 @@ class AgenticChatPipeline:
             temperature=self._chat_temperature,
             model=self.model,
             max_tokens=max_tokens,
+            binding=self.binding,
+            reasoning_effort=self.reasoning_effort,
         )
 
     def _can_use_native_tool_calling(self) -> bool:

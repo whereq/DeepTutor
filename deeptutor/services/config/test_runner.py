@@ -252,6 +252,13 @@ class ConfigTestRunner:
         run.emit("response", "Received LLM response.", snippet=snippet[:400])
         if not snippet:
             raise ValueError("LLM returned an empty response.")
+        run.emit(
+            "info",
+            (
+                "Basic LLM completion succeeded. Chat additionally validates "
+                "streaming and provider tool compatibility at runtime."
+            ),
+        )
 
         run.emit("info", "Detecting model context window.")
         detection = await detect_context_window(
