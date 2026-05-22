@@ -12,8 +12,8 @@ from typing import Any
 import pytest
 
 from deeptutor.tools.github_query import (
-    GithubOutcome,
     MAX_OUTPUT_CHARS,
+    GithubOutcome,
     run_github_query,
 )
 
@@ -105,8 +105,16 @@ async def test_pr_argv_is_view_only() -> None:
         gh_available=lambda: True,
         command_runner=_runner(stdout='{"title":"x"}', record=record),
     )
-    assert record == [["gh", "pr", "view", "owner/repo#42", "--json",
-        "title,state,statusCheckRollup,reviews,url,author,createdAt,body"]]
+    assert record == [
+        [
+            "gh",
+            "pr",
+            "view",
+            "owner/repo#42",
+            "--json",
+            "title,state,statusCheckRollup,reviews,url,author,createdAt,body",
+        ]
+    ]
 
 
 @pytest.mark.asyncio
@@ -128,7 +136,7 @@ async def test_run_argv_uses_list_subcommand() -> None:
         query_type="run",
         target="owner/repo",
         gh_available=lambda: True,
-        command_runner=_runner(stdout='[]', record=record),
+        command_runner=_runner(stdout="[]", record=record),
     )
     assert record[0][:5] == ["gh", "run", "list", "--repo", "owner/repo"]
 
@@ -142,7 +150,7 @@ async def test_api_argv_does_not_set_method() -> None:
         query_type="api",
         target="repos/owner/repo/issues",
         gh_available=lambda: True,
-        command_runner=_runner(stdout='[]', record=record),
+        command_runner=_runner(stdout="[]", record=record),
     )
     assert "--method" not in record[0]
     assert "-X" not in record[0]

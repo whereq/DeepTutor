@@ -93,9 +93,7 @@ def _build_judge_user_prompt(
                 if image_count > 1
                 else "学习者另附了一张图片作为作答内容"
             )
-            parts.append(
-                f"{count_text}，请结合图片中的文字/公式/草图一并判定。"
-            )
+            parts.append(f"{count_text}，请结合图片中的文字/公式/草图一并判定。")
         parts.append("请针对该学习者的具体作答给出 AI 评判。")
     else:
         parts = [
@@ -337,9 +335,7 @@ async def websocket_quiz_judge(websocket: WebSocket):
     has_image = bool(image_records)
 
     options_value = data.get("options") if isinstance(data.get("options"), dict) else None
-    system_prompt = _JUDGE_SYSTEM_PROMPTS.get(
-        requested_language, _JUDGE_SYSTEM_PROMPTS["en"]
-    )
+    system_prompt = _JUDGE_SYSTEM_PROMPTS.get(requested_language, _JUDGE_SYSTEM_PROMPTS["en"])
     user_prompt = _build_judge_user_prompt(
         language=requested_language,
         question=question_text,
@@ -356,9 +352,7 @@ async def websocket_quiz_judge(websocket: WebSocket):
         await safe_send(
             {
                 "type": "error",
-                "content": (
-                    "No answer to judge — submit a typed answer or attach an image."
-                ),
+                "content": ("No answer to judge — submit a typed answer or attach an image."),
             }
         )
         try:

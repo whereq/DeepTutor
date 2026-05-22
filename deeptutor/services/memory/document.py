@@ -89,9 +89,9 @@ class Document:
         for section, entries in self.sections:
             if section == name:
                 return entries
-        entries: list[Entry] = []
-        self.sections.append((name, entries))
-        return entries
+        new_entries: list[Entry] = []
+        self.sections.append((name, new_entries))
+        return new_entries
 
     def remove(self, entry_id: str) -> bool:
         for _, entries in self.sections:
@@ -214,9 +214,7 @@ def serialize(doc: Document) -> str:
             # ``, ``-separate markers so the rendered superscripts read
             # "¹, ²" not "¹²" — important when the same bullet cites two
             # different sources.
-            markers = ", ".join(
-                f"[^{ref_to_label[r]}]" for r in entry.refs if r in ref_to_label
-            )
+            markers = ", ".join(f"[^{ref_to_label[r]}]" for r in entry.refs if r in ref_to_label)
             text = entry.text.rstrip()
             if markers:
                 lines.append(f"- {text} {markers} <!--{entry.id}-->")

@@ -187,9 +187,7 @@ def test_append_refuses_empty_history_without_content() -> None:
 
 
 def test_append_surfaces_manager_errors_as_outcome() -> None:
-    manager = _FakeManager(
-        notebooks=[{"id": "nb-1", "name": "N"}], raise_on_add=True
-    )
+    manager = _FakeManager(notebooks=[{"id": "nb-1", "name": "N"}], raise_on_add=True)
     outcome = write_note(
         mode="append",
         notebook_id="nb-1",

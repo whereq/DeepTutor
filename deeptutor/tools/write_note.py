@@ -23,8 +23,8 @@ wires in the live values via ``_augment_tool_kwargs``.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
+import logging
 from typing import Any, Iterable
 
 logger = logging.getLogger(__name__)
@@ -110,16 +110,11 @@ def write_note(
         None,
     )
     if matched is None:
-        valid_ids = ", ".join(
-            f"`{nb.get('id')}`" for nb in notebooks if nb.get("id")
-        )
+        valid_ids = ", ".join(f"`{nb.get('id')}`" for nb in notebooks if nb.get("id"))
         return WriteOutcome(
             ok=False,
             mode=cleaned_mode,
-            error=(
-                f"Unknown notebook_id {nid!r}. "
-                f"Valid ids: {valid_ids or '(none)'}."
-            ),
+            error=(f"Unknown notebook_id {nid!r}. Valid ids: {valid_ids or '(none)'}."),
         )
 
     notebook_name = str(matched.get("name") or matched.get("title") or nid)
@@ -212,15 +207,11 @@ def _do_append(
     body_parts.append(transcript)
     cleaned_content = "\n\n---\n\n".join(body_parts).strip()
     if len(cleaned_content) > MAX_CONTENT_CHARS:
-        cleaned_content = (
-            cleaned_content[:MAX_CONTENT_CHARS].rstrip() + "\n…[truncated]"
-        )
+        cleaned_content = cleaned_content[:MAX_CONTENT_CHARS].rstrip() + "\n…[truncated]"
 
     from deeptutor.services.notebook.service import RecordType
 
-    user_query_for_record = current_user_message or _last_user_message(
-        conversation_history
-    )
+    user_query_for_record = current_user_message or _last_user_message(conversation_history)
 
     try:
         outcome = manager.add_record(
@@ -321,9 +312,7 @@ def _do_edit(
         cleaned_title = cleaned_title[:MAX_TITLE_CHARS].rstrip() + "…"
     cleaned_content = (content or "").strip()
     if cleaned_content and len(cleaned_content) > MAX_CONTENT_CHARS:
-        cleaned_content = (
-            cleaned_content[:MAX_CONTENT_CHARS].rstrip() + "\n…[truncated]"
-        )
+        cleaned_content = cleaned_content[:MAX_CONTENT_CHARS].rstrip() + "\n…[truncated]"
     cleaned_note = (note or "").strip()
     if cleaned_note and len(cleaned_note) > MAX_NOTE_CHARS:
         cleaned_note = cleaned_note[:MAX_NOTE_CHARS].rstrip() + "…"
@@ -334,10 +323,7 @@ def _do_edit(
             mode="edit",
             notebook_id=notebook_id,
             notebook_name=notebook_name,
-            error=(
-                "edit mode requires at least one of `title`, `content`, "
-                "or `note` to change."
-            ),
+            error=("edit mode requires at least one of `title`, `content`, or `note` to change."),
         )
 
     update_kwargs: dict[str, Any] = {}

@@ -14,7 +14,6 @@ from deeptutor.tools.ask_user import (
     build_ask_user_payload,
 )
 
-
 # ----------------------------- legacy shape -----------------------------
 
 
@@ -162,9 +161,7 @@ def test_v2_rejects_non_array_questions() -> None:
 
 def test_v2_accepts_question_alias_for_prompt() -> None:
     """LLMs sometimes use ``question`` instead of ``prompt`` inside a v2 item."""
-    payload, err = build_ask_user_payload(
-        questions=[{"question": "what?", "options": ["a", "b"]}]
-    )
+    payload, err = build_ask_user_payload(questions=[{"question": "what?", "options": ["a", "b"]}])
     assert err is None
     assert payload is not None
     assert payload.questions[0].prompt == "what?"
@@ -186,9 +183,7 @@ def test_v2_allow_free_text_can_be_disabled() -> None:
 
 
 def test_v2_placeholder_stored() -> None:
-    payload, _ = build_ask_user_payload(
-        questions=[{"prompt": "x", "placeholder": "type here"}]
-    )
+    payload, _ = build_ask_user_payload(questions=[{"prompt": "x", "placeholder": "type here"}])
     assert payload is not None
     assert payload.questions[0].placeholder == "type here"
 

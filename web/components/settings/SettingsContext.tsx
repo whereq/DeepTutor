@@ -458,13 +458,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // Only surface this when settings itself loaded; otherwise the
       // settings-fetch error already explains the disconnect.
       if (settingsLoaded) {
-        setSettingsError((current) =>
-          current ??
-          (err instanceof Error
-            ? t("System status unavailable: {{message}}", {
-                message: err.message,
-              })
-            : t("System status unavailable.")),
+        setSettingsError(
+          (current) =>
+            current ??
+            (err instanceof Error
+              ? t("System status unavailable: {{message}}", {
+                  message: err.message,
+                })
+              : t("System status unavailable.")),
         );
       }
     }
@@ -519,16 +520,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
 
   // ── Catalog mutators ────────────────────────────────────────────────────
-  const mutateCatalog = useCallback(
-    (mutator: (next: Catalog) => void) => {
-      setDraft((current) => {
-        const next = cloneCatalog(current);
-        mutator(next);
-        return next;
-      });
-    },
-    [],
-  );
+  const mutateCatalog = useCallback((mutator: (next: Catalog) => void) => {
+    setDraft((current) => {
+      const next = cloneCatalog(current);
+      mutator(next);
+      return next;
+    });
+  }, []);
 
   const embeddingDefaultDim = useCallback(
     (binding?: string) => {
@@ -547,10 +545,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         const profileId = `${service}-profile-${Date.now()}`;
         const defaultBinding = service === "search" ? undefined : "openai";
         const defaultProvider = service === "search" ? "brave" : undefined;
-        const providerKey = service === "search" ? defaultProvider : defaultBinding;
+        const providerKey =
+          service === "search" ? defaultProvider : defaultBinding;
         const providerLabel =
           (providers[service] || []).find((p) => p.value === providerKey)
-            ?.label ?? providerKey ?? "New Profile";
+            ?.label ??
+          providerKey ??
+          "New Profile";
         const profile: CatalogProfile = {
           id: profileId,
           name: providerLabel,
@@ -799,7 +800,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
       return null;
     });
-  }, [draft.services.llm.active_profile_id, draft.services.llm.active_model_id]);
+  }, [
+    draft.services.llm.active_profile_id,
+    draft.services.llm.active_model_id,
+  ]);
 
   const runDetailedTest = useCallback(
     async (service: ServiceName) => {
@@ -813,7 +817,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const runProfileId =
         service === "llm" ? draft.services.llm.active_profile_id : null;
       const runModelId =
-        service === "llm" ? draft.services.llm.active_model_id ?? null : null;
+        service === "llm" ? (draft.services.llm.active_model_id ?? null) : null;
       if (service === "llm") setLlmContextDetection(null);
       if (service === "embedding") setEmbeddingCapabilities(null);
       try {

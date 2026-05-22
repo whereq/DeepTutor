@@ -12,7 +12,6 @@ from deeptutor.tools.web_fetch import (
     fetch_url_as_markdown,
 )
 
-
 # ---------------------------------------------------------------------------
 # Host validation
 # ---------------------------------------------------------------------------
@@ -21,8 +20,14 @@ from deeptutor.tools.web_fetch import (
 @pytest.mark.parametrize(
     "host",
     [
-        "127.0.0.1", "localhost", "10.0.0.1", "192.168.1.1",
-        "169.254.1.1", "::1", "[::1]", "metadata.local",
+        "127.0.0.1",
+        "localhost",
+        "10.0.0.1",
+        "192.168.1.1",
+        "169.254.1.1",
+        "::1",
+        "[::1]",
+        "metadata.local",
     ],
 )
 def test_is_disallowed_host_blocks_private_addresses(host: str) -> None:
@@ -171,9 +176,7 @@ async def test_fetch_truncates_at_max_chars() -> None:
 async def test_fetch_propagates_http_error_as_outcome_not_exception() -> None:
     outcome = await fetch_url_as_markdown(
         "https://example.com/missing",
-        client_factory=_factory_returning(
-            _StubResponse(status=404, body=b"<p>missing</p>")
-        ),
+        client_factory=_factory_returning(_StubResponse(status=404, body=b"<p>missing</p>")),
         host_validator=_ALLOW_ALL,
     )
     assert outcome.ok is False

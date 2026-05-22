@@ -570,9 +570,7 @@ class TurnRuntimeManager:
             # not falsely fail a turn that is still owned by this process.
             return execution.task is None or not execution.task.done()
 
-    async def _fail_orphan_running_turn(
-        self, turn: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
+    async def _fail_orphan_running_turn(self, turn: dict[str, Any] | None) -> dict[str, Any] | None:
         """Finalize a persisted running turn that has no local execution.
 
         Running turns are process-local: after a server/container restart the
@@ -1011,9 +1009,7 @@ class TurnRuntimeManager:
         }
 
     @staticmethod
-    def _synthesize_error_event(
-        turn_id: str, turn: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
+    def _synthesize_error_event(turn_id: str, turn: dict[str, Any] | None) -> dict[str, Any] | None:
         """Build a terminal ERROR event from a failed persisted turn."""
         error = str((turn or {}).get("error") or "").strip()
         if not error:

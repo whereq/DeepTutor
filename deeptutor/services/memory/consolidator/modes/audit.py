@@ -93,7 +93,9 @@ async def run_audit(
         try:
             _config, token = activate_llm_selection(llm_selection)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("memory audit: ignoring unresolvable llm_selection %s: %s", llm_selection, exc)
+            logger.warning(
+                "memory audit: ignoring unresolvable llm_selection %s: %s", llm_selection, exc
+            )
             token = None
     try:
         if layer == "L2":

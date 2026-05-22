@@ -172,7 +172,10 @@ export interface QuizFollowupController {
     questionKey: string,
     reply:
       | string
-      | { text?: string; answers?: Array<{ questionId: string; text: string }> },
+      | {
+          text?: string;
+          answers?: Array<{ questionId: string; text: string }>;
+        },
   ): void;
   /** Tab open helper — forwards to whoever registered an open handler. */
   openFollowupTab(context: QuizFollowupTabContext): void;
@@ -200,9 +203,9 @@ const QuizFollowupCtx = createContext<QuizFollowupController | null>(null);
 // Public access to the threads state for components that want to react to
 // thread updates without keeping their own snapshot. Updating the inner
 // state triggers re-renders of subscribers via React's normal mechanism.
-const QuizFollowupStateCtx = createContext<
-  Record<string, FollowupThreadState>
->({});
+const QuizFollowupStateCtx = createContext<Record<string, FollowupThreadState>>(
+  {},
+);
 
 interface ProviderProps {
   children: ReactNode;
@@ -323,7 +326,11 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
           };
         }
         last = messages[messages.length - 1];
-        if (last && last.role === "assistant" && shouldAppendEventContent(event)) {
+        if (
+          last &&
+          last.role === "assistant" &&
+          shouldAppendEventContent(event)
+        ) {
           messages[messages.length - 1] = {
             ...last,
             content: `${last.content}${event.content}`,
@@ -434,7 +441,10 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
       key: string,
       reply:
         | string
-        | { text?: string; answers?: Array<{ questionId: string; text: string }> },
+        | {
+            text?: string;
+            answers?: Array<{ questionId: string; text: string }>;
+          },
     ) => {
       const current = threadsRef.current[key];
       const turnId = current?.activeTurnId;
@@ -478,11 +488,7 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
   }, []);
 
   const hydrateThread = useCallback(
-    (
-      key: string,
-      sessionId: string,
-      messages: HydratedFollowupMessage[],
-    ) => {
+    (key: string, sessionId: string, messages: HydratedFollowupMessage[]) => {
       // Skip when the thread already holds local state — we never
       // overwrite an active conversation with a stale snapshot. The
       // ``sessionId`` check covers the case where the in-memory thread

@@ -547,9 +547,7 @@ async def run_labeled_step(
                     reasoning_text,
                     source=source,
                     stage=stage,
-                    metadata=merge_trace_metadata(
-                        iter_meta, {"trace_kind": "llm_chunk"}
-                    ),
+                    metadata=merge_trace_metadata(iter_meta, {"trace_kind": "llm_chunk"}),
                 )
 
             if delta.content:
@@ -659,9 +657,7 @@ async def run_labeled_step(
     # cleanup so downstream consumers (assistant messages, final-response
     # text) aren't polluted with the prelude markers.
     implicit_think_resolved = bool(
-        saw_pre_label_think
-        and implicit_think_label
-        and label == implicit_think_label
+        saw_pre_label_think and implicit_think_label and label == implicit_think_label
     )
     if (binding or saw_pre_label_think) and not implicit_think_resolved:
         text = clean_thinking_tags(text, binding, model)

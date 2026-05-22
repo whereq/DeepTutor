@@ -22,14 +22,29 @@ def _doc_with_three_entries() -> tuple[Document, list[str]]:
             (
                 "Themes",
                 [
-                    Entry(id=ids[0], section="Themes", text="uses spaced repetition", refs=["notebook:r1"]),
-                    Entry(id=ids[1], section="Themes", text="prefers Anki over Quizlet", refs=["notebook:r2"]),
+                    Entry(
+                        id=ids[0],
+                        section="Themes",
+                        text="uses spaced repetition",
+                        refs=["notebook:r1"],
+                    ),
+                    Entry(
+                        id=ids[1],
+                        section="Themes",
+                        text="prefers Anki over Quizlet",
+                        refs=["notebook:r2"],
+                    ),
                 ],
             ),
             (
                 "Open questions",
                 [
-                    Entry(id=ids[2], section="Open questions", text="ε-δ geometric meaning", refs=["notebook:r3"]),
+                    Entry(
+                        id=ids[2],
+                        section="Open questions",
+                        text="ε-δ geometric meaning",
+                        refs=["notebook:r3"],
+                    ),
                 ],
             ),
         ],

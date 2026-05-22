@@ -14,9 +14,9 @@ from unittest.mock import patch
 import pytest
 
 from deeptutor.services.memory import paths as paths_mod
-from deeptutor.services.memory.consolidator.modes import update as update_mod
 from deeptutor.services.memory.consolidator.modes import audit as audit_mod
 from deeptutor.services.memory.consolidator.modes import dedup as dedup_mod
+from deeptutor.services.memory.consolidator.modes import update as update_mod
 from deeptutor.services.memory.document import Document, Entry, parse, serialize
 from deeptutor.services.memory.ids import new_entry_id
 from deeptutor.services.memory.snapshot.entity import Entity
@@ -63,9 +63,16 @@ async def test_update_l2_appends_facts_from_chunk(memory_dir, monkeypatch):
         return '{"facts": []}'
 
     # Force a tiny chunker so each entity ends up in its own chunk.
-    with patch("deeptutor.services.memory.consolidator.modes.update.call_llm", side_effect=fake_llm), \
-         patch.object(update_mod, "load_memory_settings") as mock_settings:
-        from deeptutor.services.memory.settings import MemorySettings, ChunkingSettings, DedupSettings
+    with (
+        patch("deeptutor.services.memory.consolidator.modes.update.call_llm", side_effect=fake_llm),
+        patch.object(update_mod, "load_memory_settings") as mock_settings,
+    ):
+        from deeptutor.services.memory.settings import (
+            ChunkingSettings,
+            DedupSettings,
+            MemorySettings,
+        )
+
         mock_settings.return_value = MemorySettings(
             chunking=ChunkingSettings(min_chunk_chars=200, max_chunk_chars=400, overlap_ratio=0.0),
             dedup=DedupSettings(auto_after_update=False),
@@ -91,9 +98,15 @@ async def test_update_l2_idempotent_when_no_new_entities(memory_dir, monkeypatch
     async def llm_returns_one(*, system_prompt, user_prompt, **kwargs):
         return '{"facts": [{"text": "uses Anki", "section": "Topics", "refs": ["chat:01ABC"]}]}'
 
-    with patch("deeptutor.services.memory.consolidator.modes.update.call_llm", side_effect=llm_returns_one), \
-         patch.object(update_mod, "load_memory_settings") as mock_settings:
-        from deeptutor.services.memory.settings import MemorySettings, DedupSettings
+    with (
+        patch(
+            "deeptutor.services.memory.consolidator.modes.update.call_llm",
+            side_effect=llm_returns_one,
+        ),
+        patch.object(update_mod, "load_memory_settings") as mock_settings,
+    ):
+        from deeptutor.services.memory.settings import DedupSettings, MemorySettings
+
         mock_settings.return_value = MemorySettings(dedup=DedupSettings(auto_after_update=False))
         first = await update_mod.run_update("L2", "chat", language="en")
     assert first.facts_added >= 0
@@ -106,9 +119,15 @@ async def test_update_l2_idempotent_when_no_new_entities(memory_dir, monkeypatch
         llm_called.append(1)
         return '{"facts": []}'
 
-    with patch("deeptutor.services.memory.consolidator.modes.update.call_llm", side_effect=llm_should_not_run), \
-         patch.object(update_mod, "load_memory_settings") as mock_settings:
-        from deeptutor.services.memory.settings import MemorySettings, DedupSettings
+    with (
+        patch(
+            "deeptutor.services.memory.consolidator.modes.update.call_llm",
+            side_effect=llm_should_not_run,
+        ),
+        patch.object(update_mod, "load_memory_settings") as mock_settings,
+    ):
+        from deeptutor.services.memory.settings import DedupSettings, MemorySettings
+
         mock_settings.return_value = MemorySettings(dedup=DedupSettings(auto_after_update=False))
         second = await update_mod.run_update("L2", "chat", language="en")
     assert second.no_new_input is True
@@ -125,11 +144,20 @@ async def test_update_l2_drops_facts_with_out_of_pool_refs(memory_dir, monkeypat
 
     async def fake_llm(*, system_prompt, user_prompt, **kwargs):
         # Return one fact with a ref not in the chunk pool.
-        return '{"facts": [{"text": "uses Anki", "section": "Topics", "refs": ["chat:NOT_IN_CHUNK"]}]}'
+        return (
+            '{"facts": [{"text": "uses Anki", "section": "Topics", "refs": ["chat:NOT_IN_CHUNK"]}]}'
+        )
 
-    with patch("deeptutor.services.memory.consolidator.modes.update.call_llm", side_effect=fake_llm), \
-         patch.object(update_mod, "load_memory_settings") as mock_settings:
-        from deeptutor.services.memory.settings import MemorySettings, DedupSettings, ReferenceSettings
+    with (
+        patch("deeptutor.services.memory.consolidator.modes.update.call_llm", side_effect=fake_llm),
+        patch.object(update_mod, "load_memory_settings") as mock_settings,
+    ):
+        from deeptutor.services.memory.settings import (
+            DedupSettings,
+            MemorySettings,
+            ReferenceSettings,
+        )
+
         mock_settings.return_value = MemorySettings(
             dedup=DedupSettings(auto_after_update=False),
             reference=ReferenceSettings(enforce_required=True, drop_invalid_refs=True),
@@ -150,7 +178,9 @@ async def test_audit_l2_applies_replace_edit(memory_dir, monkeypatch):
     ids = [new_entry_id()]
     doc = Document(
         title="chat memory",
-        sections=[("Topics", [Entry(id=ids[0], section="Topics", text="claims X", refs=["chat:01ABC"])])],
+        sections=[
+            ("Topics", [Entry(id=ids[0], section="Topics", text="claims X", refs=["chat:01ABC"])])
+        ],
     )
     path = memory_dir / "L2" / "chat.md"
     path.write_text(serialize(doc), encoding="utf-8")
@@ -210,10 +240,15 @@ async def test_dedup_early_stop_when_no_edits(memory_dir, monkeypatch):
         llm_calls.append(1)
         return '{"edits": []}'
 
-    with patch("deeptutor.services.memory.consolidator.modes.dedup.call_llm", side_effect=fake_llm), \
-         patch.object(dedup_mod, "load_memory_settings") as mock_settings:
-        from deeptutor.services.memory.settings import MemorySettings, DedupSettings
-        mock_settings.return_value = MemorySettings(dedup=DedupSettings(iterations=5, auto_after_update=False))
+    with (
+        patch("deeptutor.services.memory.consolidator.modes.dedup.call_llm", side_effect=fake_llm),
+        patch.object(dedup_mod, "load_memory_settings") as mock_settings,
+    ):
+        from deeptutor.services.memory.settings import DedupSettings, MemorySettings
+
+        mock_settings.return_value = MemorySettings(
+            dedup=DedupSettings(iterations=5, auto_after_update=False)
+        )
         result = await dedup_mod.run_dedup("L2", "chat", language="en")
 
     assert result.converged_early is True
@@ -264,10 +299,15 @@ async def test_dedup_applies_delete_then_stops(memory_dir, monkeypatch):
             )
         return '{"edits": []}'
 
-    with patch("deeptutor.services.memory.consolidator.modes.dedup.call_llm", side_effect=fake_llm), \
-         patch.object(dedup_mod, "load_memory_settings") as mock_settings:
-        from deeptutor.services.memory.settings import MemorySettings, DedupSettings
-        mock_settings.return_value = MemorySettings(dedup=DedupSettings(iterations=3, auto_after_update=False))
+    with (
+        patch("deeptutor.services.memory.consolidator.modes.dedup.call_llm", side_effect=fake_llm),
+        patch.object(dedup_mod, "load_memory_settings") as mock_settings,
+    ):
+        from deeptutor.services.memory.settings import DedupSettings, MemorySettings
+
+        mock_settings.return_value = MemorySettings(
+            dedup=DedupSettings(iterations=3, auto_after_update=False)
+        )
         result = await dedup_mod.run_dedup("L2", "chat", language="en")
 
     assert result.edits_applied >= 1

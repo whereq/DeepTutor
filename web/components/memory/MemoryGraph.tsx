@@ -159,18 +159,15 @@ export default function MemoryGraph() {
     [view],
   );
 
-  const onPointerMove = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {
-      const d = dragRef.current;
-      if (!d || d.pointerId !== e.pointerId) return;
-      setView((v) => ({
-        ...v,
-        tx: d.origTx + (e.clientX - d.startX),
-        ty: d.origTy + (e.clientY - d.startY),
-      }));
-    },
-    [],
-  );
+  const onPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    setView((v) => ({
+      ...v,
+      tx: d.origTx + (e.clientX - d.startX),
+      ty: d.origTy + (e.clientY - d.startY),
+    }));
+  }, []);
 
   const endDrag = useCallback(() => {
     dragRef.current = null;
@@ -320,7 +317,9 @@ function Header({
         className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition hover:bg-[var(--muted)] disabled:opacity-50"
         disabled={loading}
       >
-        <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+        <RefreshCw
+          className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"}
+        />
         {t("Refresh")}
       </button>
     </div>
@@ -398,13 +397,15 @@ function GraphView({
         </radialGradient>
         <radialGradient id="halo-l1" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="var(--foreground)" stopOpacity="0.08" />
-          <stop offset="100%" stopColor="var(--foreground)" stopOpacity="0.01" />
+          <stop
+            offset="100%"
+            stopColor="var(--foreground)"
+            stopOpacity="0.01"
+          />
         </radialGradient>
       </defs>
 
-      <g
-        transform={`translate(${view.tx} ${view.ty}) scale(${view.scale})`}
-      >
+      <g transform={`translate(${view.tx} ${view.ty}) scale(${view.scale})`}>
         {/* Concentric ring guides (faint). */}
         <g pointerEvents="none">
           {(["L1", "L2", "L3"] as const).map((layer) => {
@@ -583,7 +584,8 @@ function GraphView({
             const t2 = nodeIdx.get(e.target);
             if (!s || !t2) return null;
             const dim =
-              highlight !== null && !highlight.has(e.source) &&
+              highlight !== null &&
+              !highlight.has(e.source) &&
               !highlight.has(e.target);
             const focused =
               highlight !== null &&
@@ -968,12 +970,16 @@ function nodeMeta(
   if (n.layer === "L2") {
     return {
       layerLabel: t("L2 · curated"),
-      clusterLabel: t(SURFACE_LABEL[cluster as keyof typeof SURFACE_LABEL] || cluster),
+      clusterLabel: t(
+        SURFACE_LABEL[cluster as keyof typeof SURFACE_LABEL] || cluster,
+      ),
     };
   }
   return {
     layerLabel: t("L1 · raw trace"),
-    clusterLabel: t(SURFACE_LABEL[cluster as keyof typeof SURFACE_LABEL] || cluster),
+    clusterLabel: t(
+      SURFACE_LABEL[cluster as keyof typeof SURFACE_LABEL] || cluster,
+    ),
   };
 }
 

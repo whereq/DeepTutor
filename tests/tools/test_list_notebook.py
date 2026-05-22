@@ -86,9 +86,7 @@ def test_drilldown_rejects_unknown_notebook_id() -> None:
     manager = _FakeManager(
         notebooks=[{"id": "nb-1", "name": "Math"}],
     )
-    outcome = list_notebooks_or_records(
-        notebook_id="bogus", notebook_manager=manager
-    )
+    outcome = list_notebooks_or_records(notebook_id="bogus", notebook_manager=manager)
     assert outcome.ok is False
     assert "Unknown notebook_id" in outcome.error
     assert "`nb-1`" in outcome.error  # tells the LLM the right id to use

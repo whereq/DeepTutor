@@ -46,18 +46,14 @@ def build_question_runtime_config(
     everything else in ``base_config`` is currently ignored by question.
     """
     base = base_config if isinstance(base_config, dict) else {}
-    capabilities = (
-        base.get("capabilities") if isinstance(base.get("capabilities"), dict) else {}
-    )
+    capabilities = base.get("capabilities") if isinstance(base.get("capabilities"), dict) else {}
     question_root = (
         capabilities.get("deep_question")
         if isinstance(capabilities.get("deep_question"), dict)
         else {}
     )
     exploring_root = (
-        question_root.get("exploring")
-        if isinstance(question_root.get("exploring"), dict)
-        else {}
+        question_root.get("exploring") if isinstance(question_root.get("exploring"), dict) else {}
     )
     summarizer_root = (
         exploring_root.get("tool_summarizer")

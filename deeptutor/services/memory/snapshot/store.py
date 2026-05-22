@@ -14,9 +14,9 @@ line-by-line, which is naturally atomic on POSIX filesystems.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 import json
 import os
-from dataclasses import asdict
 from pathlib import Path
 from typing import Iterator
 

@@ -98,7 +98,13 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
     initialisedFor.current = tag;
     close();
     cursorRef.current = 0;
-    setState({ run: null, events: [], status: "idle", error: null, reconnecting: false });
+    setState({
+      run: null,
+      events: [],
+      status: "idle",
+      error: null,
+      reconnecting: false,
+    });
 
     void (async () => {
       const persistedId = readPersistedRunId(layer, key);
@@ -112,11 +118,15 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
         }
         if (!runId) {
           const res = await apiFetch(
-            apiUrl(`/api/v1/memory/runs?layer=${layer}&key=${encodeURIComponent(key)}`),
+            apiUrl(
+              `/api/v1/memory/runs?layer=${layer}&key=${encodeURIComponent(key)}`,
+            ),
           );
           if (res.ok) {
             const data = (await res.json()) as { runs: RunHandle[] };
-            const active = data.runs.find((r) => r.status === "running" || r.status === "queued");
+            const active = data.runs.find(
+              (r) => r.status === "running" || r.status === "queued",
+            );
             if (active) {
               runId = active.id;
               writePersistedRunId(layer, key, runId);
@@ -148,7 +158,12 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
           return;
         }
         const run = (await res.json()) as RunHandle;
-        setState((s) => ({ ...s, run, status: run.status, reconnecting: false }));
+        setState((s) => ({
+          ...s,
+          run,
+          status: run.status,
+          reconnecting: false,
+        }));
       } catch {
         return;
       }
@@ -181,15 +196,24 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
             if (line) {
               try {
                 const parsed = JSON.parse(line);
-                const seq = typeof parsed.seq === "number" ? parsed.seq : cursorRef.current;
-                const ts = typeof parsed.ts === "string" ? parsed.ts : new Date().toISOString();
+                const seq =
+                  typeof parsed.seq === "number"
+                    ? parsed.seq
+                    : cursorRef.current;
+                const ts =
+                  typeof parsed.ts === "string"
+                    ? parsed.ts
+                    : new Date().toISOString();
                 const { seq: _s, ts: _t, ...payload } = parsed;
                 cursorRef.current = seq + 1;
                 setState((s) => {
                   const undoDepth =
-                    typeof payload.undo_depth === "number" ? payload.undo_depth : null;
+                    typeof payload.undo_depth === "number"
+                      ? payload.undo_depth
+                      : null;
                   const endedStatus =
-                    payload.stage === "run_ended" && typeof payload.status === "string"
+                    payload.stage === "run_ended" &&
+                    typeof payload.status === "string"
                       ? (payload.status as RunStatus)
                       : null;
                   return {
@@ -204,10 +228,16 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
                       : s.run,
                     events: s.events.some((ev) => ev.seq === seq)
                       ? s.events
-                      : [...s.events, { seq, ts, payload: payload as RunEventPayload }],
+                      : [
+                          ...s.events,
+                          { seq, ts, payload: payload as RunEventPayload },
+                        ],
                   };
                 });
-                if (payload.stage === "run_ended" && typeof payload.status === "string") {
+                if (
+                  payload.stage === "run_ended" &&
+                  typeof payload.status === "string"
+                ) {
                   writePersistedRunId(layer, key, null);
                 }
               } catch {
@@ -248,7 +278,8 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
         if (!res.ok) {
           const detail = await res.text();
           throw new Error(
-            detail || i18n.t("start failed: {{status}}", { status: res.status }),
+            detail ||
+              i18n.t("start failed: {{status}}", { status: res.status }),
           );
         }
         const run = (await res.json()) as RunHandle;
@@ -279,9 +310,12 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
   const undo = useCallback(async (): Promise<boolean> => {
     if (!state.run) return false;
     try {
-      const res = await apiFetch(apiUrl(`/api/v1/memory/runs/${state.run.id}/undo`), {
-        method: "POST",
-      });
+      const res = await apiFetch(
+        apiUrl(`/api/v1/memory/runs/${state.run.id}/undo`),
+        {
+          method: "POST",
+        },
+      );
       if (!res.ok) {
         const detail = await res.text();
         throw new Error(
@@ -325,7 +359,13 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
   }, [state.run]);
 
   const clear = useCallback(() => {
-    setState({ run: null, events: [], status: "idle", error: null, reconnecting: false });
+    setState({
+      run: null,
+      events: [],
+      status: "idle",
+      error: null,
+      reconnecting: false,
+    });
     writePersistedRunId(layer, key, null);
     close();
   }, [layer, key, close]);

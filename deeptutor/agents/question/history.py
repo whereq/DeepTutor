@@ -60,9 +60,7 @@ async def load_session_quiz_history(
             offset=0,
         )
     except Exception:
-        logger.warning(
-            "Failed to load quiz history for session %s", session_id, exc_info=True
-        )
+        logger.warning("Failed to load quiz history for session %s", session_id, exc_info=True)
         return []
 
     items: list[dict[str, Any]] = list(result.get("items") or [])

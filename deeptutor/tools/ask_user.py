@@ -16,7 +16,7 @@ normalised to a single-element list internally.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 MAX_QUESTIONS = 3
@@ -122,9 +122,7 @@ def _coerce_questions(questions: Any, question: Any, options: Any) -> list[Any] 
     return []
 
 
-def _build_question(
-    raw: Any, idx: int, used_ids: set[str]
-) -> AskUserQuestion | str:
+def _build_question(raw: Any, idx: int, used_ids: set[str]) -> AskUserQuestion | str:
     if not isinstance(raw, dict):
         return f"Question #{idx + 1} must be an object."
 

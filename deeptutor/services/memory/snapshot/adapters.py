@@ -12,12 +12,11 @@ across refreshes.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import hashlib
 import json
 import logging
 import sqlite3
-from datetime import datetime, timezone
-from pathlib import Path
 
 from deeptutor.services.memory.paths import Surface
 from deeptutor.services.memory.snapshot.entity import Entity
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def _sha1(*parts: object) -> str:
-    h = hashlib.sha1()
+    h = hashlib.sha1(usedforsecurity=False)
     for part in parts:
         if part is None:
             continue
@@ -210,9 +209,7 @@ def read_book_entities() -> list[Entity]:
                     "knowledge_bases": m.get("knowledge_bases", []),
                     "status": m.get("status", ""),
                 },
-                fingerprint=_sha1(
-                    title, description, m.get("updated_at"), len(page_titles)
-                ),
+                fingerprint=_sha1(title, description, m.get("updated_at"), len(page_titles)),
             )
         )
     return out
@@ -276,11 +273,7 @@ def read_kb_entities() -> list[Entity]:
             kb_data = {}
         description = kb_data.get("description", "") or ""
         versions = kb_data.get("index_versions") or []
-        sigs = sorted(
-            v.get("signature", "")
-            for v in versions
-            if isinstance(v, dict)
-        )
+        sigs = sorted(v.get("signature", "") for v in versions if isinstance(v, dict))
         earliest_created = min(
             (
                 v.get("created_at", "")
@@ -326,8 +319,7 @@ def read_chat_entities() -> list[Entity]:
         with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
             conn.row_factory = sqlite3.Row
             sessions = conn.execute(
-                "SELECT id, title, created_at, updated_at FROM sessions "
-                "ORDER BY updated_at DESC"
+                "SELECT id, title, created_at, updated_at FROM sessions ORDER BY updated_at DESC"
             ).fetchall()
             for sess in sessions:
                 sid = sess["id"]
@@ -414,9 +406,7 @@ def read_quiz_entities() -> list[Entity]:
                             "is_correct": is_correct,
                             "bookmarked": bool(int(r["bookmarked"] or 0)),
                         },
-                        fingerprint=_sha1(
-                            question, user_answer, correct, is_correct
-                        ),
+                        fingerprint=_sha1(question, user_answer, correct, is_correct),
                     )
                 )
     except sqlite3.Error as exc:
@@ -450,4 +440,4 @@ def read_entities(surface: Surface) -> list[Entity]:
         return []
 
 
-SUPPORTED_SURFACES: tuple[Surface, ...] = tuple(_READERS.keys())  # type: ignore[assignment]
+SUPPORTED_SURFACES: tuple[Surface, ...] = tuple(_READERS.keys())  # type: ignore[arg-type,assignment]

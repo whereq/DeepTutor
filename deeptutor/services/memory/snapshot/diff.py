@@ -41,9 +41,7 @@ def diff_snapshots(
             )
         )
     for entity_id in sorted(prev_keys - curr_keys):
-        prior_label = (
-            (prev_label_map or {}).get(entity_id, "") or entity_id
-        )
+        prior_label = (prev_label_map or {}).get(entity_id, "") or entity_id
         out.append(
             ChangeEntry(
                 ts=ts,

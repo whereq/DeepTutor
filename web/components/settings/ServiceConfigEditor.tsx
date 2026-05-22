@@ -190,31 +190,18 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
               {t("Profiles")}
             </div>
             <div className="space-y-0.5">
-            {draft.services[service].profiles.map((profile) => {
-              const isActive =
-                profile.id === draft.services[service].active_profile_id;
-              const profileDetail = activeProfileDetail(profile, service, t);
-              const isEditing = editingProfileId === profile.id;
-              return (
-                <div
-                  key={profile.id}
-                  role="button"
-                  tabIndex={isEditing ? -1 : 0}
-                  onClick={() => {
-                    if (isEditing) return;
-                    mutateCatalog((next) => {
-                      next.services[service].active_profile_id = profile.id;
-                      if (service !== "search") {
-                        next.services[service].active_model_id =
-                          profile.models[0]?.id ?? null;
-                      }
-                    });
-                  }}
-                  onDoubleClick={() => startProfileRename(profile)}
-                  onKeyDown={(e) => {
-                    if (isEditing) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
+              {draft.services[service].profiles.map((profile) => {
+                const isActive =
+                  profile.id === draft.services[service].active_profile_id;
+                const profileDetail = activeProfileDetail(profile, service, t);
+                const isEditing = editingProfileId === profile.id;
+                return (
+                  <div
+                    key={profile.id}
+                    role="button"
+                    tabIndex={isEditing ? -1 : 0}
+                    onClick={() => {
+                      if (isEditing) return;
                       mutateCatalog((next) => {
                         next.services[service].active_profile_id = profile.id;
                         if (service !== "search") {
@@ -222,54 +209,65 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
                             profile.models[0]?.id ?? null;
                         }
                       });
-                    }
-                  }}
-                  title={
-                    isEditing ? undefined : t("Double-click to rename")
-                  }
-                  className={`group relative cursor-pointer rounded-lg px-3 py-2 text-left transition-colors ${
-                    isActive
-                      ? "bg-[var(--muted)]/70 text-[var(--foreground)]"
-                      : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/30"
-                  }`}
-                >
-                  {isActive && (
-                    <span className="absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-[var(--foreground)]/80" />
-                  )}
-                  {isEditing ? (
-                    <input
-                      autoFocus
-                      className="block w-full rounded border border-[var(--border)] bg-[var(--background)] px-1.5 py-0.5 text-[13px] font-medium text-[var(--foreground)] outline-none focus:border-[var(--ring)]"
-                      value={editingProfileName}
-                      onChange={(e) => setEditingProfileName(e.target.value)}
-                      onBlur={() => commitProfileRename(profile.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.currentTarget.blur();
-                        }
-                        if (e.key === "Escape") {
-                          e.preventDefault();
-                          cancelProfileRename();
-                        }
-                      }}
-                      aria-label={t("Rename profile")}
-                    />
-                  ) : (
-                    <div
-                      className={`truncate text-[13px] leading-tight ${
-                        isActive ? "font-semibold" : "font-medium"
-                      }`}
-                    >
-                      {profile.name}
+                    }}
+                    onDoubleClick={() => startProfileRename(profile)}
+                    onKeyDown={(e) => {
+                      if (isEditing) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        mutateCatalog((next) => {
+                          next.services[service].active_profile_id = profile.id;
+                          if (service !== "search") {
+                            next.services[service].active_model_id =
+                              profile.models[0]?.id ?? null;
+                          }
+                        });
+                      }
+                    }}
+                    title={isEditing ? undefined : t("Double-click to rename")}
+                    className={`group relative cursor-pointer rounded-lg px-3 py-2 text-left transition-colors ${
+                      isActive
+                        ? "bg-[var(--muted)]/70 text-[var(--foreground)]"
+                        : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/30"
+                    }`}
+                  >
+                    {isActive && (
+                      <span className="absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-[var(--foreground)]/80" />
+                    )}
+                    {isEditing ? (
+                      <input
+                        autoFocus
+                        className="block w-full rounded border border-[var(--border)] bg-[var(--background)] px-1.5 py-0.5 text-[13px] font-medium text-[var(--foreground)] outline-none focus:border-[var(--ring)]"
+                        value={editingProfileName}
+                        onChange={(e) => setEditingProfileName(e.target.value)}
+                        onBlur={() => commitProfileRename(profile.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.currentTarget.blur();
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            cancelProfileRename();
+                          }
+                        }}
+                        aria-label={t("Rename profile")}
+                      />
+                    ) : (
+                      <div
+                        className={`truncate text-[13px] leading-tight ${
+                          isActive ? "font-semibold" : "font-medium"
+                        }`}
+                      >
+                        {profile.name}
+                      </div>
+                    )}
+                    <div className="mt-0.5 truncate text-[11px] leading-tight text-[var(--muted-foreground)]/70">
+                      {profileDetail}
                     </div>
-                  )}
-                  <div className="mt-0.5 truncate text-[11px] leading-tight text-[var(--muted-foreground)]/70">
-                    {profileDetail}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
             <div className="mt-2 border-t border-[var(--border)]/40 pt-2">
               <button
@@ -349,8 +347,7 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
                   <div className="mb-4 flex flex-wrap items-center gap-1.5">
                     {activeProfile.models.map((model, index) => {
                       const isActive =
-                        model.id ===
-                        draft.services[service].active_model_id;
+                        model.id === draft.services[service].active_model_id;
                       const label =
                         (model.name || "").trim() ||
                         defaultModelLabel(language, index + 1);
@@ -468,9 +465,7 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
                             <input
                               type="checkbox"
                               className="h-3 w-3 cursor-pointer accent-[var(--foreground)]"
-                              checked={
-                                activeModel.send_dimensions !== false
-                              }
+                              checked={activeModel.send_dimensions !== false}
                               onChange={(e) =>
                                 updateModelBoolField(
                                   service,
@@ -687,9 +682,7 @@ function ContextWindowDetectionBanner({
   return (
     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 px-3 py-2 sm:col-span-2">
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
-        <span className="text-[var(--muted-foreground)]">
-          {t("Detected")}:
-        </span>
+        <span className="text-[var(--muted-foreground)]">{t("Detected")}:</span>
         <span className="font-mono text-[13px] font-medium text-[var(--foreground)] tabular-nums">
           {detectedFormatted}
         </span>
@@ -848,9 +841,7 @@ function ProfileFields({
             type="button"
             onClick={() => setShowApiKey((prev) => !prev)}
             className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-            aria-label={
-              showApiKey ? t("Hide API key") : t("Show API key")
-            }
+            aria-label={showApiKey ? t("Hide API key") : t("Show API key")}
             title={showApiKey ? t("Hide API key") : t("Show API key")}
           >
             {showApiKey ? (

@@ -29,9 +29,7 @@ def read_snapshot(surface: Surface) -> list[Entity]:
     return adapters.read_entities(surface)
 
 
-def pending_changes(
-    surface: Surface, entities: list[Entity] | None = None
-) -> list[ChangeEntry]:
+def pending_changes(surface: Surface, entities: list[Entity] | None = None) -> list[ChangeEntry]:
     """Compute the diff between current workspace and the last persisted state.
 
     Pure / read-only: never writes to ``state.json`` or ``changes.jsonl``.
@@ -69,9 +67,7 @@ def refresh_snapshot(surface: Surface) -> list[ChangeEntry]:
     return changes
 
 
-def read_changes(
-    surface: Surface, *, limit: int = 200, offset: int = 0
-) -> list[ChangeEntry]:
+def read_changes(surface: Surface, *, limit: int = 200, offset: int = 0) -> list[ChangeEntry]:
     bound = max(1, min(limit, 1000))
     all_changes: list[ChangeEntry] = list(store.iter_changes(surface))
     # Most recent first — the file is append-order, reverse it.

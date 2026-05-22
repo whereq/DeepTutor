@@ -85,9 +85,7 @@ class LoopHost(Protocol):
     async def guard_context_window(self, messages: list[dict[str, Any]]) -> None:
         """Optionally trim ``messages`` to keep within the model's window."""
 
-    def build_iteration_trace_meta(
-        self, iteration: int
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    def build_iteration_trace_meta(self, iteration: int) -> tuple[dict[str, Any], dict[str, Any]]:
         """Allocate ``(iter_meta, final_meta)`` for one iteration."""
 
     async def dispatch_tools(

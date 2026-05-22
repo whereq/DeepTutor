@@ -107,9 +107,7 @@ def _validate(doc: Document, ops: list[Op]) -> None:
             if doc.find(op.target_id) is None:
                 raise OpValidationError(f"delete: target_id {op.target_id} not found")
             if op.reason not in _DELETE_REASONS:
-                raise OpValidationError(
-                    f"delete: reason must be one of {sorted(_DELETE_REASONS)}"
-                )
+                raise OpValidationError(f"delete: reason must be one of {sorted(_DELETE_REASONS)}")
             if op.target_id in edits:
                 raise OpValidationError(
                     f"batch conflict: edit and delete on same id {op.target_id}"

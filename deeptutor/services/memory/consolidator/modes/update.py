@@ -104,7 +104,9 @@ async def run_update(
         try:
             _config, token = activate_llm_selection(llm_selection)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("memory update: ignoring unresolvable llm_selection %s: %s", llm_selection, exc)
+            logger.warning(
+                "memory update: ignoring unresolvable llm_selection %s: %s", llm_selection, exc
+            )
             token = None
     try:
         if layer == "L2":
@@ -279,7 +281,9 @@ async def _run_update_l2(
                     },
                 )
                 continue
-            kept_in_chunk.append(ExtractedFact(text=fact.text, refs=kept_refs, section=fact.section))
+            kept_in_chunk.append(
+                ExtractedFact(text=fact.text, refs=kept_refs, section=fact.section)
+            )
 
         added_now = _append_facts_to_doc(doc, kept_in_chunk, sections)
         facts_added += len(added_now)
@@ -508,7 +512,9 @@ async def _run_update_l3(
                     },
                 )
                 continue
-            kept_in_chunk.append(ExtractedFact(text=fact.text, refs=kept_refs, section=fact.section))
+            kept_in_chunk.append(
+                ExtractedFact(text=fact.text, refs=kept_refs, section=fact.section)
+            )
 
         added_now = _append_facts_to_doc(doc, kept_in_chunk, sections)
         facts_added += len(added_now)

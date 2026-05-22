@@ -29,14 +29,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
+from deeptutor.services.memory import paths
 from deeptutor.services.memory.consolidator.modes.update import (
     UpdateResult,
     run_update,
 )
 from deeptutor.services.memory.document import parse, serialize
-from deeptutor.services.memory.ops import ApplyReport, Op, OpResult
+from deeptutor.services.memory.ops import ApplyReport, Op
 from deeptutor.services.memory.paths import L3Slot, Surface
-from deeptutor.services.memory import paths
 
 OnEvent = Callable[[dict[str, Any]], Awaitable[None]]
 

@@ -34,7 +34,6 @@ from deeptutor.services.config.loader import (
 )
 from deeptutor.utils.config_manager import ConfigManager
 
-
 # ── Schema definition ────────────────────────────────────────────────────
 
 
@@ -181,9 +180,7 @@ def _build_chat_block(agents_cfg: dict[str, Any]) -> dict[str, Any]:
     _deep_merge(merged, DEFAULT_CHAT_PARAMS)
     _deep_merge(merged, chat_cfg)
     return {
-        "temperature": _coerce_float(
-            merged.get("temperature"), DEFAULT_CHAT_PARAMS["temperature"]
-        ),
+        "temperature": _coerce_float(merged.get("temperature"), DEFAULT_CHAT_PARAMS["temperature"]),
         "max_iterations": _coerce_int(
             merged.get("max_iterations"), DEFAULT_CHAT_PARAMS["max_iterations"], lo=1, hi=100
         ),
@@ -199,9 +196,7 @@ def _build_chat_block(agents_cfg: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _build_simple_llm_block(
-    agents_cfg: dict[str, Any], capability: str
-) -> dict[str, Any]:
+def _build_simple_llm_block(agents_cfg: dict[str, Any], capability: str) -> dict[str, Any]:
     defaults = _SIMPLE_LLM_DEFAULTS[capability]
     section = _get_at(agents_cfg, _AGENTS_YAML_CAPABILITY_SECTIONS[capability])
     return {
@@ -235,9 +230,15 @@ def _build_main_runtime_block(main_cfg: dict[str, Any], capability: str) -> dict
         d = defaults["researching"]
         return {
             "researching": {
-                "note_agent_mode": str(researching_cfg.get("note_agent_mode") or d["note_agent_mode"]),
-                "tool_timeout": _coerce_int(researching_cfg.get("tool_timeout"), d["tool_timeout"], lo=1, hi=600),
-                "tool_max_retries": _coerce_int(researching_cfg.get("tool_max_retries"), d["tool_max_retries"], lo=0, hi=10),
+                "note_agent_mode": str(
+                    researching_cfg.get("note_agent_mode") or d["note_agent_mode"]
+                ),
+                "tool_timeout": _coerce_int(
+                    researching_cfg.get("tool_timeout"), d["tool_timeout"], lo=1, hi=600
+                ),
+                "tool_max_retries": _coerce_int(
+                    researching_cfg.get("tool_max_retries"), d["tool_max_retries"], lo=0, hi=10
+                ),
                 "paper_search_years_limit": _coerce_int(
                     researching_cfg.get("paper_search_years_limit"),
                     d["paper_search_years_limit"],
@@ -292,7 +293,9 @@ def _apply_chat_into_agents_yaml(agents_cfg: dict[str, Any], block: dict[str, An
     current = _get_at(agents_cfg, ("capabilities", "chat"))
     new_chat: dict[str, Any] = dict(current) if isinstance(current, dict) else {}
     if "temperature" in block:
-        new_chat["temperature"] = _coerce_float(block.get("temperature"), DEFAULT_CHAT_PARAMS["temperature"])
+        new_chat["temperature"] = _coerce_float(
+            block.get("temperature"), DEFAULT_CHAT_PARAMS["temperature"]
+        )
     if "max_iterations" in block:
         new_chat["max_iterations"] = _coerce_int(
             block.get("max_iterations"), DEFAULT_CHAT_PARAMS["max_iterations"], lo=1, hi=100
@@ -320,13 +323,17 @@ def _apply_simple_llm_into_agents_yaml(
     current = _get_at(agents_cfg, section_path)
     new_section: dict[str, Any] = dict(current) if isinstance(current, dict) else {}
     if "temperature" in block:
-        new_section["temperature"] = _coerce_float(block.get("temperature"), defaults["temperature"])
+        new_section["temperature"] = _coerce_float(
+            block.get("temperature"), defaults["temperature"]
+        )
     if "max_tokens" in block:
         new_section["max_tokens"] = _coerce_int(block.get("max_tokens"), defaults["max_tokens"])
     _set_at(agents_cfg, section_path, new_section)
 
 
-def _apply_main_runtime(main_payload: dict[str, Any], capability: str, block: dict[str, Any]) -> None:
+def _apply_main_runtime(
+    main_payload: dict[str, Any], capability: str, block: dict[str, Any]
+) -> None:
     defaults = _MAIN_YAML_RUNTIME_DEFAULTS.get(capability)
     if defaults is None:
         return
@@ -354,7 +361,9 @@ def _apply_main_runtime(main_payload: dict[str, Any], capability: str, block: di
         main_payload.setdefault("capabilities", {}).setdefault("research", {})["researching"] = {
             "note_agent_mode": str(r.get("note_agent_mode") or d["note_agent_mode"]),
             "tool_timeout": _coerce_int(r.get("tool_timeout"), d["tool_timeout"], lo=1, hi=600),
-            "tool_max_retries": _coerce_int(r.get("tool_max_retries"), d["tool_max_retries"], lo=0, hi=10),
+            "tool_max_retries": _coerce_int(
+                r.get("tool_max_retries"), d["tool_max_retries"], lo=0, hi=10
+            ),
             "paper_search_years_limit": _coerce_int(
                 r.get("paper_search_years_limit"), d["paper_search_years_limit"], lo=1, hi=50
             ),
@@ -364,7 +373,9 @@ def _apply_main_runtime(main_payload: dict[str, Any], capability: str, block: di
         e = block["exploring"]
         sm = e.get("tool_summarizer") if isinstance(e.get("tool_summarizer"), dict) else {}
         main_payload.setdefault("capabilities", {}).setdefault("question", {})["exploring"] = {
-            "max_iterations": _coerce_int(e.get("max_iterations"), d["max_iterations"], lo=1, hi=50),
+            "max_iterations": _coerce_int(
+                e.get("max_iterations"), d["max_iterations"], lo=1, hi=50
+            ),
             "tool_summarizer": {
                 "enabled": _coerce_bool(sm.get("enabled"), d["tool_summarizer"]["enabled"]),
                 "max_tokens": _coerce_int(sm.get("max_tokens"), d["tool_summarizer"]["max_tokens"]),

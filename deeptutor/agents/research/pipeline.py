@@ -194,9 +194,7 @@ _PROTOCOL_NOTE = LabelProtocol(
 # Tools whose results get summarised + recorded in the citation manager.
 # Any tool whose results carry source documents / external evidence
 # should be added here.
-CITABLE_TOOLS: frozenset[str] = frozenset(
-    {"rag", "web_search", "paper_search", "code_execution"}
-)
+CITABLE_TOOLS: frozenset[str] = frozenset({"rag", "web_search", "paper_search", "code_execution"})
 
 # Token budget for the note summarization sidecar.
 DEFAULT_NOTE_MAX_TOKENS = 1500
@@ -206,7 +204,9 @@ NOTE_RAW_INPUT_TRUNCATE_CHARS = 8000
 # ---------------------------------------------------------------------------
 # Defaults — preserved from the legacy presets so refactor is config-stable.
 # ---------------------------------------------------------------------------
-DEFAULT_REPHRASE_MAX_ITERATIONS = 8  # Inner loop iter cap; ask_user round cap is enforced separately.
+DEFAULT_REPHRASE_MAX_ITERATIONS = (
+    8  # Inner loop iter cap; ask_user round cap is enforced separately.
+)
 DEFAULT_REPHRASE_MAX_ROUNDS = 3
 DEFAULT_REPHRASE_MAX_QUESTIONS_PER_ROUND = 3
 DEFAULT_BLOCK_MAX_ITERATIONS = 5
@@ -417,9 +417,7 @@ class ResearchPipeline:
         a structure) and runs Phase 3+4 directly.
         """
         attachments = list(attachments or [])
-        image_attachments = [
-            a for a in attachments if getattr(a, "type", "") == "image"
-        ]
+        image_attachments = [a for a in attachments if getattr(a, "type", "") == "image"]
         client = self._build_client()
 
         try:
@@ -501,9 +499,7 @@ class ResearchPipeline:
                 "output_dir": "",
                 "outline_preview": True,
                 "topic": refined_topic,
-                "sub_topics": [
-                    {"title": st.title, "overview": st.overview} for st in outline
-                ],
+                "sub_topics": [{"title": st.title, "overview": st.overview} for st in outline],
             }
             return preview_payload
 
@@ -555,9 +551,7 @@ class ResearchPipeline:
                 "citation_count": len(citations.get_all_citations()),
             },
         }
-        await emit_capability_result(
-            stream, result_payload, source=SOURCE, usage=self.usage
-        )
+        await emit_capability_result(stream, result_payload, source=SOURCE, usage=self.usage)
         return result_payload
 
     async def _emit_visible_failure(self, stream: StreamBus, exc: BaseException) -> None:
@@ -778,20 +772,19 @@ class ResearchPipeline:
         native_block_tools = self._use_native_block_tools(block_tool_names)
         prompt_tool_names = block_tool_names if native_block_tools else []
         effective_max_iterations = (
-            max(self.block_max_iterations, 4)
-            if prompt_tool_names
-            else self.block_max_iterations
+            max(self.block_max_iterations, 4) if prompt_tool_names else self.block_max_iterations
         )
         tool_schemas = (
-            self._build_block_tool_schemas(prompt_tool_names)
-            if native_block_tools
-            else None
+            self._build_block_tool_schemas(prompt_tool_names) if native_block_tools else None
         )
-        tool_list = self.registry.build_prompt_text(
-            prompt_tool_names,
-            format="list_with_usage",
-            language=self.language,
-        ) or self._fallback_empty_tool_list()
+        tool_list = (
+            self.registry.build_prompt_text(
+                prompt_tool_names,
+                format="list_with_usage",
+                language=self.language,
+            )
+            or self._fallback_empty_tool_list()
+        )
         kb_note = self._kb_system_note()
 
         system_prompt = self._t(
@@ -850,9 +843,7 @@ class ResearchPipeline:
                 implicit_think_label=LABEL_THINK,
             )
         except Exception as exc:
-            logger.exception(
-                "Research block %s failed: %s", block.block_id, exc
-            )
+            logger.exception("Research block %s failed: %s", block.block_id, exc)
             queue.mark_failed(block.block_id)
             return ResearchedBlock(block=block, knowledge="")
 
@@ -911,17 +902,13 @@ class ResearchPipeline:
             if result.label == LABEL_FINISH and result.text.strip():
                 return result.text, True, calls
             messages.append({"role": "assistant", "content": result.text[:500]})
-            messages.append(
-                {"role": "user", "content": self._t("protocol.force_finish_repair")}
-            )
+            messages.append({"role": "user", "content": self._t("protocol.force_finish_repair")})
         return self._t("protocol.fallback_final"), False, calls
 
     # ------------------------------------------------------------------
     # Per-block rendering helpers
     # ------------------------------------------------------------------
-    def _render_sibling_topics(
-        self, queue: DynamicTopicQueue, current_block: TopicBlock
-    ) -> str:
+    def _render_sibling_topics(self, queue: DynamicTopicQueue, current_block: TopicBlock) -> str:
         """Compact list of other topics in the queue so APPEND can dedup
         against them at prompt-time (in addition to the runtime check)."""
         siblings = [
@@ -976,9 +963,7 @@ class ResearchPipeline:
             if not pending:
                 break
             batch_size = (
-                1
-                if str(self.execution_mode).lower() == "series"
-                else self.max_parallel_topics
+                1 if str(self.execution_mode).lower() == "series" else self.max_parallel_topics
             )
             batch = pending[:batch_size]
             results = await asyncio.gather(
@@ -998,14 +983,10 @@ class ResearchPipeline:
             )
             for block, result in zip(batch, results, strict=True):
                 if isinstance(result, BaseException):
-                    logger.exception(
-                        "Block %s research failed: %s", block.block_id, result
-                    )
+                    logger.exception("Block %s research failed: %s", block.block_id, result)
                     if block.status == TopicStatus.RESEARCHING:
                         queue.mark_failed(block.block_id)
-                    researched_by_id[block.block_id] = ResearchedBlock(
-                        block=block, knowledge=""
-                    )
+                    researched_by_id[block.block_id] = ResearchedBlock(block=block, knowledge="")
                     continue
                 researched_by_id[block.block_id] = result
 
@@ -1022,8 +1003,7 @@ class ResearchPipeline:
         ordered: list[ResearchedBlock] = []
         for block in queue.blocks:
             ordered.append(
-                researched_by_id.get(block.block_id)
-                or ResearchedBlock(block=block, knowledge="")
+                researched_by_id.get(block.block_id) or ResearchedBlock(block=block, knowledge="")
             )
         return ordered
 
@@ -1059,9 +1039,7 @@ class ResearchPipeline:
             response = await client.chat.completions.create(
                 model=self.model, messages=messages, stream=False, **kwargs
             )
-            content = (
-                response.choices[0].message.content if response.choices else ""
-            ) or ""
+            content = (response.choices[0].message.content if response.choices else "") or ""
             parsed = classify_label(
                 content,
                 allowed_labels=(LABEL_FINISH,),
@@ -1093,8 +1071,11 @@ class ResearchPipeline:
         client: Any,
     ) -> str:
         outline = await self._gen_report_outline(
-            topic=topic, blocks=blocks, citations=citations,
-            stream=stream, client=client,
+            topic=topic,
+            blocks=blocks,
+            citations=citations,
+            stream=stream,
+            client=client,
         )
 
         # Global numbering: introduction is 1, sub-topic sections are 2..N+1,
@@ -1121,9 +1102,7 @@ class ResearchPipeline:
             )
             section_texts.append(title_block)
 
-        intro = await self._write_intro(
-            topic=topic, outline=outline, stream=stream, client=client
-        )
+        intro = await self._write_intro(topic=topic, outline=outline, stream=stream, client=client)
         if intro:
             if section_texts:
                 await self._stream_report_separator(stream)
@@ -1168,12 +1147,9 @@ class ResearchPipeline:
         )
         used_citation_ids = _citation_ids_in_first_appearance(body, citations)
         citation_numbers = {
-            citation_id: index
-            for index, citation_id in enumerate(used_citation_ids, start=1)
+            citation_id: index for index, citation_id in enumerate(used_citation_ids, start=1)
         }
-        body = self._linkify_report_citations(
-            body, citations, citation_numbers=citation_numbers
-        )
+        body = self._linkify_report_citations(body, citations, citation_numbers=citation_numbers)
         references = self._render_reference_list(
             citations,
             citation_ids=used_citation_ids,
@@ -1223,9 +1199,7 @@ class ResearchPipeline:
         return (
             '<details id="references" open>\n'
             f"<summary>{heading}</summary>\n"
-            "<ol>\n"
-            + "\n".join(entries)
-            + "\n</ol>\n"
+            "<ol>\n" + "\n".join(entries) + "\n</ol>\n"
             "</details>"
         )
 
@@ -1347,9 +1321,7 @@ class ResearchPipeline:
         block_summaries = []
         for rb in blocks:
             preview = (rb.knowledge or "").strip().split("\n\n")[0][:400]
-            block_summaries.append(
-                f"- [{rb.block.block_id}] {rb.block.sub_topic}\n  {preview}"
-            )
+            block_summaries.append(f"- [{rb.block.block_id}] {rb.block.sub_topic}\n  {preview}")
         system_prompt = self._t("report.outline.system")
         user_prompt = self._t(
             "report.outline.user_template",
@@ -1461,9 +1433,7 @@ class ResearchPipeline:
         repaired: list[ReportSectionPlan] = []
 
         for section in sections:
-            ids = tuple(
-                dict.fromkeys(bid for bid in section.block_ids if bid in valid_ids)
-            )
+            ids = tuple(dict.fromkeys(bid for bid in section.block_ids if bid in valid_ids))
             if not ids:
                 best = _best_block_for_section(section, blocks, exclude=covered)
                 if best is not None:
@@ -1488,14 +1458,11 @@ class ResearchPipeline:
             )
 
         if addendum:
-            addendum_title = self._t(
-                "labels.addendum_title", default="Additional findings"
-            )
+            addendum_title = self._t("labels.addendum_title", default="Additional findings")
             addendum_intent = self._t(
                 "labels.addendum_intent",
                 default=(
-                    "Covers researched blocks that did not fit cleanly "
-                    "into the earlier sections."
+                    "Covers researched blocks that did not fit cleanly into the earlier sections."
                 ),
             )
             repaired.append(
@@ -1558,9 +1525,7 @@ class ResearchPipeline:
         evidence = self._render_section_evidence(
             section=section, blocks=blocks, citations=citations
         )
-        system_prompt = self._t(
-            "report.section.system", section_number=section_number
-        )
+        system_prompt = self._t("report.section.system", section_number=section_number)
         user_prompt = self._t(
             "report.section.user_template",
             topic=topic,
@@ -1577,10 +1542,7 @@ class ResearchPipeline:
             protocol=_PROTOCOL_REPORT_SECTION,
             stream=stream,
             client=client,
-            label=(
-                f"{self._t('labels.report_section', default='Section')}: "
-                f"{section.title}"
-            ),
+            label=(f"{self._t('labels.report_section', default='Section')}: {section.title}"),
             call_id_root=f"research-report-section-{section.id}",
             max_tokens=DEFAULT_REPORT_SECTION_MAX_TOKENS,
             extra_meta={
@@ -1610,9 +1572,7 @@ class ResearchPipeline:
         for sec, body in zip(outline.sections, section_bodies, strict=False):
             snippet = (body or "").strip().split("\n\n", 1)[0]
             recap_chunks.append(f"### {sec.title}\n{snippet[:300]}")
-        system_prompt = self._t(
-            "report.conclusion.system", section_number=section_number
-        )
+        system_prompt = self._t("report.conclusion.system", section_number=section_number)
         user_prompt = self._t(
             "report.conclusion.user_template",
             topic=topic,
@@ -1775,8 +1735,7 @@ class ResearchPipeline:
         return [
             name
             for name in composed
-            if name in RESEARCH_BLOCK_TOOL_ALLOWLIST
-            and self._tool_in_registry(name)
+            if name in RESEARCH_BLOCK_TOOL_ALLOWLIST and self._tool_in_registry(name)
         ]
 
     def _build_block_tool_schemas(
@@ -1852,9 +1811,7 @@ class ResearchPipeline:
 
     def _use_native_block_tools(self, tool_names: list[str] | None = None) -> bool:
         names = self._block_tool_names() if tool_names is None else tool_names
-        return bool(names) and can_use_native_tool_calling(
-            binding=self.binding, model=self.model
-        )
+        return bool(names) and can_use_native_tool_calling(binding=self.binding, model=self.model)
 
     def _tool_in_registry(self, name: str) -> bool:
         try:
@@ -2000,12 +1957,8 @@ _REPORT_STOPWORDS = {
 }
 
 
-_REPORT_CITATION_MARKER_RE = re.compile(
-    r"`?\[(?P<id>CIT-\d+-\d+|PLAN-\d+)\]`?(?!\s*\()"
-)
-_REPORT_CITATION_LINK_RE = re.compile(
-    r"`?\[(?P<id>CIT-\d+-\d+|PLAN-\d+)\]`?\([^)]*\)"
-)
+_REPORT_CITATION_MARKER_RE = re.compile(r"`?\[(?P<id>CIT-\d+-\d+|PLAN-\d+)\]`?(?!\s*\()")
+_REPORT_CITATION_LINK_RE = re.compile(r"`?\[(?P<id>CIT-\d+-\d+|PLAN-\d+)\]`?\([^)]*\)")
 _MARKDOWN_HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<title>.+?)\s*$")
 _LEADING_HEADING_MARKERS_RE = re.compile(r"^(?:#{1,6}\s+)+")
 _LEADING_SECTION_ID_RE = re.compile(r"^(?:[\[\(]?S\d+[\]\)]?\s*[:：\-]\s*)+", re.I)
@@ -2083,9 +2036,7 @@ def _citation_source_preview(citation: dict[str, Any]) -> str:
             for source in sources[:3]:
                 if not isinstance(source, dict):
                     continue
-                title = str(
-                    source.get("title") or source.get("source_file") or ""
-                ).strip()
+                title = str(source.get("title") or source.get("source_file") or "").strip()
                 page = str(source.get("page") or "").strip()
                 if title:
                     hints.append(f"{title} p.{page}" if page else title)
@@ -2223,6 +2174,7 @@ def _read_int(cfg: Any, *, key: str, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
+
 # ---------------------------------------------------------------------------
 # _BlockLoopHost — per-block research loop callbacks
 # ---------------------------------------------------------------------------
@@ -2275,13 +2227,9 @@ class _BlockLoopHost:
         # Per-block budgets keep messages bounded; no trimming for v1.
         return None
 
-    def build_iteration_trace_meta(
-        self, iteration: int
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    def build_iteration_trace_meta(self, iteration: int) -> tuple[dict[str, Any], dict[str, Any]]:
         status_meta = _research_topic_status_meta(self._block)
-        iter_call_id = new_call_id(
-            f"research-{self._block.block_id}-iter-{iteration}"
-        )
+        iter_call_id = new_call_id(f"research-{self._block.block_id}-iter-{iteration}")
         iter_meta = build_trace_metadata(
             call_id=iter_call_id,
             phase="researching",
@@ -2575,9 +2523,7 @@ class _BlockLoopHost:
                 ),
             )
 
-        new_block = self._queue.append_child(
-            parent=self._block, sub_topic=title, overview=overview
-        )
+        new_block = self._queue.append_child(parent=self._block, sub_topic=title, overview=overview)
         if new_block is None:
             return self._pipeline._t(
                 "notices.append_rejected_full",
@@ -2646,9 +2592,7 @@ class _RephraseLoopHost:
     async def guard_context_window(self, messages: list[dict[str, Any]]) -> None:
         return None
 
-    def build_iteration_trace_meta(
-        self, iteration: int
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    def build_iteration_trace_meta(self, iteration: int) -> tuple[dict[str, Any], dict[str, Any]]:
         iter_meta = build_trace_metadata(
             call_id=self._shared_iter_call_id,
             phase="rephrasing",
@@ -2716,9 +2660,7 @@ class _RephraseLoopHost:
                 }
                 for tc in allowed
             ]
-            return DispatchOutcome(
-                sources=[], tool_messages=cap_messages + rejected
-            )
+            return DispatchOutcome(sources=[], tool_messages=cap_messages + rejected)
 
         if not allowed:
             return DispatchOutcome(sources=[], tool_messages=rejected)
@@ -2790,9 +2732,7 @@ class _RephraseLoopHost:
         }
         if answers:
             progress_meta["answers"] = list(answers)
-        await self._stream.progress(
-            "", source=SOURCE, stage="rephrasing", metadata=progress_meta
-        )
+        await self._stream.progress("", source=SOURCE, stage="rephrasing", metadata=progress_meta)
         return True
 
     async def emit_terminator(self, payload: dict[str, Any] | None) -> None:

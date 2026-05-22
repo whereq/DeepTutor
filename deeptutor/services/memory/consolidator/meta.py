@@ -32,13 +32,13 @@ Atomic writes via temp + rename. Missing files behave as "first run".
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import json
 import logging
 import os
-import tempfile
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
+import tempfile
 
 from deeptutor.services.memory import paths
 from deeptutor.services.memory.paths import L3Slot, Surface
@@ -107,9 +107,7 @@ def save_l3_meta(
     path = l3_meta_path(slot)
     meta = L3Meta(
         last_update_at=_now_iso(),
-        seen_l2_entry_ids={
-            surface: set(ids) for surface, ids in seen_l2_entry_ids.items()
-        },
+        seen_l2_entry_ids={surface: set(ids) for surface, ids in seen_l2_entry_ids.items()},
     )
     _atomic_write_json(
         path,
@@ -117,8 +115,7 @@ def save_l3_meta(
             "version": _META_VERSION,
             "last_update_at": meta.last_update_at,
             "seen_l2_entry_ids": {
-                surface: sorted(ids)
-                for surface, ids in meta.seen_l2_entry_ids.items()
+                surface: sorted(ids) for surface, ids in meta.seen_l2_entry_ids.items()
             },
         },
     )
@@ -149,8 +146,7 @@ def _load_meta_l3(path: Path) -> L3Meta:
     return L3Meta(
         last_update_at=data.get("last_update_at"),
         seen_l2_entry_ids={
-            surface: set(ids) if isinstance(ids, list) else set()
-            for surface, ids in raw.items()
+            surface: set(ids) if isinstance(ids, list) else set() for surface, ids in raw.items()
         },
     )
 

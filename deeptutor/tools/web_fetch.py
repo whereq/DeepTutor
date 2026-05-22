@@ -23,11 +23,11 @@ arguments, not a human):
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import ipaddress
 import logging
 import re
 import socket
-from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
@@ -138,9 +138,7 @@ async def fetch_url_as_markdown(
     if len(body) > max_chars:
         body = body[:max_chars].rstrip() + "\n…[truncated]"
         truncated = True
-    return FetchOutcome(
-        ok=True, markdown=body, url=final_url, title=title, truncated=truncated
-    )
+    return FetchOutcome(ok=True, markdown=body, url=final_url, title=title, truncated=truncated)
 
 
 # ---------------------------------------------------------------------------

@@ -11,7 +11,8 @@ export const nativeSelectClass = `${fieldControlClass} bg-[var(--background)] cu
 
 export const selectClass = `${nativeSelectClass} appearance-none`;
 
-export const selectOptionClass = "bg-[var(--background)] text-[var(--foreground)]";
+export const selectOptionClass =
+  "bg-[var(--background)] text-[var(--foreground)]";
 
 export const supportedSearchProviders = [
   "brave",
@@ -29,7 +30,9 @@ export const deprecatedSearchProviders = new Set([
   "openrouter",
 ]);
 
-export function stringifyExtraHeaders(value: CatalogProfile["extra_headers"]): string {
+export function stringifyExtraHeaders(
+  value: CatalogProfile["extra_headers"],
+): string {
   if (!value) return "";
   if (typeof value === "string") return value;
   try {

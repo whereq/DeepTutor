@@ -45,9 +45,7 @@ export function SettingsLoadStatusBanner() {
         <div className="font-medium">
           {t("Could not load settings from the backend.")}
         </div>
-        <div className="mt-1 text-xs opacity-90">
-          {settingsError}
-        </div>
+        <div className="mt-1 text-xs opacity-90">{settingsError}</div>
         <div className="mt-1 text-xs opacity-75">
           {t(
             "Verify the backend is running and NEXT_PUBLIC_API_BASE points to a reachable host. For Docker, see data/user/settings/system.json.",
@@ -60,9 +58,7 @@ export function SettingsLoadStatusBanner() {
         disabled={retrying}
         className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-200 disabled:opacity-60 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-100"
       >
-        <RefreshCw
-          className={retrying ? "h-3 w-3 animate-spin" : "h-3 w-3"}
-        />
+        <RefreshCw className={retrying ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
         {t("Retry")}
       </button>
     </div>

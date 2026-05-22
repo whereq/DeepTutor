@@ -99,7 +99,9 @@ export function extractAskUserPayload(
       continue;
     }
     if (event.type === "progress" && meta.ask_user_resolved) {
-      const answersRaw = Array.isArray(meta.answers) ? (meta.answers as unknown[]) : [];
+      const answersRaw = Array.isArray(meta.answers)
+        ? (meta.answers as unknown[])
+        : [];
       resolution = {
         toolCallId:
           typeof meta.ask_user_tool_call_id === "string"
@@ -115,14 +117,19 @@ export function extractAskUserPayload(
           })
           .filter((a): a is AskUserAnswer => a !== null),
         text:
-          typeof meta.reply_preview === "string" ? (meta.reply_preview as string) : "",
+          typeof meta.reply_preview === "string"
+            ? (meta.reply_preview as string)
+            : "",
       };
     }
   }
 
   if (!latest) return null;
 
-  if (resolution && (resolution.toolCallId === latest.toolCallId || latest.toolCallId === null)) {
+  if (
+    resolution &&
+    (resolution.toolCallId === latest.toolCallId || latest.toolCallId === null)
+  ) {
     const answers =
       resolution.answers.length > 0
         ? resolution.answers
@@ -158,7 +165,12 @@ export function extractAskUserPayload(
  */
 export type MessageSegment =
   | { kind: "text"; text: string; key: string }
-  | { kind: "ask_user"; data: AskUserCardData; toolCallId: string | null; key: string };
+  | {
+      kind: "ask_user";
+      data: AskUserCardData;
+      toolCallId: string | null;
+      key: string;
+    };
 
 export function extractMessageSegments(
   events: StreamEvent[] | undefined,
@@ -227,7 +239,7 @@ export function extractMessageSegments(
       // Match by tool_call_id; fall back to the most recent unresolved
       // ask_user segment if the resolver did not echo the id back.
       let targetIdx =
-        replyToolCallId !== null ? byToolCall.get(replyToolCallId) ?? -1 : -1;
+        replyToolCallId !== null ? (byToolCall.get(replyToolCallId) ?? -1) : -1;
       if (targetIdx < 0) {
         for (let i = segments.length - 1; i >= 0; i--) {
           const s = segments[i];
@@ -240,7 +252,9 @@ export function extractMessageSegments(
       if (targetIdx < 0) continue;
       const target = segments[targetIdx];
       if (target.kind !== "ask_user") continue;
-      const answersRaw = Array.isArray(meta.answers) ? (meta.answers as unknown[]) : [];
+      const answersRaw = Array.isArray(meta.answers)
+        ? (meta.answers as unknown[])
+        : [];
       const answers: AskUserAnswer[] = answersRaw
         .map((entry) => {
           if (!entry || typeof entry !== "object") return null;
@@ -251,7 +265,9 @@ export function extractMessageSegments(
         })
         .filter((a): a is AskUserAnswer => a !== null);
       const replyText =
-        typeof meta.reply_preview === "string" ? (meta.reply_preview as string) : "";
+        typeof meta.reply_preview === "string"
+          ? (meta.reply_preview as string)
+          : "";
       const finalAnswers =
         answers.length > 0
           ? answers
@@ -265,7 +281,11 @@ export function extractMessageSegments(
             : [];
       segments[targetIdx] = {
         ...target,
-        data: { payload: target.data.payload, answers: finalAnswers, resolved: true },
+        data: {
+          payload: target.data.payload,
+          answers: finalAnswers,
+          resolved: true,
+        },
       };
     }
   }
@@ -398,23 +418,28 @@ const InteractiveAskUserCard = memo(function InteractiveAskUserCard({
   const [customText, setCustomText] = useState<Record<string, string>>({});
   // Whether the free-text input is the active choice for a question.
   // Drives both textarea visibility and the "picked" visual state.
-  const [customSelected, setCustomSelected] = useState<Record<string, boolean>>({});
+  const [customSelected, setCustomSelected] = useState<Record<string, boolean>>(
+    {},
+  );
   const [activeIdx, setActiveIdx] = useState(0);
   const [submitted, setSubmitted] = useState(false);
 
   const activeQuestion = payload.questions[activeIdx] ?? payload.questions[0];
 
   const allAnswered = useMemo(
-    () => payload.questions.every((q) => (answers[q.id] ?? "").trim().length > 0),
+    () =>
+      payload.questions.every((q) => (answers[q.id] ?? "").trim().length > 0),
     [payload.questions, answers],
   );
 
   const handleSubmit = useCallback(() => {
     if (submitted) return;
     setSubmitted(true);
-    const list: Array<{ questionId: string; text: string }> = payload.questions.map(
-      (q) => ({ questionId: q.id, text: (answers[q.id] ?? "").trim() }),
-    );
+    const list: Array<{ questionId: string; text: string }> =
+      payload.questions.map((q) => ({
+        questionId: q.id,
+        text: (answers[q.id] ?? "").trim(),
+      }));
     // Always include a flat ``text`` synopsis for back-compat with any
     // older server path that only looks at ``text``.
     const flat = list
@@ -458,7 +483,9 @@ const InteractiveAskUserCard = memo(function InteractiveAskUserCard({
             {submitted
               ? t("Sending your answers…")
               : totalQuestions > 1
-                ? t("{{count}} questions — tap a tab to switch.", { count: totalQuestions })
+                ? t("{{count}} questions — tap a tab to switch.", {
+                    count: totalQuestions,
+                  })
                 : t("Pick an option or type your own to continue.")}
           </div>
         </div>
@@ -763,10 +790,7 @@ const ResolvedAskUserCard = memo(function ResolvedAskUserCard({
           {payload.questions.map((q, index) => {
             const value = (byId.get(q.id) ?? "").trim();
             return (
-              <div
-                key={q.id}
-                className="flex items-start gap-2 px-3 py-1.5"
-              >
+              <div key={q.id} className="flex items-start gap-2 px-3 py-1.5">
                 <span className="mt-[3px] w-4 shrink-0 text-center text-[11px] font-medium tabular-nums leading-tight text-[var(--muted-foreground)]/30">
                   {index + 1}
                 </span>

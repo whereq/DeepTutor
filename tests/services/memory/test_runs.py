@@ -24,9 +24,7 @@ async def test_start_runs_to_completion_and_buffers_events(manager: RunManager) 
         await on_event({"stage": "progress", "turn": 1})
         await on_event({"stage": "progress", "turn": 2})
 
-    run = await manager.start(
-        layer="L2", key="chat", mode="update", runner=runner
-    )
+    run = await manager.start(layer="L2", key="chat", mode="update", runner=runner)
     if run._task is not None:
         await run._task
     assert run.status == "done"
@@ -120,9 +118,7 @@ async def test_run_records_error_when_runner_raises(manager: RunManager) -> None
 
 
 @pytest.mark.asyncio
-async def test_undo_last_restores_previous_document(
-    manager: RunManager, tmp_path
-) -> None:
+async def test_undo_last_restores_previous_document(manager: RunManager, tmp_path) -> None:
     path = tmp_path / "chat.md"
     path.write_text("before", encoding="utf-8")
 

@@ -31,11 +31,7 @@ from deeptutor.core.stream_bus import StreamBus
 
 def _chunk(content: str | None = None, tool_calls: Any = None) -> SimpleNamespace:
     return SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                delta=SimpleNamespace(content=content, tool_calls=tool_calls)
-            )
-        ],
+        choices=[SimpleNamespace(delta=SimpleNamespace(content=content, tool_calls=tool_calls))],
         usage=None,
     )
 
@@ -342,9 +338,7 @@ async def test_prelude_then_tool_call_routes_correctly() -> None:
     )
 
     assert result.label == "TOOL"
-    assert result.tool_calls == [
-        {"id": "call_1", "name": "search", "arguments": '{"q": "x"}'}
-    ]
+    assert result.tool_calls == [{"id": "call_1", "name": "search", "arguments": '{"q": "x"}'}]
     assert result.text == "Calling search now."
     joined_think = "".join(_thinking_texts(events))
     assert "need to look this up" in joined_think
@@ -364,9 +358,7 @@ async def test_tool_calls_mid_prelude_close_prelude_synthetically() -> None:
     )
 
     assert result.label == "TOOL"
-    assert result.tool_calls == [
-        {"id": "call_a", "name": "lookup", "arguments": '{"k":1}'}
-    ]
+    assert result.tool_calls == [{"id": "call_a", "name": "lookup", "arguments": '{"k":1}'}]
     # Even though </think> never arrived, the returned text must not leak
     # the prelude content (clean_thinking_tags strips the synthesized block).
     assert "<think>" not in result.text

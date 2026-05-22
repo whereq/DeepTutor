@@ -43,9 +43,7 @@ class _FakeRegistry:
 
 
 def _make_pipeline(monkeypatch: pytest.MonkeyPatch) -> ResearchPipeline:
-    monkeypatch.setattr(
-        "deeptutor.agents.research.pipeline.get_llm_config", lambda: _FakeLLM()
-    )
+    monkeypatch.setattr("deeptutor.agents.research.pipeline.get_llm_config", lambda: _FakeLLM())
     monkeypatch.setattr(
         "deeptutor.agents.research.pipeline.get_tool_registry", lambda: _FakeRegistry()
     )
@@ -117,9 +115,7 @@ async def test_rephrase_force_finalize_returns_empty_text(
     pipeline = _make_pipeline(monkeypatch)
     host = _make_host(pipeline, max_rounds=3)
 
-    text, completed, calls = await host.force_finalize(
-        messages=[], start_iteration=10
-    )
+    text, completed, calls = await host.force_finalize(messages=[], start_iteration=10)
     assert text == ""
     assert completed is False
     assert calls == 0

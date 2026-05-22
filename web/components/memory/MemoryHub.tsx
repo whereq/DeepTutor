@@ -83,8 +83,7 @@ export default function MemoryHub() {
   );
   const l2Total = l2Docs.reduce((acc, d) => acc + d.entry_count, 0);
   const l3Total = l3Docs.reduce((acc, d) => acc + d.entry_count, 0);
-  const latestBackup =
-    overview?.backups?.[overview.backups.length - 1] ?? null;
+  const latestBackup = overview?.backups?.[overview.backups.length - 1] ?? null;
 
   return (
     <div className="space-y-10">
@@ -108,7 +107,9 @@ export default function MemoryHub() {
             onClick={() => void load()}
             className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-1 transition hover:bg-[var(--muted)]"
           >
-            <RefreshCw className={loading ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+            <RefreshCw
+              className={loading ? "h-3 w-3 animate-spin" : "h-3 w-3"}
+            />
             {t("Refresh")}
           </button>
           <Link
@@ -139,7 +140,9 @@ export default function MemoryHub() {
           title={t("L2 · Per-surface summaries")}
           tag={t("Curated")}
           stat={l2Total.toLocaleString()}
-          statLabel={t("facts across {{n}} surfaces", { n: l2Docs.length || SURFACES.length })}
+          statLabel={t("facts across {{n}} surfaces", {
+            n: l2Docs.length || SURFACES.length,
+          })}
           detail={t(
             "Surface-specific facts extracted by the consolidator. Run Update / Audit / Dedup per doc.",
           )}
@@ -150,7 +153,9 @@ export default function MemoryHub() {
           title={t("L3 · Cross-surface knowledge")}
           tag={t("Synthesis")}
           stat={l3Total.toLocaleString()}
-          statLabel={t("propositions across {{n}} slots", { n: l3Docs.length || L3_VISIBLE.length })}
+          statLabel={t("propositions across {{n}} slots", {
+            n: l3Docs.length || L3_VISIBLE.length,
+          })}
           detail={t(
             "Cross-surface synthesis: profile, recent timeline, knowledge scope. Hedged claims with L2 evidence.",
           )}

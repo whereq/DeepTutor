@@ -48,9 +48,7 @@ def _seed_l2(tmp_path: Path, surface: str, entry_id: str) -> None:
             ),
         ],
     )
-    (tmp_path / "L2" / f"{surface}.md").write_text(
-        document_mod.serialize(doc), encoding="utf-8"
-    )
+    (tmp_path / "L2" / f"{surface}.md").write_text(document_mod.serialize(doc), encoding="utf-8")
 
 
 def test_resolve_entry_returns_owning_surface(client: TestClient, tmp_path: Path) -> None:

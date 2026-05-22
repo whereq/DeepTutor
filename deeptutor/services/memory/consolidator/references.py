@@ -172,9 +172,7 @@ _ENTITY_HEADER_FMT = "=== {marker} ==="
 # would have been ``"=== @l2 m_xxx ==="``.
 
 
-def render_traces_for_concat(
-    entities: list[Entity], *, surface: str
-) -> str:
+def render_traces_for_concat(entities: list[Entity], *, surface: str) -> str:
     """Concatenate a list of L2 raw-trace entities into one timeline string.
 
     The chunk-pool detector relies on the marker line being unique per
@@ -308,11 +306,7 @@ def _entity_marker(surface: str, entity_id: str) -> str:
 def _format_meta(ent: Entity) -> str:
     if not ent.metadata:
         return ""
-    bits = [
-        f"{k}={v}"
-        for k, v in ent.metadata.items()
-        if v not in (None, "", [], {})
-    ]
+    bits = [f"{k}={v}" for k, v in ent.metadata.items() if v not in (None, "", [], {})]
     return " ".join(bits)
 
 

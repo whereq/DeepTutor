@@ -9,10 +9,10 @@ don't interleave JSON lines.
 from __future__ import annotations
 
 import asyncio
-import json
-import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+import json
+import logging
 from pathlib import Path
 from typing import Any, Iterator
 

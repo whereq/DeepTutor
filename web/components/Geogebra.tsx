@@ -13,7 +13,10 @@ interface GeogebraProps {
 
 declare global {
   interface Window {
-    GGBApplet?: new (params: Record<string, unknown>, html5: boolean) => {
+    GGBApplet?: new (
+      params: Record<string, unknown>,
+      html5: boolean,
+    ) => {
       inject: (containerId: string) => void;
     };
   }

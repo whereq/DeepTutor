@@ -37,9 +37,8 @@ export default function MemorySettingsPage() {
   const { t } = useTranslation();
   const { registerExtension } = useSettings();
   const [settings, setSettings] = useState<MemorySettingsDTO | null>(null);
-  const [serverSnapshot, setServerSnapshot] = useState<MemorySettingsDTO | null>(
-    null,
-  );
+  const [serverSnapshot, setServerSnapshot] =
+    useState<MemorySettingsDTO | null>(null);
 
   const load = useCallback(async () => {
     const res = await apiFetch(apiUrl("/api/v1/memory/settings"));
@@ -214,7 +213,9 @@ export default function MemorySettingsPage() {
             { value: "paragraph", label: t("Paragraph") },
             { value: "sentence", label: t("Sentence") },
           ]}
-          onChange={(v) => patch("chunking", { boundary: v as "paragraph" | "sentence" })}
+          onChange={(v) =>
+            patch("chunking", { boundary: v as "paragraph" | "sentence" })
+          }
         />
         <NumberRow
           label={t("Min chunk chars")}
@@ -250,7 +251,9 @@ export default function MemorySettingsPage() {
         />
         <ToggleRow
           label={t("Drop invalid refs (vs reject the whole fact)")}
-          help={t("On: keep the fact, drop only out-of-pool refs. Off: any bad ref rejects the fact.")}
+          help={t(
+            "On: keep the fact, drop only out-of-pool refs. Off: any bad ref rejects the fact.",
+          )}
           value={settings.reference.drop_invalid_refs}
           onChange={(v) => patch("reference", { drop_invalid_refs: v })}
         />

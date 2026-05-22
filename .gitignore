@@ -103,6 +103,7 @@ cache/
 **/cache/
 .cache/
 .ruff_cache
+.playwright-cli/
 
 # Log files
 *.log

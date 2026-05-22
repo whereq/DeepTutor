@@ -29,10 +29,10 @@ Public API
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import json
 import logging
 import re
-from dataclasses import dataclass, field
 from typing import Iterable, Literal, Union
 
 from deeptutor.services.memory.document import Document, Entry
@@ -45,11 +45,11 @@ LineKind = Literal["title", "blank", "section", "bullet"]
 
 @dataclass(frozen=True)
 class Line:
-    number: int          # 1-based, matches what the LLM sees
+    number: int  # 1-based, matches what the LLM sees
     kind: LineKind
-    text: str            # rendered text (no leading "n: ")
-    entry_id: str | None = None    # for bullet lines, the m_xxx id
-    section: str | None = None     # for bullet lines, owning section name
+    text: str  # rendered text (no leading "n: ")
+    entry_id: str | None = None  # for bullet lines, the m_xxx id
+    section: str | None = None  # for bullet lines, owning section name
 
 
 @dataclass(frozen=True)
@@ -63,9 +63,7 @@ class LineView:
     def render(self, *, with_numbers: bool = True) -> str:
         if with_numbers:
             width = max(2, len(str(len(self.lines))))
-            return "\n".join(
-                f"{l.number:>{width}}: {l.text}" for l in self.lines
-            )
+            return "\n".join(f"{l.number:>{width}}: {l.text}" for l in self.lines)
         return "\n".join(l.text for l in self.lines)
 
     def line(self, number: int) -> Line | None:
@@ -87,7 +85,7 @@ class ReplaceLineOp:
 @dataclass(frozen=True)
 class DeleteLinesOp:
     line_start: int
-    line_end: int          # inclusive
+    line_end: int  # inclusive
     reason: str = ""
     op: Literal["delete"] = "delete"
 
@@ -141,9 +139,7 @@ def render_view(doc: Document) -> LineView:
     for section_name, entries in doc.sections:
         if not entries:
             continue
-        lines.append(
-            Line(number=len(lines) + 1, kind="section", text=f"## {section_name}")
-        )
+        lines.append(Line(number=len(lines) + 1, kind="section", text=f"## {section_name}"))
         for entry in entries:
             lines.append(
                 Line(
@@ -202,9 +198,7 @@ def apply_edits(doc: Document, edits: Iterable[Edit]) -> tuple[Document, EditRep
             report.applied.append(EditResult(op=edit, status="applied", detail=detail))
         except _Reject as exc:
             logger.warning("line-edit rejected: %s — %s", _short(edit), exc)
-            report.rejected.append(
-                EditResult(op=edit, status="rejected", detail=str(exc))
-            )
+            report.rejected.append(EditResult(op=edit, status="rejected", detail=str(exc)))
 
     _drop_empty_sections(new_doc)
     return new_doc, report
@@ -430,9 +424,9 @@ def _section_entries(doc: Document, name: str) -> list[Entry]:
     for section, entries in doc.sections:
         if section == name:
             return entries
-    entries: list[Entry] = []
-    doc.sections.append((name, entries))
-    return entries
+    new_entries: list[Entry] = []
+    doc.sections.append((name, new_entries))
+    return new_entries
 
 
 def _drop_empty_sections(doc: Document) -> None:

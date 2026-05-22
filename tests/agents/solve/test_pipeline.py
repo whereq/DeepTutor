@@ -21,16 +21,15 @@ from typing import Any
 import pytest
 
 from deeptutor.agents.solve.pipeline import (
+    _PROTOCOL_STEP,
     Plan,
     PlanStep,
     SolvePipeline,
     StepFinish,
-    _PROTOCOL_STEP,
 )
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.stream_bus import StreamBus
-
 
 # ---------------------------------------------------------------------------
 # Plumbing
@@ -89,9 +88,7 @@ class _ScriptedChatClient:
 
         class _Completions:
             async def create(self, **kwargs: Any):
-                outer.calls.append(
-                    {**kwargs, "messages": list(kwargs.get("messages") or [])}
-                )
+                outer.calls.append({**kwargs, "messages": list(kwargs.get("messages") or [])})
                 if not outer._script:
                     raise RuntimeError("Scripted client exhausted")
                 return _async_stream(outer._script.pop(0))
@@ -247,9 +244,7 @@ async def test_one_step_happy_path_emits_plan_finish_synthesize(
             # Phase 1: planner emits ``PLAN`` + JSON
             [
                 _llm_chunk(content="``PLAN``\n"),
-                _llm_chunk(
-                    content='{"analysis":"single","steps":[{"id":"S1","goal":"answer"}]}'
-                ),
+                _llm_chunk(content='{"analysis":"single","steps":[{"id":"S1","goal":"answer"}]}'),
             ],
             # Phase 2: step S1 emits ``FINISH`` directly
             [
@@ -406,9 +401,7 @@ async def test_replan_back_edge_reruns_planner(
             # First plan
             [
                 _llm_chunk(content="``PLAN``\n"),
-                _llm_chunk(
-                    content='{"analysis":"v1","steps":[{"id":"S1","goal":"old approach"}]}'
-                ),
+                _llm_chunk(content='{"analysis":"v1","steps":[{"id":"S1","goal":"old approach"}]}'),
             ],
             # Step S1 of plan v1: REPLAN
             [
@@ -418,9 +411,7 @@ async def test_replan_back_edge_reruns_planner(
             # Plan v2 (with replan reason in prompt)
             [
                 _llm_chunk(content="``PLAN``\n"),
-                _llm_chunk(
-                    content='{"analysis":"v2","steps":[{"id":"S1","goal":"new approach"}]}'
-                ),
+                _llm_chunk(content='{"analysis":"v2","steps":[{"id":"S1","goal":"new approach"}]}'),
             ],
             # Step S1 of plan v2: FINISH
             [
@@ -484,9 +475,7 @@ async def test_replan_budget_exhausted_keeps_reason_as_step_content(
         [
             [
                 _llm_chunk(content="``PLAN``\n"),
-                _llm_chunk(
-                    content='{"analysis":"a","steps":[{"id":"S1","goal":"go"}]}'
-                ),
+                _llm_chunk(content='{"analysis":"a","steps":[{"id":"S1","goal":"go"}]}'),
             ],
             [
                 _llm_chunk(content="``REPLAN``\n"),
@@ -549,7 +538,11 @@ async def test_step_finish_streams_chunks_live(
             # Explain triage → SKIP
             [_llm_chunk(content="``SKIP``\n")],
             # Synthesize: also chunked
-            [_llm_chunk(content="``FINISH``\n"), _llm_chunk(content="Wrap "), _llm_chunk(content="up.")],
+            [
+                _llm_chunk(content="``FINISH``\n"),
+                _llm_chunk(content="Wrap "),
+                _llm_chunk(content="up."),
+            ],
         ]
     )
     monkeypatch.setattr(pipeline, "_build_client", lambda: client)
@@ -598,8 +591,26 @@ async def test_step_finish_streams_many_small_chunks(
     pipeline = _make_pipeline(monkeypatch)
     # 20 chunks of 1–4 chars each.
     step_chunks = [
-        "L", "et", "'s ", "f", "irst", " ex", "pl", "ore",
-        " the", " co", "n", "ce", "pt", ".", " ", "T", "h", "en", ":", " done.",
+        "L",
+        "et",
+        "'s ",
+        "f",
+        "irst",
+        " ex",
+        "pl",
+        "ore",
+        " the",
+        " co",
+        "n",
+        "ce",
+        "pt",
+        ".",
+        " ",
+        "T",
+        "h",
+        "en",
+        ":",
+        " done.",
     ]
     expected_full_text = "".join(step_chunks)
 
@@ -627,9 +638,7 @@ async def test_step_finish_streams_many_small_chunks(
         language="en",
         metadata={"turn_id": "t-many"},
     )
-    payload = await pipeline.run(
-        context=context, question=context.user_message, stream=bus
-    )
+    payload = await pipeline.run(context=context, question=context.user_message, stream=bus)
     await asyncio.sleep(0)
     await bus.close()
     await consumer
@@ -659,8 +668,7 @@ async def test_step_finish_streams_many_small_chunks(
     section_breaks = [
         e
         for e in events
-        if e.type == StreamEventType.CONTENT
-        and (e.metadata or {}).get("section_break")
+        if e.type == StreamEventType.CONTENT and (e.metadata or {}).get("section_break")
     ]
     assert section_breaks, "expected at least one section-break event between sections"
     assert all(e.content == "\n\n" for e in section_breaks)
@@ -699,7 +707,9 @@ async def test_explain_triage_explain_path_streams_under_finish(
             # Deep explain → FINISH with the expansion
             [
                 _llm_chunk(content="``FINISH``\n"),
-                _llm_chunk(content="**Intuition:** odd integrand over a symmetric domain integrates to zero."),
+                _llm_chunk(
+                    content="**Intuition:** odd integrand over a symmetric domain integrates to zero."
+                ),
             ],
             # Synthesize
             [
@@ -757,9 +767,7 @@ async def test_explain_triage_explain_path_streams_under_finish(
     assert "</details>" in body
     # The wrapping events carry a ``details_wrapper`` flag so the frontend
     # / tests can distinguish them from the LLM body.
-    wrapper_events = [
-        e for e in events if (e.metadata or {}).get("details_wrapper")
-    ]
+    wrapper_events = [e for e in events if (e.metadata or {}).get("details_wrapper")]
     assert len(wrapper_events) == 2, (
         f"Expected exactly 2 details-wrapper events (open + close), got {len(wrapper_events)}"
     )
@@ -771,8 +779,7 @@ async def test_explain_triage_explain_path_streams_under_finish(
     section_breaks = [
         e
         for e in events
-        if e.type == StreamEventType.CONTENT
-        and (e.metadata or {}).get("section_break")
+        if e.type == StreamEventType.CONTENT and (e.metadata or {}).get("section_break")
     ]
     assert len(section_breaks) == 2, (
         f"Expected 2 section breaks (after FINISH, after EXPLAIN), got {len(section_breaks)}"
@@ -799,9 +806,7 @@ async def test_pipeline_failure_surfaces_visible_error_and_reraises(
         async def create(self, **kwargs: Any):
             raise RuntimeError("simulated upstream failure")
 
-    failing_client = SimpleNamespace(
-        chat=SimpleNamespace(completions=_FailingCompletions())
-    )
+    failing_client = SimpleNamespace(chat=SimpleNamespace(completions=_FailingCompletions()))
     monkeypatch.setattr(pipeline, "_build_client", lambda: failing_client)
 
     bus = StreamBus()

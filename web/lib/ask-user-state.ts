@@ -10,12 +10,17 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function eventBelongsToTurn(event: StreamEvent, turnId?: string | null): boolean {
+function eventBelongsToTurn(
+  event: StreamEvent,
+  turnId?: string | null,
+): boolean {
   if (!turnId) return true;
   return !event.turn_id || event.turn_id === turnId;
 }
 
-function askUserPayloadFrom(event: StreamEvent): Record<string, unknown> | null {
+function askUserPayloadFrom(
+  event: StreamEvent,
+): Record<string, unknown> | null {
   const meta = asRecord(event.metadata);
   const toolMetadata = asRecord(meta?.tool_metadata);
   return asRecord(toolMetadata?.ask_user) ?? asRecord(meta?.ask_user);

@@ -43,8 +43,7 @@ type Layer = "L2" | "L3";
 //   * the rendered output is visually empty (zero-width span)
 //   * ``#m_xxx`` hash navigation works within the doc
 // Requires ``allowHtml`` on the markdown renderer (we set it below).
-const _ENTRY_ANCHOR_RE =
-  /\s*<!--\s*(m_[0-9A-HJKMNP-TV-Z]{26})\s*-->/g;
+const _ENTRY_ANCHOR_RE = /\s*<!--\s*(m_[0-9A-HJKMNP-TV-Z]{26})\s*-->/g;
 
 // Rewrite footnote definitions so the ref text becomes a markdown link.
 //
@@ -260,7 +259,9 @@ export default function MemoryWorkbench({
   useEffect(() => {
     if (!pendingFocus || editing) return;
     if (!content || !previewRef.current) return;
-    const anchorId = pendingFocus.startsWith("m_") ? pendingFocus : `m_${pendingFocus}`;
+    const anchorId = pendingFocus.startsWith("m_")
+      ? pendingFocus
+      : `m_${pendingFocus}`;
     let cancelled = false;
     const id = window.setTimeout(() => {
       if (cancelled) return;
@@ -326,13 +327,10 @@ export default function MemoryWorkbench({
     }
   }, [editorValue, layer, docKey, t, loadLines]);
 
-  const nicelabel = useMemo(
-    () => {
-      const entry = nav.find((n) => n.key === docKey);
-      return entry ? t(entry.label) : docKey;
-    },
-    [docKey, nav, t],
-  );
+  const nicelabel = useMemo(() => {
+    const entry = nav.find((n) => n.key === docKey);
+    return entry ? t(entry.label) : docKey;
+  }, [docKey, nav, t]);
 
   const handleRunComplete = useCallback(() => {
     void loadDoc();
@@ -520,7 +518,12 @@ function LayerSwitcher({
 }) {
   // L1 page is a single workbench (no per-key route); L2/L3 hubs land
   // on /memory/l2 and /memory/l3 which list the surfaces / slots.
-  const entries: { key: "L1" | Layer; href: string; icon: LucideIcon; label: string }[] = [
+  const entries: {
+    key: "L1" | Layer;
+    href: string;
+    icon: LucideIcon;
+    label: string;
+  }[] = [
     { key: "L1", href: "/memory/l1", icon: Layers, label: t("L1") },
     { key: "L2", href: "/memory/l2", icon: Workflow, label: t("L2") },
     { key: "L3", href: "/memory/l3", icon: Network, label: t("L3") },
@@ -608,7 +611,9 @@ function LineNumberedView({
           <div
             key={line.number}
             className={
-              muted ? "text-[var(--muted-foreground)]" : "text-[var(--foreground)]"
+              muted
+                ? "text-[var(--muted-foreground)]"
+                : "text-[var(--foreground)]"
             }
           >
             <span className="select-none pr-3 text-[var(--muted-foreground)]">

@@ -8,9 +8,9 @@ which meant rejection was a silent drop.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import re
-from dataclasses import dataclass
 from typing import Iterable
 
 from deeptutor.services.memory.ops import Op
@@ -45,6 +45,7 @@ BANNED_PHRASES: tuple[str, ...] = (
     "总是",
     "从来不",
 )
+
 
 # Per-loop budgets. Beyond these the dispatcher emits a hint observation
 # instead of executing the action; the prompt nudges the model to finish.

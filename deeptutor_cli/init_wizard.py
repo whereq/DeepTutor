@@ -25,7 +25,6 @@ import typer
 
 from deeptutor.services.provider_registry import PROVIDERS, ProviderSpec, find_by_name
 
-
 # --- Featured selection ------------------------------------------------------
 # Hand-picked, in display order, for the LLM step. Everything else is reachable
 # via the "Show all" option. Names match ProviderSpec.name in provider_registry.
@@ -111,6 +110,7 @@ EMBEDDING_FALLBACK_MODELS: dict[str, tuple[str, ...]] = {
 # Source of truth: ``SUPPORTED_SEARCH_PROVIDERS`` in
 # ``deeptutor.services.config.provider_runtime``. Each entry below describes
 # how the wizard captures the credentials/config for that provider.
+
 
 @dataclass(frozen=True)
 class SearchProviderSpec:
@@ -231,7 +231,9 @@ class SearchChoice:
 def step_header(console: Console, label: str) -> None:
     console.print()
     bar = "─" * 8
-    console.print(f"[bright_cyan]{bar}[/bright_cyan]  [bold]{label}[/bold]  [bright_cyan]{bar}[/bright_cyan]")
+    console.print(
+        f"[bright_cyan]{bar}[/bright_cyan]  [bold]{label}[/bold]  [bright_cyan]{bar}[/bright_cyan]"
+    )
     console.print()
 
 
@@ -288,6 +290,7 @@ def select_from_options(
     table.add_column(style="bright_cyan", justify="right")
     table.add_column(style="bold")
     table.add_column(style="dim")
+
     # Rich Table cells parse markup, so e.g. `[s]` would be eaten as a
     # nonexistent tag. Wrap markers in Text so they render verbatim.
     def _marker(text: str) -> Text:
@@ -533,7 +536,9 @@ def capture_api_key(
             if typer.confirm(offer, default=True):
                 return from_env
 
-    return typer.prompt(strings["init.api_key_prompt"], default="", hide_input=True, show_default=False)
+    return typer.prompt(
+        strings["init.api_key_prompt"], default="", hide_input=True, show_default=False
+    )
 
 
 # --- Live /models fetch --------------------------------------------------------
@@ -600,7 +605,12 @@ def fetch_models(
                 names.append(name)
     # Dedupe preserving order
     seen: set[str] = set()
-    deduped = [n for n in names if not (n in seen or seen.add(n))]
+    deduped: list[str] = []
+    for n in names:
+        if n in seen:
+            continue
+        seen.add(n)
+        deduped.append(n)
     if deduped:
         ok(console, strings["init.fetch_models_ok"].format(count=len(deduped)))
     return deduped
@@ -705,7 +715,12 @@ def fetch_embedding_models(
         return []
 
     seen: set[str] = set()
-    deduped = [n for n in filtered if not (n in seen or seen.add(n))]
+    deduped: list[str] = []
+    for n in filtered:
+        if n in seen:
+            continue
+        seen.add(n)
+        deduped.append(n)
     ok(console, strings["init.fetch_models_ok"].format(count=len(deduped)))
     return deduped
 
@@ -867,9 +882,7 @@ def render_review_panel(
     if backend_port is not None and frontend_port is not None:
         _row(
             strings["init.review_ports"],
-            strings["init.review_ports_value"].format(
-                backend=backend_port, frontend=frontend_port
-            ),
+            strings["init.review_ports_value"].format(backend=backend_port, frontend=frontend_port),
         )
     console.print(
         Panel(

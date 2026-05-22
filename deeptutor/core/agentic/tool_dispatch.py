@@ -19,7 +19,7 @@ messages, accumulated sources, and pause/terminate signals for the loop.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import json
 import logging
@@ -42,9 +42,7 @@ MAX_PARALLEL_TOOL_CALLS = 8
 
 
 KwargAugmenter = Callable[[str, dict[str, Any], UnifiedContext], dict[str, Any]]
-RetrieveMetaFactory = Callable[
-    [dict[str, Any], str, dict[str, Any]], dict[str, Any] | None
-]
+RetrieveMetaFactory = Callable[[dict[str, Any], str, dict[str, Any]], dict[str, Any] | None]
 UnknownErrorMessageFactory = Callable[[str], str]
 
 
@@ -117,9 +115,7 @@ async def dispatch_tool_calls(
     # also hidden from the user-facing trace stream to avoid duplicate Ask
     # Me rows/cards during the live turn.
     duplicate_of = _detect_duplicate_calls(prepared)
-    suppress_ui_indices = {
-        idx for idx in duplicate_of if prepared[idx][1] == "ask_user"
-    }
+    suppress_ui_indices = {idx for idx in duplicate_of if prepared[idx][1] == "ask_user"}
     per_tool_trace_meta = _build_per_tool_trace_meta(
         prepared,
         context=context,
@@ -294,9 +290,7 @@ def _build_per_tool_trace_meta(
     own sub-trace row in the frontend's CallTracePanel."""
     metas: list[dict[str, Any]] = []
     for tool_index, (tool_call_id, tool_name, _exec_args) in enumerate(prepared):
-        trace_call_id = new_call_id(
-            f"{trace_id_prefix}-{iteration_index}-tool-{tool_index}"
-        )
+        trace_call_id = new_call_id(f"{trace_id_prefix}-{iteration_index}-tool-{tool_index}")
         base_meta = build_trace_metadata(
             call_id=trace_call_id,
             phase=stage,
@@ -459,12 +453,8 @@ async def _collect_outcome(
     ):
         result_text = str(result["result_text"])
         tool_meta = per_tool_trace_meta[tool_index]
-        tool_extra_meta = (
-            result.get("metadata") if isinstance(result, dict) else None
-        )
-        result_event_meta = merge_trace_metadata(
-            tool_meta, {"trace_kind": "tool_result"}
-        )
+        tool_extra_meta = result.get("metadata") if isinstance(result, dict) else None
+        result_event_meta = merge_trace_metadata(tool_meta, {"trace_kind": "tool_result"})
         if isinstance(tool_extra_meta, dict) and tool_extra_meta:
             result_event_meta = merge_trace_metadata(
                 result_event_meta,

@@ -20,17 +20,12 @@ from deeptutor.core.agentic.loop import LabelProtocol, run_agentic_loop
 from deeptutor.core.agentic.tool_dispatch import DispatchOutcome
 from deeptutor.core.stream_bus import StreamBus
 
-
 # --------------------------- scripted LLM client ---------------------------
 
 
 def _llm_chunk(content: str) -> SimpleNamespace:
     return SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                delta=SimpleNamespace(content=content, tool_calls=None)
-            )
-        ]
+        choices=[SimpleNamespace(delta=SimpleNamespace(content=content, tool_calls=None))]
     )
 
 
@@ -75,9 +70,7 @@ class _BaseHost:
     async def guard_context_window(self, messages: list[dict[str, Any]]) -> None:
         return None
 
-    def build_iteration_trace_meta(
-        self, iteration: int
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    def build_iteration_trace_meta(self, iteration: int) -> tuple[dict[str, Any], dict[str, Any]]:
         return ({"iter": iteration}, {"iter": iteration, "final": True})
 
     async def dispatch_tools(self, *, iteration, tool_calls):  # pragma: no cover
@@ -199,9 +192,7 @@ async def test_loop_calls_on_intermediate_and_injects_feedback() -> None:
     (a) be called with the label + text, and
     (b) have its non-empty return value injected as a user message
     visible to the next LLM iteration."""
-    client = _ScriptedClient(
-        _script_for_two_iterations("APPEND", "Quantum entanglement basics")
-    )
+    client = _ScriptedClient(_script_for_two_iterations("APPEND", "Quantum entanglement basics"))
     host = _AppendHost()
     bus = StreamBus()
 
@@ -236,14 +227,10 @@ async def test_loop_calls_on_intermediate_and_injects_feedback() -> None:
     # Iteration 2's messages must include both the assistant APPEND
     # prose AND a user feedback note carrying the host's confirmation.
     iter2_msgs = client.calls[1]
-    assistant_texts = [
-        m.get("content") or "" for m in iter2_msgs if m.get("role") == "assistant"
-    ]
+    assistant_texts = [m.get("content") or "" for m in iter2_msgs if m.get("role") == "assistant"]
     user_texts = [m.get("content") or "" for m in iter2_msgs if m.get("role") == "user"]
     assert any("Quantum entanglement basics" in t for t in assistant_texts)
-    assert any(
-        "Appended block #1: Quantum entanglement basics" in t for t in user_texts
-    )
+    assert any("Appended block #1: Quantum entanglement basics" in t for t in user_texts)
 
 
 @pytest.mark.asyncio
@@ -300,9 +287,7 @@ async def test_loop_validate_terminal_can_repair_premature_finish() -> None:
     assert outcome.completed is True
     assert outcome.final_text.strip() == "Evidence-backed synthesis"
     assert host.rejections == 1
-    iter2_user_texts = [
-        m.get("content") or "" for m in client.calls[1] if m.get("role") == "user"
-    ]
+    iter2_user_texts = [m.get("content") or "" for m in client.calls[1] if m.get("role") == "user"]
     assert any("repair:finish_without_tool" in t for t in iter2_user_texts)
 
 
@@ -376,9 +361,7 @@ async def test_intermediate_label_in_final_set_streams_body_and_continues() -> N
     assert host.emit_final_calls[1].strip() == "here is the answer"
     # The PAUSE prose is also kept as assistant context for iteration 2.
     iter2_msgs = client.calls[1]
-    assistant_texts = [
-        m.get("content") or "" for m in iter2_msgs if m.get("role") == "assistant"
-    ]
+    assistant_texts = [m.get("content") or "" for m in iter2_msgs if m.get("role") == "assistant"]
     assert any("let me check first" in t for t in assistant_texts)
 
 
@@ -444,12 +427,8 @@ async def test_before_iteration_hook_runs_each_iteration() -> None:
     # Fired twice — once per iteration, with the right counters.
     assert host.fired == [(0, 5), (1, 5)]
     # Both LLM calls saw a marker in their messages tail.
-    iter1_markers = [
-        m for m in client.calls[0] if "[marker]" in (m.get("content") or "")
-    ]
-    iter2_markers = [
-        m for m in client.calls[1] if "[marker]" in (m.get("content") or "")
-    ]
+    iter1_markers = [m for m in client.calls[0] if "[marker]" in (m.get("content") or "")]
+    iter2_markers = [m for m in client.calls[1] if "[marker]" in (m.get("content") or "")]
     assert any("1/5" in m.get("content", "") for m in iter1_markers)
     assert any("2/5" in m.get("content", "") for m in iter2_markers)
 

@@ -207,185 +207,185 @@ export default function ToolsSettingsPage() {
             const list = grouped[category];
             if (list.length === 0) return null;
             return (
-            <section key={category}>
-              <header className="mb-3 flex items-baseline justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-[14px] font-semibold tracking-tight text-[var(--foreground)]">
-                    {categoryLabel(category)}
-                  </h2>
-                  <p className="mt-0.5 text-[11.5px] text-[var(--muted-foreground)]">
-                    {categoryHint(category)}
-                  </p>
-                </div>
-                <span className="shrink-0 text-[11px] text-[var(--muted-foreground)]">
-                  {list.length}
-                </span>
-              </header>
-              <div className="overflow-hidden rounded-xl border border-[var(--border)]/60 bg-[var(--card)]/40">
-                {list.map((tool, idx) => {
-                  const isOpen = expanded.has(tool.name);
-                  const hints = tool.hints[language];
-                  const isPending = pending.has(tool.name);
-                  const isComingSoon = !!tool.coming_soon;
-                  const isEnabled =
-                    !isComingSoon &&
-                    (tool.toggleable ? enabled.has(tool.name) : true);
-                  return (
-                    <div
-                      key={tool.name}
-                      className={
-                        idx > 0
-                          ? "border-t border-[var(--border)]/50"
-                          : undefined
-                      }
-                    >
-                      <div className="flex w-full items-start gap-3 px-5 py-4">
-                        <Wrench
-                          className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
-                            isComingSoon
-                              ? "text-[var(--muted-foreground)]/40"
-                              : "text-[var(--muted-foreground)]"
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => toggleExpanded(tool.name)}
-                          className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                          aria-expanded={isOpen}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`font-mono text-[13px] font-medium ${
-                                  isComingSoon
-                                    ? "text-[var(--foreground)]/60"
-                                    : "text-[var(--foreground)]"
-                                }`}
-                              >
-                                {tool.name}
-                              </span>
-                              {tool.aliases.length > 0 && (
-                                <span className="text-[10.5px] text-[var(--muted-foreground)]/70">
-                                  {tool.aliases.join(" · ")}
-                                </span>
-                              )}
-                              {isComingSoon && (
-                                <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--muted)]/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
-                                  {language === "zh"
-                                    ? "敬请期待"
-                                    : "Coming soon"}
-                                </span>
-                              )}
-                            </div>
-                            <p
-                              className={`mt-1 text-[12.5px] leading-relaxed ${
-                                isComingSoon
-                                  ? "text-[var(--muted-foreground)]/70"
-                                  : "text-[var(--muted-foreground)]"
-                              }`}
-                            >
-                              {hints.short_description || tool.description}
-                            </p>
-                          </div>
-                          <ChevronDown
-                            className={`mt-1 h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-transform ${
-                              isOpen ? "rotate-180" : ""
+              <section key={category}>
+                <header className="mb-3 flex items-baseline justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-[14px] font-semibold tracking-tight text-[var(--foreground)]">
+                      {categoryLabel(category)}
+                    </h2>
+                    <p className="mt-0.5 text-[11.5px] text-[var(--muted-foreground)]">
+                      {categoryHint(category)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[11px] text-[var(--muted-foreground)]">
+                    {list.length}
+                  </span>
+                </header>
+                <div className="overflow-hidden rounded-xl border border-[var(--border)]/60 bg-[var(--card)]/40">
+                  {list.map((tool, idx) => {
+                    const isOpen = expanded.has(tool.name);
+                    const hints = tool.hints[language];
+                    const isPending = pending.has(tool.name);
+                    const isComingSoon = !!tool.coming_soon;
+                    const isEnabled =
+                      !isComingSoon &&
+                      (tool.toggleable ? enabled.has(tool.name) : true);
+                    return (
+                      <div
+                        key={tool.name}
+                        className={
+                          idx > 0
+                            ? "border-t border-[var(--border)]/50"
+                            : undefined
+                        }
+                      >
+                        <div className="flex w-full items-start gap-3 px-5 py-4">
+                          <Wrench
+                            className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
+                              isComingSoon
+                                ? "text-[var(--muted-foreground)]/40"
+                                : "text-[var(--muted-foreground)]"
                             }`}
                           />
-                        </button>
-                        <div className="mt-0.5 flex shrink-0 items-center gap-2">
-                          {isComingSoon ? (
-                            <ToolToggle
-                              checked={false}
-                              disabled
-                              onChange={() => {
-                                /* locked */
-                              }}
-                              label={
-                                language === "zh"
-                                  ? "敬请期待"
-                                  : "Coming soon"
-                              }
-                            />
-                          ) : tool.toggleable ? (
-                            <ToolToggle
-                              checked={isEnabled}
-                              disabled={isPending}
-                              onChange={() => handleToggleEnabled(tool.name)}
-                              label={t(isEnabled ? "On" : "Off")}
-                            />
-                          ) : (
-                            <span
-                              className="inline-flex items-center gap-1 rounded-full bg-[var(--muted)]/40 px-2 py-0.5 text-[10.5px] text-[var(--muted-foreground)]"
-                              title={t(
-                                "Auto-mounted by the agent when needed. Not user-toggleable.",
-                              )}
-                            >
-                              <Lock className="h-3 w-3" />
-                              {t("Always on")}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {isOpen && (
-                        <div className="space-y-4 border-t border-[var(--border)]/40 bg-[var(--background)]/40 px-5 py-4 text-[12.5px] leading-relaxed">
-                          {hints.when_to_use && (
-                            <Field
-                              label={t("When to use")}
-                              body={hints.when_to_use}
-                            />
-                          )}
-                          {hints.input_format && (
-                            <Field
-                              label={t("Input format")}
-                              body={hints.input_format}
-                              mono
-                            />
-                          )}
-                          {hints.guideline && (
-                            <Field
-                              label={t("Guideline")}
-                              body={hints.guideline}
-                            />
-                          )}
-                          {hints.note && (
-                            <Field label={t("Note")} body={hints.note} />
-                          )}
-                          {tool.parameters.length > 0 && (
-                            <div>
-                              <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]/80">
-                                {t("Parameters")}
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(tool.name)}
+                            className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                            aria-expanded={isOpen}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`font-mono text-[13px] font-medium ${
+                                    isComingSoon
+                                      ? "text-[var(--foreground)]/60"
+                                      : "text-[var(--foreground)]"
+                                  }`}
+                                >
+                                  {tool.name}
+                                </span>
+                                {tool.aliases.length > 0 && (
+                                  <span className="text-[10.5px] text-[var(--muted-foreground)]/70">
+                                    {tool.aliases.join(" · ")}
+                                  </span>
+                                )}
+                                {isComingSoon && (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--muted)]/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
+                                    {language === "zh"
+                                      ? "敬请期待"
+                                      : "Coming soon"}
+                                  </span>
+                                )}
                               </div>
-                              <ul className="space-y-1.5">
-                                {tool.parameters.map((p) => (
-                                  <li
-                                    key={p.name}
-                                    className="flex items-baseline gap-2"
-                                  >
-                                    <span className="font-mono text-[12px] text-[var(--foreground)]">
-                                      {p.name}
-                                    </span>
-                                    <span className="text-[10.5px] text-[var(--muted-foreground)]/70">
-                                      {p.type}
-                                      {p.required ? "" : ` · ${t("optional")}`}
-                                    </span>
-                                    {p.description && (
-                                      <span className="text-[12px] text-[var(--muted-foreground)]">
-                                        — {p.description}
-                                      </span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
+                              <p
+                                className={`mt-1 text-[12.5px] leading-relaxed ${
+                                  isComingSoon
+                                    ? "text-[var(--muted-foreground)]/70"
+                                    : "text-[var(--muted-foreground)]"
+                                }`}
+                              >
+                                {hints.short_description || tool.description}
+                              </p>
                             </div>
-                          )}
+                            <ChevronDown
+                              className={`mt-1 h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-transform ${
+                                isOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                          </button>
+                          <div className="mt-0.5 flex shrink-0 items-center gap-2">
+                            {isComingSoon ? (
+                              <ToolToggle
+                                checked={false}
+                                disabled
+                                onChange={() => {
+                                  /* locked */
+                                }}
+                                label={
+                                  language === "zh" ? "敬请期待" : "Coming soon"
+                                }
+                              />
+                            ) : tool.toggleable ? (
+                              <ToolToggle
+                                checked={isEnabled}
+                                disabled={isPending}
+                                onChange={() => handleToggleEnabled(tool.name)}
+                                label={t(isEnabled ? "On" : "Off")}
+                              />
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full bg-[var(--muted)]/40 px-2 py-0.5 text-[10.5px] text-[var(--muted-foreground)]"
+                                title={t(
+                                  "Auto-mounted by the agent when needed. Not user-toggleable.",
+                                )}
+                              >
+                                <Lock className="h-3 w-3" />
+                                {t("Always on")}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+                        {isOpen && (
+                          <div className="space-y-4 border-t border-[var(--border)]/40 bg-[var(--background)]/40 px-5 py-4 text-[12.5px] leading-relaxed">
+                            {hints.when_to_use && (
+                              <Field
+                                label={t("When to use")}
+                                body={hints.when_to_use}
+                              />
+                            )}
+                            {hints.input_format && (
+                              <Field
+                                label={t("Input format")}
+                                body={hints.input_format}
+                                mono
+                              />
+                            )}
+                            {hints.guideline && (
+                              <Field
+                                label={t("Guideline")}
+                                body={hints.guideline}
+                              />
+                            )}
+                            {hints.note && (
+                              <Field label={t("Note")} body={hints.note} />
+                            )}
+                            {tool.parameters.length > 0 && (
+                              <div>
+                                <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]/80">
+                                  {t("Parameters")}
+                                </div>
+                                <ul className="space-y-1.5">
+                                  {tool.parameters.map((p) => (
+                                    <li
+                                      key={p.name}
+                                      className="flex items-baseline gap-2"
+                                    >
+                                      <span className="font-mono text-[12px] text-[var(--foreground)]">
+                                        {p.name}
+                                      </span>
+                                      <span className="text-[10.5px] text-[var(--muted-foreground)]/70">
+                                        {p.type}
+                                        {p.required
+                                          ? ""
+                                          : ` · ${t("optional")}`}
+                                      </span>
+                                      {p.description && (
+                                        <span className="text-[12px] text-[var(--muted-foreground)]">
+                                          — {p.description}
+                                        </span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
             );
           })}
         </div>

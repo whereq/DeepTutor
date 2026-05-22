@@ -22,8 +22,8 @@ from deeptutor.agents.research.pipeline import (
     LABEL_APPEND,
     LABEL_FINISH,
     LABEL_THINK,
-    ResearchPipeline,
     ResearchedBlock,
+    ResearchPipeline,
     _BlockLoopHost,
 )
 from deeptutor.agents.research.utils.citation_manager import CitationManager
@@ -43,9 +43,7 @@ def _make_pipeline(monkeypatch: pytest.MonkeyPatch) -> ResearchPipeline:
         api_version = None
         extra_headers = {}
 
-    monkeypatch.setattr(
-        "deeptutor.agents.research.pipeline.get_llm_config", lambda: _FakeLLM()
-    )
+    monkeypatch.setattr("deeptutor.agents.research.pipeline.get_llm_config", lambda: _FakeLLM())
     monkeypatch.setattr(
         "deeptutor.agents.research.pipeline.get_tool_registry", lambda: _FakeRegistry()
     )
@@ -84,11 +82,7 @@ class _ToolRegistry:
         return SimpleNamespace(name=name) if name in self.names else None
 
     def get_enabled(self, names):
-        return [
-            SimpleNamespace(name=name)
-            for name in names
-            if name in self.names
-        ]
+        return [SimpleNamespace(name=name) for name in names if name in self.names]
 
 
 class _FakeCitationManager:
@@ -160,18 +154,10 @@ def _make_pipeline_with_registry(
         api_version = None
         extra_headers = {}
 
-    monkeypatch.setattr(
-        "deeptutor.agents.research.pipeline.get_llm_config", lambda: _FakeLLM()
-    )
-    monkeypatch.setattr(
-        "deeptutor.agents.research.pipeline.get_tool_registry", lambda: registry
-    )
-    monkeypatch.setattr(
-        "deeptutor.agents.research.pipeline.user_has_memory", lambda: False
-    )
-    monkeypatch.setattr(
-        "deeptutor.agents.research.pipeline.user_has_notebooks", lambda: False
-    )
+    monkeypatch.setattr("deeptutor.agents.research.pipeline.get_llm_config", lambda: _FakeLLM())
+    monkeypatch.setattr("deeptutor.agents.research.pipeline.get_tool_registry", lambda: registry)
+    monkeypatch.setattr("deeptutor.agents.research.pipeline.user_has_memory", lambda: False)
+    monkeypatch.setattr("deeptutor.agents.research.pipeline.user_has_notebooks", lambda: False)
     return ResearchPipeline(
         language="en",
         runtime_config={"queue": {"max_length": 5}},
@@ -228,9 +214,7 @@ async def test_block_host_rejects_finish_before_tool_when_tools_available(
     bus = StreamBus()
     host, _parent = _make_host(pipeline, queue, bus)
 
-    assert await host.validate_terminal(LABEL_FINISH, "direct answer") == (
-        "finish_without_tool"
-    )
+    assert await host.validate_terminal(LABEL_FINISH, "direct answer") == ("finish_without_tool")
     host._tool_rounds_used = 1
     assert await host.validate_terminal(LABEL_FINISH, "after evidence") is None
 
@@ -403,9 +387,7 @@ async def test_on_intermediate_append_adds_block_and_returns_confirmation(
     assert new_block.metadata.get("parent_block_id") == parent.block_id
 
     queue_append_events = [
-        e
-        for e in events
-        if (e.metadata or {}).get("trace_kind") == "queue_append"
+        e for e in events if (e.metadata or {}).get("trace_kind") == "queue_append"
     ]
     assert queue_append_events
     assert queue_append_events[-1].metadata["new_block_id"] == new_block.block_id
@@ -422,9 +404,7 @@ async def test_on_intermediate_append_rejects_duplicate(
     events, consumer = await _drain_bus(bus)
 
     host, _parent = _make_host(pipeline, queue, bus)
-    feedback = await host.on_intermediate(
-        LABEL_APPEND, "quantum entanglement basics"
-    )
+    feedback = await host.on_intermediate(LABEL_APPEND, "quantum entanglement basics")
     await bus.close()
     await consumer
 
@@ -433,9 +413,7 @@ async def test_on_intermediate_append_rejects_duplicate(
     # Queue size unchanged.
     assert len(queue.blocks) == 1
     rejected = [
-        e
-        for e in events
-        if (e.metadata or {}).get("trace_kind") == "queue_append_rejected"
+        e for e in events if (e.metadata or {}).get("trace_kind") == "queue_append_rejected"
     ]
     assert rejected
     assert rejected[-1].metadata.get("reason") == "duplicate"
@@ -461,9 +439,7 @@ async def test_on_intermediate_append_rejects_when_queue_full(
     # No new block added.
     assert len(queue.blocks) == 2
     rejected = [
-        e
-        for e in events
-        if (e.metadata or {}).get("trace_kind") == "queue_append_rejected"
+        e for e in events if (e.metadata or {}).get("trace_kind") == "queue_append_rejected"
     ]
     assert rejected
     # The retained host emits ``"full"`` as the reason value. (Older
@@ -551,9 +527,7 @@ def test_report_outline_parser_repairs_missing_block_coverage(
         blocks,
     )
 
-    covered = {
-        block_id for section in outline.sections for block_id in section.block_ids
-    }
+    covered = {block_id for section in outline.sections for block_id in section.block_ids}
     assert covered == {"block_1", "block_2", "block_3"}
     assert all(section.block_ids for section in outline.sections)
     assert outline.sections[1].title == "Deployment"

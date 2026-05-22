@@ -123,7 +123,10 @@ export default function StatusSettingsPage() {
                 {profileName}
               </div>
               {serviceStatus?.error && (
-                <p className="mt-2 truncate text-[11px] text-red-500" title={serviceStatus.error}>
+                <p
+                  className="mt-2 truncate text-[11px] text-red-500"
+                  title={serviceStatus.error}
+                >
                   {serviceStatus.error}
                 </p>
               )}

@@ -26,10 +26,10 @@ system" message that it can relay to the user.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
 import shutil
-from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +42,7 @@ QueryType = str  # "pr" | "issue" | "run" | "repo" | "api"
 # template — no mutation verbs.
 _PR_FIELDS = "title,state,statusCheckRollup,reviews,url,author,createdAt,body"
 _ISSUE_FIELDS = "title,state,body,comments,url,author,createdAt,labels"
-_REPO_FIELDS = (
-    "description,defaultBranchRef,stargazerCount,forkCount,visibility,url"
-)
+_REPO_FIELDS = "description,defaultBranchRef,stargazerCount,forkCount,visibility,url"
 _RUN_FIELDS = "name,status,conclusion,workflowName,event,createdAt,url"
 
 
@@ -89,9 +87,7 @@ async def run_github_query(
     if not q:
         return GithubOutcome(ok=False, error="query_type is required.")
     if not t:
-        return GithubOutcome(
-            ok=False, query_type=q, error="target is required."
-        )
+        return GithubOutcome(ok=False, query_type=q, error="target is required.")
 
     is_available = gh_available or _default_gh_available
     if not is_available():
@@ -112,10 +108,7 @@ async def run_github_query(
             ok=False,
             query_type=q,
             target=t,
-            error=(
-                f"Unsupported query_type {q!r}. "
-                "Choose one of: pr, issue, run, repo, api."
-            ),
+            error=(f"Unsupported query_type {q!r}. Choose one of: pr, issue, run, repo, api."),
         )
 
     runner = command_runner or _default_command_runner
@@ -159,25 +152,42 @@ async def run_github_query(
 def _build_argv(query_type: str, target: str) -> list[str] | None:
     if query_type == "pr":
         return [
-            "gh", "pr", "view", target,
-            "--json", _PR_FIELDS,
+            "gh",
+            "pr",
+            "view",
+            target,
+            "--json",
+            _PR_FIELDS,
         ]
     if query_type == "issue":
         return [
-            "gh", "issue", "view", target,
-            "--json", _ISSUE_FIELDS,
+            "gh",
+            "issue",
+            "view",
+            target,
+            "--json",
+            _ISSUE_FIELDS,
         ]
     if query_type == "run":
         return [
-            "gh", "run", "list",
-            "--repo", target,
-            "--limit", "10",
-            "--json", _RUN_FIELDS,
+            "gh",
+            "run",
+            "list",
+            "--repo",
+            target,
+            "--limit",
+            "10",
+            "--json",
+            _RUN_FIELDS,
         ]
     if query_type == "repo":
         return [
-            "gh", "repo", "view", target,
-            "--json", _REPO_FIELDS,
+            "gh",
+            "repo",
+            "view",
+            target,
+            "--json",
+            _REPO_FIELDS,
         ]
     if query_type == "api":
         # ``gh api`` defaults to GET; we never pass ``--method`` so even
@@ -191,9 +201,7 @@ def _default_gh_available() -> bool:
     return shutil.which("gh") is not None
 
 
-async def _default_command_runner(
-    argv: list[str], timeout_s: float
-) -> tuple[int, str, str]:
+async def _default_command_runner(argv: list[str], timeout_s: float) -> tuple[int, str, str]:
     """Run ``argv`` as a subprocess, time-bounded, capturing stdout+stderr."""
     proc = await asyncio.create_subprocess_exec(
         *argv,
@@ -201,9 +209,7 @@ async def _default_command_runner(
         stderr=asyncio.subprocess.PIPE,
     )
     try:
-        stdout_b, stderr_b = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout_s
-        )
+        stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()

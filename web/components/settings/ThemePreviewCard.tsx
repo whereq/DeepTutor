@@ -70,11 +70,7 @@ const PALETTES: Record<Theme, Palette> = {
 function MiniPreview({ palette }: { palette: Palette }) {
   const { bg, fg, card, primary, muted, border, glass } = palette;
   return (
-    <svg
-      viewBox="0 0 160 96"
-      className="block h-full w-full"
-      aria-hidden
-    >
+    <svg viewBox="0 0 160 96" className="block h-full w-full" aria-hidden>
       {/* Outer frame */}
       <rect x="0" y="0" width="160" height="96" rx="6" fill={bg} />
       {glass && (
@@ -85,20 +81,67 @@ function MiniPreview({ palette }: { palette: Palette }) {
               <stop offset="100%" stopColor="rgba(168,85,247,0)" />
             </radialGradient>
           </defs>
-          <rect x="0" y="0" width="160" height="96" rx="6" fill="url(#glass-shine)" />
+          <rect
+            x="0"
+            y="0"
+            width="160"
+            height="96"
+            rx="6"
+            fill="url(#glass-shine)"
+          />
         </>
       )}
 
       {/* Sidebar */}
       <rect x="0" y="0" width="44" height="96" fill={muted} />
       {/* Sidebar nav rows */}
-      <rect x="8" y="14" width="28" height="3" rx="1.5" fill={fg} opacity="0.45" />
+      <rect
+        x="8"
+        y="14"
+        width="28"
+        height="3"
+        rx="1.5"
+        fill={fg}
+        opacity="0.45"
+      />
       <rect x="6" y="26" width="32" height="10" rx="3" fill={card} />
-      <rect x="10" y="30" width="20" height="2.5" rx="1.25" fill={fg} opacity="0.9" />
+      <rect
+        x="10"
+        y="30"
+        width="20"
+        height="2.5"
+        rx="1.25"
+        fill={fg}
+        opacity="0.9"
+      />
       <circle cx="40" cy="31" r="1.5" fill={primary} />
-      <rect x="8" y="44" width="24" height="2.5" rx="1.25" fill={fg} opacity="0.45" />
-      <rect x="8" y="54" width="26" height="2.5" rx="1.25" fill={fg} opacity="0.45" />
-      <rect x="8" y="64" width="22" height="2.5" rx="1.25" fill={fg} opacity="0.45" />
+      <rect
+        x="8"
+        y="44"
+        width="24"
+        height="2.5"
+        rx="1.25"
+        fill={fg}
+        opacity="0.45"
+      />
+      <rect
+        x="8"
+        y="54"
+        width="26"
+        height="2.5"
+        rx="1.25"
+        fill={fg}
+        opacity="0.45"
+      />
+      <rect
+        x="8"
+        y="64"
+        width="22"
+        height="2.5"
+        rx="1.25"
+        fill={fg}
+        opacity="0.45"
+      />
 
       {/* Sidebar divider */}
       <line x1="44" y1="0" x2="44" y2="96" stroke={border} strokeWidth="0.5" />
@@ -115,11 +158,43 @@ function MiniPreview({ palette }: { palette: Palette }) {
         strokeWidth="0.5"
       />
       {/* Title line */}
-      <rect x="62" y="22" width="40" height="3.5" rx="1.5" fill={fg} opacity="0.85" />
+      <rect
+        x="62"
+        y="22"
+        width="40"
+        height="3.5"
+        rx="1.5"
+        fill={fg}
+        opacity="0.85"
+      />
       {/* Body lines */}
-      <rect x="62" y="34" width="78" height="2.5" rx="1.25" fill={fg} opacity="0.35" />
-      <rect x="62" y="42" width="64" height="2.5" rx="1.25" fill={fg} opacity="0.35" />
-      <rect x="62" y="50" width="72" height="2.5" rx="1.25" fill={fg} opacity="0.35" />
+      <rect
+        x="62"
+        y="34"
+        width="78"
+        height="2.5"
+        rx="1.25"
+        fill={fg}
+        opacity="0.35"
+      />
+      <rect
+        x="62"
+        y="42"
+        width="64"
+        height="2.5"
+        rx="1.25"
+        fill={fg}
+        opacity="0.35"
+      />
+      <rect
+        x="62"
+        y="50"
+        width="72"
+        height="2.5"
+        rx="1.25"
+        fill={fg}
+        opacity="0.35"
+      />
       {/* Accent button */}
       <rect x="62" y="64" width="22" height="9" rx="2.5" fill={primary} />
     </svg>
@@ -151,7 +226,10 @@ export function ThemePreviewCard({
     >
       <div
         className="relative overflow-hidden rounded-lg ring-1"
-        style={{ aspectRatio: "5 / 3", boxShadow: `inset 0 0 0 1px ${palette.border}` }}
+        style={{
+          aspectRatio: "5 / 3",
+          boxShadow: `inset 0 0 0 1px ${palette.border}`,
+        }}
       >
         <MiniPreview palette={palette} />
         {selected && (

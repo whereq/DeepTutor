@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hasPendingAskUser, hasPendingAskUserInMessages } from "../lib/ask-user-state";
+import {
+  hasPendingAskUser,
+  hasPendingAskUserInMessages,
+} from "../lib/ask-user-state";
 import type { StreamEvent } from "../lib/unified-ws";
 
 function event(
@@ -40,7 +43,9 @@ test("hasPendingAskUser clears the matching card after ask_user_resolved", () =>
   const events = [
     event("tool_result", {
       tool_call_id: "call-1",
-      tool_metadata: { ask_user: { questions: [{ id: "scope", prompt: "Scope?" }] } },
+      tool_metadata: {
+        ask_user: { questions: [{ id: "scope", prompt: "Scope?" }] },
+      },
     }),
     event("progress", {
       ask_user_resolved: true,
@@ -59,7 +64,9 @@ test("hasPendingAskUserInMessages ignores ask_user cards from other turns", () =
           "tool_result",
           {
             tool_call_id: "call-old",
-            tool_metadata: { ask_user: { questions: [{ id: "q", prompt: "Old?" }] } },
+            tool_metadata: {
+              ask_user: { questions: [{ id: "q", prompt: "Old?" }] },
+            },
           },
           "turn-old",
         ),

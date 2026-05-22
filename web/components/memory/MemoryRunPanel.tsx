@@ -77,13 +77,11 @@ export default function MemoryRunPanel({
   const budgetOverride = mode === "dedup" ? null : overrides[mode];
   const iterationsOverride = mode === "dedup" ? overrides.dedup : null;
   const setBudgetOverride = useCallback(
-    (v: number | null) =>
-      setOverrides((prev) => ({ ...prev, [mode]: v })),
+    (v: number | null) => setOverrides((prev) => ({ ...prev, [mode]: v })),
     [mode],
   );
   const setIterationsOverride = useCallback(
-    (v: number | null) =>
-      setOverrides((prev) => ({ ...prev, dedup: v })),
+    (v: number | null) => setOverrides((prev) => ({ ...prev, dedup: v })),
     [],
   );
   const [selection, setSelection] = useState<LLMSelection | null>(null);
@@ -119,17 +117,20 @@ export default function MemoryRunPanel({
   const defaultBudget = useMemo(() => {
     if (!settings) return null;
     if (mode === "update") {
-      return layer === "L2" ? settings.update.l2_budget : settings.update.l3_budget;
+      return layer === "L2"
+        ? settings.update.l2_budget
+        : settings.update.l3_budget;
     }
     if (mode === "audit") {
-      return layer === "L2" ? settings.audit.l2_budget : settings.audit.l3_budget;
+      return layer === "L2"
+        ? settings.audit.l2_budget
+        : settings.audit.l3_budget;
     }
     return null;
   }, [settings, mode, layer]);
   const defaultIterations = settings?.dedup.iterations ?? null;
   const budget = budgetOverride ?? defaultBudget ?? ("" as const);
   const iterations = iterationsOverride ?? defaultIterations ?? ("" as const);
-
 
   const effectiveSelection = useMemo(
     () => selection ?? activeDefault ?? null,
@@ -158,7 +159,15 @@ export default function MemoryRunPanel({
         language: i18n.language || "en",
       });
     }
-  }, [isRunning, mode, iterations, budget, effectiveSelection, i18n.language, start]);
+  }, [
+    isRunning,
+    mode,
+    iterations,
+    budget,
+    effectiveSelection,
+    i18n.language,
+    start,
+  ]);
 
   // Notify parent when a run finishes (success or otherwise) so the doc
   // preview can refresh.
@@ -184,7 +193,8 @@ export default function MemoryRunPanel({
       .reverse()
       .find(
         (ev) =>
-          ev.payload.stage === "doc_updated" || ev.payload.stage === "undo_applied",
+          ev.payload.stage === "doc_updated" ||
+          ev.payload.stage === "undo_applied",
       );
     if (!latest || lastDocEvent.current === latest.seq) return;
     lastDocEvent.current = latest.seq;
@@ -196,7 +206,8 @@ export default function MemoryRunPanel({
     for (const ev of events) {
       const value = ev.payload.undo_depth;
       if (
-        (ev.payload.stage === "doc_updated" || ev.payload.stage === "undo_applied") &&
+        (ev.payload.stage === "doc_updated" ||
+          ev.payload.stage === "undo_applied") &&
         typeof value === "number"
       ) {
         depth = value;
@@ -222,7 +233,9 @@ export default function MemoryRunPanel({
     if (!ok) return;
     try {
       const res = await apiFetch(
-        apiUrl(`/api/v1/memory/doc/${layer}/${encodeURIComponent(docKey)}/reset`),
+        apiUrl(
+          `/api/v1/memory/doc/${layer}/${encodeURIComponent(docKey)}/reset`,
+        ),
         { method: "POST" },
       );
       if (!res.ok) {
@@ -399,7 +412,18 @@ export default function MemoryRunPanel({
 
 type Turn =
   | { kind: "system"; id: string; ts: string; payload: RunEvent["payload"] }
-  | { kind: "llm"; id: string; ts: string; turn: number; chunkIndex: number | null; system_prompt: string; user_prompt: string; response: string; error: string | null; label: string | null };
+  | {
+      kind: "llm";
+      id: string;
+      ts: string;
+      turn: number;
+      chunkIndex: number | null;
+      system_prompt: string;
+      user_prompt: string;
+      response: string;
+      error: string | null;
+      label: string | null;
+    };
 
 function groupByTurn(events: RunEvent[]): Turn[] {
   const out: Turn[] = [];
@@ -409,7 +433,8 @@ function groupByTurn(events: RunEvent[]): Turn[] {
     const stage = String(p.stage || "");
     if (stage === "llm_io_start") {
       const turn = typeof p.turn === "number" ? p.turn : 0;
-      const chunkIndex = typeof p.chunk_index === "number" ? (p.chunk_index as number) : null;
+      const chunkIndex =
+        typeof p.chunk_index === "number" ? (p.chunk_index as number) : null;
       const key = `${turn}:${chunkIndex}:${ev.seq}`;
       const card: Turn & { kind: "llm" } = {
         kind: "llm",
@@ -429,7 +454,8 @@ function groupByTurn(events: RunEvent[]): Turn[] {
     }
     if (stage === "llm_io_end") {
       const turn = typeof p.turn === "number" ? p.turn : 0;
-      const chunkIndex = typeof p.chunk_index === "number" ? (p.chunk_index as number) : null;
+      const chunkIndex =
+        typeof p.chunk_index === "number" ? (p.chunk_index as number) : null;
       const card = pending[`${turn}:${chunkIndex}`];
       if (card) {
         card.response = String(p.response || "");
@@ -440,7 +466,8 @@ function groupByTurn(events: RunEvent[]): Turn[] {
     }
     if (stage === "llm_io_delta") {
       const turn = typeof p.turn === "number" ? p.turn : 0;
-      const chunkIndex = typeof p.chunk_index === "number" ? (p.chunk_index as number) : null;
+      const chunkIndex =
+        typeof p.chunk_index === "number" ? (p.chunk_index as number) : null;
       const card = pending[`${turn}:${chunkIndex}`];
       if (card) {
         card.response += String(p.delta || "");
@@ -491,7 +518,9 @@ function SystemEventRow({
           {display.title}
         </div>
         {display.detail && (
-          <div className="mt-0.5 break-words leading-snug">{display.detail}</div>
+          <div className="mt-0.5 break-words leading-snug">
+            {display.detail}
+          </div>
         )}
       </div>
     </li>
@@ -502,16 +531,24 @@ function systemEventDisplay(
   stage: string,
   event: RunEvent["payload"],
   t: (k: string) => string,
-):
-  | { icon: LucideIcon; title: string; detail: string; tone: "ok" | "warn" | "muted" }
-  | null {
+): {
+  icon: LucideIcon;
+  title: string;
+  detail: string;
+  tone: "ok" | "warn" | "muted";
+} | null {
   const num = (k: string) =>
     typeof event[k] === "number" ? String(event[k]) : null;
   const str = (k: string) =>
     typeof event[k] === "string" ? String(event[k]) : null;
   switch (stage) {
     case "run_started":
-      return { icon: PlayCircle, title: t("Run started"), detail: `${event.mode}`, tone: "muted" };
+      return {
+        icon: PlayCircle,
+        title: t("Run started"),
+        detail: `${event.mode}`,
+        tone: "muted",
+      };
     case "trace_loaded": {
       const total = num("total") ?? num("total_l2_entries");
       const fresh = num("new") ?? num("new_l2_entries");
@@ -519,7 +556,12 @@ function systemEventDisplay(
         total ? `total=${total}` : null,
         fresh ? `new=${fresh}` : null,
       ].filter(Boolean);
-      return { icon: PlayCircle, title: t("Traces loaded"), detail: parts.join(" · "), tone: "muted" };
+      return {
+        icon: PlayCircle,
+        title: t("Traces loaded"),
+        detail: parts.join(" · "),
+        tone: "muted",
+      };
     }
     case "chunked":
       return {
@@ -529,13 +571,20 @@ function systemEventDisplay(
           num("chunks") ? `chunks=${num("chunks")}` : null,
           num("budget") ? `budget=${num("budget")}` : null,
           num("chars") ? `chars=${num("chars")}` : null,
-        ].filter(Boolean).join(" · "),
+        ]
+          .filter(Boolean)
+          .join(" · "),
         tone: "muted",
       };
     case "progress": {
       const turn = num("turn");
       const total = num("total");
-      return { icon: PlayCircle, title: t("Progress"), detail: turn && total ? `${turn}/${total}` : "", tone: "muted" };
+      return {
+        icon: PlayCircle,
+        title: t("Progress"),
+        detail: turn && total ? `${turn}/${total}` : "",
+        tone: "muted",
+      };
     }
     case "facts_extracted":
       return {
@@ -544,7 +593,9 @@ function systemEventDisplay(
         detail: [
           num("kept") ? `kept=${num("kept")}` : null,
           num("added") ? `added=${num("added")}` : null,
-        ].filter(Boolean).join(" · "),
+        ]
+          .filter(Boolean)
+          .join(" · "),
         tone: "ok",
       };
     case "refs_dropped":
@@ -576,7 +627,9 @@ function systemEventDisplay(
           str("action"),
           num("turn") ? `turn=${num("turn")}` : null,
           num("undo_depth") ? `undo=${num("undo_depth")}` : null,
-        ].filter(Boolean).join(" · "),
+        ]
+          .filter(Boolean)
+          .join(" · "),
         tone: "ok",
       };
     case "undo_applied":
@@ -586,7 +639,9 @@ function systemEventDisplay(
         detail: [
           str("action"),
           num("undo_depth") ? `remaining=${num("undo_depth")}` : "remaining=0",
-        ].filter(Boolean).join(" · "),
+        ]
+          .filter(Boolean)
+          .join(" · "),
         tone: "warn",
       };
     case "done":
@@ -597,7 +652,9 @@ function systemEventDisplay(
           num("facts_added") ? `+${num("facts_added")} facts` : null,
           num("edits_applied") ? `+${num("edits_applied")} edits` : null,
           num("refs_dropped") ? `dropped=${num("refs_dropped")}` : null,
-        ].filter(Boolean).join(" · "),
+        ]
+          .filter(Boolean)
+          .join(" · "),
         tone: "ok",
       };
     case "run_ended":
@@ -608,9 +665,19 @@ function systemEventDisplay(
         tone: "muted",
       };
     case "cancelled":
-      return { icon: CircleSlash, title: t("Cancelled"), detail: "", tone: "warn" };
+      return {
+        icon: CircleSlash,
+        title: t("Cancelled"),
+        detail: "",
+        tone: "warn",
+      };
     case "error":
-      return { icon: AlertCircle, title: t("Error"), detail: str("message") || "", tone: "warn" };
+      return {
+        icon: AlertCircle,
+        title: t("Error"),
+        detail: str("message") || "",
+        tone: "warn",
+      };
     default:
       return null;
   }
@@ -625,7 +692,10 @@ function LLMTurnCard({
 }) {
   const [systemOpen, setSystemOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const tag = turn.chunkIndex !== null ? `t${turn.turn} · chunk ${turn.chunkIndex + 1}` : `t${turn.turn}`;
+  const tag =
+    turn.chunkIndex !== null
+      ? `t${turn.turn} · chunk ${turn.chunkIndex + 1}`
+      : `t${turn.turn}`;
   return (
     <li className="space-y-1.5 rounded-md border border-[var(--border)] bg-[var(--background)] px-2.5 py-2">
       <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-wide text-[var(--muted-foreground)]">
@@ -687,7 +757,11 @@ function Disclosure({
         onClick={() => setOpen(!open)}
         className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-[var(--muted)]/60 hover:text-[var(--foreground)]"
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {open ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
         {label}
         <span className="opacity-60">·&nbsp;{body.length}</span>
       </button>
@@ -793,7 +867,11 @@ function ModelPill({
         type="button"
         disabled={inactive}
         onClick={() => setOpen(!open)}
-        title={selectedOption ? `${selectedOption.profile_name} | ${selectedOption.provider}` : label}
+        title={
+          selectedOption
+            ? `${selectedOption.profile_name} | ${selectedOption.provider}`
+            : label
+        }
         className={
           "flex w-full min-w-0 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--background)] px-2.5 py-1 text-[11.5px] text-[var(--foreground)] transition hover:bg-[var(--muted)]/60 disabled:opacity-50 " +
           (open ? "border-[var(--primary)]/40" : "")
@@ -813,7 +891,10 @@ function ModelPill({
                 key={llmSelectionKey(opt)}
                 type="button"
                 onClick={() => {
-                  onChange({ profile_id: opt.profile_id, model_id: opt.model_id });
+                  onChange({
+                    profile_id: opt.profile_id,
+                    model_id: opt.model_id,
+                  });
                   setOpen(false);
                 }}
                 className={
@@ -824,8 +905,12 @@ function ModelPill({
                 }
               >
                 <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                  <span className="truncate text-[var(--foreground)]">{opt.model_name}</span>
-                  <span className="shrink-0 text-[10px] opacity-60">{opt.provider}</span>
+                  <span className="truncate text-[var(--foreground)]">
+                    {opt.model_name}
+                  </span>
+                  <span className="shrink-0 text-[10px] opacity-60">
+                    {opt.provider}
+                  </span>
                 </span>
                 {opt.is_active_default && (
                   <span className="shrink-0 rounded bg-[var(--primary)]/10 px-1 py-0.5 text-[9.5px] uppercase text-[var(--primary)]">

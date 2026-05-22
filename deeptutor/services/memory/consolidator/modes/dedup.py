@@ -72,7 +72,9 @@ async def run_dedup(
         try:
             _config, token = activate_llm_selection(llm_selection)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("memory dedup: ignoring unresolvable llm_selection %s: %s", llm_selection, exc)
+            logger.warning(
+                "memory dedup: ignoring unresolvable llm_selection %s: %s", llm_selection, exc
+            )
             token = None
     try:
         return await _run_dedup_inner(
@@ -91,16 +93,19 @@ async def _run_dedup_inner(
     user_label: str,
     on_event: OnEvent | None,
 ) -> DedupResult:
-
     path = _path_for(layer, key)
     if not path.exists():
         await emit(on_event, {"stage": "done", "no_doc": True, "edits_applied": 0})
-        return DedupResult(layer=layer, key=key, iterations_run=0, edits_applied=0, converged_early=True)
+        return DedupResult(
+            layer=layer, key=key, iterations_run=0, edits_applied=0, converged_early=True
+        )
 
     doc = load_doc(path, default_title=_default_title(layer, key))
     if not doc.all_entries():
         await emit(on_event, {"stage": "done", "no_doc": True, "edits_applied": 0})
-        return DedupResult(layer=layer, key=key, iterations_run=0, edits_applied=0, converged_early=True)
+        return DedupResult(
+            layer=layer, key=key, iterations_run=0, edits_applied=0, converged_early=True
+        )
 
     prompt = load_prompt("dedup", language)
     total_applied = 0

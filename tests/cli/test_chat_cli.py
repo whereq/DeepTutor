@@ -116,7 +116,7 @@ def test_chat_repl_config_commands_match_docs_syntax(monkeypatch) -> None:
         ["chat", "--config", "initial=true"],
         input=(
             "/config set num_questions 5\n"
-            "/config set question_types '[\"short_answer\",\"mcq\"]'\n"
+            '/config set question_types \'["short_answer","mcq"]\'\n'
             "/refs\n"
             "Generate questions\n"
             "/quit\n"

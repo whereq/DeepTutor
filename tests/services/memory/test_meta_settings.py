@@ -29,9 +29,16 @@ def test_settings_defaults_match_spec() -> None:
 
 
 def test_settings_partial_payload_falls_back_to_defaults() -> None:
-    with patch.object(load_memory_settings.__wrapped__ if hasattr(load_memory_settings, "__wrapped__") else load_memory_settings, "__call__", create=True):
+    with patch.object(
+        load_memory_settings.__wrapped__
+        if hasattr(load_memory_settings, "__wrapped__")
+        else load_memory_settings,
+        "__call__",
+        create=True,
+    ):
         pass  # no-op; the next assertion exercises the real coercion path
     from deeptutor.services.memory.settings import _from_dict
+
     merged = _from_dict(
         MemorySettings,
         {"update": {"l2_budget": 42}, "chunking": {"overlap_ratio": 0.25}},
@@ -44,6 +51,7 @@ def test_settings_partial_payload_falls_back_to_defaults() -> None:
 
 def test_settings_clamps_out_of_range_values() -> None:
     from deeptutor.services.memory.settings import _from_dict
+
     merged = _from_dict(
         MemorySettings,
         {

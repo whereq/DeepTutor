@@ -9,12 +9,12 @@ lazily via context variables.
 from __future__ import annotations
 
 import asyncio
-import logging
-import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import logging
 from pathlib import Path
-from typing import Any, Literal
+import shutil
+from typing import Literal
 
 from deeptutor.services.memory import consolidator, paths, trace
 from deeptutor.services.memory.consolidator import ConsolidateResult, OnEvent
@@ -29,7 +29,9 @@ logger = logging.getLogger(__name__)
 Layer = Literal["L2", "L3"]
 
 _V1_FILES = ("PROFILE.md", "SUMMARY.md")
-_NO_MEMORY = "(No memory available — interact with DeepTutor and update from the Memory page to build one.)"
+_NO_MEMORY = (
+    "(No memory available — interact with DeepTutor and update from the Memory page to build one.)"
+)
 
 
 @dataclass

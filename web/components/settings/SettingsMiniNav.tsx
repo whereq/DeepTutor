@@ -17,7 +17,9 @@ export default function SettingsMiniNav() {
           {t("Settings")}
         </h1>
         <p className="mt-1.5 text-[12.5px] leading-snug text-[var(--muted-foreground)]/80">
-          {t("Tune the app, configure model services, and inspect built-in tools.")}
+          {t(
+            "Tune the app, configure model services, and inspect built-in tools.",
+          )}
         </p>
       </div>
 

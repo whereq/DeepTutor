@@ -18,13 +18,12 @@ import pytest
 
 from deeptutor.agents.question.pipeline import (
     CALL_KIND_QUIZ_QUESTION,
+    STAGE_QUIZZING,
     QuestionPipeline,
     QuizPair,
     QuizPlan,
     QuizTemplate,
-    STAGE_QUIZZING,
 )
-
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -268,9 +267,7 @@ def test_emit_quiz_question_structures_metadata() -> None:
         topic="algebra",
         difficulty="easy",
     )
-    asyncio.run(
-        pipeline._emit_quiz_question(stream=bus, qa_pair=qa_pair, index=1, total=3)
-    )
+    asyncio.run(pipeline._emit_quiz_question(stream=bus, qa_pair=qa_pair, index=1, total=3))
     assert len(bus.contents) == 1
     event = bus.contents[0]
     assert event["source"] == "deep_question"
@@ -666,9 +663,12 @@ def test_strip_protocol_label_removes_only_leading_label() -> None:
     Only the leading protocol label should be stripped; later occurrences
     (e.g., the model referencing ``THINK`` inside its own prose) must stay
     so the rendered trace remains faithful."""
-    assert QuestionPipeline._strip_protocol_label(
-        "``THINK``\nfirst I need to check ``TOOL`` mounting."
-    ) == "first I need to check ``TOOL`` mounting."
+    assert (
+        QuestionPipeline._strip_protocol_label(
+            "``THINK``\nfirst I need to check ``TOOL`` mounting."
+        )
+        == "first I need to check ``TOOL`` mounting."
+    )
     assert QuestionPipeline._strip_protocol_label("``FINISH``\nDone.") == "Done."
     assert QuestionPipeline._strip_protocol_label("no label here") == "no label here"
 
@@ -964,12 +964,8 @@ def test_parse_exam_paper_to_templates_happy_path(monkeypatch, tmp_path: Path) -
         )
     )
 
-    monkeypatch.setattr(
-        mimic_source, "parse_pdf_with_mineru", lambda *a, **k: True
-    )
-    monkeypatch.setattr(
-        mimic_source, "extract_questions_from_paper", lambda *a, **k: True
-    )
+    monkeypatch.setattr(mimic_source, "parse_pdf_with_mineru", lambda *a, **k: True)
+    monkeypatch.setattr(mimic_source, "extract_questions_from_paper", lambda *a, **k: True)
 
     templates, trace = asyncio.run(
         mimic_source.parse_exam_paper_to_templates(

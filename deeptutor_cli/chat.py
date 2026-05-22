@@ -232,10 +232,7 @@ def _apply_command(raw: str, state: ChatState) -> bool:
         elif subcommand == "set":
             parsed = _parse_config_assignment(parts)
             if parsed is None:
-                console.print(
-                    "[yellow]Usage:[/] /config set key=value "
-                    "or /config set key value"
-                )
+                console.print("[yellow]Usage:[/] /config set key=value or /config set key value")
                 return True
             key, value = parsed
             state.config[key] = _parse_config_value(value)

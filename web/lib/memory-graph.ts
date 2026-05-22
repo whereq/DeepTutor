@@ -259,15 +259,17 @@ export async function fetchMemorySnapshot(): Promise<RawMemorySnapshot> {
     }
   });
 
-  const l3Promises = L3_SLOTS.map(async (slot): Promise<[L3Slot, ParsedDoc]> => {
-    try {
-      const res = await apiFetch(apiUrl(`/api/v1/memory/doc/L3/${slot}`));
-      const data = (await res.json()) as DocResponse;
-      return [slot, parseDoc(data?.content ?? "")];
-    } catch {
-      return [slot, { title: "", entries: [] }];
-    }
-  });
+  const l3Promises = L3_SLOTS.map(
+    async (slot): Promise<[L3Slot, ParsedDoc]> => {
+      try {
+        const res = await apiFetch(apiUrl(`/api/v1/memory/doc/L3/${slot}`));
+        const data = (await res.json()) as DocResponse;
+        return [slot, parseDoc(data?.content ?? "")];
+      } catch {
+        return [slot, { title: "", entries: [] }];
+      }
+    },
+  );
 
   const [l1Entries, l2Entries, l3Entries] = await Promise.all([
     Promise.all(l1Promises),
@@ -336,7 +338,10 @@ export function buildGraph(
   // render. Quiz L1 is the offender today — one row per question
   // variant, with the same composite ``unified_xxx:q_N`` id appearing
   // twice or more in the same snapshot.
-  const dedupedL1: Record<Surface, L1Entity[]> = {} as Record<Surface, L1Entity[]>;
+  const dedupedL1: Record<Surface, L1Entity[]> = {} as Record<
+    Surface,
+    L1Entity[]
+  >;
   for (const s of SURFACES) {
     const seen = new Set<string>();
     dedupedL1[s] = snap.l1[s].filter((e) => {
@@ -345,7 +350,10 @@ export function buildGraph(
       return true;
     });
   }
-  const dedupedL2: Record<Surface, ParsedEntry[]> = {} as Record<Surface, ParsedEntry[]>;
+  const dedupedL2: Record<Surface, ParsedEntry[]> = {} as Record<
+    Surface,
+    ParsedEntry[]
+  >;
   for (const s of SURFACES) {
     const seen = new Set<string>();
     dedupedL2[s] = snap.l2[s].entries.filter((e) => {
@@ -354,7 +362,10 @@ export function buildGraph(
       return true;
     });
   }
-  const dedupedL3: Record<L3Slot, ParsedEntry[]> = {} as Record<L3Slot, ParsedEntry[]>;
+  const dedupedL3: Record<L3Slot, ParsedEntry[]> = {} as Record<
+    L3Slot,
+    ParsedEntry[]
+  >;
   for (const slot of L3_SLOTS) {
     const seen = new Set<string>();
     dedupedL3[slot] = snap.l3[slot].entries.filter((e) => {
@@ -372,9 +383,7 @@ export function buildGraph(
   const l3MinFrac = 0.12; // 43° floor — keeps even empty slots labelable
   const l3MinPool = l3MinFrac * L3_SLOTS.length;
   const l3ElasticPool = Math.max(0, 1 - l3MinPool);
-  const l3Frac = l3Counts.map(
-    (c) => l3MinFrac + (c / l3Total) * l3ElasticPool,
-  );
+  const l3Frac = l3Counts.map((c) => l3MinFrac + (c / l3Total) * l3ElasticPool);
   const l3FracSum = l3Frac.reduce((a, b) => a + b, 0);
   for (let i = 0; i < l3Frac.length; i++) l3Frac[i] /= l3FracSum;
 
@@ -410,7 +419,9 @@ export function buildGraph(
   // Each surface gets a minimum slice so tiny ones (book, tutorbot)
   // still register visually.
   const minSliceFraction = 0.025; // ≈ 9° floor
-  const rawWeights = SURFACES.map((s) => dedupedL1[s].length + dedupedL2[s].length);
+  const rawWeights = SURFACES.map(
+    (s) => dedupedL1[s].length + dedupedL2[s].length,
+  );
   const totalRaw = rawWeights.reduce((a, b) => a + b, 0) || 1;
   const minPool = minSliceFraction * SURFACES.length;
   const elasticPool = Math.max(0, 1 - minPool);
@@ -419,7 +430,8 @@ export function buildGraph(
   );
   // Renormalise (rounding can drift it off 1.0).
   const sumFrac = surfaceFraction.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < surfaceFraction.length; i++) surfaceFraction[i] /= sumFrac;
+  for (let i = 0; i < surfaceFraction.length; i++)
+    surfaceFraction[i] /= sumFrac;
 
   const l2ClusterMap = new Map<string, ClusterMeta>();
   const l1ClusterMap = new Map<string, ClusterMeta>();
@@ -684,7 +696,9 @@ function placeNodesInSlice<T extends { x: number; y: number; r: number }>(
   for (let r = 0; r < rows; r++) {
     const rowCols = Math.max(
       1,
-      Math.round((count * (rowMidR(r) * sliceSpan)) / (densityCell * totalCapacity)),
+      Math.round(
+        (count * (rowMidR(r) * sliceSpan)) / (densityCell * totalCapacity),
+      ),
     );
     for (let c = 0; c < rowCols; c++) {
       slots.push({ row: r, col: c, cols: rowCols });
@@ -696,7 +710,11 @@ function placeNodesInSlice<T extends { x: number; y: number; r: number }>(
   // outermost row.
   while (slots.length < count) {
     const r = rows - 1;
-    slots.push({ row: r, col: slots.length, cols: slots[slots.length - 1].cols + 1 });
+    slots.push({
+      row: r,
+      col: slots.length,
+      cols: slots[slots.length - 1].cols + 1,
+    });
   }
   // Deterministic pseudo-random for jitter, indexed by item id.
   const hash = (n: number) => {
@@ -711,10 +729,12 @@ function placeNodesInSlice<T extends { x: number; y: number; r: number }>(
     // Hex offset: alternate rows shift by half a column.
     const colShift = slot.row % 2 === 0 ? 0 : 0.5 / slot.cols;
     const a =
-      cluster.startAngle + sliceSpan * (colFrac + colShift) +
+      cluster.startAngle +
+      sliceSpan * (colFrac + colShift) +
       (hash(i) - 0.5) * (sliceSpan / slot.cols) * 0.45;
     const r =
-      rowMid + (hash(i + 9311) - 0.5) * Math.min(densityCell * 0.85, thickness / rows);
+      rowMid +
+      (hash(i + 9311) - 0.5) * Math.min(densityCell * 0.85, thickness / rows);
     const node = factory(i);
     node.x = center.x + Math.cos(a) * r;
     node.y = center.y + Math.sin(a) * r;

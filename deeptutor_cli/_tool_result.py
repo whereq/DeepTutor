@@ -82,7 +82,7 @@ class ToolResultEntry:
 
     index: int  # 1-based, monotonically increasing per REPL session
     label: str  # tool name as reported by the stream
-    body: str   # untruncated text
+    body: str  # untruncated text
 
 
 @dataclass(slots=True)

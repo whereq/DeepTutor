@@ -83,10 +83,9 @@ class UsageTracker:
             from deeptutor.logging.stats.llm_stats import get_pricing
 
             pricing = get_pricing(self.model)
-            cost_usd = (
-                (self.prompt_tokens / 1000.0) * pricing.get("input", 0.0)
-                + (self.completion_tokens / 1000.0) * pricing.get("output", 0.0)
-            )
+            cost_usd = (self.prompt_tokens / 1000.0) * pricing.get("input", 0.0) + (
+                self.completion_tokens / 1000.0
+            ) * pricing.get("output", 0.0)
         return {
             "total_cost_usd": cost_usd,
             "total_tokens": self.total_tokens,

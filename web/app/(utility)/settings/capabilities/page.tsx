@@ -62,7 +62,9 @@ interface CapabilitiesSettingsDTO {
   math_animator: SimpleLLMBlock;
 }
 
-function isValidCapabilitiesDTO(value: unknown): value is CapabilitiesSettingsDTO {
+function isValidCapabilitiesDTO(
+  value: unknown,
+): value is CapabilitiesSettingsDTO {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   const chat = v.chat as Record<string, unknown> | undefined;
@@ -83,7 +85,9 @@ function isValidCapabilitiesDTO(value: unknown): value is CapabilitiesSettingsDT
 export default function CapabilitiesSettingsPage() {
   const { t } = useTranslation();
   const { registerExtension } = useSettings();
-  const [settings, setSettings] = useState<CapabilitiesSettingsDTO | null>(null);
+  const [settings, setSettings] = useState<CapabilitiesSettingsDTO | null>(
+    null,
+  );
   const [serverSnapshot, setServerSnapshot] =
     useState<CapabilitiesSettingsDTO | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -114,7 +118,9 @@ export default function CapabilitiesSettingsPage() {
       setLoadError(null);
     } catch (err) {
       setLoadError(
-        err instanceof Error ? err.message : t("Failed to load capability settings."),
+        err instanceof Error
+          ? err.message
+          : t("Failed to load capability settings."),
       );
     }
   }, [t]);
@@ -158,10 +164,7 @@ export default function CapabilitiesSettingsPage() {
     return () => registerExtension("capabilities", null);
   }, [dirty, save, registerExtension]);
 
-  function patchChat<K extends keyof ChatBlock>(
-    key: K,
-    value: ChatBlock[K],
-  ) {
+  function patchChat<K extends keyof ChatBlock>(key: K, value: ChatBlock[K]) {
     if (!settings) return;
     setSettings({ ...settings, chat: { ...settings.chat, [key]: value } });
   }
@@ -198,9 +201,7 @@ export default function CapabilitiesSettingsPage() {
     setSettings({ ...settings, research: { ...settings.research, ...value } });
   }
 
-  function patchResearching(
-    value: Partial<ResearchExtras["researching"]>,
-  ) {
+  function patchResearching(value: Partial<ResearchExtras["researching"]>) {
     if (!settings) return;
     setSettings({
       ...settings,
@@ -216,9 +217,7 @@ export default function CapabilitiesSettingsPage() {
     setSettings({ ...settings, question: { ...settings.question, ...value } });
   }
 
-  function patchExploring(
-    value: Partial<QuestionExtras["exploring"]>,
-  ) {
+  function patchExploring(value: Partial<QuestionExtras["exploring"]>) {
     if (!settings) return;
     setSettings({
       ...settings,
@@ -333,7 +332,9 @@ export default function CapabilitiesSettingsPage() {
 
       <SettingSection
         title={t("Solve")}
-        description={t("Deep solve pipeline: chained THINK / TOOL / FINISH / REPLAN loop.")}
+        description={t(
+          "Deep solve pipeline: chained THINK / TOOL / FINISH / REPLAN loop.",
+        )}
       >
         <NumberRow
           label={t("Temperature")}
@@ -364,7 +365,9 @@ export default function CapabilitiesSettingsPage() {
         />
         <NumberRow
           label={t("Max replans")}
-          help={t("How many times the planner may revise the plan within one turn.")}
+          help={t(
+            "How many times the planner may revise the plan within one turn.",
+          )}
           value={settings.solve.max_replans}
           onChange={(n) => patchSolveExtras({ max_replans: n })}
           min={0}

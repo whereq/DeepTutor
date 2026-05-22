@@ -12,14 +12,14 @@ stays stable while the implementation switches under the hood.
 
 from __future__ import annotations
 
-from deeptutor.services.memory.consolidator.modes.audit import run_audit
-from deeptutor.services.memory.consolidator.modes.dedup import run_dedup
-from deeptutor.services.memory.consolidator.modes.merge import run_merge
-from deeptutor.services.memory.consolidator.modes.update import run_update
 from deeptutor.services.memory.consolidator.modes._shims import (
     consolidate_l2,
     consolidate_l3,
 )
+from deeptutor.services.memory.consolidator.modes.audit import run_audit
+from deeptutor.services.memory.consolidator.modes.dedup import run_dedup
+from deeptutor.services.memory.consolidator.modes.merge import run_merge
+from deeptutor.services.memory.consolidator.modes.update import run_update
 
 __all__ = [
     "consolidate_l2",

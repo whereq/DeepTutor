@@ -11,8 +11,18 @@ from deeptutor.services.memory.consolidator.chunker import (
 
 
 def test_empty_input_returns_no_chunks() -> None:
-    assert chunk_with_boundary("", budget=5, overlap_ratio=0.1, min_chunk_chars=100, max_chunk_chars=1000) == []
-    assert chunk_with_boundary("    \n\n", budget=5, overlap_ratio=0.1, min_chunk_chars=100, max_chunk_chars=1000) == []
+    assert (
+        chunk_with_boundary(
+            "", budget=5, overlap_ratio=0.1, min_chunk_chars=100, max_chunk_chars=1000
+        )
+        == []
+    )
+    assert (
+        chunk_with_boundary(
+            "    \n\n", budget=5, overlap_ratio=0.1, min_chunk_chars=100, max_chunk_chars=1000
+        )
+        == []
+    )
 
 
 def test_short_input_yields_one_chunk_covering_everything() -> None:
@@ -27,7 +37,12 @@ def test_short_input_yields_one_chunk_covering_everything() -> None:
 def test_paragraph_boundary_extends_right_edge() -> None:
     text = "A" * 100 + "\n\n" + "B" * 100 + "\n\n" + "C" * 100
     chunks = chunk_with_boundary(
-        text, budget=2, overlap_ratio=0.0, min_chunk_chars=50, max_chunk_chars=400, boundary="paragraph"
+        text,
+        budget=2,
+        overlap_ratio=0.0,
+        min_chunk_chars=50,
+        max_chunk_chars=400,
+        boundary="paragraph",
     )
     # First chunk's end should land at a paragraph boundary (or end of text when budget=1).
     assert chunks[0].text.endswith("\n\n") or chunks[0].end == len(text)
@@ -52,7 +67,7 @@ def test_sentence_boundary_used_when_configured() -> None:
 
 
 def test_budget_caps_chunk_count() -> None:
-    text = ("paragraph body. " * 20 + "\n\n") * 30   # ~ 10k chars
+    text = ("paragraph body. " * 20 + "\n\n") * 30  # ~ 10k chars
     chunks = chunk_with_boundary(
         text, budget=5, overlap_ratio=0.1, min_chunk_chars=200, max_chunk_chars=8000
     )
@@ -87,6 +102,7 @@ def test_max_chunk_chars_protects_against_huge_chunks() -> None:
     # 1 chunk is impossible if max=5000 and input=100k; multiple chunks expected.
     assert len(chunks) > 1
     assert all(c.end - c.start <= 5000 * 2 for c in chunks)  # boundary extension may push over
+
 
 @pytest.mark.parametrize("budget", [1, 5, 20, 100])
 def test_no_data_loss_chunks_cover_full_text(budget: int) -> None:

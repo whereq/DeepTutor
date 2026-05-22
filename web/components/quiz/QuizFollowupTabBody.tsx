@@ -144,7 +144,8 @@ export default function QuizFollowupTabBody({
               <div className="text-[13px] leading-relaxed text-[var(--foreground)]">
                 <MarkdownRenderer
                   content={
-                    isCoding && !context.userAnswer.trimStart().startsWith("```")
+                    isCoding &&
+                    !context.userAnswer.trimStart().startsWith("```")
                       ? `\`\`\`python\n${context.userAnswer}\n\`\`\``
                       : context.userAnswer
                   }
@@ -210,10 +211,7 @@ export default function QuizFollowupTabBody({
               visibleMessages.map((message, index) => {
                 if (message.role === "user") {
                   return (
-                    <div
-                      key={`user-${index}`}
-                      className="flex justify-end"
-                    >
+                    <div key={`user-${index}`} className="flex justify-end">
                       <div className="max-w-[88%] whitespace-pre-wrap break-words rounded-[14px] rounded-br-md bg-[var(--primary)] px-3 py-2 text-[13px] leading-[1.6] text-[var(--primary-foreground)]">
                         {message.content}
                       </div>
@@ -235,10 +233,7 @@ export default function QuizFollowupTabBody({
                     message={message}
                     isStreaming={isStreamingThis}
                     onSubmitUserReply={(reply) =>
-                      controller.submitAskUserReply(
-                        context.questionKey,
-                        reply,
-                      )
+                      controller.submitAskUserReply(context.questionKey, reply)
                     }
                   />
                 );

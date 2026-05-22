@@ -84,7 +84,9 @@ class ToolsListResponse(BaseModel):
     enabled_optional_tools: list[str]
 
 
-def _serialise_definition(definition: ToolDefinition) -> tuple[str, str, list[ToolParameterPayload]]:
+def _serialise_definition(
+    definition: ToolDefinition,
+) -> tuple[str, str, list[ToolParameterPayload]]:
     params = [
         ToolParameterPayload(
             name=p.name,
@@ -176,9 +178,7 @@ async def list_builtin_tools() -> ToolsListResponse:
                 )
             )
         except Exception:
-            logger.exception(
-                "Failed to serialise coming-soon tool %s", tool_type.__name__
-            )
+            logger.exception("Failed to serialise coming-soon tool %s", tool_type.__name__)
     # Guard against the unlikely case of name collision (e.g. someone
     # accidentally registers the same tool both as built-in and coming-soon).
     seen: set[str] = set()

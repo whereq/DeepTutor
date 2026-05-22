@@ -66,9 +66,15 @@ export default function MemoryL1Workbench({
   // highlight on first mount. The URL only drives initial state; once the
   // user clicks around the rail it's all local state again.
   const [surface, setSurface] = useState<Surface>(initialSurface || "notebook");
-  const [counts, setCounts] = useState<Record<Surface, number>>({} as Record<Surface, number>);
-  const [pending, setPending] = useState<Record<Surface, number>>({} as Record<Surface, number>);
-  const [focusRef, setFocusRef] = useState<string | null>(initialFocusRef ?? null);
+  const [counts, setCounts] = useState<Record<Surface, number>>(
+    {} as Record<Surface, number>,
+  );
+  const [pending, setPending] = useState<Record<Surface, number>>(
+    {} as Record<Surface, number>,
+  );
+  const [focusRef, setFocusRef] = useState<string | null>(
+    initialFocusRef ?? null,
+  );
   const [toast, setToast] = useState("");
 
   // Fetch counts + pending badges for the left rail in parallel.
@@ -89,10 +95,16 @@ export default function MemoryL1Workbench({
       }),
     );
     setCounts(
-      Object.fromEntries(entries.map(([k, n]) => [k, n])) as Record<Surface, number>,
+      Object.fromEntries(entries.map(([k, n]) => [k, n])) as Record<
+        Surface,
+        number
+      >,
     );
     setPending(
-      Object.fromEntries(entries.map(([k, , p]) => [k, p])) as Record<Surface, number>,
+      Object.fromEntries(entries.map(([k, , p]) => [k, p])) as Record<
+        Surface,
+        number
+      >,
     );
   }, []);
 
@@ -121,13 +133,10 @@ export default function MemoryL1Workbench({
     return () => clearTimeout(id);
   }, [toast]);
 
-  const nicelabel = useMemo(
-    () => {
-      const entry = L1_NAV.find((n) => n.key === surface);
-      return entry ? t(entry.label) : surface;
-    },
-    [surface, t],
-  );
+  const nicelabel = useMemo(() => {
+    const entry = L1_NAV.find((n) => n.key === surface);
+    return entry ? t(entry.label) : surface;
+  }, [surface, t]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 px-6 py-4 md:px-10">
@@ -209,7 +218,12 @@ export default function MemoryL1Workbench({
 function LayerSwitcher({ t }: { t: (k: string) => string }) {
   // L1 is the current page, so it stays as a non-link pill; L2 + L3
   // link to their respective hubs.
-  const entries: { key: "L1" | "L2" | "L3"; href: string; icon: LucideIcon; label: string }[] = [
+  const entries: {
+    key: "L1" | "L2" | "L3";
+    href: string;
+    icon: LucideIcon;
+    label: string;
+  }[] = [
     { key: "L1", href: "/memory/l1", icon: Layers, label: t("L1") },
     { key: "L2", href: "/memory/l2", icon: Workflow, label: t("L2") },
     { key: "L3", href: "/memory/l3", icon: Network, label: t("L3") },
@@ -244,13 +258,7 @@ function LayerSwitcher({ t }: { t: (k: string) => string }) {
   );
 }
 
-function Breadcrumb({
-  label,
-  t,
-}: {
-  label: string;
-  t: (k: string) => string;
-}) {
+function Breadcrumb({ label, t }: { label: string; t: (k: string) => string }) {
   return (
     <div className="flex items-center gap-2 text-[12.5px]">
       <Link

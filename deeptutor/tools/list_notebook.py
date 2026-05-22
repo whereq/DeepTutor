@@ -17,9 +17,9 @@ quote the rendered list back to the user without reformatting.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import datetime as _dt
 import logging
-from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -115,23 +115,14 @@ def _render_records(manager: Any, notebook_id: str) -> ListOutcome:
     # error message can tell the model the right ids to choose from.
     notebooks = manager.list_notebooks() or []
     matched = next(
-        (
-            nb
-            for nb in notebooks
-            if str(nb.get("id") or "").strip() == notebook_id
-        ),
+        (nb for nb in notebooks if str(nb.get("id") or "").strip() == notebook_id),
         None,
     )
     if matched is None:
-        valid_ids = ", ".join(
-            f"`{nb.get('id')}`" for nb in notebooks if nb.get("id")
-        )
+        valid_ids = ", ".join(f"`{nb.get('id')}`" for nb in notebooks if nb.get("id"))
         return ListOutcome(
             ok=False,
-            error=(
-                f"Unknown notebook_id {notebook_id!r}. "
-                f"Valid ids: {valid_ids or '(none)'}."
-            ),
+            error=(f"Unknown notebook_id {notebook_id!r}. Valid ids: {valid_ids or '(none)'}."),
         )
 
     try:
@@ -178,9 +169,7 @@ def _render_records(manager: Any, notebook_id: str) -> ListOutcome:
         if summary:
             lines.append(f"  {summary}")
     if total > len(sliced):
-        lines.append(
-            f"\n_(showing {len(sliced)} most-recent of {total} records.)_"
-        )
+        lines.append(f"\n_(showing {len(sliced)} most-recent of {total} records.)_")
     return ListOutcome(
         ok=True,
         text="\n".join(lines),

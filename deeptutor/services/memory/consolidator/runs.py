@@ -45,8 +45,8 @@ _MAX_HISTORY = 200
 
 @dataclass
 class RunEvent:
-    seq: int                    # 0-based, monotonic per run
-    ts: str                     # ISO-8601 UTC
+    seq: int  # 0-based, monotonic per run
+    ts: str  # ISO-8601 UTC
     payload: dict[str, Any]
 
 
@@ -172,9 +172,7 @@ class RunManager:
         """
         async with self._lock:
             if self.active_for(layer, key) is not None:
-                raise RunBusyError(
-                    f"a run is already in progress for {layer}/{key}"
-                )
+                raise RunBusyError(f"a run is already in progress for {layer}/{key}")
             run = Run(
                 id=uuid.uuid4().hex,
                 layer=layer,
@@ -270,6 +268,7 @@ class RunManager:
         run.status = "running"
         await self._emit(run, {"stage": "run_started", "run_id": run.id, "mode": run.mode})
         try:
+
             async def on_event(evt: dict[str, Any]) -> None:
                 await self._emit(run, evt)
 

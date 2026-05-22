@@ -431,7 +431,9 @@ function FollowupChatComposerImpl({ context }: FollowupChatComposerProps) {
     );
   }, []);
   const handleRemoveBookReference = useCallback((bookId: string) => {
-    setSelectedBookReferences((prev) => prev.filter((b) => b.bookId !== bookId));
+    setSelectedBookReferences((prev) =>
+      prev.filter((b) => b.bookId !== bookId),
+    );
   }, []);
   const handleRemoveNotebook = useCallback((notebookId: string) => {
     setSelectedNotebookRecords((prev) =>
@@ -503,8 +505,7 @@ function FollowupChatComposerImpl({ context }: FollowupChatComposerProps) {
       if (!hasContent && !hasReferences) return;
       if (thread.isStreaming) return;
 
-      const isFirstSend =
-        !thread.sessionId && thread.messages.length === 0;
+      const isFirstSend = !thread.sessionId && thread.messages.length === 0;
       const answerImageAttachments = isFirstSend
         ? context.answerImages
             .map((image) => {
@@ -538,9 +539,7 @@ function FollowupChatComposerImpl({ context }: FollowupChatComposerProps) {
         mime_type: a.mimeType,
       }));
 
-      const skillsPayload = skillsAutoMode
-        ? ["auto"]
-        : [...selectedSkills];
+      const skillsPayload = skillsAutoMode ? ["auto"] : [...selectedSkills];
 
       const baseConfig = buildQuizFollowupConfig(
         context.question,

@@ -38,7 +38,10 @@ function ResolveInner() {
           if (cancelled) return;
           setError(
             res.status === 404
-              ? t("Entry {{id}} not found in any L2 doc — it may have been deleted.", { id })
+              ? t(
+                  "Entry {{id}} not found in any L2 doc — it may have been deleted.",
+                  { id },
+                )
               : t("Resolver failed ({{code}})", { code: res.status }),
           );
           return;

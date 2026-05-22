@@ -1,6 +1,5 @@
 from deeptutor.core.agentic.labels import classify_label, find_inline_labels
 
-
 _ALLOWED = ("FINISH", "TOOL", "THINK", "PAUSE")
 
 
@@ -56,7 +55,10 @@ def test_find_inline_labels_detects_tolerated_label_variants() -> None:
 
 
 def test_find_inline_labels_ignores_prose_mentions() -> None:
-    assert find_inline_labels(
-        "I should use ``TOOL`` next, then finish with ``FINISH``.",
-        allowed_labels=_ALLOWED,
-    ) == []
+    assert (
+        find_inline_labels(
+            "I should use ``TOOL`` next, then finish with ``FINISH``.",
+            allowed_labels=_ALLOWED,
+        )
+        == []
+    )

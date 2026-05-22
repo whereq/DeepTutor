@@ -128,12 +128,14 @@ def _from_dict(cls: type, raw: Any) -> Any:
     for f in fields(cls):
         provided = raw.get(f.name)
         default = getattr(instance_defaults, f.name)
-        if is_dataclass(f.type) if isinstance(f.type, type) else False:
+        if isinstance(f.type, type) and is_dataclass(f.type):
             kwargs[f.name] = _from_dict(f.type, provided) if provided is not None else default
             continue
         # nested dataclass detection through the actual default type
         if is_dataclass(default):
-            kwargs[f.name] = _from_dict(type(default), provided) if provided is not None else default
+            kwargs[f.name] = (
+                _from_dict(type(default), provided) if provided is not None else default
+            )
             continue
         kwargs[f.name] = _coerce_scalar(f.name, provided, default)
     return cls(**kwargs)
@@ -146,21 +148,21 @@ def _coerce_scalar(name: str, raw: Any, default: Any) -> Any:
         return bool(raw)
     if isinstance(default, int):
         try:
-            value = int(raw)
+            int_value = int(raw)
         except (TypeError, ValueError):
             return default
-        return _clamp_int(name, value, default)
+        return _clamp_int(name, int_value, default)
     if isinstance(default, float):
         try:
-            value = float(raw)
+            float_value = float(raw)
         except (TypeError, ValueError):
             return default
-        return _clamp_float(name, value, default)
+        return _clamp_float(name, float_value, default)
     if isinstance(default, str):
-        value = str(raw)
-        if name == "boundary" and value not in _BOUNDARIES:
+        str_value = str(raw)
+        if name == "boundary" and str_value not in _BOUNDARIES:
             return default
-        return value
+        return str_value
     return raw
 
 

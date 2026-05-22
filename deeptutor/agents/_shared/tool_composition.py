@@ -26,7 +26,6 @@ from typing import Any
 
 from deeptutor.tools.builtin import BUILTIN_TOOL_NAMES, USER_TOGGLEABLE_TOOL_NAMES
 
-
 # Tools whose mounting is owned by the pipeline (auto-on under specific
 # context conditions), not by the user's composer toggles. Adding a tool
 # here hides it from ``{tool_list}`` until its corresponding condition
@@ -135,7 +134,10 @@ def user_has_memory() -> bool:
         from deeptutor.services.memory import get_memory_store
 
         store = get_memory_store()
-        return any(store.read_raw("L3", slot).strip() for slot in ("recent", "profile", "scope", "preferences"))
+        return any(
+            store.read_raw("L3", slot).strip()
+            for slot in ("recent", "profile", "scope", "preferences")
+        )
     except Exception:
         return False
 

@@ -49,9 +49,7 @@ def build_openai_client(config: LLMClientConfig) -> Any:
     if load_system_settings()["disable_ssl_verify"]:
         http_client = httpx.AsyncClient(verify=False)  # nosec B501
     default_headers = config.extra_headers or None
-    if config.binding == "azure_openai" or (
-        config.binding == "openai" and config.api_version
-    ):
+    if config.binding == "azure_openai" or (config.binding == "openai" and config.api_version):
         return AsyncAzureOpenAI(
             api_key=config.api_key or "sk-no-key-required",
             azure_endpoint=config.base_url,

@@ -5,7 +5,15 @@ import { Suspense } from "react";
 
 import MemoryWorkbench from "@/components/memory/MemoryWorkbench";
 
-const SURFACES = ["chat", "notebook", "quiz", "kb", "book", "tutorbot", "cowriter"];
+const SURFACES = [
+  "chat",
+  "notebook",
+  "quiz",
+  "kb",
+  "book",
+  "tutorbot",
+  "cowriter",
+];
 
 function L2WorkbenchInner() {
   // ``?focus=m_xxx`` is the deep-link contract used by the resolver
@@ -18,7 +26,9 @@ function L2WorkbenchInner() {
     notFound();
   }
   const focus = search.get("focus") || undefined;
-  return <MemoryWorkbench layer="L2" initialKey={surface} initialFocus={focus} />;
+  return (
+    <MemoryWorkbench layer="L2" initialKey={surface} initialFocus={focus} />
+  );
 }
 
 export default function MemoryL2WorkbenchPage() {
