@@ -5,7 +5,7 @@
 # DeepTutor: Agent-Native Personalized Tutoring
 
 <p align="center">
-  <a href="https://deeptutor.info" target="_blank"><kbd>&nbsp;&nbsp;<b>Docs</b>&nbsp;·&nbsp;deeptutor.info&nbsp;&nbsp;↗&nbsp;&nbsp;</kbd></a>
+  <a href="https://deeptutor.info" target="_blank"><img alt="Docs — deeptutor.info" src="https://img.shields.io/badge/Docs-deeptutor.info%20%E2%86%97-0A0A0A?style=for-the-badge&labelColor=F5F5F4" height="36"></a>
 </p>
 
 <a href="https://trendshift.io/repositories/17099" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17099" alt="HKUDS%2FDeepTutor | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
